@@ -1,0 +1,53 @@
+[build-system]
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[project]
+name = "jsonreshape"
+version = "0.1.0"
+description = "Katta JSON fayllar uchun ko'ruvchi, muharrir va tuzilma quruvchi (viewer, editor and reshaper for huge JSON files)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+dependencies = [
+    "orjson>=3.10",
+    "ijson>=3.3",
+    "xlsxwriter>=3.2",
+    "jmespath>=1.0",
+    "psutil>=5.9",
+]
+
+[project.optional-dependencies]
+gui = ["PySide6>=6.8"]
+dev = [
+    "pytest>=8",
+    "pytest-qt>=4.4",
+    "pytest-timeout>=2.3",
+    "hypothesis>=6.100",
+    "openpyxl>=3.1",
+    "maturin>=1.9,<2",
+]
+
+[project.scripts]
+jsonreshape = "jsonreshape.cli:main"
+
+[project.gui-scripts]
+jsonreshape-gui = "jsonreshape.gui.app:main"
+
+[tool.maturin]
+manifest-path = "rust/Cargo.toml"
+module-name = "jsonreshape.core._rscore"
+python-source = "."
+python-packages = ["jsonreshape"]
+exclude = ["jsonreshape/**/__pycache__/**"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+timeout = 600
+markers = [
+    "slow: slow tests (seconds)",
+    "bench: big-file benchmark (run with -m bench)",
+    "gui: pytest-qt GUI tests",
+]
+filterwarnings = ["error::pytest.PytestUnraisableExceptionWarning"]

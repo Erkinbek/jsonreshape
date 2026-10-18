@@ -1,0 +1,27 @@
+[package]
+name = "jsonreshape-core"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "_rscore"
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+[features]
+# The PyO3 bindings. Pure-Rust unit tests run without them:
+#   cargo test --no-default-features
+default = ["python"]
+python = ["dep:pyo3"]
+
+[dependencies]
+pyo3 = { version = "0.30", features = ["extension-module", "abi3-py311"], optional = true }
+memchr = "2.7"
+aho-corasick = "1.1"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "unwind"

@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyd
+*.pdb
+*.so
+rust/target/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.hypothesis/
+bench/data/
+bench/results/*.tmp

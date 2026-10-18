@@ -1,0 +1,868 @@
+<title>JSON Tuzilma Muharriri</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: toolbar on top; two working panes side by side (structure tree | live preview), stacked on phones */
+:root{
+  --bg:#f2f4f7; --panel:#ffffff; --panel-2:#f6f8fb; --line:#dce1e9; --guide:#e5e9f0;
+  --fg:#17202c; --muted:#5b6677; --faint:#8993a4;
+  --accent:#2a57c4; --accent-ink:#ffffff; --accent-soft:#e6ecfb;
+  --t-object:#4a53b5; --t-array:#a0600f; --t-string:#2b7649; --t-number:#1e68a3; --t-boolean:#8344ad; --t-null:#77808f;
+  --warn:#9a5a08; --danger:#b23434; --ok:#2b7649;
+  --shadow:0 1px 2px rgb(16 24 40 / .05), 0 10px 28px rgb(16 24 40 / .08);
+  --f-display:"Bricolage Grotesque","IBM Plex Sans",system-ui,sans-serif;
+  --f-ui:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"Cascadia Code",Consolas,monospace;
+  --indent:18px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1117; --panel:#151a22; --panel-2:#1a2029; --line:#29303c; --guide:#222934;
+    --fg:#e3e7ef; --muted:#9aa4b5; --faint:#6d7889;
+    --accent:#7e9cff; --accent-ink:#0e1117; --accent-soft:#1d2745;
+    --t-object:#a0a8ff; --t-array:#e2a45a; --t-string:#72cf98; --t-number:#6db5ef; --t-boolean:#c79cf0; --t-null:#8b94a5;
+    --warn:#e2a45a; --danger:#f07a7a; --ok:#72cf98;
+    --shadow:0 1px 2px rgb(0 0 0 / .35), 0 10px 28px rgb(0 0 0 / .4);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1117; --panel:#151a22; --panel-2:#1a2029; --line:#29303c; --guide:#222934;
+  --fg:#e3e7ef; --muted:#9aa4b5; --faint:#6d7889;
+  --accent:#7e9cff; --accent-ink:#0e1117; --accent-soft:#1d2745;
+  --t-object:#a0a8ff; --t-array:#e2a45a; --t-string:#72cf98; --t-number:#6db5ef; --t-boolean:#c79cf0; --t-null:#8b94a5;
+  --warn:#e2a45a; --danger:#f07a7a; --ok:#72cf98;
+  --shadow:0 1px 2px rgb(0 0 0 / .35), 0 10px 28px rgb(0 0 0 / .4);
+  color-scheme:dark;
+}
+
+html,body{height:100%}
+body{
+  box-sizing:border-box; display:flex; flex-direction:column; gap:12px;
+  background:var(--bg); color:var(--fg); font:14px/1.45 var(--f-ui);
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+  padding-block:12px 14px;
+}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ---------- toolbar ---------- */
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.mark{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);font:600 13px var(--f-mono);letter-spacing:-.04em;flex:none}
+.brand h1{margin:0;font:700 18px/1.1 var(--f-display);letter-spacing:-.01em;text-wrap:balance}
+.file{display:flex;align-items:center;gap:8px;min-width:0;padding:4px 10px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+.file b{font:500 12.5px var(--f-mono);color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:28ch}
+.file .tag{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--accent);background:var(--accent-soft);padding:1px 7px;border-radius:999px}
+.spacer{flex:1 1 0}
+.actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.btn{height:32px;padding:0 12px;border-radius:7px;border:1px solid var(--line);background:var(--panel);font-weight:500;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover:not(:disabled){border-color:var(--faint)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.primary{background:var(--accent);border-color:transparent;color:var(--accent-ink)}
+.btn.primary:hover:not(:disabled){filter:brightness(1.07)}
+.chk{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer}
+.chk input{accent-color:var(--accent);margin:0}
+
+/* ---------- panes ---------- */
+.work{flex:1 1 auto;min-height:0;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:12px}
+.pane{min-width:0;min-height:0;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.pane-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.pane-title{font-size:11.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.pane-sub{font-size:12.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+.pane-body{flex:1 1 auto;min-height:0;overflow:auto}
+.hint{padding:8px 12px;border-bottom:1px solid var(--line);background:var(--panel-2);font-size:12.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 16px}
+.hint span{white-space:nowrap}
+.hint kbd{font:500 11.5px var(--f-mono);color:var(--fg)}
+.mini{height:26px;padding:0 9px;border-radius:6px;border:1px solid var(--line);background:transparent;font-size:12px;color:var(--muted);cursor:pointer}
+.mini:hover{color:var(--fg);border-color:var(--faint)}
+
+.banner{margin:10px 12px 0;padding:10px 12px;border-radius:8px;border:1px solid color-mix(in srgb, var(--danger) 40%, transparent);background:color-mix(in srgb, var(--danger) 8%, var(--panel));font-size:13px}
+.banner strong{color:var(--danger)}
+.banner code{display:block;margin-top:6px;font:12.5px/1.4 var(--f-mono);white-space:pre-wrap;word-break:break-all;color:var(--fg)}
+
+/* ---------- tree ---------- */
+.tree{font-family:var(--f-mono);font-size:13px;padding:6px 0 28px}
+.row{
+  position:relative;display:flex;align-items:center;gap:8px;min-height:31px;
+  padding:2px 8px 2px calc(8px + var(--d) * var(--indent));
+  background-image:repeating-linear-gradient(to right, var(--guide) 0 1px, transparent 1px var(--indent));
+  background-size:calc(var(--d) * var(--indent)) 100%;background-position:16px 0;background-repeat:no-repeat;
+  cursor:grab;user-select:none
+}
+.row:hover{background-color:var(--panel-2)}
+.row.root,.row.elem{cursor:default}
+.row.dragging{opacity:.4}
+.caret{flex:none;width:20px;height:20px;border:0;border-radius:5px;background:transparent;padding:0;display:grid;place-items:center;color:var(--muted);cursor:pointer}
+.caret:hover{background:var(--accent-soft);color:var(--accent)}
+span.caret{cursor:inherit}
+.caret svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;transition:transform .12s}
+.caret.open svg{transform:rotate(90deg)}
+.key{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.root-key{font-weight:600}
+.elem-key{font-family:var(--f-ui);font-style:italic;font-weight:400;color:var(--muted);font-size:13px}
+.types{display:inline-flex;gap:3px;flex:none}
+.t{font:500 11px/1 var(--f-mono);padding:3px 5px;border-radius:4px;color:var(--c);background:color-mix(in srgb, var(--c) 12%, transparent)}
+.t-object{--c:var(--t-object)} .t-array{--c:var(--t-array)} .t-string{--c:var(--t-string)}
+.t-number{--c:var(--t-number)} .t-boolean{--c:var(--t-boolean)} .t-null{--c:var(--t-null)}
+.pct,.cnt{flex:none;font:500 11.5px var(--f-ui);color:var(--faint);font-variant-numeric:tabular-nums}
+.badges{display:inline-flex;flex-wrap:nowrap;gap:4px;flex:none}
+.b{font:500 11px/1 var(--f-ui);padding:3px 7px;border-radius:999px;white-space:nowrap;color:var(--c);border:1px solid color-mix(in srgb, var(--c) 35%, transparent)}
+.b-new,.b-mv{--c:var(--accent)} .b-ren{--c:var(--muted)} .b-gat{--c:var(--warn)} .b-bc{--c:var(--t-boolean)}
+.b-rec{--c:var(--ok)} .b-comp{--c:var(--muted)} .b-src{--c:var(--t-array)}
+.sample{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--faint);font-size:12px}
+.acts{flex:none;display:flex;gap:1px;opacity:0;transition:opacity .1s}
+.row:hover .acts,.row:focus-within .acts{opacity:1}
+@media (hover:none){.acts{opacity:1}}
+.ib{width:26px;height:26px;border:0;border-radius:6px;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer;padding:0}
+.ib:hover{background:var(--accent-soft);color:var(--accent)}
+.ib.danger:hover{background:color-mix(in srgb, var(--danger) 12%, transparent);color:var(--danger)}
+.ib svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.rename{flex:0 1 220px;min-width:80px;height:24px;padding:0 6px;border:1px solid var(--accent);border-radius:5px;background:var(--panel);font:500 13px var(--f-mono)}
+.row.more{cursor:default;background-image:none}
+.row.more button{border:0;background:transparent;color:var(--accent);font:500 12.5px var(--f-ui);cursor:pointer;padding:4px 0}
+
+.row.drop-before::before,.row.drop-after::after{content:"";position:absolute;left:calc(8px + var(--d) * var(--indent));right:8px;height:2px;border-radius:2px;background:var(--accent)}
+.row.drop-before::before{top:-1px}
+.row.drop-after::after{bottom:-1px}
+.row.drop-inside{background-color:var(--accent-soft);box-shadow:inset 0 0 0 1.5px var(--accent);border-radius:6px}
+
+/* ---------- preview ---------- */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{height:28px;padding:0 12px;border:0;background:transparent;font-size:12.5px;font-weight:500;color:var(--muted);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
+.nav{display:inline-flex;align-items:center;gap:6px;margin-left:auto;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.nav button{width:28px;height:28px;border-radius:6px;border:1px solid var(--line);background:transparent;cursor:pointer;color:var(--fg)}
+.nav button:disabled{opacity:.4;cursor:default}
+.nav input{width:64px;height:28px;border:1px solid var(--line);border-radius:6px;background:var(--panel);text-align:center;font:500 12.5px var(--f-mono)}
+pre.json{margin:0;padding:14px 16px 24px;font:12.5px/1.55 var(--f-mono);white-space:pre;tab-size:2}
+.j-key{color:var(--fg)} .j-str{color:var(--t-string)} .j-num{color:var(--t-number)} .j-bool{color:var(--t-boolean)} .j-null{color:var(--t-null)}
+.j-more{color:var(--faint);font-style:italic}
+.foot{padding:8px 12px;border-top:1px solid var(--line);font-size:12px;color:var(--faint)}
+
+/* ---------- toast & file overlay ---------- */
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom, 0px));transform:translateX(-50%);max-width:min(560px, calc(100% - 32px));padding:10px 14px;border-radius:9px;background:var(--fg);color:var(--bg);font-size:13px;box-shadow:var(--shadow);z-index:30}
+.drop-file{position:fixed;inset:0;z-index:40;display:grid;place-items:center;background:color-mix(in srgb, var(--bg) 80%, transparent);padding:24px}
+.drop-file div{padding:32px 40px;border:2px dashed var(--accent);border-radius:14px;background:var(--panel);font:600 16px var(--f-ui);color:var(--accent);text-align:center}
+
+@media (max-width: 860px){
+  html,body{height:auto}
+  .work{grid-template-columns:minmax(0,1fr)}
+  .pane-body{max-height:68vh}
+  .file b{max-width:16ch}
+}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<header class="bar">
+  <div class="brand"><span class="mark" aria-hidden="true">{ }</span><h1>JSON Tuzilma Muharriri</h1></div>
+  <div class="file" id="fileChip"></div>
+  <div class="spacer"></div>
+  <div class="actions">
+    <input type="file" id="fileInput" accept=".json,.jsonl,.txt,application/json" hidden>
+    <button class="btn" id="btnOpen" type="button">Fayl ochish</button>
+    <button class="btn" id="btnUndo" type="button" title="Ctrl+Z">Qaytarish</button>
+    <button class="btn" id="btnReset" type="button">Asl holat</button>
+    <label class="chk" for="chkCompact"><input type="checkbox" id="chkCompact">Ixcham</label>
+    <button class="btn primary" id="btnExport" type="button">Eksport .json</button>
+  </div>
+</header>
+
+<main class="work">
+  <section class="pane" aria-label="Tuzilma">
+    <div class="pane-head">
+      <span class="pane-title">Tuzilma</span>
+      <span class="pane-sub" id="treeStats"></span>
+      <span class="spacer"></span>
+      <button class="mini" id="btnExpand" type="button">Hammasini ochish</button>
+      <button class="mini" id="btnCollapse" type="button">Yig'ish</button>
+    </div>
+    <div class="hint">
+      <span>Sudrab ko'chir: qator <kbd>o'rtasiga</kbd> → ichiga</span>
+      <span><kbd>tepasi / pastiga</kbd> → yoniga</span>
+      <span>massivni massivga → elementlari qo'shiladi</span>
+    </div>
+    <div class="pane-body">
+      <div id="errBox"></div>
+      <div class="tree" id="tree" role="tree"></div>
+    </div>
+  </section>
+
+  <section class="pane" aria-label="Ko'rinish">
+    <div class="pane-head">
+      <span class="pane-title">Ko'rinish</span>
+      <div class="seg" role="group" aria-label="Ko'rinish turi">
+        <button type="button" id="tabOut" aria-pressed="true">Natija</button>
+        <button type="button" id="tabSrc" aria-pressed="false">Asl</button>
+      </div>
+      <div class="nav" id="nav">
+        <button type="button" id="prevRec" aria-label="Oldingi yozuv">‹</button>
+        <input id="recInput" type="text" inputmode="numeric" aria-label="Yozuv raqami">
+        <span id="recTotal"></span>
+        <button type="button" id="nextRec" aria-label="Keyingi yozuv">›</button>
+      </div>
+    </div>
+    <div class="pane-body"><pre class="json" id="preview"></pre></div>
+    <div class="foot" id="foot"></div>
+  </section>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<div class="drop-file" id="dropFile" hidden><div>JSON faylni shu yerga tashla</div></div>
+
+<script>
+/*ENGINE-START*/
+const SEP = '\u0001', WILD = '\u0002', MISSING = Symbol('missing');
+let DATA = null, TREE = null, ORIG = null, ROOT = null, LIMIT = Infinity;
+let BYID = new Map(), PARENT = new Map(), UNDO = [], uid = 0;
+const TYPE_ORDER = ['object', 'array', 'string', 'number', 'boolean', 'null'];
+
+const typeOf = v => v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v === 'object' ? 'object' : typeof v;
+const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+
+/* ---- structure inference ---- */
+function newAcc(){ return {count: 0, objCount: 0, types: new Set(), props: new Map(), elem: null, samples: []}; }
+function inferInto(acc, v){
+  acc.count++;
+  const t = typeOf(v); acc.types.add(t);
+  if (t === 'object'){
+    acc.objCount++;
+    for (const k of Object.keys(v)){
+      let c = acc.props.get(k);
+      if (!c){ c = newAcc(); acc.props.set(k, c); }
+      inferInto(c, v[k]);
+    }
+  } else if (t === 'array'){
+    if (!acc.elem) acc.elem = newAcc();
+    for (const x of v) inferInto(acc.elem, x);
+  } else if (v !== null && acc.samples.length < 3){
+    let s = JSON.stringify(v); if (s.length > 28) s = s.slice(0, 27) + '…';
+    if (!acc.samples.includes(s)) acc.samples.push(s);
+  }
+}
+function mk(o){
+  return Object.assign({id: ++uid, key: '', kind: 'value', src: [], children: [], types: [], count: 0, pcount: null,
+    samples: [], synthetic: false, recKey: null, computed: null, ctx: null, open: false, isElem: false, isRoot: false}, o);
+}
+function fromAcc(acc, key, src, pcount, flags){
+  const kind = acc.types.has('array') ? 'array' : acc.types.has('object') ? 'object' : 'value';
+  const n = mk(Object.assign({key, kind, src, pcount, count: acc.count,
+    types: TYPE_ORDER.filter(t => acc.types.has(t)), samples: acc.samples.slice()}, flags || {}));
+  if (kind === 'object') for (const [k, c] of acc.props) n.children.push(fromAcc(c, k, src.concat([k]), acc.objCount));
+  if (kind === 'array') n.children.push(fromAcc(acc.elem || newAcc(), '', src.concat([WILD]), null, {isElem: true}));
+  return n;
+}
+function countNodes(n){ let c = 1; for (const k of n.children) c += countNodes(k); return c; }
+function setOpen(n, depth, small){
+  n.open = depth <= 1 || (n.isElem && depth <= 3) || (small && depth < 6);
+  for (const c of n.children) setOpen(c, depth + 1, small);
+}
+function buildSchema(data){
+  const acc = newAcc(); inferInto(acc, data);
+  TREE = fromAcc(acc, '', [], null, {isRoot: true});
+  setOpen(TREE, 0, countNodes(TREE) < 160);
+  ORIG = snapshot(); UNDO = [];
+  compileAll();
+}
+
+/* ---- paths & bindings ---- */
+function compile(path){
+  const keys = []; let acc = '';
+  for (let i = 0; i < path.length; i++){ acc = i ? acc + SEP + path[i] : path[i]; keys.push(path[i] === WILD ? acc : null); }
+  return {segs: path, keys, full: acc};
+}
+function compileAll(){
+  BYID = new Map(); PARENT = new Map();
+  (function walk(n, p){
+    BYID.set(n.id, n); if (p) PARENT.set(n.id, p);
+    if (!n.synthetic && !n.computed){ n._cp = compile(n.src); if (n.isElem) n._pcp = compile(n.src.slice(0, -1)); }
+    for (const c of n.children) walk(c, n);
+  })(TREE, null);
+}
+function pathLabel(src){
+  let s = '';
+  for (const seg of src) s += seg === WILD ? '[]' : (s ? '.' : '') + seg;
+  return s || '(ildiz)';
+}
+const bind = (b, k, v) => ({k, v, p: b});
+function look(b, k){ for (; b; b = b.p) if (b.k === k) return b; return null; }
+
+/* Follows a source path. Array steps already bound by an enclosing element are reused;
+   unbound array steps fan out over every element ("gathered"). */
+function resolve(cp, b){
+  const {segs, keys} = cp;
+  let start = 0, val = ROOT;
+  for (let i = segs.length - 1; i >= 0; i--){
+    if (keys[i] !== null){ const h = look(b, keys[i]); if (h){ start = i + 1; val = h.v; break; } }
+  }
+  let br = [{v: val, b}], gathered = false;
+  for (let i = start; i < segs.length && br.length; i++){
+    const s = segs[i], nx = [];
+    if (s === WILD){
+      gathered = true;
+      for (const x of br) if (Array.isArray(x.v)) for (const el of x.v) nx.push({v: el, b: bind(x.b, keys[i], el)});
+    } else {
+      for (const x of br) if (isObj(x.v) && hasOwn(x.v, s)) nx.push({v: x.v[s], b: x.b});
+    }
+    br = nx;
+  }
+  return {br, gathered};
+}
+
+/* ---- transform ---- */
+function setKey(o, k, v){
+  if (k === '__proto__') Object.defineProperty(o, k, {value: v, enumerable: true, writable: true, configurable: true});
+  else o[k] = v;
+}
+function buildObj(n, b){
+  const o = {};
+  for (const c of n.children){ const r = ev(c, b); if (r !== MISSING) setKey(o, c.key, r); }
+  return o;
+}
+function preorder(arr, k){
+  const out = [];
+  (function walk(a, d){
+    for (const el of a){ out.push([el, d]); if (isObj(el) && Array.isArray(el[k])) walk(el[k], d + 1); }
+  })(arr, 1);
+  return out;
+}
+function evElem(E, b, el){
+  if (E.kind === 'object') return isObj(el) ? buildObj(E, b) : el;
+  if (E.kind === 'array') return Array.isArray(el) ? evArray(E, b) : el;
+  return el;
+}
+function evArray(n, b){
+  const out = []; let saw = false, fb = MISSING;
+  outer: for (const E of n.children){
+    if (!E.isElem) continue;
+    const {br} = resolve(E._pcp, b), ek = E._cp.full;
+    for (const x of br){
+      if (!Array.isArray(x.v)){ if (x.v !== undefined && fb === MISSING) fb = x.v; continue; }
+      saw = true;
+      const items = E.recKey ? preorder(x.v, E.recKey) : null;
+      const len = items ? items.length : x.v.length;
+      for (let i = 0; i < len; i++){
+        if (out.length >= LIMIT) break outer;
+        const el = items ? items[i][0] : x.v[i], d = items ? items[i][1] : 1;
+        const r = evElem(E, bind(bind(x.b, ek, el), ek + '#d', d), el);
+        if (r !== MISSING) out.push(r);
+      }
+    }
+  }
+  return saw ? out : fb;
+}
+function ev(n, b){
+  if (n.computed === 'depth'){ const h = look(b, n.ctx + '#d'); return h ? h.v : MISSING; }
+  if (n.synthetic) return buildObj(n, b);
+  if (n.kind === 'array') return evArray(n, b);
+  const {br, gathered} = resolve(n._cp, b);
+  const one = x => x.v === undefined ? MISSING : (n.kind === 'object' && isObj(x.v)) ? buildObj(n, x.b) : x.v;
+  if (gathered){
+    const out = [];
+    for (const x of br){ if (out.length >= LIMIT) break; const r = one(x); if (r !== MISSING) out.push(r); }
+    return out;
+  }
+  return br.length ? one(br[0]) : MISSING;
+}
+function transform(root, limit){
+  compileAll(); ROOT = root; LIMIT = limit || Infinity;
+  try { const r = ev(TREE, null); return r === MISSING ? null : r; }
+  finally { ROOT = DATA; LIMIT = Infinity; }
+}
+
+/* ---- how a node relates to the arrays around it (for badges) ---- */
+function relation(n, ctx){
+  if (n.synthetic || n.computed || n.isElem || n.isRoot) return {};
+  const wk = n._cp.keys.filter(k => k !== null);
+  let last = -1; wk.forEach((k, i) => { if (ctx.includes(k)) last = i; });
+  const near = ctx[ctx.length - 1];
+  return {gathered: wk.length - 1 > last, broadcast: !!near && !wk.includes(near)};
+}
+function isMoved(n, p){
+  if (n.synthetic || n.computed || n.isElem || n.isRoot || !p) return false;
+  if (p.synthetic) return true;
+  return n.src.slice(0, -1).join(SEP) !== (p.src || []).join(SEP);
+}
+
+/* ---- edits ---- */
+function snapshot(){ return JSON.stringify(TREE, (k, v) => k[0] === '_' ? undefined : v); }
+function pushUndo(){ UNDO.push(snapshot()); if (UNDO.length > 100) UNDO.shift(); }
+function undo(){ if (!UNDO.length) return; TREE = JSON.parse(UNDO.pop()); compileAll(); onChange('Oxirgi o\'zgarish bekor qilindi'); }
+function resetTree(){ pushUndo(); TREE = JSON.parse(ORIG); compileAll(); onChange('Asl tuzilma tiklandi'); }
+
+function isWithin(t, n){ for (let x = t; x; x = PARENT.get(x.id)) if (x === n) return true; return false; }
+function uniqueKey(p, key, self){
+  const used = new Set(p.children.filter(c => c !== self && !c.isElem).map(c => c.key));
+  if (!used.has(key)) return key;
+  let i = 2; while (used.has(key + '_' + i)) i++;
+  return key + '_' + i;
+}
+function detach(n){ const p = PARENT.get(n.id); const i = p.children.indexOf(n); if (i >= 0) p.children.splice(i, 1); return p; }
+function canInside(t, n){ return t.kind === 'array' ? n.kind === 'array' : t.kind === 'object'; }
+function canSibling(t){ return !t.isRoot && !t.isElem; }
+function zoneFor(t, n, frac){
+  if (!n || !t || isWithin(t, n)) return null;
+  const ins = canInside(t, n), sib = canSibling(t);
+  if (ins && sib) return frac < 0.28 ? 'before' : frac > 0.72 ? 'after' : 'inside';
+  if (ins) return 'inside';
+  if (sib) return frac < 0.5 ? 'before' : 'after';
+  return null;
+}
+function moveNode(n, t, zone){
+  compileAll();
+  if (!n || !t || isWithin(t, n) || n.isRoot || n.isElem) return;
+  let msg = '';
+  if (zone === 'inside' && t.kind === 'array'){
+    if (n.kind !== 'array') return;
+    pushUndo(); detach(n);
+    for (const E of n.children) t.children.push(E);
+    t.open = true;
+    msg = `«${n.key}» elementlari «${t.isRoot ? 'ildiz' : t.key}» massiviga qo'shildi`;
+  } else if (zone === 'inside'){
+    if (t.kind !== 'object') return;
+    pushUndo(); detach(n);
+    const k = uniqueKey(t, n.key, n); if (k !== n.key) msg = `«${n.key}» nomi band edi, «${k}» deb qo'yildi`;
+    n.key = k; t.children.push(n); t.open = true;
+  } else {
+    if (!canSibling(t)) return;
+    pushUndo();
+    const p = PARENT.get(t.id); detach(n);
+    const i = p.children.indexOf(t) + (zone === 'after' ? 1 : 0);
+    const k = uniqueKey(p, n.key, n); if (k !== n.key) msg = `«${n.key}» nomi band edi, «${k}» deb qo'yildi`;
+    n.key = k; p.children.splice(i, 0, n);
+  }
+  onChange(msg);
+}
+function deleteNode(n){
+  compileAll();
+  if (!n || n.isRoot) return;
+  const p = PARENT.get(n.id);
+  if (n.isElem && p.children.length <= 1) return;
+  pushUndo(); detach(n); onChange(`«${n.isElem ? 'element' : n.key}» natijadan olib tashlandi`);
+}
+function unwrapNode(o){
+  compileAll();
+  if (!o || o.kind !== 'object' || o.isRoot || o.isElem) return;
+  pushUndo();
+  const p = PARENT.get(o.id); let i = p.children.indexOf(o); detach(o);
+  let renamed = 0;
+  for (const c of o.children){
+    const k = uniqueKey(p, c.key, c); if (k !== c.key) renamed++;
+    c.key = k; p.children.splice(i++, 0, c);
+  }
+  onChange(`«${o.key}» ichidagi ${o.children.length} ta maydon bir pog'ona yuqoriga chiqdi` + (renamed ? `, ${renamed} tasining nomiga raqam qo'shildi` : ''));
+}
+function addGroup(t){
+  compileAll();
+  if (!t || t.kind !== 'object') return null;
+  pushUndo();
+  const g = mk({key: uniqueKey(t, 'yangi_guruh', null), kind: 'object', synthetic: true, src: null, types: ['object'], open: true});
+  t.children.push(g); t.open = true;
+  onChange('');
+  return g;
+}
+function renameNode(n, name){
+  compileAll();
+  name = String(name).trim();
+  if (!n || n.isRoot || n.isElem || !name || name === n.key) return;
+  pushUndo();
+  const k = uniqueKey(PARENT.get(n.id), name, n);
+  n.key = k;
+  onChange(k !== name ? `«${name}» band edi, «${k}» deb nomlandi` : '');
+}
+function isUnder(src, base){ return !!src && src.length > base.length && base.every((s, i) => src[i] === s); }
+/* An array whose elements hold another array of the same shape (children → children → …). */
+function findRec(A, E){
+  if (!E.isElem || E.kind !== 'object' || E.recKey) return null;
+  const base = E.src.join(SEP);
+  const cands = E.children.filter(C => C.kind === 'array' && !C.synthetic && C.src.length === E.src.length + 1 &&
+    C.src.slice(0, -1).join(SEP) === base && C.children[0] && C.children[0].kind === 'object');
+  if (!cands.length) return null;
+  const want = A.src && A.src[A.src.length - 1];
+  return cands.find(C => C.src[C.src.length - 1] === want) || cands[0];
+}
+function canFlatten(A){ return A.kind === 'array' && A.children.some(E => findRec(A, E)); }
+function flattenRec(A){
+  compileAll();
+  if (!canFlatten(A)) return;
+  pushUndo();
+  let total = 0, keyName = '';
+  for (const E of A.children){
+    const C = findRec(A, E); if (!C) continue;
+    const k = C.src[C.src.length - 1]; keyName = k;
+    ROOT = DATA;
+    const items = preorder(resolve(compile(E.src), null).br.map(x => x.v), k);
+    const acc = newAcc(); for (const [el] of items) inferInto(acc, el);
+    const foreign = E.children.filter(c => c.synthetic || c.computed || !isUnder(c.src, E.src));
+    const kids = [mk({key: '_depth', kind: 'value', computed: 'depth', ctx: compile(E.src).full, types: ['number'], src: null})];
+    for (const [key, c] of acc.props) if (key !== k) kids.push(fromAcc(c, key, E.src.concat([key]), acc.objCount));
+    E.children = kids.concat(foreign);
+    for (const c of E.children) if (c.computed) c.key = uniqueKey(E, c.key, c);
+    E.recKey = k; E.count = acc.count; E.open = true; total += items.length;
+  }
+  A.open = true;
+  onChange(`«${keyName}» ichidagi barcha darajalar bitta massivga yig'ildi: ${total} ta element`);
+}
+
+/* ---- reading files ---- */
+function parseLoose(text){
+  text = text.replace(/^﻿/, '');
+  try { return {data: JSON.parse(text), fixed: null}; }
+  catch (err){
+    const s = text.trim();
+    if (s[0] === '{' && s[s.length - 1] === '}' && s.slice(1).trimStart()[0] === '{'){
+      try { return {data: JSON.parse('[' + s.slice(1, -1) + ']'), fixed: 'braces'}; } catch (_){}
+    }
+    const lines = s.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length > 1){ try { return {data: lines.map(l => JSON.parse(l)), fixed: 'jsonl'}; } catch (_){} }
+    throw err;
+  }
+}
+function errorLocation(err, text){
+  let line = null, col = null;
+  const lc = /line (\d+) column (\d+)/.exec(err.message);
+  const pm = /position (\d+)/.exec(err.message);
+  if (lc){ line = +lc[1]; col = +lc[2]; }
+  else if (pm){ const before = text.slice(0, +pm[1]); line = before.split('\n').length; col = +pm[1] - before.lastIndexOf('\n'); }
+  const src = line ? (text.split('\n')[line - 1] || '').trim().slice(0, 160) : '';
+  return {line, col, src};
+}
+/*ENGINE-END*/
+</script>
+
+<script>
+const $ = id => document.getElementById(id);
+const treeEl = $('tree'), previewEl = $('preview');
+let FILE = {name: 'namuna.json', size: 0, sample: true};
+let tab = 'out', recIdx = 0, compact = false, DRAG = null, DROP = null, previewTimer = null;
+const PREVIEW_LIMIT = 21;
+
+const SAMPLE = [
+  {"id": 1, "name": "parent1", "statusComment": null,
+   "contact": {"phone": "+998 90 123 45 67", "address": {"city": "Toshkent", "street": "Navoiy 12"}},
+   "children": [
+     {"id": 11, "name": "child1", "statusComment": null, "children": [
+       {"id": 112, "name": "child1.2", "children": [
+         {"id": 1121, "name": "child1.2.1", "children": []},
+         {"id": 1123, "name": "child1.2.3", "statusComment": "ok", "children": []}]}]},
+     {"id": 12, "name": "child2", "children": []}]},
+  {"id": 2, "name": "parent2", "statusComment": "tekshirilgan",
+   "contact": {"phone": "+998 93 555 44 33", "address": {"city": "Samarqand"}},
+   "children": [
+     {"id": 21, "name": "child2.1", "children": [
+       {"id": 211, "name": "child2.1.1", "children": []}]}]}
+];
+
+const DL = (window.claude && typeof window.claude.use === 'function')
+  ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
+
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+const fmtNum = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+const fmtSize = b => b < 1024 ? b + ' B' : b < 1048576 ? (b / 1024).toFixed(1) + ' KB' : (b / 1048576).toFixed(1) + ' MB';
+
+const IC = {
+  caret: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>',
+  group: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h4l1.2 1.5H14v6.5H2z"/><path d="M8 7.6v3.3M6.35 9.25h3.3"/></svg>',
+  unwrap: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3H3v10h10v-3"/><path d="M7.5 8.5L13 3M9.5 3H13v3.5"/></svg>',
+  flat: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h4M5 6.5h4M7 9.5h4M3 12.5h10"/><path d="M12 4v5.5"/></svg>',
+  rename: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 13l.6-2.6 7-7 2 2-7 7z"/><path d="M9.3 4.7l2 2"/></svg>',
+  del: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>'
+};
+const TYPE_GLYPH = {object: ['{ }', 'obyekt'], array: ['[ ]', 'massiv'], string: ['abc', 'matn'], number: ['123', 'son'], boolean: ['t/f', 'mantiqiy'], null: ['null', 'null']};
+
+/* ---------- UI hooks used by the engine ---------- */
+function onChange(msg){ render(); if (msg) toast(msg); }
+let toastTimer = null;
+function toast(msg){
+  const t = $('toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 4200);
+}
+
+/* ---------- tree rendering ---------- */
+function rowHTML(n, depth, p, ctx){
+  const kids = n.children.length > 0;
+  const cls = ['row']; if (n.isElem) cls.push('elem'); if (n.isRoot) cls.push('root');
+  let label;
+  if (n.isRoot) label = `<span class="key root-key">${esc(FILE.name)}</span>`;
+  else if (n.isElem) label = `<span class="key elem-key">${p && p.isRoot ? 'har bir yozuv' : 'har bir element'}</span>`;
+  else label = `<span class="key">${esc(n.key)}</span>`;
+
+  let types;
+  if (n.computed) types = '<span class="t t-number" title="son">123</span>';
+  else if (n.isElem && !n.types.length) types = '<span class="t t-null" title="massiv doim bo\'sh">bo\'sh</span>';
+  else types = n.types.map(t => `<span class="t t-${t}" title="${TYPE_GLYPH[t][1]}">${TYPE_GLYPH[t][0]}</span>`).join('');
+
+  const meta = [];
+  if (!n.isElem && !n.isRoot && !n.synthetic && !n.computed && n.pcount && n.count < n.pcount)
+    meta.push(`<span class="pct" title="${n.count} / ${n.pcount} ta obyektda bor">${Math.round(n.count / n.pcount * 100)}%</span>`);
+  if (n.isElem && n.count) meta.push(`<span class="cnt">${fmtNum(n.count)} ta</span>`);
+  if (n.isRoot && Array.isArray(DATA)) meta.push(`<span class="cnt">${fmtNum(DATA.length)} ta yozuv</span>`);
+
+  const badges = [];
+  if (n.synthetic) badges.push('<span class="b b-new">yangi guruh</span>');
+  if (n.computed) badges.push('<span class="b b-comp" title="Element qaysi darajadan kelgani: 1 = bevosita, 2 = uning ichidagisi…">daraja raqami</span>');
+  if (n.isElem && n.recKey) badges.push(`<span class="b b-rec" title="«${esc(n.recKey)}» ichidagi barcha darajalar shu massivga tushadi">rekursiv · ${esc(n.recKey)}</span>`);
+  if (n.isElem && p && !p.isRoot && n.src.slice(0, -1).join(SEP) !== (p.src || []).join(SEP))
+    badges.push(`<span class="b b-src" title="Bu elementlar boshqa massivdan qo'shilgan">manba: ${esc(pathLabel(n.src.slice(0, -1)))}</span>`);
+  if (!n.synthetic && !n.computed && !n.isElem && !n.isRoot){
+    if (isMoved(n, p)) badges.push(`<span class="b b-mv" title="Asl joyi: ${esc(pathLabel(n.src))}">ko'chirildi</span>`);
+    const orig = n.src[n.src.length - 1];
+    if (n.key !== orig) badges.push(`<span class="b b-ren">asl nomi: ${esc(orig)}</span>`);
+    const r = relation(n, ctx);
+    if (r.gathered) badges.push('<span class="b b-gat" title="Massiv ichidan olingan: har bir elementdagi qiymat bitta ro\'yxatga yig\'iladi">ro\'yxatga yig\'iladi</span>');
+    else if (r.broadcast) badges.push('<span class="b b-bc" title="Massivdan tashqaridan olingan: har bir elementga bir xil qiymat yoziladi">har elementga takrorlanadi</span>');
+  }
+
+  const sample = n.computed ? '1, 2, 3 …' : (n.kind === 'value' && n.samples.length) ? n.samples.join(', ') : '';
+
+  const acts = [];
+  if (n.kind === 'object') acts.push(`<button class="ib" type="button" data-act="group" title="Ichiga yangi guruh qo'shish" aria-label="Yangi guruh">${IC.group}</button>`);
+  if (n.kind === 'object' && !n.isRoot && !n.isElem) acts.push(`<button class="ib" type="button" data-act="unwrap" title="Ichidagilarni bir pog'ona yuqoriga chiqarish" aria-label="Ichidagilarni chiqarish">${IC.unwrap}</button>`);
+  if (canFlatten(n)) acts.push(`<button class="ib" type="button" data-act="flat" title="Ichma-ich elementlarni (hamma darajasini) shu massivga tekislash" aria-label="Rekursiv tekislash">${IC.flat}</button>`);
+  if (!n.isRoot && !n.isElem) acts.push(`<button class="ib" type="button" data-act="rename" title="Nomini o'zgartirish" aria-label="Nomini o'zgartirish">${IC.rename}</button>`);
+  if (!n.isRoot && (!n.isElem || (p && p.children.length > 1))) acts.push(`<button class="ib danger" type="button" data-act="del" title="Natijadan olib tashlash" aria-label="Olib tashlash">${IC.del}</button>`);
+
+  const caret = kids
+    ? `<button class="caret${n.open ? ' open' : ''}" type="button" data-act="toggle" aria-label="${n.open ? 'Yig\'ish' : 'Ochish'}" aria-expanded="${n.open}">${IC.caret}</button>`
+    : '<span class="caret"></span>';
+  return `<div class="${cls.join(' ')}" role="treeitem" data-id="${n.id}" style="--d:${depth}" draggable="${!n.isRoot && !n.isElem}">${caret}${label}<span class="types">${types}</span>${meta.join('')}${badges.length ? `<span class="badges">${badges.join('')}</span>` : ''}<span class="sample">${esc(sample)}</span><span class="acts">${acts.join('')}</span></div>`;
+}
+function walkRender(n, depth, p, ctx, out){
+  out.push(rowHTML(n, depth, p, ctx));
+  if (!n.open) return;
+  const ctx2 = n.isElem ? ctx.concat([n._cp.full]) : ctx;
+  const lim = n._limit || 400;
+  n.children.slice(0, lim).forEach(c => walkRender(c, depth + 1, n, ctx2, out));
+  if (n.children.length > lim)
+    out.push(`<div class="row more" style="--d:${depth + 1}"><span class="caret"></span><button type="button" data-act="more" data-id="${n.id}">yana ${fmtNum(n.children.length - lim)} ta maydonni ko'rsatish</button></div>`);
+}
+function countFields(n){ let c = (n.isRoot || n.isElem) ? 0 : 1; for (const k of n.children) c += countFields(k); return c; }
+function render(){
+  compileAll();
+  const out = []; walkRender(TREE, 0, null, [], out);
+  treeEl.innerHTML = out.join('');
+  $('treeStats').textContent = `${fmtNum(countFields(TREE))} maydon` + (UNDO.length ? ` · ${UNDO.length} o'zgarish` : '');
+  $('btnUndo').disabled = !UNDO.length;
+  $('btnReset').disabled = !UNDO.length;
+  renderFileChip();
+  schedulePreview();
+}
+function renderFileChip(){
+  const parts = [`<b>${esc(FILE.name)}</b>`];
+  if (FILE.sample) parts.push('<span class="tag">namuna</span>');
+  else if (FILE.size) parts.push(`<span>${fmtSize(FILE.size)}</span>`);
+  $('fileChip').innerHTML = parts.join('');
+}
+
+/* ---------- preview ---------- */
+function fmt(v, ind, mode){
+  const pad = '  '.repeat(ind), pad1 = pad + '  ';
+  if (v === null || v === undefined) return '<span class="j-null">null</span>';
+  if (Array.isArray(v)){
+    if (!v.length) return '[]';
+    const shown = v.slice(0, 20);
+    let s = '[\n' + shown.map(x => pad1 + fmt(x, ind + 1, mode)).join(',\n');
+    if (v.length > 20) s += ',\n' + pad1 + `<span class="j-more">${mode === 'out' ? '… davomi eksportda' : `… yana ${fmtNum(v.length - 20)} ta`}</span>`;
+    return s + '\n' + pad + ']';
+  }
+  if (typeof v === 'object'){
+    const ks = Object.keys(v); if (!ks.length) return '{}';
+    let s = '{\n' + ks.slice(0, 200).map(k => pad1 + `<span class="j-key">${esc(JSON.stringify(k))}</span>: ` + fmt(v[k], ind + 1, mode)).join(',\n');
+    if (ks.length > 200) s += ',\n' + pad1 + `<span class="j-more">… yana ${fmtNum(ks.length - 200)} ta kalit</span>`;
+    return s + '\n' + pad + '}';
+  }
+  if (typeof v === 'string') return `<span class="j-str">${esc(JSON.stringify(v.length > 300 ? v.slice(0, 300) + '…' : v))}</span>`;
+  if (typeof v === 'number') return `<span class="j-num">${v}</span>`;
+  if (typeof v === 'boolean') return `<span class="j-bool">${v}</span>`;
+  return esc(String(v));
+}
+function schedulePreview(){ clearTimeout(previewTimer); previewTimer = setTimeout(renderPreview, 60); }
+function renderPreview(){
+  if (DATA === null) return;
+  const isArr = Array.isArray(DATA);
+  $('nav').hidden = !isArr || !DATA.length;
+  if (isArr && DATA.length){
+    recIdx = Math.min(Math.max(recIdx, 0), DATA.length - 1);
+    $('recInput').value = recIdx + 1;
+    $('recTotal').textContent = '/ ' + fmtNum(DATA.length);
+    $('prevRec').disabled = recIdx === 0;
+    $('nextRec').disabled = recIdx >= DATA.length - 1;
+  }
+  let val;
+  try {
+    if (tab === 'src') val = isArr ? DATA[recIdx] : DATA;
+    else {
+      val = transform(isArr ? DATA.slice(recIdx, recIdx + 1) : DATA, PREVIEW_LIMIT);
+      if (isArr && Array.isArray(val) && val.length === 1) val = val[0];
+    }
+    previewEl.innerHTML = fmt(val, 0, tab);
+  } catch (e){
+    previewEl.textContent = 'Ko\'rinishni hisoblab bo\'lmadi: ' + e.message;
+  }
+  $('foot').textContent = tab === 'out'
+    ? (isArr ? `${recIdx + 1}-yozuv qanday chiqishi. ` : '') + 'Ko\'rinishda massivlarning 20 tasigacha elementi; eksportda hammasi chiqadi.'
+    : (isArr ? `Fayldagi ${recIdx + 1}-yozuv, o'zgartirilmagan holda.` : 'Fayldagi asl ma\'lumot.');
+}
+
+/* ---------- loading ---------- */
+function loadData(data, file, fixed){
+  DATA = data; ROOT = DATA; FILE = file; recIdx = 0;
+  $('errBox').innerHTML = '';
+  buildSchema(DATA); render();
+  if (fixed === 'braces') toast("Fayl { {…}, {…} } ko'rinishida ekan (to'g'ri JSON emas). Tashqi qavslarni [ ] deb o'qidim.");
+  else if (fixed === 'jsonl') toast("Har qatori alohida JSON ekan (JSON Lines). Hammasini bitta massiv qilib o'qidim.");
+}
+async function loadFile(file){
+  if (!file) return;
+  $('fileChip').innerHTML = `<b>${esc(file.name)}</b><span>o'qilmoqda…</span>`;
+  let text;
+  try { text = await file.text(); }
+  catch (e){ renderFileChip(); toast('Faylni o\'qib bo\'lmadi: ' + e.message); return; }
+  await new Promise(r => setTimeout(r, 20));
+  let res;
+  try { res = parseLoose(text); }
+  catch (err){
+    renderFileChip();
+    const loc = errorLocation(err, text);
+    $('errBox').innerHTML = `<div class="banner"><strong>${esc(file.name)} to'g'ri JSON emas.</strong> ${esc(err.message)}${loc.line ? ` (${loc.line}-qator, ${loc.col}-ustun)` : ''}. Shu joyni tuzatib, qayta och.${loc.src ? `<code>${esc(loc.src)}</code>` : ''}</div>`;
+    return;
+  }
+  loadData(res.data, {name: file.name, size: file.size, sample: false}, res.fixed);
+}
+
+/* ---------- export ---------- */
+async function saveFile(name, text){
+  const blob = new Blob([text], {type: 'application/json'});
+  const dl = await DL;
+  if (dl){
+    try { await dl.save({filename: name, data: blob}); toast(`${name} saqlandi`); return; }
+    catch (e){
+      if (e && e.code === 'declined'){ toast('Saqlash bekor qilindi'); return; }
+      if (e && e.code === 'rate_limited'){ toast('Oyna allaqachon ochiq. Biroz kutib qayta bos.'); return; }
+      if (e && e.code === 'too_large'){ toast('Fayl juda katta. "Ixcham"ni yoqib qayta urinib ko\'r.'); return; }
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 20000);
+}
+async function doExport(){
+  const btn = $('btnExport'); btn.disabled = true; const label = btn.textContent; btn.textContent = 'Tayyorlanmoqda…';
+  await new Promise(r => setTimeout(r, 30));
+  try {
+    const out = transform(DATA);
+    const text = JSON.stringify(out, null, compact ? 0 : 2);
+    const base = FILE.name.replace(/\.(jsonl?|txt)$/i, '');
+    await saveFile(base + '_yangi.json', text);
+  } catch (e){
+    toast('Eksportda xato: ' + e.message);
+  } finally { btn.disabled = false; btn.textContent = label; }
+}
+
+/* ---------- rename inline ---------- */
+function startRename(n){
+  const row = treeEl.querySelector(`.row[data-id="${n.id}"]`); if (!row) return;
+  const keyEl = row.querySelector('.key'); if (!keyEl) return;
+  row.draggable = false;
+  const inp = document.createElement('input');
+  inp.className = 'rename'; inp.id = 'rename-' + n.id; inp.value = n.key; inp.setAttribute('aria-label', 'Yangi nom');
+  keyEl.replaceWith(inp); inp.focus(); inp.select();
+  let done = false;
+  const finish = ok => { if (done) return; done = true; if (ok && inp.value.trim() && inp.value.trim() !== n.key) renameNode(n, inp.value); else render(); };
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter'){ e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape'){ e.preventDefault(); finish(false); }
+    e.stopPropagation();
+  });
+  inp.addEventListener('blur', () => finish(true));
+}
+
+/* ---------- tree events ---------- */
+treeEl.addEventListener('click', e => {
+  const btn = e.target.closest('[data-act]');
+  if (e.target.closest('input')) return;
+  if (btn){
+    const act = btn.dataset.act;
+    if (act === 'more'){ const n = BYID.get(+btn.dataset.id); n._limit = (n._limit || 400) + 400; render(); return; }
+    const n = BYID.get(+btn.closest('.row').dataset.id); if (!n) return;
+    if (act === 'toggle'){ n.open = !n.open; render(); }
+    else if (act === 'group'){ const g = addGroup(n); if (g) startRename(g); }
+    else if (act === 'unwrap') unwrapNode(n);
+    else if (act === 'flat') flattenRec(n);
+    else if (act === 'rename') startRename(n);
+    else if (act === 'del') deleteNode(n);
+    return;
+  }
+  const row = e.target.closest('.row'); if (!row || row.classList.contains('more')) return;
+  const n = BYID.get(+row.dataset.id);
+  if (n && n.children.length){ n.open = !n.open; render(); }
+});
+function clearDrop(){ treeEl.querySelectorAll('.drop-before,.drop-after,.drop-inside').forEach(r => r.classList.remove('drop-before', 'drop-after', 'drop-inside')); }
+function endDrag(){ clearDrop(); treeEl.querySelectorAll('.dragging').forEach(r => r.classList.remove('dragging')); DRAG = null; DROP = null; }
+treeEl.addEventListener('dragstart', e => {
+  const row = e.target.closest && e.target.closest('.row');
+  const n = row && BYID.get(+row.dataset.id);
+  if (!n || n.isRoot || n.isElem){ e.preventDefault(); return; }
+  DRAG = n; e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', n.key); } catch (_){}
+  row.classList.add('dragging');
+});
+treeEl.addEventListener('dragover', e => {
+  if (!DRAG) return;
+  const row = e.target.closest && e.target.closest('.row');
+  clearDrop(); DROP = null;
+  if (!row || row.classList.contains('more')) return;
+  const t = BYID.get(+row.dataset.id);
+  const r = row.getBoundingClientRect();
+  const z = zoneFor(t, DRAG, (e.clientY - r.top) / r.height);
+  if (!z){ e.dataTransfer.dropEffect = 'none'; return; }
+  e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+  row.classList.add('drop-' + z); DROP = {t, z};
+});
+treeEl.addEventListener('dragleave', e => { if (!treeEl.contains(e.relatedTarget)) clearDrop(); });
+treeEl.addEventListener('drop', e => {
+  e.preventDefault();
+  const d = DRAG, p = DROP; endDrag();
+  if (d && p) moveNode(d, p.t, p.z);
+});
+treeEl.addEventListener('dragend', endDrag);
+
+/* ---------- toolbar & page events ---------- */
+$('btnOpen').addEventListener('click', () => $('fileInput').click());
+$('fileInput').addEventListener('change', e => { loadFile(e.target.files[0]); e.target.value = ''; });
+$('btnUndo').addEventListener('click', undo);
+$('btnReset').addEventListener('click', resetTree);
+$('btnExport').addEventListener('click', doExport);
+$('chkCompact').addEventListener('change', e => { compact = e.target.checked; });
+$('btnExpand').addEventListener('click', () => { (function w(n){ n.open = true; n.children.forEach(w); })(TREE); render(); });
+$('btnCollapse').addEventListener('click', () => { (function w(n, d){ n.open = d === 0 || (d === 1 && n.isElem); n.children.forEach(c => w(c, d + 1)); })(TREE, 0); render(); });
+$('tabOut').addEventListener('click', () => { tab = 'out'; $('tabOut').setAttribute('aria-pressed', 'true'); $('tabSrc').setAttribute('aria-pressed', 'false'); renderPreview(); });
+$('tabSrc').addEventListener('click', () => { tab = 'src'; $('tabSrc').setAttribute('aria-pressed', 'true'); $('tabOut').setAttribute('aria-pressed', 'false'); renderPreview(); });
+$('prevRec').addEventListener('click', () => { recIdx--; renderPreview(); });
+$('nextRec').addEventListener('click', () => { recIdx++; renderPreview(); });
+$('recInput').addEventListener('change', e => { const v = parseInt(e.target.value, 10); if (!isNaN(v)) recIdx = v - 1; renderPreview(); });
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !e.target.closest('input')){ e.preventDefault(); undo(); }
+});
+
+/* dropping a file anywhere on the page */
+const hasFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+let fileDragDepth = 0;
+window.addEventListener('dragenter', e => { if (hasFiles(e)){ fileDragDepth++; $('dropFile').hidden = false; } });
+window.addEventListener('dragleave', e => { if (hasFiles(e) && --fileDragDepth <= 0){ fileDragDepth = 0; $('dropFile').hidden = true; } });
+window.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
+window.addEventListener('drop', e => {
+  if (!hasFiles(e)) return;
+  e.preventDefault(); fileDragDepth = 0; $('dropFile').hidden = true;
+  loadFile(e.dataTransfer.files[0]);
+});
+
+loadData(SAMPLE, {name: 'namuna.json', size: 0, sample: true}, null);
+</script>
