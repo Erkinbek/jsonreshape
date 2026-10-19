@@ -15,6 +15,17 @@ them, or a ``source`` selection (a RecordSet-like object with ``len``/``[]``/
 order of the selection is kept) -- and returns an :class:`ExportReport`.
 :func:`discover_columns` proposes the CSV/XLSX columns of a document.
 
+Stage 5 (docs/ARCHITECTURE.md §14.4): :func:`export_many` writes the records of several
+documents into one JSON / JSON Lines file (merge; see its docstring for the root and wrapper
+rules); :func:`export_node` writes one node (JSON: re-indented; JSON Lines: one line per array
+element; moved here from the export dialog so the CLI can use it); :func:`plan_columns` finds the
+CSV/XLSX columns once for several exports (``export(..., column_plan=...)``: the parts of a split
+share one header); a name ending with ``.gz`` (``.json.gz``, ``.jsonl.gz``, ``.csv.gz``) gives a
+gzip-compressed JSON / JSON Lines / CSV output (``format_for_path`` knows these names;
+``export(..., gzip=)`` decides explicitly; XLSX / SQLite cannot be compressed:
+``writer.error.gzip_format``); the XLSX ``files`` parts are committed with
+:func:`jsonreshape.fileio.commit_files` (POSIX-semantics renames).
+
 Common behaviour
 ================
 * The result is written to a temporary file in the target directory and renamed over the
@@ -23,6 +34,13 @@ Common behaviour
   :class:`~jsonreshape.errors.Cancelled` the temporary files are removed and an existing
   target stays untouched. The source file is never a valid target
   (``writer.error.same_file``: "Asl fayl hech qachon o'zgarmaydi").
+* A target that has unsaved edits in this program -- an edit layer, live (a tab or another
+  instance edits that file) or pending (kept for recovery) -- is never replaced: replacing it
+  would leave edits that can never be saved. :func:`export`, :func:`export_node` and
+  :func:`export_many` (and the XLSX ``files`` parts) refuse it with
+  ``filetools.error.part_open_edited`` -- the rule and message of a split part (fix round R5,
+  R5F-3) -- before any work and again right before the commit (fix round L1;
+  :func:`edited_targets` tells such files; a file shown in a tab without edits is replaced).
 * Right before the result is committed (renamed over the target) the source is checked
   with :meth:`Document.ensure_unchanged`: when another program changed or removed it
   during the export, :class:`~jsonreshape.errors.FileChangedError` is raised, the
@@ -83,7 +101,13 @@ JSON and JSON Lines
   be decoded in memory (nested too deeply) is written unsorted (``writer.warn.deep_unsorted``).
 * JSON Lines: one compact line per record, ``\n`` line ends (also after the last line).
   JSON Lines has no place for a wrapper or for the object holding keyed records: member
-  records become ``{"key":value}`` lines and a wrapped document's wrapper is dropped.
+  records become ``{"key":value}`` lines and a wrapped document's wrapper is dropped
+  (``writer.note.wrapper_not_written`` says so; also for CSV and XLSX, unless
+  ``keep_wrapper=False`` asked for the records alone). The notice is given whether the record
+  path was detected or given by hand (``--record-path``; the GUI's record-path choice reopens
+  the document with it too): the wrapper is part of the document either way -- a JSON export
+  keeps it -- and only ``keep_wrapper=False`` (``--no-wrapper``, ``extract``) says the records
+  alone are wanted.
   Converting such lines back gives an array of one-member objects; ``as_keyed`` (below)
   rebuilds the keyed object from them -- the JSON export of the original document keeps the
   structure.
@@ -270,6 +294,19 @@ levels (objects and arrays) are stored as compact JSON text (``writer.warn.sqlit
 instead of further columns and tables. Rows are inserted in batches inside a transaction;
 an index is created on every ``_parent``. Names are unique case-insensitively (a clash
 gets ``_2``, ``_3``, ...).
+Relations are described for SQL tools and DB browsers: every ``_parent`` is declared
+``REFERENCES "<parent table>"("_id")`` (``PRAGMA foreign_keys`` stays off: no enforcement
+cost), and the table ``_jsonreshape`` (``name``, ``path``, ``parent``, ``kind``, ``rows``) lists
+every data table with the JSON path of its rows (``$`` for ``records``, ``orders[*]``,
+``orders[*].items[*]``, ``[*]`` for the elements of array records), its parent table, its kind
+(``records`` / ``array``) and its row count -- the parent of a renamed table (``_2``) is never
+guessed from a name. A selection in another order than the file's (a sort, a hand-made list)
+gets the column ``_ord`` after ``_id`` in ``records`` (0, 1, 2, ... in the order written: ``ORDER
+BY _ord`` gives the selection's order). A wrapped document's wrapper is kept in the table
+``_wrapper`` (``path``: the record path; ``json``: the wrapper as compact JSON with ``null`` in
+place of the record container) unless it is larger than ``Settings.large_node_bytes`` or the
+document is partial (then ``writer.note.wrapper_not_written``). The names ``_jsonreshape`` and
+``_wrapper`` are reserved: data tables of those names get ``_2``.
 ``columns``/``array_mode`` do not apply. Huge records are skipped
 (``writer.warn.huge_skipped_sqlite``), so are records that cannot be decoded in memory
 (``writer.warn.deep_skipped_sqlite``); a record selected twice is written once
@@ -295,10 +332,12 @@ Interpretations (where docs/ARCHITECTURE.md §8 leaves room)
 from __future__ import annotations
 
 import codecs
+import contextlib
 import csv
 import heapq
 import inspect
 import io
+import itertools
 import logging
 import math
 import operator
@@ -316,7 +355,8 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Iterator, Union
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Iterator, Sequence, Union
 
 import orjson
 
@@ -325,8 +365,19 @@ from . import stream as _stream
 from .appdirs import tmp_dir, work_dir
 from .codec import JsonFloat, JsonInt
 from .core import FLAG_ESCAPES, FLAG_U_ESCAPES, MODE_CONTAINER
-from .errors import ExportError, JsonDecodeError, PathSyntaxError, UserInputError
-from .fileio import atomic_path, atomic_write, long_path, normalize_path, open_shared, os_error, read_range
+from .errors import EditError, ExportError, JsonDecodeError, JsonReshapeError, PathSyntaxError, UserInputError
+from .fileio import (
+    FileIdentity,
+    atomic_path,
+    atomic_write,
+    commit_files,
+    long_path,
+    move_replace,
+    normalize_path,
+    open_shared,
+    os_error,
+    read_range,
+)
 from .i18n import has, t
 from .paths import MISSING, PathPattern, Wild, canonical_index, format_path, get, parse_path, parse_pattern
 from .settings import XLSX_MAX_ROWS, Settings, get_settings
@@ -344,22 +395,37 @@ StrPath = Union[str, "os.PathLike[str]"]
 __all__ = [
     "ARRAY_MODES",
     "FORMATS",
+    "GZIP_FORMATS",
     "MAX_AUTO_COLUMNS",
+    "META_TABLE",
+    "NODE_FORMATS",
     "SORT_KEYS",
+    "WRAPPER_TABLE",
     "XLSX_MAX_COLUMNS",
     "XLSX_MAX_STRING",
     "XLSX_SPLITS",
+    "ColumnPlan",
+    "FORMAT_NAMES",
     "ExportOptions",
     "ExportReport",
     "discover_columns",
+    "edited_targets",
     "export",
+    "export_many",
+    "export_node",
     "format_for_path",
+    "gzip_path",
+    "plan_columns",
+    "refuse_edited_targets",
 ]
 
 KiB = 1 << 10
 MiB = 1 << 20
 
 FORMATS = ("json", "jsonl", "csv", "xlsx", "sqlite")
+GZIP_FORMATS = ("json", "jsonl", "csv")   # formats written gzip-compressed to a ".gz" name
+FORMAT_NAMES = {"json": "JSON", "jsonl": "JSON Lines", "csv": "CSV", "xlsx": "Excel (XLSX)", "sqlite": "SQLite"}
+GZIP_LEVEL = 6                    # zlib level of ".gz" outputs (one member, header mtime 0)
 ARRAY_MODES = ("join", "rows")
 XLSX_SPLITS = ("sheets", "files")
 SORT_KEYS = ("alpha", "codepoint")
@@ -372,6 +438,8 @@ INDEX_COLUMN = "$index"
 RECORD_COLUMN = "$"
 VALUE_NAME = "value"              # SQLite: column of scalar elements / table of array records
 EXTRA_NAME = "_extra"             # SQLite: compact JSON of the leaves of a row that got no column
+META_TABLE = "_jsonreshape"       # SQLite: one row per data table (name, path, parent, kind, rows)
+WRAPPER_TABLE = "_wrapper"        # SQLite: the wrapper of a wrapped document (record path, JSON text)
 
 BLOCK_BYTES = 8 * MiB             # iter_blocks() block size
 FEED_BYTES = 1 * MiB              # Reformatter input per feed() (bounds the pure-Python core's
@@ -679,8 +747,19 @@ class ExportOptions:
 
 def format_for_path(path: StrPath) -> str | None:
     """Export format implied by the extension of ``path`` (``.json``, ``.jsonl``/``.ndjson``,
-    ``.csv``, ``.xlsx``, ``.sqlite``/``.sqlite3``/``.db``), or ``None``."""
-    return _EXT_FORMATS.get(os.path.splitext(os.fspath(path))[1].lower())
+    ``.csv``, ``.xlsx``, ``.sqlite``/``.sqlite3``/``.db``; ``.json.gz``, ``.jsonl.gz``,
+    ``.csv.gz``, ... are the compressed JSON / JSON Lines / CSV outputs), or ``None``."""
+    base, ext = os.path.splitext(os.fspath(path))
+    ext = ext.lower()
+    if ext == ".gz":
+        fmt = _EXT_FORMATS.get(os.path.splitext(base)[1].lower())
+        return fmt if fmt in GZIP_FORMATS else None
+    return _EXT_FORMATS.get(ext)
+
+
+def gzip_path(path: StrPath) -> bool:
+    """``path`` names a gzip-compressed output (its name ends with ``.gz``)."""
+    return os.fspath(path).lower().endswith(".gz")
 
 
 @dataclass
@@ -692,7 +771,11 @@ class ExportReport:
     = records, CSV/XLSX = data rows (headers excluded), SQLite = rows of all tables;
     ``bytes_written``: total size of ``files``; ``warnings``: localized texts (with
     counts), ``warning_keys`` their i18n keys; ``elapsed``: seconds; ``columns``: CSV/XLSX
-    column headers; ``tables``: SQLite tables.
+    column headers; ``tables``: SQLite tables (the data tables; the ``_jsonreshape`` /
+    ``_wrapper`` description tables are not listed); ``per_input``: :func:`export_many` --
+    the records written of each input, in input order; ``warning_params``: the parameters of
+    each warning (parallel to ``warning_keys``; ``count`` included) -- what a caller that
+    combines several reports needs to add counts up (the parts of a split).
     """
 
     fmt: str
@@ -706,6 +789,8 @@ class ExportReport:
     columns: list[str] = field(default_factory=list)
     tables: list[str] = field(default_factory=list)
     warning_keys: list[str] = field(default_factory=list)
+    per_input: list[int] = field(default_factory=list)
+    warning_params: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def mb_per_s(self) -> float:
@@ -725,6 +810,7 @@ class ExportReport:
             "skipped": self.skipped,
             "columns": list(self.columns),
             "tables": list(self.tables),
+            "per_input": list(self.per_input),
         }
 
 
@@ -760,12 +846,31 @@ def _bad_record(index: Any, count: int) -> UserInputError:
     return UserInputError("writer.error.bad_record", index=index, count=count)
 
 
+def _pin(doc: Document, source: Any) -> Document:
+    """``doc.pinned()`` (docs/ARCHITECTURE.md §12.3: the whole export reads one overlay state;
+    record numbers are its positions) and the stale-scope check: a ``source`` whose ``gen``
+    belongs to another state raises ``EditError("edits.error.stale_scope")``."""
+    pinned = getattr(doc, "pinned", None)
+    if callable(pinned):
+        doc = pinned()
+    gen = getattr(source, "gen", None) if source is not None else None
+    if gen is not None and gen != getattr(doc, "gen", 0):
+        raise EditError("edits.error.stale_scope")
+    return doc
+
+
 def _normalize_source(doc: Document, source: Any) -> tuple[Any, int]:
     """``(source for iter_blocks, number of selected records)``. Lists, tuples and arrays
     are checked against the record count; other iterables are materialized into an
-    ``array('Q')`` (a RecordSet-like object with ``len``/``[]`` is used as it is)."""
+    ``array('Q')`` (a RecordSet-like object with ``len``/``[]`` is used as it is). The base
+    set of the document -- of any view of the same live document (``RecordSet._is_base_of``)
+    -- means "all records" of the state exported (``None``): its own length follows the live
+    document, which may show another state than a pinned export."""
     total = doc.record_count
     if source is None:
+        return None, total
+    is_base = getattr(source, "_is_base_of", None)
+    if callable(is_base) and is_base(doc):
         return None, total
     if isinstance(source, range):
         if len(source) and (min(source) < 0 or max(source) >= total):
@@ -802,7 +907,14 @@ def _normalize_source(doc: Document, source: Any) -> tuple[Any, int]:
 
 def _estimate_total(doc: Document, src: Any, count: int) -> int:
     """Expected bytes of record data read for the selection (exact for ``None`` and
-    step-1 ranges, proportional otherwise)."""
+    step-1 ranges, proportional otherwise; an edited document: from
+    ``doc.effective_bytes()`` -- its first and last records may be edited, moved or new)."""
+    if getattr(doc, "edited", False):
+        full = max(0, int(doc.effective_bytes()))
+        if src is None:
+            return full
+        total = doc.record_count
+        return int(full * min(1.0, count / total)) if total > 0 and count > 0 else 0
     if src is None:
         return max(0, doc.data_size - doc.info.data_start)
     if count <= 0 or doc.record_count <= 0:
@@ -1575,6 +1687,7 @@ def discover_columns(doc: Document, source: Any = None, *, sample: int | None = 
         mode = "rows"
     if sample is not None and (isinstance(sample, bool) or not isinstance(sample, int) or sample < 1):
         raise _invalid("sample", sample, "writer.expected.sample")
+    doc = _pin(doc, source)
     _ensure_index(doc, progress, cancel)
     src, count = _normalize_source(doc, source)
     explode_path = tuple(parse_path(explode_text)) if explode_text is not None else None
@@ -1597,16 +1710,40 @@ def discover_columns(doc: Document, source: Any = None, *, sample: int | None = 
 # export context
 # ----------------------------------------------------------------------------------
 class _Sink:
-    """A binary file that ignores empty writes (the Reformatter often returns ``b""``)."""
+    """A binary file that ignores empty writes (the Reformatter often returns ``b""``);
+    ``gzip``: the bytes are compressed (``zlib.compressobj(GZIP_LEVEL, DEFLATED, 31)``: one gzip
+    member, header mtime 0) -- :meth:`finish` writes the end of the stream."""
 
-    __slots__ = ("f",)
+    __slots__ = ("f", "z")
 
-    def __init__(self, f: Any) -> None:
+    def __init__(self, f: Any, gzip: bool = False) -> None:
         self.f = f
+        self.z = zlib.compressobj(GZIP_LEVEL, zlib.DEFLATED, 31) if gzip else None
 
     def write(self, data: bytes) -> None:
         if data:
+            z = self.z
+            if z is not None:
+                data = z.compress(data)
+                if not data:
+                    return
             self.f.write(data)
+
+    def finish(self) -> None:
+        z = self.z
+        if z is not None:
+            self.z = None
+            self.f.write(z.flush())
+
+
+@contextlib.contextmanager
+def _output(out: Path, gzip: bool = False) -> Iterator[_Sink]:
+    """``atomic_write(out)`` behind a :class:`_Sink` (``gzip``: compressed); the gzip stream is
+    finished when the block ends without an error, then the file is committed."""
+    with atomic_write(out, "wb", buffering=WRITE_BUFFER) as f:
+        sink = _Sink(f, gzip)
+        yield sink
+        sink.finish()
 
 
 class _Ctx:
@@ -1637,6 +1774,7 @@ class _Ctx:
         self.explode: tuple | None = None
         self.tables: list[str] = []
         self.sorter: _KeySorter | None = None
+        self.gzip = False                       # the output is compressed (a ".gz" name)
         self._warnings: dict[str, dict[str, Any]] = {}
         self._fh: Any = None
 
@@ -1655,6 +1793,10 @@ class _Ctx:
         keys = list(self._warnings)
         return [_tn(k, **self._warnings[k]) for k in keys], keys
 
+    def warning_params(self) -> list[dict[str, Any]]:
+        """The parameters of the warnings, in the order of :meth:`warning_texts` (copies)."""
+        return [dict(entry) for entry in self._warnings.values()]
+
     def skip_huge(self, key: str) -> None:
         self.skipped += 1
         self.warn(key, limit=format_bytes(self.large))
@@ -1672,12 +1814,24 @@ class _Ctx:
         return max(CELL_TEXT_MIN, self.capture_limit // max(1, n))
 
     # -- progress ----------------------------------------------------------------------
-    def begin(self, passes: int = 1) -> None:
+    def note_source(self) -> None:
+        """The warnings about the source itself: partial, broken JSON Lines lines, a wrapper the
+        format has no place for (JSON Lines / CSV / XLSX; SQLite keeps it in ``_wrapper``)."""
         doc = self.doc
         if doc.error is not None:
             self.warn("writer.warn.partial", add=0)   # count: records exported (see finish())
         if doc.kind == "jsonl" and doc.broken_count:
             self.warn("writer.warn.broken_lines", add=doc.broken_count)
+        if doc.kind == "wrapped" and self.opts.keep_wrapper and self.opts.fmt in ("jsonl", "csv", "xlsx"):
+            self.wrapper_not_written()
+
+    def wrapper_not_written(self) -> None:
+        """``writer.note.wrapper_not_written``: the bytes around the record container were not written."""
+        path = self.doc.info.record_path_text or "$"
+        self.warn("writer.note.wrapper_not_written", fmt=FORMAT_NAMES[self.opts.fmt], path=path)
+
+    def begin(self, passes: int = 1) -> None:
+        self.note_source()
         self.meter.start(passes)
         if self.progress is not None:
             self.progress.set_message(t("writer.progress.export", name=self.out.name))
@@ -1723,9 +1877,12 @@ class _Ctx:
         return self.doc.iter_blocks(self.src, block_bytes=BLOCK_BYTES, cancel=self.cancel)
 
     def chunks(self, start: int, end: int) -> Iterator[bytes]:
-        """Bytes ``[start, end)`` of the data file in pieces of :data:`CHUNK_BYTES`."""
+        """Bytes ``[start, end)`` of the document in pieces of :data:`CHUNK_BYTES`, read through
+        ``doc.open_data()`` (the virtual address space: an edited huge record or wrapper lives in
+        the edit layer)."""
         if self._fh is None:
-            self._fh = open_shared(self.doc.data_path, "rb")
+            open_data = getattr(self.doc, "open_data", None)
+            self._fh = open_data() if open_data is not None else open_shared(self.doc.data_path, "rb")
         pos = start
         while pos < end:
             check(self.cancel)
@@ -1740,10 +1897,12 @@ class _Ctx:
             return stream_values(self.doc, span, patterns, member=member, max_bytes=self.capture_limit)
         return stream_values(self.doc, span, patterns, member=member)
 
-    def commit_check(self) -> None:
-        """Right before a result is committed: not cancelled, source unchanged."""
+    def commit_check(self, targets: Sequence[Path] | None = None) -> None:
+        """Right before a result is committed: not cancelled, source unchanged, and no target (``targets``,
+        default the output) got unsaved edits meanwhile (:func:`refuse_edited_targets`)."""
         check(self.cancel)
         self.doc.ensure_unchanged()
+        refuse_edited_targets([self.out] if targets is None else targets)
 
     def close(self) -> None:
         if self._fh is not None:
@@ -1754,7 +1913,67 @@ class _Ctx:
             self._fh = None
 
 
+class _PathDoc:
+    """What :func:`jsonreshape.editstore.find_pending` reads of a document, for a file that is not opened here:
+    its path and an identity that matches no layer -- so every layer registered for the path or kept next to
+    it is reported (live ones as ``locked``, pending ones with their steps)."""
+
+    index_complete = True
+    closed = False
+
+    def __init__(self, path: Path) -> None:
+        self.source_path = path
+        self.identity = FileIdentity(path=normalize_path(path), size=-1, mtime_ns=-1, head_hash="")
+        self.info = SimpleNamespace(kind="", record_path=None)
+        self.base_record_count = self.record_count = 0
+        self.data_size = 0
+        self.settings = None
+
+
+def edited_targets(paths: Iterable[StrPath]) -> list[Path]:
+    """The existing files of ``paths`` that have unsaved edits in this program: an edit layer registered for
+    that path or kept next to it (``<file>.jredit``) -- live (a tab or another instance edits it: its lock is
+    held) or pending (kept for recovery). Replacing or removing such a file would leave edits that can never
+    be saved (fix round R5, R5F-3; the rule of split parts, every writer output since fix round L1).
+
+    :func:`jsonreshape.editstore.layer_sources` (the layer index, read once) names the candidates and
+    :func:`jsonreshape.editstore.find_pending` decides about each of them, so files without a layer cost a
+    ``stat`` each. A file shown in a tab without edits is not edited (it is replaced as before; the tab sees
+    the change). An unusable edit-layer folder: no layer can be found (nothing is refused). The files are
+    returned as given (as :class:`~pathlib.Path`), in order."""
+    existing = [Path(os.fspath(p)) for p in paths if os.path.isfile(long_path(p))]
+    if not existing:
+        return []
+    from . import editstore     # lazy: editstore imports much of the package
+
+    sources = editstore.layer_sources()
+    out = []
+    for p in existing:
+        doc = _PathDoc(p)
+        if normalize_path(p) not in sources and not os.path.isdir(long_path(editstore.beside_dir(doc))):
+            continue
+        try:
+            infos = editstore.find_pending(doc)
+        except JsonReshapeError:
+            log.debug("looking for edit layers of %s failed", p, exc_info=True)
+            continue
+        if infos:
+            out.append(p)
+    return out
+
+
+def refuse_edited_targets(paths: Iterable[StrPath]) -> None:
+    """``UserInputError("filetools.error.part_open_edited")`` naming the files of ``paths`` that have unsaved
+    edits (:func:`edited_targets`; at most three named, then ``…``); nothing when there are none."""
+    edited = edited_targets(paths)
+    if edited:
+        shown = ", ".join(str(p) for p in edited[:3]) + (", \N{HORIZONTAL ELLIPSIS}" if len(edited) > 3 else "")
+        raise UserInputError("filetools.error.part_open_edited", path=shown, count=len(edited))
+
+
 def _check_target(doc: Document, out: Path) -> None:
+    """``out`` may be written: not the source or the document's data file (also under another
+    name: ``os.path.samefile``), not a folder, in a folder that exists."""
     target = normalize_path(out)
     for p in (doc.source_path, doc.data_path):
         if target == normalize_path(p):
@@ -1763,14 +1982,57 @@ def _check_target(doc: Document, out: Path) -> None:
     if os.path.isdir(lp):
         raise UserInputError("fileio.error.is_directory", path=str(out))
     if os.path.exists(lp):
-        try:
-            same = os.path.samefile(lp, long_path(doc.source_path))
-        except OSError:
-            same = False
-        if same:
-            raise UserInputError("writer.error.same_file", path=str(out))
+        for p in dict.fromkeys((doc.source_path, doc.data_path)):
+            try:
+                same = os.path.samefile(lp, long_path(p))
+            except OSError:
+                same = False
+            if same:
+                raise UserInputError("writer.error.same_file", path=str(out))
     if not os.path.isdir(long_path(out.parent)):
         raise UserInputError("writer.error.no_dir", path=str(out.parent))
+
+
+@dataclass
+class ColumnPlan:
+    """CSV/XLSX columns found once (:func:`plan_columns`) and shared by several exports of the
+    same document and options -- every part of a split gets the same header, exactly the
+    automatic columns one export of the whole selection would have. ``header``: the column
+    texts; ``warnings`` / ``warning_keys``: what the column scan reported (map columns, deep
+    columns, the column cap), reported once by the caller. Internal fields are opaque."""
+
+    header: list[str]
+    warnings: list[str]
+    warning_keys: list[str]
+    _columns: list[Any] = field(repr=False, default_factory=list)
+    _explode: tuple | None = field(repr=False, default=None)
+
+
+def plan_columns(doc: Document, opts: ExportOptions, source: Any = None, *, progress: Progress | None = None,
+                 cancel: CancelToken | None = None) -> ColumnPlan:
+    """The CSV/XLSX columns an :func:`export` of ``source`` with ``opts`` would use (automatic
+    columns: one scan of every selected record, like the export's first pass; explicit columns:
+    parsed, and in rows mode the expanded array found), to be passed as ``column_plan=`` to
+    exports of parts of that selection. Progress: one pass, as :func:`export`."""
+    if not isinstance(opts, ExportOptions):
+        raise TypeError("opts must be an ExportOptions instance")
+    opts.validate()
+    if opts.fmt not in ("csv", "xlsx"):
+        raise _invalid("fmt", opts.fmt, "writer.expected.table_fmt")
+    doc = _pin(doc, source)
+    _ensure_index(doc, progress, cancel)
+    src, count = _normalize_source(doc, source)
+    ctx = _Ctx(doc, opts, src, count, progress, cancel, Path(doc.source_path))
+    try:
+        ctx.meter.start(1)
+        _prepare_columns(ctx)
+    finally:
+        ctx.close()
+    texts, keys = ctx.warning_texts()
+    if progress is not None:
+        progress.finish()
+    return ColumnPlan(header=[c.text for c in ctx.columns], warnings=texts, warning_keys=keys,
+                      _columns=list(ctx.columns), _explode=ctx.explode)
 
 
 def _scan_passes(opts: ExportOptions) -> int:
@@ -1788,25 +2050,48 @@ def _scan_passes(opts: ExportOptions) -> int:
     return 1
 
 
+def _check_gzip(opts: ExportOptions, out: Path, gzip: bool | None) -> bool:
+    """Whether the output is compressed: ``gzip``, else its name ends with ``.gz``; only JSON,
+    JSON Lines and CSV can be (``writer.error.gzip_format``)."""
+    gz = gzip_path(out) if gzip is None else bool(gzip)
+    if gz and opts.fmt not in GZIP_FORMATS:
+        raise UserInputError("writer.error.gzip_format", fmt=FORMAT_NAMES[opts.fmt], path=str(out))
+    return gz
+
+
 def export(doc: Document, out_path: StrPath, opts: ExportOptions, source: Any = None, *,
-           progress: Progress | None = None, cancel: CancelToken | None = None) -> ExportReport:
+           progress: Progress | None = None, cancel: CancelToken | None = None, gzip: bool | None = None,
+           column_plan: ColumnPlan | None = None) -> ExportReport:
     """Write the records of ``doc`` (all, or the ``source`` selection in its order) to
     ``out_path`` as described by ``opts`` (see the module docstring). The file appears
     atomically; on an error, a cancellation or a change of the source no temporary file is
-    left and an existing target is unchanged. Returns an :class:`ExportReport`."""
+    left and an existing target is unchanged. Returns an :class:`ExportReport`.
+
+    ``gzip``: compress the JSON / JSON Lines / CSV output (default: when ``out_path`` ends with
+    ``.gz``). ``column_plan``: CSV/XLSX columns found by :func:`plan_columns` for a selection this
+    ``source`` is a part of (no column scan; the plan's own warnings are not repeated)."""
     if not isinstance(opts, ExportOptions):
         raise TypeError("opts must be an ExportOptions instance")
     opts.validate()
+    doc = _pin(doc, source)
     started = time.perf_counter()
     out = Path(os.path.abspath(os.fspath(out_path)))
     _check_target(doc, out)
+    gz = _check_gzip(opts, out, gzip)
+    refuse_edited_targets([out])         # (the XLSX "files" parts are checked once they are named)
     _purge_staging(doc.settings)
     _ensure_index(doc, progress, cancel)
     src, count = _normalize_source(doc, source)
     ctx = _Ctx(doc, opts, src, count, progress, cancel, out)
+    ctx.gzip = gz
+    planned = column_plan is not None and opts.fmt in ("csv", "xlsx")
     try:
-        ctx.begin(_scan_passes(opts))
-        if opts.fmt in ("csv", "xlsx"):
+        ctx.begin(1 if planned else _scan_passes(opts))
+        if planned:
+            assert column_plan is not None
+            ctx.columns = list(column_plan._columns)
+            ctx.explode = column_plan._explode
+        elif opts.fmt in ("csv", "xlsx"):
             _prepare_columns(ctx)
         files = _EXPORTERS[opts.fmt](ctx, out)
     finally:
@@ -1831,6 +2116,7 @@ def export(doc: Document, out_path: StrPath, opts: ExportOptions, source: Any = 
         columns=[c.text for c in ctx.columns],
         tables=list(ctx.tables),
         warning_keys=keys,
+        warning_params=ctx.warning_params(),
     )
     log.info("exported %d records (%d rows) of %s to %s as %s: %d bytes in %.2f s%s", report.records, report.rows,
              doc.source_path.name, out, opts.fmt, size, report.elapsed,
@@ -1924,12 +2210,14 @@ def _sorted_record(ctx: _Ctx, raw: bytes, member: bool | None = None) -> bytes:
     except _DECODE_ERRORS:
         ctx.warn("writer.warn.deep_unsorted")
         return raw
+    # the result is kept with the block's other pieces: a compact text (head + text copies already)
+    dumps = codec.dumps_transient if head else codec.dumps
     if ctx.opts.sort_keys == "codepoint":
-        return head + codec.dumps(value, sort_keys=True)
+        return head + dumps(value, sort_keys=True)
     if ctx.sorter is None:
         ctx.sorter = _KeySorter()
     ctx.sorter.sort(value)
-    return head + codec.dumps(value)
+    return head + dumps(value)
 
 
 def _record_pieces(ctx: _Ctx, blk: Block) -> list[bytes]:
@@ -1957,6 +2245,77 @@ def _wrapper_spans(ctx: _Ctx) -> tuple[tuple[int, int], tuple[int, int]] | None:
     return spans
 
 
+def _json_records(ctx: _Ctx, feed: Callable[[bytes], bytes], sink: _Sink, first: bool,
+                  wrap_members: bool = False, keys: _MemberKeys | None = None) -> bool:
+    """The records of ``ctx`` fed to one Reformatter as JSON array items / object members joined
+    with ``,`` (``first``: no ``,`` before the first one); returns the new ``first``.
+    ``wrap_members``: member records written as one-member objects ``{"key": value}`` (an array
+    root); ``keys``: the member keys are counted for the repeated-key warning (an object root)."""
+    opts = ctx.opts
+    whole_blocks = ctx.doc.kind in _COMMA_KINDS and not opts.sort_keys and not wrap_members and keys is None
+    for blk in ctx.blocks():
+        if blk.huge:
+            if not first:
+                sink.write(feed(b","))
+            if opts.sort_keys:
+                ctx.warn("writer.warn.huge_unsorted")
+            if wrap_members:
+                sink.write(feed(b"{"))
+            head = True
+            for chunk in ctx.chunks(*blk.span(0)):
+                if head and keys is not None:
+                    keys.add_huge(ctx.doc, chunk, ctx.records)
+                head = False
+                sink.write(feed(chunk))
+            if wrap_members:
+                sink.write(feed(b"}"))
+        elif whole_blocks and blk.contiguous and _consecutive(blk.indices):
+            # consecutive records of a comma-separated source: the block holds the
+            # records and their separators (',' + whitespace) and nothing else
+            if not first:
+                sink.write(feed(b","))
+            _feed_all(feed, blk.data, sink)
+        else:
+            pieces = _record_pieces(ctx, blk)
+            if keys is not None:
+                keys.add_members(ctx.doc, pieces, ctx.records)
+            if wrap_members:
+                data = b"{" + b"},{".join(pieces) + b"}"
+            else:
+                data = b",".join(pieces)
+            _feed_all(feed, data if first else b"," + data, sink)
+        first = False
+        ctx.records += len(blk.indices)
+        ctx.advance(blk)
+    return first
+
+
+def _jsonl_records(ctx: _Ctx, feed: Callable[[bytes], bytes], sink: _Sink) -> None:
+    """The records of ``ctx`` as JSON Lines: one compact line each (member records as
+    ``{"key":value}``), ``\\n`` after every line."""
+    member = ctx.member
+    for blk in ctx.blocks():
+        if blk.huge:
+            if ctx.opts.sort_keys:
+                ctx.warn("writer.warn.huge_unsorted")
+            if member:
+                sink.write(b"{")
+            for chunk in ctx.chunks(*blk.span(0)):
+                sink.write(feed(chunk))
+            sink.write(b"}\n" if member else b"\n")
+        else:
+            parts: list[bytes] = []
+            if member:
+                for piece in _record_pieces(ctx, blk):
+                    parts += (b"{", feed(piece), b"}\n")
+            else:
+                for piece in _record_pieces(ctx, blk):
+                    parts += (feed(piece), b"\n")
+            sink.write(b"".join(parts))
+        ctx.records += len(blk.indices)
+        ctx.advance(blk)
+
+
 def _export_json(ctx: _Ctx, out: Path) -> list[Path]:
     doc, opts = ctx.doc, ctx.opts
     if opts.as_keyed and not ctx.member:
@@ -1965,36 +2324,14 @@ def _export_json(ctx: _Ctx, out: Path) -> list[Path]:
     feed = rf.feed
     bare = doc.kind == "single" and ctx.count == 1
     wrapper = _wrapper_spans(ctx)
-    whole_blocks = doc.kind in _COMMA_KINDS and not opts.sort_keys
     open_b, close_b = (b"{", b"}") if ctx.member else (b"[", b"]")
-    with atomic_write(out, "wb", buffering=WRITE_BUFFER) as f:
-        sink = _Sink(f)
+    with _output(out, ctx.gzip) as sink:
         if wrapper is not None:
             for chunk in ctx.chunks(*wrapper[0]):
                 sink.write(feed(chunk))
         if not bare:
             sink.write(feed(open_b))
-        first = True
-        for blk in ctx.blocks():
-            if blk.huge:
-                if not first:
-                    sink.write(feed(b","))
-                if opts.sort_keys:
-                    ctx.warn("writer.warn.huge_unsorted")
-                for chunk in ctx.chunks(*blk.span(0)):
-                    sink.write(feed(chunk))
-            elif whole_blocks and blk.contiguous and _consecutive(blk.indices):
-                # consecutive records of a comma-separated source: the block holds the
-                # records and their separators (',' + whitespace) and nothing else
-                if not first:
-                    sink.write(feed(b","))
-                _feed_all(feed, blk.data, sink)
-            else:
-                data = b",".join(_record_pieces(ctx, blk))
-                _feed_all(feed, data if first else b"," + data, sink)
-            first = False
-            ctx.records += len(blk.indices)
-            ctx.advance(blk)
+        _json_records(ctx, feed, sink, True)
         if not bare:
             sink.write(feed(close_b))
         if wrapper is not None:
@@ -2151,16 +2488,58 @@ class _DupKeys:
             else:
                 seen.add(k)
 
-    def report(self, ctx: _Ctx) -> None:
+    def report(self, ctx: _Ctx, key: str = "writer.warn.duplicate_keys") -> None:
         if not self.count or self.first is None:
             return
-        index, key = self.first
-        text = key.decode("utf-8", "surrogatepass")
+        index, raw_key = self.first
+        text = raw_key.decode("utf-8", "surrogatepass")
         if len(text) > DUP_KEY_SHOWN:
             text = text[:DUP_KEY_SHOWN] + "\N{HORIZONTAL ELLIPSIS}"
         note = t("writer.note.duplicate_keys_limited", checked=self.checked) if self.limited else ""
-        ctx.warn("writer.warn.duplicate_keys", add=self.count,
-                 first={"index": index, "key": codec.dumps(text).decode("utf-8")}, note=note)
+        ctx.warn(key, add=self.count, first={"index": index, "key": codec.dumps(text).decode("utf-8")}, note=note)
+
+
+class _MemberKeys(_DupKeys):
+    """Member keys repeated across the records written into ONE object (an object-root
+    :func:`export_many`: several keyed / wrapped-object inputs): counted exactly like
+    :class:`_DupKeys` (decoded keys, within the same memory budget). ``offset``: output position
+    of the current input's first record (the warning names the output position)."""
+
+    def __init__(self, doc: Document) -> None:
+        super().__init__(doc)
+        self.offset = 0
+
+    def add_members(self, doc: Document, pieces: list[bytes], base: int) -> None:
+        """The keys of member records ``pieces`` (``"key": value``), the first one at position
+        ``offset + base`` of the output."""
+        if self.seen is None:
+            if pieces:
+                self.limited = True
+            return
+        room = self._room()
+        cut = len(pieces) > room
+        if cut:
+            pieces = pieces[:room]
+        split = doc.split_member
+        keys = [split(raw)[0].encode("utf-8", "surrogatepass") for raw in pieces]
+        start = self.offset + base
+        self._add(keys, range(start, start + len(keys)))
+        if cut:
+            self.limited = True
+            self.seen = None
+
+    def add_huge(self, doc: Document, head: bytes, index: int) -> None:
+        """The key of a huge member record from its first piece ``head`` (``"key": ...``)."""
+        if self.seen is None or self._room() < 1:
+            self.limited = True
+            self.seen = None
+            return
+        try:
+            key, _ = doc.split_member(head)
+        except ValueError:   # the key does not end in the first piece: not checked
+            self.limited = True
+            return
+        self._add([key.encode("utf-8", "surrogatepass")], [self.offset + index])
 
 
 def _joined_members(ctx: _Ctx, blk: Block) -> tuple[bytes, list[bytes] | None]:
@@ -2263,8 +2642,7 @@ def _export_keyed(ctx: _Ctx, out: Path) -> list[Path]:
     threaded = core.BACKEND == "rust" and not sort
     pool = ThreadPoolExecutor(1, thread_name_prefix="jsonreshape-keyed") if threaded else None
     try:
-        with atomic_write(out, "wb", buffering=WRITE_BUFFER) as f:
-            sink = _Sink(f)
+        with _output(out, ctx.gzip) as sink:
             sink.write(feed(b"{"))
             first = True
             for blk in ctx.blocks():
@@ -2307,34 +2685,372 @@ def _export_keyed(ctx: _Ctx, out: Path) -> list[Path]:
 
 def _export_jsonl(ctx: _Ctx, out: Path) -> list[Path]:
     rf = core.Reformatter(None)   # compact: a complete value leaves nothing pending
-    feed = rf.feed
-    member = ctx.member
-    with atomic_write(out, "wb", buffering=WRITE_BUFFER) as f:
-        sink = _Sink(f)
-        for blk in ctx.blocks():
-            if blk.huge:
-                if ctx.opts.sort_keys:
-                    ctx.warn("writer.warn.huge_unsorted")
-                if member:
-                    sink.write(b"{")
-                for chunk in ctx.chunks(*blk.span(0)):
-                    sink.write(feed(chunk))
-                sink.write(b"}\n" if member else b"\n")
-            else:
-                parts: list[bytes] = []
-                if member:
-                    for piece in _record_pieces(ctx, blk):
-                        parts += (b"{", feed(piece), b"}\n")
-                else:
-                    for piece in _record_pieces(ctx, blk):
-                        parts += (feed(piece), b"\n")
-                sink.write(b"".join(parts))
-            ctx.records += len(blk.indices)
-            ctx.advance(blk)
+    with _output(out, ctx.gzip) as sink:
+        _jsonl_records(ctx, rf.feed, sink)
         sink.write(rf.finish())
         ctx.commit_check()
     ctx.rows = ctx.records
     return [out]
+
+
+# ----------------------------------------------------------------------------------
+# several documents into one file (merge, docs/ARCHITECTURE.md §14.4)
+# ----------------------------------------------------------------------------------
+def _merged_warnings(ctxs: list[_Ctx]) -> tuple[list[str], list[str], list[dict[str, Any]]]:
+    """The warnings of several contexts as one list ``(texts, keys, params)``: the counts of a
+    key are added up, the other parameters are those of its first occurrence."""
+    merged: dict[str, dict[str, Any]] = {}
+    for ctx in ctxs:
+        for key, entry in ctx._warnings.items():
+            have = merged.get(key)
+            if have is None:
+                merged[key] = dict(entry)
+            else:
+                have["count"] = have.get("count", 0) + entry.get("count", 0)
+    keys = list(merged)
+    return [_tn(k, **merged[k]) for k in keys], keys, [dict(merged[k]) for k in keys]
+
+
+def export_many(inputs: Sequence[tuple[Document, Any]], out_path: StrPath, opts: ExportOptions, *,
+                progress: Progress | None = None, cancel: CancelToken | None = None,
+                gzip: bool | None = None) -> ExportReport:
+    """Write the records of several documents into ONE JSON or JSON Lines file (the merge of
+    docs/ARCHITECTURE.md §14.4): ``inputs`` = ``[(document, source), ...]`` (``source`` as for
+    :func:`export`: ``None`` = all records), records in input order, then in source order.
+
+    * Everything goes through ONE ``core.Reformatter`` (``opts.indent``; JSON Lines: compact
+      lines), so tokens are copied byte for byte -- exact numbers, no ``\\u`` escaping;
+      ``sort_keys`` as for :func:`export`.
+    * JSON root: one object of members when EVERY input has member records (keyed documents,
+      wrapped documents with an object record container) -- member keys repeated across the
+      records are written as they are and counted (``writer.warn.merge_duplicate_keys``) --,
+      else an array, in which member records become ``{"key": value}`` objects
+      (``writer.warn.members_as_objects``). JSON Lines: member records are ``{"key":value}``
+      lines (as :func:`export`).
+    * Wrapper (JSON, ``keep_wrapper``): the first input's wrapper is kept when it is a wrapped
+      document whose record container is of the root's kind; any other wrapper is dropped
+      (``writer.warn.wrappers_dropped``). JSON Lines has no place for one
+      (``writer.note.wrapper_not_written``).
+    * Huge records are streamed; partial inputs and broken JSON Lines lines are reported as by
+      :func:`export` (the caller decides whether partial inputs are acceptable).
+    * The file appears atomically (``gzip``: as for :func:`export`); every input is checked with
+      ``ensure_unchanged()`` right before the commit. Progress: one bar over the records of all
+      inputs. ``ExportReport.per_input``: the records written of each input."""
+    if not isinstance(opts, ExportOptions):
+        raise TypeError("opts must be an ExportOptions instance")
+    opts.validate()
+    if opts.fmt not in ("json", "jsonl"):
+        raise UserInputError("writer.error.many_format", fmt=FORMAT_NAMES[opts.fmt])
+    if opts.as_keyed:
+        raise _invalid("as_keyed", opts.as_keyed, "writer.expected.as_keyed_many")
+    if not inputs:
+        raise UserInputError("writer.error.no_inputs")
+    started = time.perf_counter()
+    out = Path(os.path.abspath(os.fspath(out_path)))
+    pinned: list[tuple[Document, Any]] = []
+    for doc, source in inputs:
+        d = _pin(doc, source)
+        _check_target(d, out)
+        pinned.append((d, source))
+    gz = _check_gzip(opts, out, gzip)
+    refuse_edited_targets([out])
+    _purge_staging(pinned[0][0].settings)
+    for d, _source in pinned:
+        _ensure_index(d, progress, cancel)
+    ctxs: list[_Ctx] = []
+    for d, source in pinned:
+        src, count = _normalize_source(d, source)
+        ctx = _Ctx(d, opts, src, count, None, cancel, out)
+        ctx.gzip = gz
+        ctxs.append(ctx)
+    try:
+        base = 0
+        for ctx in ctxs:                 # one bar: each input's meter reports from its own base
+            ctx.meter.progress = progress
+            ctx.meter.base = base
+            base += ctx.meter.unit
+        if progress is not None:
+            progress.set_message(t("writer.progress.export", name=out.name))
+            progress.set_total(max(1, base))
+            progress.update(0)
+            progress.restart_clock()
+        for ctx in ctxs:
+            ctx.note_source()
+        top = ctxs[0]
+        json_out = opts.fmt == "json"
+        object_root = json_out and all(ctx.member for ctx in ctxs)
+        if json_out and not object_root:
+            members = sum(1 for ctx in ctxs if ctx.member)
+            if members:
+                top.warn("writer.warn.members_as_objects", add=members)
+        wrapper = None
+        if json_out and opts.keep_wrapper:
+            dropped = [ctx for ctx in ctxs if ctx.doc.kind == "wrapped"]
+            if top.doc.kind == "wrapped" and top.member == object_root:
+                wrapper = _wrapper_spans(top)          # (a partial input: writer.warn.wrapper_dropped)
+                dropped = dropped[1:]
+            if dropped:
+                top.warn("writer.warn.wrappers_dropped", add=len(dropped),
+                         names=_names_text([ctx.doc.source_path.name for ctx in dropped]))
+        rf = core.Reformatter(opts.indent if json_out else None)
+        feed = rf.feed
+        keys = _MemberKeys(top.doc) if object_root else None
+        per_input: list[int] = []
+        with _output(out, gz) as sink:
+            if json_out:
+                if wrapper is not None:
+                    for chunk in top.chunks(*wrapper[0]):
+                        sink.write(feed(chunk))
+                sink.write(feed(b"{" if object_root else b"["))
+                first = True
+                written = 0
+                for ctx in ctxs:
+                    if keys is not None:
+                        keys.offset = written
+                    first = _json_records(ctx, feed, sink, first, wrap_members=ctx.member and not object_root,
+                                          keys=keys)
+                    per_input.append(ctx.records)
+                    written += ctx.records
+                sink.write(feed(b"}" if object_root else b"]"))
+                if wrapper is not None:
+                    for chunk in top.chunks(*wrapper[1]):
+                        sink.write(feed(chunk))
+            else:
+                for ctx in ctxs:
+                    _jsonl_records(ctx, feed, sink)
+                    per_input.append(ctx.records)
+            sink.write(rf.finish())
+            if keys is not None:
+                keys.report(top, "writer.warn.merge_duplicate_keys")
+            check(cancel)
+            for ctx in ctxs:
+                ctx.doc.ensure_unchanged()
+            refuse_edited_targets([out])         # an edit of the target may have begun meanwhile
+    finally:
+        for ctx in ctxs:
+            ctx.close()
+    for ctx in ctxs:
+        ctx.finish()                     # (no progress of its own: the partial counts)
+    if progress is not None:
+        progress.finish()
+    texts, wkeys, wparams = _merged_warnings(ctxs)
+    try:
+        size = os.stat(long_path(out)).st_size
+    except OSError:  # pragma: no cover - just written
+        size = 0
+    records = sum(per_input)
+    report = ExportReport(fmt=opts.fmt, records=records, rows=records, bytes_written=size, files=[out],
+                          warnings=texts, elapsed=time.perf_counter() - started, warning_keys=wkeys,
+                          per_input=per_input, warning_params=wparams)
+    log.info("merged %d records of %d inputs into %s as %s: %d bytes in %.2f s%s", records, len(ctxs), out,
+             opts.fmt, size, report.elapsed, f"; warnings: {', '.join(wkeys)}" if wkeys else "")
+    return report
+
+
+# ----------------------------------------------------------------------------------
+# one node (the export dialog's "node" scope, CLI convert --node / extract --node)
+# ----------------------------------------------------------------------------------
+NODE_FORMATS = ("json", "jsonl")
+NODE_READ = 1 * MiB               # node bytes read (and fed to the Reformatter) at a time
+NODE_RANGE_MAX = 8 * MiB          # elements of a batch read with one read while their range is this small
+
+
+def _reformat(data: bytes, indent: int | str | None) -> bytes:
+    """One complete JSON value re-indented (token bytes unchanged)."""
+    rf = core.Reformatter(indent)
+    if len(data) <= NODE_READ:
+        return rf.feed(data) + rf.finish()
+    parts = [rf.feed(data[i:i + NODE_READ]) for i in range(0, len(data), NODE_READ)]
+    parts.append(rf.finish())
+    return b"".join(parts)
+
+
+def _stream_value(src: Any, start: int, end: int, indent: int | str | None, out: Any,
+                  cancel: CancelToken | None, on_read: Callable[[int], None] | None = None) -> None:
+    """Re-indent the value at ``[start, end)`` of the open data reader ``src`` into ``out``,
+    :data:`NODE_READ` bytes at a time."""
+    rf = core.Reformatter(indent)
+    pos = start
+    src.seek(pos)
+    while pos < end:
+        check(cancel)
+        chunk = src.read(min(NODE_READ, end - pos))
+        if not chunk:
+            raise UserInputError("writer.error.node_truncated")
+        pos += len(chunk)
+        out.write(rf.feed(chunk))
+        if on_read is not None:
+            on_read(pos)
+    out.write(rf.finish())
+
+
+def _stream_chunks(chunks: Iterable[bytes], indent: int | str | None, out: Any, cancel: CancelToken | None,
+                   on_fed: Callable[[int], None] | None = None) -> None:
+    """Re-indent one JSON value given in pieces (``doc.node_chunks``) into ``out``."""
+    rf = core.Reformatter(indent)
+    fed = 0
+    for chunk in chunks:
+        check(cancel)
+        out.write(rf.feed(chunk))
+        fed += len(chunk)
+        if on_fed is not None:
+            on_fed(fed)
+    out.write(rf.finish())
+
+
+def _write_record_lines(doc: Document, f: Any, cancel: CancelToken | None, on_fed: Callable[[int], None]) -> int:
+    """JSON Lines of the records of an edited document (the array that holds them): every
+    effective record compact on its own line, read record by record (file and edit layer)."""
+    count = 0
+    fed = 0
+    for i, data in doc.iter_record_bytes(None, include_huge=True, cancel=cancel):
+        if count % 256 == 0:
+            check(cancel)
+        if data is None:                   # a huge record: streamed from its own span
+            start, end = doc.record_span(i)
+            with doc.open_data() as src:
+                _stream_value(src, start, end, None, f, cancel)
+            fed += end - start
+        else:
+            f.write(_reformat(data, None))
+            fed += len(data)
+        f.write(b"\n")
+        count += 1
+        on_fed(fed)
+    return count
+
+
+def _write_child_lines(doc: Document, node: Any, f: Any, cancel: CancelToken | None,
+                       on_fed: Callable[[int], None]) -> int:
+    """JSON Lines of a composite array node that is not the record container (an ancestor of
+    it): every element through ``doc.node_chunks`` (the one holding the records included)."""
+    total = node.child_count(cancel=cancel)
+    done = 0
+    fed = 0
+    while done < total:
+        check(cancel)
+        kids = node.children(done, min(total, done + NODE_BATCH))
+        if not kids:
+            break
+        for kid in kids:
+            _stream_chunks(doc.node_chunks(kid, chunk=NODE_READ, cancel=cancel), None, f, cancel)
+            f.write(b"\n")
+            fed += max(0, kid.size)
+        done += len(kids)
+        on_fed(fed)
+    return done
+
+
+def _write_lines(node: Any, src: Any, f: Any, cancel: CancelToken | None, on_read: Callable[[int], None]) -> int:
+    """JSON Lines of an array node: every element compact on its own line."""
+    count = node.child_count(cancel=cancel)
+    done = 0
+    while done < count:
+        check(cancel)
+        kids = node.children(done, min(count, done + NODE_BATCH))
+        if not kids:
+            break
+        lo, hi = kids[0].start, kids[-1].end
+        if hi - lo <= NODE_RANGE_MAX:
+            src.seek(lo)
+            buf = src.read(hi - lo)
+            if len(buf) < hi - lo:
+                raise UserInputError("writer.error.node_truncated")
+            for k, kid in enumerate(kids):
+                if k % 256 == 0:
+                    check(cancel)
+                f.write(_reformat(buf[kid.start - lo:kid.end - lo], None))
+                f.write(b"\n")
+        else:
+            for kid in kids:
+                _stream_value(src, kid.start, kid.end, None, f, cancel)
+                f.write(b"\n")
+        done += len(kids)
+        on_read(kids[-1].end)
+    return done
+
+
+def export_node(doc: Document, node: Any, out_path: StrPath, fmt: str = "json", *, indent: int | str | None = 2,
+                progress: Progress | None = None, cancel: CancelToken | None = None,
+                gzip: bool | None = None) -> ExportReport:
+    """Write one node of ``doc`` (``node``: a :class:`~jsonreshape.reader.Node` resolved on the
+    document passed -- the GUI passes its pinned snapshot, so later edits do not leak in).
+
+    ``fmt="json"``: the node's value re-indented with ``core.Reformatter(indent)`` from its raw
+    bytes, streamed in 1 MiB pieces (numbers and strings byte-identical, no trailing newline --
+    like :func:`export`). ``fmt="jsonl"``: one compact line per element when the node is an array,
+    else the node on one line (``\\n`` after every line). The synthetic root of JSON Lines / stream
+    / brace-list documents (no bytes of its own) is written with :func:`export` (all records). On
+    an edited document the node's EFFECTIVE text is written: a composite node (the records'
+    container or an ancestor of it) through ``doc.node_chunks``, an array of records record by
+    record. Atomic; the source must be unchanged before the commit; ``gzip`` as for
+    :func:`export`. Other formats: ``writer.error.node_format``."""
+    fmt = fmt.strip().lower() if isinstance(fmt, str) else fmt
+    if fmt not in NODE_FORMATS:
+        raise UserInputError("writer.error.node_format", fmt=FORMAT_NAMES.get(str(fmt), str(fmt)))
+    indent = _norm_indent(indent)
+    started = time.perf_counter()
+    pinned = getattr(doc, "pinned", None)
+    if callable(pinned):
+        doc = pinned()
+    out = Path(os.path.abspath(os.fspath(out_path)))
+    _check_target(doc, out)
+    gz = gzip_path(out) if gzip is None else bool(gzip)
+    if node.is_virtual:
+        opts = ExportOptions(fmt, indent=indent if fmt == "json" else None)
+        return export(doc, out, opts, None, progress=progress, cancel=cancel, gzip=gz)
+    refuse_edited_targets([out])
+    composite = bool(getattr(node, "is_composite", False)) and bool(getattr(doc, "edited", False))
+    total = max(0, int(node.size)) if composite else max(0, node.end - node.start)
+    if progress is not None:
+        progress.set_message(t("writer.progress.node", name=out.name))
+        progress.set_total(total)
+
+    def on_read(pos: int) -> None:
+        if progress is not None:
+            progress.update(pos - node.start)
+
+    def on_fed(done: int) -> None:
+        if progress is not None:
+            progress.update(min(done, total) if total else done)
+
+    records = 1
+    with _output(out, gz) as f:
+        if composite:
+            if fmt == "jsonl" and node.kind == "array":
+                if getattr(node, "role", None) == "records":
+                    records = _write_record_lines(doc, f, cancel, on_fed)
+                else:
+                    records = _write_child_lines(doc, node, f, cancel, on_fed)
+            else:
+                _stream_chunks(doc.node_chunks(node, chunk=NODE_READ, cancel=cancel),
+                               indent if fmt == "json" else None, f, cancel, on_fed)
+                if fmt == "jsonl":
+                    f.write(b"\n")
+        else:
+            with doc.open_data() as src:
+                if fmt == "json":
+                    _stream_value(src, node.start, node.end, indent, f, cancel, on_read)
+                elif node.kind != "array":
+                    _stream_value(src, node.start, node.end, None, f, cancel, on_read)
+                    f.write(b"\n")
+                else:
+                    records = _write_lines(node, src, f, cancel, on_read)
+        check(cancel)
+        doc.ensure_unchanged()
+        refuse_edited_targets([out])     # an edit of the target may have begun meanwhile
+    if progress is not None:
+        progress.update(total)
+        progress.finish()
+    try:
+        size = os.stat(long_path(out)).st_size
+    except OSError:  # pragma: no cover - just written
+        size = 0
+    report = ExportReport(fmt=fmt, records=records, rows=records, bytes_written=size, files=[out],
+                          elapsed=time.perf_counter() - started)
+    log.info("exported node %s of %s to %s as %s: %d bytes", getattr(node, "path_text", "?"),
+             doc.source_path.name, out, fmt, size)
+    return report
 
 
 # ----------------------------------------------------------------------------------
@@ -3354,14 +4070,14 @@ def _warn_unfound(ctx: _Ctx, builder: _RowBuilder) -> None:
     """Explicit columns that found a value in no exported record (a misspelled path?)."""
     if builder.unfound and ctx.records:
         names = [builder.texts[pos] for pos in sorted(builder.unfound)]
-        ctx.warn("writer.warn.columns_not_found", add=len(names), columns=_names_text(names, 10))
+        # ``names``: every column, for callers combining reports (ExportReport.warning_params)
+        ctx.warn("writer.warn.columns_not_found", add=len(names), columns=_names_text(names, 10), names=names)
 
 
 def _export_csv(ctx: _Ctx, out: Path) -> list[Path]:
     opts = ctx.opts
     builder = _builder(ctx, _TextCells(opts.join_sep))
-    with atomic_write(out, "wb", buffering=WRITE_BUFFER) as f:
-        sink = _Sink(f)
+    with _output(out, ctx.gzip) as sink:
         if opts.csv_bom:
             sink.write(codecs.BOM_UTF8)
         buf = io.StringIO()
@@ -3476,19 +4192,11 @@ def _remove_quiet(p: StrPath) -> None:
 
 
 def _replace_retry(src: Path, dst: Path, timeout: float = 1.0) -> None:
-    """``os.replace`` retried briefly on ``PermissionError`` (Windows: antivirus scanners
-    and indexers hold new files for a moment). Raises the last ``OSError``."""
-    deadline = time.monotonic() + timeout
-    delay = 0.01
-    while True:
-        try:
-            os.replace(long_path(src), long_path(dst))
-            return
-        except PermissionError:
-            if os.name != "nt" or time.monotonic() >= deadline:
-                raise
-            time.sleep(delay)
-            delay = min(delay * 2, 0.2)
+    """:func:`jsonreshape.fileio.move_replace`: a POSIX-semantics rename (a target this program
+    still reads is replaced too), else ``os.replace``; retried briefly on ``PermissionError``
+    (Windows: antivirus scanners and indexers hold new files for a moment). Raises the last
+    ``OSError``."""
+    move_replace(src, dst, timeout=timeout)
 
 
 def _part_error(exc: OSError, path: Path) -> Exception:
@@ -3498,36 +4206,10 @@ def _part_error(exc: OSError, path: Path) -> Exception:
 
 
 def _commit_parts(staged: list[Path], names: list[Path]) -> None:
-    """Move the staged parts to ``names``, all or nothing: existing targets are renamed
-    aside first; when any step fails the new parts are removed and the old files restored."""
-    aside: list[tuple[Path, Path]] = []
-    placed: list[Path] = []
-    try:
-        for final in names:
-            if os.path.lexists(long_path(final)):
-                bak = final.with_name(f".{final.name[:48]}.{secrets.token_hex(4)}.bak")
-                try:
-                    _replace_retry(final, bak)
-                except OSError as exc:
-                    raise _part_error(exc, final) from exc
-                aside.append((final, bak))
-        for src, final in zip(staged, names):
-            try:
-                _replace_retry(src, final)
-            except OSError as exc:
-                raise _part_error(exc, final) from exc
-            placed.append(final)
-    except BaseException:
-        for final in placed:
-            _remove_quiet(final)
-        for final, bak in reversed(aside):
-            try:
-                os.replace(long_path(bak), long_path(final))
-            except OSError:
-                log.error("could not restore %s from %s", final, bak, exc_info=True)
-        raise
-    for _, bak in aside:
-        _remove_quiet(bak)
+    """Move the staged parts to ``names``, all or nothing (:func:`jsonreshape.fileio.commit_files`:
+    existing targets are renamed aside first; when any step fails the new parts are removed and
+    the old files restored; a part another program holds -> ``writer.error.xlsx_part_locked``)."""
+    commit_files(staged, names, move=lambda s, d: _replace_retry(s, d), error=_part_error)
 
 
 class _XlsxSink:
@@ -3795,7 +4477,7 @@ class _XlsxBook:
                 break
             stale.append(p)
             k += 1
-        ctx.commit_check()
+        ctx.commit_check(names)          # (the part names: a part with unsaved edits is never replaced)
         _commit_parts(self.staged, names)
         self.staged = []
         if stale:
@@ -3931,9 +4613,9 @@ def _exact_double(v: JsonFloat) -> float | None:
 
 class _SqlTable:
     __slots__ = ("name", "schema", "child", "depth", "prefix", "cols", "names", "width", "pending", "next_id", "sql",
-                 "extra_pos", "extra_name", "extra_rows")
+                 "extra_pos", "extra_name", "extra_rows", "parent", "rows")
 
-    def __init__(self, name: str, schema: tuple | None, fixed: list[str]) -> None:
+    def __init__(self, name: str, schema: tuple | None, fixed: list[str], parent: str | None = None) -> None:
         self.name = name
         self.schema = schema                    # array path (None: the records table)
         self.child = schema is not None
@@ -3948,6 +4630,8 @@ class _SqlTable:
         self.extra_pos: int | None = None       # position of the overflow column once added ...
         self.extra_name = EXTRA_NAME            # ... and its name (_extra, or _extra_2 when taken)
         self.extra_rows = 0
+        self.parent = parent                    # the table holding the parent rows (child tables)
+        self.rows = 0                           # rows inserted
 
 
 class _ObjStats:
@@ -4062,12 +4746,15 @@ class _Pooled:
 
 
 class _SqliteWriter:
-    """Records -> the ``records`` table and one child table per array path."""
+    """Records -> the ``records`` table and one child table per array path (+ the ``_jsonreshape``
+    table describing them and, for wrapped documents, the ``_wrapper`` table)."""
 
-    def __init__(self, conn: sqlite3.Connection, ctx: _Ctx, plans: dict[tuple, _MapPlan] | None = None) -> None:
+    def __init__(self, conn: sqlite3.Connection, ctx: _Ctx, plans: dict[tuple, _MapPlan] | None = None,
+                 ordered: bool = False) -> None:
         self.conn = conn
         self.ctx = ctx
         self.member = ctx.member
+        self.ordered = ordered                  # an "_ord" column: the selection's order
         self.check_surrogates = ctx.check_surrogates
         limit = SQLITE_MAX_COLUMNS
         try:
@@ -4077,7 +4764,9 @@ class _SqliteWriter:
         self.max_columns = max(8, limit)
         self.cell_budget = ctx.cell_budget
         self.plans = plans or {}
-        self.names: set[str] = set()            # tables and indexes
+        # tables and indexes; the names of the description tables are taken first, so a data table of
+        # that name becomes "<name>_2"
+        self.names: set[str] = {META_TABLE.translate(_ASCII_LOWER), WRAPPER_TABLE.translate(_ASCII_LOWER)}
         self.order: list[_SqlTable] = []
         self.children: dict[tuple, _SqlTable] = {}
         self.rows = 0
@@ -4087,16 +4776,19 @@ class _SqliteWriter:
         self.json_array_paths: dict[str, None] = {}
         self.records = self._new_table("records", None)
 
-    def _new_table(self, base: str, schema: tuple | None) -> _SqlTable:
+    def _new_table(self, base: str, schema: tuple | None, parent: _SqlTable | None = None) -> _SqlTable:
         name = _unique_name(self.names, _sql_name(base))
         if schema is not None:
+            assert parent is not None
             fixed = ["_id", "_parent", "_idx"]
-            defs = '"_id" INTEGER PRIMARY KEY, "_parent" INTEGER, "_idx" INTEGER'
+            defs = (f'"_id" INTEGER PRIMARY KEY, "_parent" INTEGER REFERENCES {_q(parent.name)}("_id"), '
+                    '"_idx" INTEGER')
         else:
-            fixed = ["_id", KEY_COLUMN] if self.member else ["_id"]
-            defs = '"_id" INTEGER PRIMARY KEY' + (f", {_q(KEY_COLUMN)}" if self.member else "")
+            fixed = ["_id"] + (["_ord"] if self.ordered else []) + ([KEY_COLUMN] if self.member else [])
+            defs = ", ".join(['"_id" INTEGER PRIMARY KEY'] + [f"{_q(c)}" + (" INTEGER" if c == "_ord" else "")
+                                                             for c in fixed[1:]])
         self.conn.execute(f"CREATE TABLE {_q(name)} ({defs})")
-        table = _SqlTable(name, schema, fixed)
+        table = _SqlTable(name, schema, fixed, parent.name if parent is not None else None)
         self.order.append(table)
         return table
 
@@ -4112,7 +4804,7 @@ class _SqliteWriter:
                 if len(self.json_array_paths) < 6:
                     self.json_array_paths[format_path(schema) if schema else VALUE_NAME] = None
                 return None
-            table = self.children[schema] = self._new_table(_table_name(schema), schema)
+            table = self.children[schema] = self._new_table(_table_name(schema), schema, parent)
         return table
 
     def _add_column(self, table: _SqlTable, text: str) -> int:
@@ -4246,9 +4938,10 @@ class _SqliteWriter:
             n = len(row)
             if pos >= n:
                 row.extend([None] * (pos + 1 - n))
-            row[pos] = codec.dumps(extras).decode("utf-8")
+            row[pos] = codec.dumps_transient(extras).decode("utf-8")
             table.extra_rows += 1
         table.pending.append(row)
+        table.rows += 1
         if len(table.pending) >= SQLITE_BATCH or len(table.pending) * table.width >= self.cell_budget:
             self._flush(table)
 
@@ -4266,10 +4959,14 @@ class _SqliteWriter:
         self.rows += len(rows)
         table.pending = []
 
-    def add(self, index: int, key: str | None, value: Any) -> None:
+    def add(self, index: int, key: str | None, value: Any, order: int = 0) -> None:
         if key is not None and self.check_surrogates and _SURROGATE_RE.search(key):
             key = _escape_surrogates(key)
-        row: list[Any] = [index, key] if self.member else [index]
+        row: list[Any] = [index]
+        if self.ordered:
+            row.append(order)
+        if self.member:
+            row.append(key)
         pending: deque = deque()
         extras = self._fill(self.records, row, value, index, pending)
         self._finish_row(self.records, row, extras)
@@ -4303,7 +5000,9 @@ class _SqliteWriter:
         self.conn.execute("COMMIT")
         self.conn.execute("BEGIN")
 
-    def finish(self) -> None:
+    def finish(self, wrapper: tuple[str, str] | None = None) -> None:
+        """The last rows, an index on every ``_parent``, the ``_jsonreshape`` table and -- given
+        ``wrapper`` = ``(record path, JSON text)`` -- the ``_wrapper`` table; then COMMIT."""
         for table in self.order:
             self._flush(table)
         for table in self.order:
@@ -4311,7 +5010,26 @@ class _SqliteWriter:
                 check(self.ctx.cancel)
                 index = _unique_name(self.names, _sql_name(table.name + "._parent"))
                 self.conn.execute(f'CREATE INDEX {_q(index)} ON {_q(table.name)} ("_parent")')
+        self._describe()
+        if wrapper is not None:
+            self.conn.execute(f'CREATE TABLE {_q(WRAPPER_TABLE)} ("path" TEXT, "json" TEXT)')
+            self.conn.execute(f"INSERT INTO {_q(WRAPPER_TABLE)} VALUES (?, ?)", wrapper)
         self.conn.execute("COMMIT")
+
+    def _describe(self) -> None:
+        """The ``_jsonreshape`` table: one row per data table -- ``name``, ``path`` (the JSON path
+        of its rows inside a record: ``$`` for the records, ``orders[*]``, ``orders[*].items[*]``,
+        ``[*]`` for the elements of array records), ``parent`` (the table holding the parent rows,
+        NULL for ``records``), ``kind`` (``records`` / ``array``) and ``rows``."""
+        self.conn.execute(f'CREATE TABLE {_q(META_TABLE)} ("name" TEXT, "path" TEXT, "parent" TEXT, "kind" TEXT, '
+                          '"rows" INTEGER)')
+        rows = []
+        for table in self.order:
+            path = format_path(table.prefix) if table.child else RECORD_COLUMN
+            if _SURROGATE_RE.search(path):
+                path = _escape_surrogates(path)
+            rows.append((table.name, path, table.parent, "array" if table.child else "records", table.rows))
+        self.conn.executemany(f"INSERT INTO {_q(META_TABLE)} VALUES (?, ?, ?, ?, ?)", rows)
 
 
 def _sqlite_scan(ctx: _Ctx) -> _SqliteScan:
@@ -4342,6 +5060,50 @@ def _sqlite_scan(ctx: _Ctx) -> _SqliteScan:
     return scan
 
 
+def _ascending_source(src: Any) -> bool:
+    """The selection is in file order (no ``_ord`` column needed): all records, an ascending
+    ``range``, an ascending array/list, a RecordSet that says it is ascending."""
+    if src is None:
+        return True
+    if isinstance(src, range):
+        return src.step > 0 or len(src) <= 1
+    if isinstance(src, (array, list, tuple)):
+        return len(src) <= 1 or all(map(operator.lt, src, itertools.islice(src, 1, None)))
+    is_asc = getattr(src, "is_ascending", None)
+    if callable(is_asc):
+        try:
+            return bool(is_asc())
+        except Exception:  # pragma: no cover - a source that cannot tell
+            return False
+    return False
+
+
+def _wrapper_json(ctx: _Ctx) -> tuple[str, str] | None:
+    """``(record path, compact JSON text of the wrapper with null in place of the record
+    container)`` of a wrapped document (the SQLite ``_wrapper`` table); ``None`` for other kinds,
+    a partial document or a wrapper larger than ``Settings.large_node_bytes``."""
+    doc = ctx.doc
+    if doc.kind != "wrapped" or doc.error is not None:
+        return None
+    spans = doc.wrapper_spans(cancel=ctx.cancel)
+    if spans is None:
+        return None
+    (ps, pe), (ss, se) = spans
+    if (pe - ps) + (se - ss) > doc.settings.large_node_bytes:
+        return None
+    rf = core.Reformatter(None)
+    try:
+        parts = [rf.feed(c) for c in ctx.chunks(ps, pe)]
+        parts.append(rf.feed(b"null"))
+        parts.extend(rf.feed(c) for c in ctx.chunks(ss, se))
+        parts.append(rf.finish())
+    except ValueError:  # pragma: no cover - the index validated the wrapper
+        log.warning("the wrapper of %s could not be reformatted", doc.source_path, exc_info=True)
+        return None
+    text = b"".join(parts).decode("utf-8", "replace")
+    return doc.info.record_path_text or "$", text
+
+
 def _export_sqlite(ctx: _Ctx, out: Path) -> list[Path]:
     doc = ctx.doc
     # a selection may repeat a record: a bitmap of the records written (1 bit each)
@@ -4349,6 +5111,10 @@ def _export_sqlite(ctx: _Ctx, out: Path) -> list[Path]:
     duplicates = 0
     member = ctx.member
     split = doc.split_member
+    ordered = not _ascending_source(ctx.src)
+    wrapper = _wrapper_json(ctx) if doc.kind == "wrapped" and ctx.opts.keep_wrapper else None
+    if doc.kind == "wrapped" and ctx.opts.keep_wrapper and wrapper is None:
+        ctx.wrapper_not_written()
     plans = _sqlite_scan(ctx).plans()
     with atomic_path(out) as tmp:
         conn = sqlite3.connect(long_path(tmp), isolation_level=None)
@@ -4357,7 +5123,7 @@ def _export_sqlite(ctx: _Ctx, out: Path) -> list[Path]:
             conn.execute("PRAGMA synchronous=OFF")
             conn.execute("PRAGMA cache_size=-32768")
             conn.execute("BEGIN")
-            writer = _SqliteWriter(conn, ctx, plans)
+            writer = _SqliteWriter(conn, ctx, plans, ordered)
             since_commit = 0
             for blk in ctx.blocks():
                 if blk.huge:
@@ -4381,7 +5147,7 @@ def _export_sqlite(ctx: _Ctx, out: Path) -> list[Path]:
                         except _DECODE_ERRORS:
                             ctx.skip_deep("writer.warn.deep_skipped_sqlite")
                             continue
-                        writer.add(index, key, value)
+                        writer.add(index, key, value, ctx.records)
                         ctx.records += 1
                     since_commit += len(blk.data)
                 ctx.advance(blk)
@@ -4389,7 +5155,7 @@ def _export_sqlite(ctx: _Ctx, out: Path) -> list[Path]:
                     writer.commit()
                     since_commit = 0
             ctx.message("writer.progress.finish")
-            writer.finish()
+            writer.finish(wrapper)
         except sqlite3.Error as exc:
             raise ExportError("writer.error.sqlite", detail=str(exc)) from exc
         finally:

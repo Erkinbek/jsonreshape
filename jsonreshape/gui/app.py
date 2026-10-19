@@ -127,9 +127,10 @@ GC_FULL_MAX_DEFER_S = 30.0
 #: A full collection this many seconds after a tab was closed (GcPolicy.request_full).
 GC_AFTER_CLOSE_S = 3.0
 #: Threads not waited for before the automatic collector is enabled again: idle pool
-#: threads that only work for a task whose own thread is waited for, and the watchers of
-#: an earlier window that wait to enable it.
-GC_IGNORED_THREADS = ("jsonreshape-schema-io", "jsonreshape-gc-restore")
+#: threads that only work for a task whose own thread is waited for, the watchers of
+#: an earlier window that wait to enable it, and the edit layer's file reaper (a daemon that
+#: lives as long as the process and only wakes up briefly to delete released layer files).
+GC_IGNORED_THREADS = ("jsonreshape-schema-io", "jsonreshape-gc-restore", "jsonreshape-layer-reaper")
 
 
 def choose_language() -> str:
@@ -632,7 +633,8 @@ def main(argv: list[str] | None = None, *, run: bool = True) -> Any:
         code = app.exec()
     finally:
         if not window._closing:
-            window.close()
+            # nobody can answer questions any more: the edit layers stay for recovery
+            window.close_without_questions()
         uninstall()
     log.info("the viewer exited with code %s", code)
     return int(code)

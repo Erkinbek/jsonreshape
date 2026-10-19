@@ -29,6 +29,24 @@ pure text helpers, which the GUI thread uses too:
 Child counts are computed only where that is cheap: when the children are already indexed
 (``Node.children_indexed``) or the node is small (:data:`SMALL_NODE_BYTES` and not
 ``is_large``). Larger nodes get their count from the "children" task of the view.
+
+Editing (docs/ARCHITECTURE.md §12.9): a :class:`NodeSource` reads ONE overlay state -- the
+tree gives it a pinned view of the document (``doc.pinned()``) and a ``gen`` -- and the tree
+replaces it after every applied ChangeSet, so a fetch that started before an edit never mixes
+two states (its results are dropped by the loader). While the document is still being indexed
+(a reopen after a save indexes the new file), :meth:`NodeSource.fetch` leaves out the records
+the index has not reached yet instead of failing them: a failure is cached by the loader.
+:meth:`NodeSource.edit_payload` loads what an editor needs (kind, exact token, decoded string) in a worker;
+:class:`EditPayload` carries it to the GUI thread.
+
+Smart values (docs/ARCHITECTURE.md §14.7, §14.9): :meth:`NodeSource.make_info` (worker thread) runs
+:func:`smart_value` on the scalar text it read for the value column anyway (at most
+:data:`VALUE_CHARS` characters of the token: nothing more is read) and keeps the result in
+:attr:`NodeInfo.smart` -- the tree turns it into a tooltip, an underlined link or a colour swatch.
+A string cut at that limit is only a *prefix*: only an image (recognized from its first bytes)
+counts then, never a link, date or colour (a cut URL would open the wrong address).
+:func:`smart_value` (also used by the table) caches its results per value text
+(:data:`SMART_CACHE_SIZE` texts of up to :data:`SMART_CACHE_CHARS` characters; thread-safe).
 """
 
 from __future__ import annotations
@@ -44,18 +62,19 @@ from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
-from jsonreshape import codec, core
-from jsonreshape.errors import Cancelled, JsonReshapeError
-from jsonreshape.i18n import t
+from jsonreshape import codec, core, smartvalues
+from jsonreshape.errors import Cancelled, JsonReshapeError, TooLargeError
+from jsonreshape.i18n import get_language, t
 from jsonreshape.paths import MISSING, format_path
 from jsonreshape.sortkeys import SortKey, collation_key
-from jsonreshape.tasks import CancelToken, Progress, check
+from jsonreshape.tasks import CancelToken, Progress, check, format_bytes
 
 log = logging.getLogger(__name__)
 
 __all__ = [
     "CHILD_BATCH",
     "ELLIPSIS",
+    "EditPayload",
     "ExpandPlan",
     "NodeInfo",
     "NodeSource",
@@ -68,8 +87,11 @@ __all__ = [
     "key_label",
     "scalar_display",
     "search_texts",
+    "smart_cell",
+    "smart_value",
     "stable_argsort",
     "string_display",
+    "string_value",
     "summarize_prefix",
 ]
 
@@ -89,6 +111,8 @@ RECORDS_ROLE = "records"     # Node.role of the node holding the records (wrappe
 SORT_RUN = 16384             # stable_argsort: keys sorted per C-level call (a few ms of GIL)
 SORT_BLOCK = 256             # stable_argsort: minimal block taken from a run per merge step
 WALK_SHARE = 0.8             # node sorting progress: reading the keys, then sorting
+SMART_CACHE_SIZE = 4096      # smart_value: detections remembered (per value text) ...
+SMART_CACHE_CHARS = 512      # ... for value texts up to this long (longer ones are detected each time)
 
 _CTRL_RE = re.compile("[\x00-\x1f\x7f  ]")
 _SURROGATE_RE = re.compile("[\ud800-\udfff]")
@@ -107,7 +131,9 @@ class NodeInfo:
     ``count`` is ``None`` while the child count is unknown (a large node whose children are
     not indexed yet); the view sets it once its children task finished. ``records``: the
     member of a wrapped document's wrapper that holds the records (shown with the record
-    count, never expanded inline: the records are the rows below the wrapper)."""
+    count, never expanded inline: the records are the rows below the wrapper). ``smart``: the
+    :class:`~jsonreshape.smartvalues.SmartValue` of a scalar (:func:`smart_value` of the text
+    read for the value column) or ``None``."""
 
     keypath: tuple
     kind: str                    # object | array | string | number | bool | null
@@ -119,6 +145,7 @@ class NodeInfo:
     text: str = ""               # value column text
     large: bool = False          # unknown children need the visible "children" task
     records: bool = False
+    smart: Any = None            # SmartValue of a scalar (time, date, link, colour, image) or None
 
     @property
     def size(self) -> int:
@@ -132,6 +159,22 @@ class NodeInfo:
     def expandable(self) -> bool:
         """Has (or may have) children shown inline."""
         return self.is_container and not self.records and self.count != 0
+
+
+@dataclass(slots=True)
+class EditPayload:
+    """What an editor of one node needs (loaded in a worker by :meth:`NodeSource.edit_payload`).
+
+    ``kind`` of the node; ``token``: the exact JSON text of a scalar (``None`` for containers
+    or when it was not read); ``value``: the decoded string of a string node (``None``
+    otherwise); ``size``: the node's size in bytes; ``key``: its member key (``None`` for
+    elements and the root)."""
+
+    kind: str
+    size: int
+    token: str | None = None
+    value: str | None = None
+    key: str | None = None
 
 
 @dataclass
@@ -198,10 +241,11 @@ def _unescape_partial(body: str) -> str:
     return text
 
 
-def string_display(raw: str) -> str:
-    """Display text of a string token (``raw`` as ``Node.scalar_text`` gives it: the token,
-    cut with ``…`` when long): escapes decoded (``\\u0442`` -> ``т``), quotes kept, control
-    characters, quotes and backslashes shown JSON-style, ``…`` for a cut value."""
+def string_value(raw: str) -> tuple[str, bool]:
+    """``(decoded text, complete)`` of a string token as ``Node.scalar_text`` gives it (the token,
+    cut with ``…`` when long): a complete token is decoded with ``json.loads``; a cut one is
+    decoded as far as it goes (an incomplete escape at the end is dropped) and ``complete`` is
+    False -- the text is only the beginning of the value."""
     raw = raw.strip(_WS)
     if len(raw) >= 2 and raw[0] == '"':
         try:
@@ -209,14 +253,100 @@ def string_display(raw: str) -> str:
         except ValueError:
             value = None
         if isinstance(value, str):
-            return '"' + _escape_display(value) + '"'
+            return value, True
     body = raw[1:] if raw.startswith('"') else raw
     cut = body.endswith(ELLIPSIS)
     if cut:
         body = body[:-1]
     elif body.endswith('"'):
         body = body[:-1]
-    return '"' + _escape_display(_unescape_partial(body)) + (ELLIPSIS if cut else '"')
+    return _unescape_partial(body), not cut
+
+
+def string_display(raw: str) -> str:
+    """Display text of a string token (``raw`` as ``Node.scalar_text`` gives it: the token,
+    cut with ``…`` when long): escapes decoded (``\\u0442`` -> ``т``), quotes kept, control
+    characters, quotes and backslashes shown JSON-style, ``…`` for a cut value."""
+    return _quoted_display(*string_value(raw))
+
+
+def _quoted_display(value: str, complete: bool) -> str:
+    return '"' + _escape_display(value) + ('"' if complete else ELLIPSIS)
+
+
+_smart_lock = threading.Lock()
+_smart_cache: OrderedDict[tuple, Any] = OrderedDict()
+_NO_SMART = object()             # cached "not a smart value"
+
+
+def smart_value(value: Any, kind: str | None = None, *, prefix: bool = False) -> Any:
+    """The :class:`~jsonreshape.smartvalues.SmartValue` (:func:`jsonreshape.smartvalues.detect`)
+    of a scalar already loaded for display, or ``None``.
+
+    ``value``: a decoded string, a number (``codec`` types) or a number token text; ``kind``:
+    ``"string"`` / ``"number"`` (``None``: from the Python type). ``prefix``: ``value`` is only
+    the loaded beginning of a longer string -- then only an image counts (it is recognized from
+    its first bytes; a cut link / date / colour is not that value). Results are cached per value
+    text (:data:`SMART_CACHE_SIZE` entries, texts up to :data:`SMART_CACHE_CHARS` characters,
+    per language: the tooltips are localized). Any thread; never reads a file."""
+    if value is None or isinstance(value, bool):
+        return None
+    if kind is None:
+        kind = "string" if isinstance(value, str) else "number"
+    if kind == "string":
+        if not isinstance(value, str) or not value:
+            return None
+        text = value
+    elif kind == "number":
+        try:
+            text = value.strip(_WS) if isinstance(value, str) else codec.number_text(value)
+        except (TypeError, ValueError):
+            return None
+    else:
+        return None
+    key = (kind, text, get_language()) if len(text) <= SMART_CACHE_CHARS else None
+    found: Any = None
+    hit = False
+    if key is not None:
+        with _smart_lock:
+            cached = _smart_cache.get(key)
+            if cached is not None:
+                _smart_cache.move_to_end(key)
+                found, hit = (None if cached is _NO_SMART else cached), True
+    if not hit:
+        try:
+            found = smartvalues.detect(text, kind)
+        except Exception:  # noqa: BLE001 - a display nicety must never break a row
+            log.debug("smart value of %r failed", text[:80], exc_info=True)
+            found = None
+        if key is not None:
+            with _smart_lock:
+                _smart_cache[key] = _NO_SMART if found is None else found
+                _smart_cache.move_to_end(key)
+                while len(_smart_cache) > SMART_CACHE_SIZE:
+                    _smart_cache.popitem(last=False)
+    if prefix and found is not None and found.kind != "image":
+        return None
+    return found
+
+
+def smart_cell(smart: Any, text: str, *, quoted: bool = False) -> dict[str, Any]:
+    """The cell attributes (keyword arguments of :class:`jsonreshape.gui.vgrid.Cell`) showing the
+    smart value ``smart`` in a cell whose text is ``text``: its ``tooltip``; for a link
+    (``url`` / ``email``) ``role="link"``, ``link`` (what to open) and -- ``quoted``: the text is
+    a JSON string in quotes -- ``link_span`` (the characters between the quotes); for a colour
+    ``swatch`` (RGBA). ``{}`` for ``None``."""
+    if smart is None:
+        return {}
+    out: dict[str, Any] = {"tooltip": smart.tooltip}
+    if smart.kind in ("url", "email") and smart.url:
+        out["role"] = "link"
+        out["link"] = smart.url
+        if quoted and len(text) >= 2 and text[0] == '"' and text[-1] == '"':
+            out["link_span"] = (1, len(text) - 1)
+    elif smart.kind == "color" and smart.rgba is not None:
+        out["swatch"] = tuple(smart.rgba)
+    return out
 
 
 def scalar_display(kind: str, raw: str) -> str:
@@ -551,8 +681,9 @@ class NodeSource:
     """Nodes of one document by key path (thread-safe LRU) and the worker-side operations
     of the tree view. Every method may block on I/O: worker threads only."""
 
-    def __init__(self, doc: Any, *, capacity: int = NODE_CACHE) -> None:
+    def __init__(self, doc: Any, *, capacity: int = NODE_CACHE, gen: int = 0) -> None:
         self.doc = doc
+        self.gen = gen                        # the tree's data generation this source reads (§12.9)
         self.kind: str = doc.kind
         base = tuple(doc.info.record_path or ()) if doc.kind == "wrapped" else ()
         self.record_base: tuple = base
@@ -627,17 +758,40 @@ class NodeSource:
                 check(cancel)
                 info.count = int(node.child_count(cancel=cancel))
             info.text = container_text(kind, info.count, node.scalar_text(SUMMARY_SOURCE_CHARS))
+        elif kind == "string":
+            value, complete = string_value(node.scalar_text(VALUE_CHARS))
+            info.text = _quoted_display(value, complete)
+            info.smart = smart_value(value, "string", prefix=not complete)   # (only the text read anyway)
         else:
-            info.text = scalar_display(kind, node.scalar_text(VALUE_CHARS))
+            raw = node.scalar_text(VALUE_CHARS)
+            info.text = scalar_display(kind, raw)
+            if kind == "number":
+                info.smart = smart_value(raw, "number")
         return info
+
+    def not_indexed_yet(self, top: Any) -> bool:
+        """``top`` is a record number the growing index has not reached yet (the record may
+        exist: it is "not loaded", never an error -- a cached error would stay after the index
+        got there)."""
+        if isinstance(top, bool) or not isinstance(top, int):
+            return False
+        doc = self.doc
+        try:
+            return not doc.index_complete and top >= int(doc.record_count)
+        except Exception:  # noqa: BLE001 - a closed document: read (and fail) as before
+            return False
 
     def fetch(self, keys: list, cancel: CancelToken) -> dict[tuple, Any]:
         """The loader's fetch: ``{keypath: NodeInfo | exception}``. Siblings are read in
-        contiguous ranges (``parent.children(a, b)``). ``Cancelled`` propagates."""
+        contiguous ranges (``parent.children(a, b)``). ``Cancelled`` propagates. Key paths
+        of records the index has not reached yet are left out (not loaded, asked again when
+        shown)."""
         out: dict[tuple, Any] = {}
         groups: dict[tuple, list[int]] = {}
         for kp in keys:
             kp = tuple(kp)
+            if self.not_indexed_yet(kp[0]):
+                continue
             if len(kp) == 1:
                 try:
                     check(cancel)
@@ -684,6 +838,43 @@ class NodeSource:
     def child_count(self, kp: tuple, progress: Progress | None = None, cancel: CancelToken | None = None) -> int:
         node = self.node(kp, cancel)
         return int(node.child_count(progress=progress, cancel=cancel))
+
+    # -- editing (§12.9) -----------------------------------------------------------
+    def edit_payload(self, kp: tuple, cancel: CancelToken | None = None, *,
+                     token_max: int = 64 << 10) -> EditPayload:
+        """What the editor of the node ``kp`` needs (worker thread): its kind and size; for a
+        scalar up to ``token_max`` bytes its exact token (strings: also the decoded value). A
+        longer string is not read (``token`` / ``value`` stay ``None``: the caller opens the
+        string dialog with its own loader); null and containers carry only kind and size (the
+        JSON dialog reads their text). ``TooLargeError`` for a number / bool token above
+        ``token_max``. The text is the effective one (``doc.node_chunks``)."""
+        node = self.node(kp, cancel)
+        kind = node.kind
+        key = node.key if isinstance(node.key, str) else None
+        payload = EditPayload(kind=kind, size=int(node.size), key=key)
+        if kind not in ("string", "number", "bool") or (kind == "string" and node.size > token_max):
+            return payload
+        raw = self._read_text(node, token_max, cancel)
+        token = raw.decode("utf-8", "surrogatepass").strip(_WS)
+        payload.token = token
+        if kind == "string":
+            value = json.loads(token)
+            payload.value = value if isinstance(value, str) else str(value)
+        return payload
+
+    def _read_text(self, node: Any, cap: int, cancel: CancelToken | None) -> bytes:
+        """The effective JSON text of ``node`` (``TooLargeError`` above ``cap`` bytes)."""
+        if node.size > cap:
+            raise TooLargeError(size=_size_text(node.size))
+        parts: list[bytes] = []
+        total = 0
+        for piece in self.doc.node_chunks(node, chunk=1 << 20, cancel=cancel):
+            check(cancel)
+            total += len(piece)
+            if total > cap:
+                raise TooLargeError(size=_size_text(max(total, node.size)))
+            parts.append(piece)
+        return b"".join(parts)
 
     # -- node sorting --------------------------------------------------------------
     def _walk_children(self, node: Any, count: int, cancel: CancelToken | None,
@@ -868,6 +1059,10 @@ class NodeSource:
             anc = tuple(kp[:d])
             out.append(self.make_info(anc, self.node(anc, cancel), cancel))
         return out
+
+
+def _size_text(n: int) -> str:
+    return format_bytes(int(n))
 
 
 def _runs(idxs: list[int], gap: int) -> Iterator[tuple[int, int]]:

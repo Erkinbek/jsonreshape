@@ -1,0 +1,138 @@
+{
+ "name": "ex15_depth_moves",
+ "description": "engine analysis worked example: _depth inside a group, then outside the element",
+ "case": {
+  "name": "ex15_depth_moves",
+  "records": [
+   {
+    "name": "p1",
+    "children": [
+     {
+      "name": "child1",
+      "children": [
+       {
+        "name": "child1.2",
+        "children": [{"name": "child1.2.1", "children": []}, {"name": "child1.2.3", "children": []}]
+       }
+      ]
+     },
+     {"name": "child2", "children": []}
+    ]
+   }
+  ],
+  "ops": [
+   {"op": "flatten", "node": "[].children"},
+   {"op": "group", "node": "[].children[]", "name": "meta"},
+   {"op": "move", "node": "[].children[]._depth", "target": "[].children[].meta", "zone": "inside"},
+   {"op": "output"},
+   {"op": "move", "node": "[].children[].meta._depth", "target": "[].name", "zone": "after"}
+  ]
+ },
+ "output": [
+  {
+   "name": "p1",
+   "children": [
+    {"name": "child1", "meta": {}},
+    {"name": "child1.2", "meta": {}},
+    {"name": "child1.2.1", "meta": {}},
+    {"name": "child1.2.3", "meta": {}},
+    {"name": "child2", "meta": {}}
+   ]
+  }
+ ],
+ "log": [
+  {
+   "i": 0,
+   "op": "flatten",
+   "applied": true,
+   "changed": true,
+   "undo": 1,
+   "msg": "«children» ichidagi barcha darajalar bitta massivga yig'ildi: 5 ta element"
+  },
+  {
+   "i": 1,
+   "op": "group",
+   "applied": true,
+   "changed": true,
+   "undo": 3,
+   "msg": "",
+   "result": {"ref": [0, "children", 0, "meta"], "key": "meta"}
+  },
+  {"i": 2, "op": "move", "applied": true, "changed": true, "undo": 4, "msg": ""},
+  {
+   "i": 3,
+   "op": "output",
+   "applied": false,
+   "changed": false,
+   "undo": 4,
+   "msg": null,
+   "result": [
+    {
+     "name": "p1",
+     "children": [
+      {"name": "child1", "meta": {"_depth": 1}},
+      {"name": "child1.2", "meta": {"_depth": 2}},
+      {"name": "child1.2.1", "meta": {"_depth": 3}},
+      {"name": "child1.2.3", "meta": {"_depth": 3}},
+      {"name": "child2", "meta": {"_depth": 1}}
+     ]
+    }
+   ]
+  },
+  {"i": 4, "op": "move", "applied": true, "changed": true, "undo": 5, "msg": ""}
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "name", "kind": "value", "src": [null, "name"], "types": ["string"], "count": 1, "pcount": 1, "samples": ["\"p1\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "_depth", "kind": "value", "src": null, "types": ["number"], "count": 0, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": "depth", "ctx": [null, "children", null], "open": false, "is_elem": false, "is_root": false, "children": []},
+   {"key": "children", "kind": "array", "src": [null, "children"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "children", null], "types": ["object"], "count": 5, "pcount": null, "samples": [], "synthetic": false, "rec_key": "children", "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+     {"key": "name", "kind": "value", "src": [null, "children", null, "name"], "types": ["string"], "count": 5, "pcount": 5, "samples": ["\"child1\"", "\"child1.2\"", "\"child1.2.1\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []},
+     {"key": "meta", "kind": "object", "src": null, "types": ["object"], "count": 0, "pcount": null, "samples": [], "synthetic": true, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+    ]}
+   ]}
+  ]}
+ ]},
+ "badges": [
+  {"ref": [0, "_depth"], "badges": ["daraja raqami"]},
+  {"ref": [0, "children", 0], "badges": ["rekursiv · children"]},
+  {"ref": [0, "children", 0, "meta"], "badges": ["yangi guruh"]}
+ ],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"name\" value <- [].name",
+  "    \"_depth\" value [computed=depth ctx=[].children[]]",
+  "    \"children\" array <- [].children",
+  "      [] object [recKey=children] <- [].children[]",
+  "        \"name\" value <- [].children[].name",
+  "        \"meta\" object [synthetic]"
+ ],
+ "preview": [
+  {
+   "name": "p1",
+   "children": [
+    {"name": "child1", "meta": {}},
+    {"name": "child1.2", "meta": {}},
+    {"name": "child1.2.1", "meta": {}},
+    {"name": "child1.2.3", "meta": {}},
+    {"name": "child2", "meta": {}}
+   ]
+  }
+ ],
+ "perRecord": [
+  [
+   {
+    "name": "p1",
+    "children": [
+     {"name": "child1", "meta": {}},
+     {"name": "child1.2", "meta": {}},
+     {"name": "child1.2.1", "meta": {}},
+     {"name": "child1.2.3", "meta": {}},
+     {"name": "child2", "meta": {}}
+    ]
+   }
+  ]
+ ],
+ "perRecordConcatEqualsOutput": true
+}

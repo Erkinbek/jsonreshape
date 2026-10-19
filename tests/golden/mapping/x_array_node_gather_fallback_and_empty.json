@@ -1,0 +1,63 @@
+{
+ "name": "x_array_node_gather_fallback_and_empty",
+ "description": "targeted reference case (batch4)",
+ "case": {
+  "name": "x_array_node_gather_fallback_and_empty",
+  "records": [
+   {"k": [{"c": [1, 2]}, {"c": [3]}]},
+   {"k": [{"c": "s1"}, {"c": "s2"}]},
+   {"k": [{"c": "s1"}, {"c": [4]}]},
+   {"k": []},
+   {"k": [{}]}
+  ],
+  "ops": [
+   {"op": "move", "node": "[].k[].c", "target": "[].k", "zone": "before"},
+   {"op": "move", "node": "[].k[]", "target": "[]", "zone": "inside"}
+  ]
+ },
+ "output": [
+  {"c": [1, 2, 3], "k": [{}, {}]},
+  {"c": "s1", "k": [{}, {}]},
+  {"c": [4], "k": [{}, {}]},
+  {"k": []},
+  {"k": [{}]}
+ ],
+ "log": [
+  {"i": 0, "op": "move", "applied": true, "changed": true, "undo": 1, "msg": ""},
+  {"i": 1, "op": "move", "applied": false, "changed": false, "undo": 1, "msg": null}
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 5, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "c", "kind": "array", "src": [null, "k", null, "c"], "types": ["array", "string"], "count": 6, "pcount": 7, "samples": ["\"s1\"", "\"s2\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "value", "src": [null, "k", null, "c", null], "types": ["number"], "count": 4, "pcount": null, "samples": ["1", "2", "3"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []}
+   ]},
+   {"key": "k", "kind": "array", "src": [null, "k"], "types": ["array"], "count": 5, "pcount": 5, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "k", null], "types": ["object"], "count": 7, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []}
+   ]}
+  ]}
+ ]},
+ "badges": [{"ref": [0, "c"], "badges": ["ko'chirildi", "ro'yxatga yig'iladi"]}],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"c\" array <- [].k[].c",
+  "      [] value <- [].k[].c[]",
+  "    \"k\" array <- [].k",
+  "      [] object <- [].k[]"
+ ],
+ "preview": [
+  {"c": [1, 2, 3], "k": [{}, {}]},
+  {"c": "s1", "k": [{}, {}]},
+  {"c": [4], "k": [{}, {}]},
+  {"k": []},
+  {"k": [{}]}
+ ],
+ "perRecord": [
+  [{"c": [1, 2, 3], "k": [{}, {}]}],
+  [{"c": "s1", "k": [{}, {}]}],
+  [{"c": [4], "k": [{}, {}]}],
+  [{"k": []}],
+  [{"k": [{}]}]
+ ],
+ "perRecordConcatEqualsOutput": true
+}

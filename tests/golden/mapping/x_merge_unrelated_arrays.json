@@ -1,0 +1,63 @@
+{
+ "name": "x_merge_unrelated_arrays",
+ "description": "targeted reference case (batch4)",
+ "case": {
+  "name": "x_merge_unrelated_arrays",
+  "records": [{"a": [{"x": 1}, {"x": 2}], "b": [{"y": 1}], "c": [5, 6]}, {"a": [], "b": [{"y": 2}]}],
+  "ops": [
+   {"op": "merge", "node": "[].b", "target": "[].a"},
+   {"op": "merge", "node": "[].c", "target": "[].a"},
+   {"op": "move", "node": "[].a[1].y", "target": "[].a[0].x", "zone": "after"}
+  ]
+ },
+ "output": [{"a": [{"x": 1, "y": [1]}, {"x": 2, "y": [1]}, {}, 5, 6]}, {"a": [{}]}],
+ "log": [
+  {
+   "i": 0,
+   "op": "merge",
+   "applied": true,
+   "changed": true,
+   "undo": 1,
+   "msg": "«b» elementlari «a» massiviga qo'shildi"
+  },
+  {
+   "i": 1,
+   "op": "merge",
+   "applied": true,
+   "changed": true,
+   "undo": 2,
+   "msg": "«c» elementlari «a» massiviga qo'shildi"
+  },
+  {"i": 2, "op": "move", "applied": true, "changed": true, "undo": 3, "msg": ""}
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "a", "kind": "array", "src": [null, "a"], "types": ["array"], "count": 2, "pcount": 2, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "a", null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+     {"key": "x", "kind": "value", "src": [null, "a", null, "x"], "types": ["number"], "count": 2, "pcount": 2, "samples": ["1", "2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+     {"key": "y", "kind": "value", "src": [null, "b", null, "y"], "types": ["number"], "count": 2, "pcount": 2, "samples": ["1", "2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+    ]},
+    {"key": "", "kind": "object", "src": [null, "b", null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []},
+    {"key": "", "kind": "value", "src": [null, "c", null], "types": ["number"], "count": 2, "pcount": null, "samples": ["5", "6"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []}
+   ]}
+  ]}
+ ]},
+ "badges": [
+  {"ref": [0, "a", 0, "y"], "badges": ["ko'chirildi", "ro'yxatga yig'iladi"]},
+  {"ref": [0, "a", 1], "badges": ["manba: [].b"]},
+  {"ref": [0, "a", 2], "badges": ["manba: [].c"]}
+ ],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"a\" array <- [].a",
+  "      [] object <- [].a[]",
+  "        \"x\" value <- [].a[].x",
+  "        \"y\" value <- [].b[].y",
+  "      [] object <- [].b[]",
+  "      [] value <- [].c[]"
+ ],
+ "preview": [{"a": [{"x": 1, "y": [1]}, {"x": 2, "y": [1]}, {}, 5, 6]}, {"a": [{}]}],
+ "perRecord": [[{"a": [{"x": 1, "y": [1]}, {"x": 2, "y": [1]}, {}, 5, 6]}], [{"a": [{}]}]],
+ "perRecordConcatEqualsOutput": true
+}

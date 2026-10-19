@@ -10,7 +10,10 @@ every number token exactly:
 * ``-0`` and integers outside ``[-2**63, 2**64-1]`` become :class:`JsonInt`.
 
 :func:`dumps` writes ``JsonFloat``/``JsonInt``/``Decimal`` back as their raw text, so
-``dumps(loads(x))`` never changes a number and never turns it into a string.
+``dumps(loads(x))`` never changes a number and never turns it into a string. Its result is a compact
+``bytes`` object (an ``orjson.dumps`` result keeps orjson's whole output buffer -- at least 4 KiB, several
+times the text for bigger results -- so callers that store many results would use far more memory than
+the texts); :func:`dumps_transient` skips that copy for results written, concatenated or decoded at once.
 """
 
 from __future__ import annotations
@@ -30,6 +33,7 @@ __all__ = [
     "JsonFloat",
     "JsonInt",
     "dumps",
+    "dumps_transient",
     "is_number",
     "is_plain_float_token",
     "is_plain_int_token",
@@ -328,6 +332,12 @@ def dumps(obj: Any, *, indent: int | str | None = None, sort_keys: bool = False)
     """Serialize to UTF-8 JSON bytes; numbers keep their exact text; non-ASCII stays raw.
 
     ``indent``: ``None`` (compact), ``2``, ``4``, any int 0..16 or ``"\\t"``.
+
+    The result is a compact ``bytes`` object that may be kept: an ``orjson.dumps`` result occupies
+    its whole output buffer -- at least 4 KiB, ~8x the text for strings and up to ~30x for big
+    containers (orjson 3.13; ``sys.getsizeof`` shows only the text) -- so it is copied (~35 ns for
+    a small result, a memcpy for a big one). A caller that writes, concatenates or decodes the result
+    right away uses :func:`dumps_transient` (no copy).
     """
     option = _OPT_BASE
     if sort_keys:
@@ -335,17 +345,44 @@ def dumps(obj: Any, *, indent: int | str | None = None, sort_keys: bool = False)
     if indent == 2:
         option |= orjson.OPT_INDENT_2
     try:
-        return_value = orjson.dumps(obj, default=_default, option=option)
-        if indent is None or indent == 2:
-            return return_value
-        return _reindent(return_value, indent)
+        out = orjson.dumps(obj, default=_default, option=option)
     except (orjson.JSONEncodeError, TypeError) as exc:
-        if isinstance(exc, TypeError) and "not JSON serializable" in str(exc):
-            raise
-        compact = _py_dumps(obj, sort_keys=sort_keys)
-        if indent is None:
-            return compact
-        return _reindent(compact, indent)
+        return _fallback_dumps(obj, exc, indent, sort_keys)
+    if indent is None or indent == 2:
+        # a compact copy, the cheapest way measured (~35 ns for a record; memoryview(out).tobytes() ~75 ns);
+        # bytes(out), out[:] and b"" + out return out itself
+        return b"%b" % out
+    return _reindent(out, indent)            # the reformatter's output is compact already
+
+
+def dumps_transient(obj: Any, *, indent: int | str | None = None, sort_keys: bool = False) -> bytes:
+    """:func:`dumps` without the compacting copy, for a result that is written, concatenated or
+    decoded right away (export and bulk hot paths): it may occupy orjson's whole output buffer
+    (at least 4 KiB, often several times the text) for as long as it is referenced -- never keep
+    many of them (keep ``dumps`` results, or the text concatenated into something else)."""
+    option = _OPT_BASE
+    if sort_keys:
+        option |= orjson.OPT_SORT_KEYS
+    if indent == 2:
+        option |= orjson.OPT_INDENT_2
+    try:
+        out = orjson.dumps(obj, default=_default, option=option)
+    except (orjson.JSONEncodeError, TypeError) as exc:
+        return _fallback_dumps(obj, exc, indent, sort_keys)
+    if indent is None or indent == 2:
+        return out
+    return _reindent(out, indent)
+
+
+def _fallback_dumps(obj: Any, exc: Exception, indent: int | str | None, sort_keys: bool) -> bytes:
+    """What orjson refuses (lone surrogates, nesting deeper than 255, integers beyond 64 bits): the
+    pure-Python encoder (compact output); a type that is not JSON at all re-raises ``exc``."""
+    if isinstance(exc, TypeError) and "not JSON serializable" in str(exc):
+        raise exc
+    compact = _py_dumps(obj, sort_keys=sort_keys)
+    if indent is None:
+        return compact
+    return _reindent(compact, indent)
 
 
 # -- helpers ---------------------------------------------------------------------------

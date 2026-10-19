@@ -1,0 +1,41 @@
+{
+ "name": "ex11_type_mismatch",
+ "description": "engine analysis worked example: type mismatch passes through; fields outside the tree are dropped",
+ "case": {
+  "name": "ex11_type_mismatch",
+  "sample": [{"o": {"a": 1}, "arr": [{"x": 1}], "v": "s"}],
+  "records": [
+   {"o": "str", "arr": {"x": 9}, "v": {"deep": [1]}},
+   {"o": {"a": 2, "zz": 1}, "arr": ["p", {"x": 2, "y": 3}], "v": null, "extra": 1}
+  ]
+ },
+ "output": [{"o": "str", "arr": {"x": 9}, "v": {"deep": [1]}}, {"o": {"a": 2}, "arr": ["p", {"x": 2}], "v": null}],
+ "log": [],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "o", "kind": "object", "src": [null, "o"], "types": ["object"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "a", "kind": "value", "src": [null, "o", "a"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+   ]},
+   {"key": "arr", "kind": "array", "src": [null, "arr"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "arr", null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+     {"key": "x", "kind": "value", "src": [null, "arr", null, "x"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+    ]}
+   ]},
+   {"key": "v", "kind": "value", "src": [null, "v"], "types": ["string"], "count": 1, "pcount": 1, "samples": ["\"s\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"o\" object <- [].o",
+  "      \"a\" value <- [].o.a",
+  "    \"arr\" array <- [].arr",
+  "      [] object <- [].arr[]",
+  "        \"x\" value <- [].arr[].x",
+  "    \"v\" value <- [].v"
+ ],
+ "preview": [{"o": "str", "arr": {"x": 9}, "v": {"deep": [1]}}, {"o": {"a": 2}, "arr": ["p", {"x": 2}], "v": null}],
+ "perRecord": [[{"o": "str", "arr": {"x": 9}, "v": {"deep": [1]}}], [{"o": {"a": 2}, "arr": ["p", {"x": 2}], "v": null}]],
+ "perRecordConcatEqualsOutput": true
+}

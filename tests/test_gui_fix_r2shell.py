@@ -667,7 +667,8 @@ def test_startup_imports_only_the_default_views_and_psutil_off_the_gui_thread(tm
         "seen = {}\n"
         "class Spy(importlib.abc.MetaPathFinder):\n"
         "    def find_spec(self, name, path=None, target=None):\n"
-        "        if name in ('psutil', 'jsonreshape.gui.rawview', 'jsonreshape.gui.schemaview'):\n"
+        "        if name in ('psutil', 'jsonreshape.gui.rawview', 'jsonreshape.gui.schemaview',\n"
+        "                    'jsonreshape.gui.mapview'):\n"
         "            seen.setdefault(name, threading.current_thread().name)\n"
         "        return None\n"
         "sys.meta_path.insert(0, Spy())\n"
@@ -682,7 +683,8 @@ def test_startup_imports_only_the_default_views_and_psutil_off_the_gui_thread(tm
         "main_thread = threading.current_thread().name\n"
         "reg = w._registry\n"
         "lazy = sorted(k for k, v in reg.items() if isinstance(v, doctab.LazyView))\n"
-        "loaded = [m for m in ('jsonreshape.gui.rawview', 'jsonreshape.gui.schemaview') if m in sys.modules]\n"
+        "loaded = [m for m in ('jsonreshape.gui.rawview', 'jsonreshape.gui.schemaview', 'jsonreshape.gui.mapview')\n"
+        "          if m in sys.modules]\n"
         "ctx.tasks.wait_idle(20)\n"
         "print('LAZY', lazy)\n"
         "print('LOADED', loaded)\n"
@@ -696,7 +698,7 @@ def test_startup_imports_only_the_default_views_and_psutil_off_the_gui_thread(tm
                        timeout=120)
     assert r.returncode == 0, r.stderr
     out = r.stdout
-    assert "LAZY ['raw', 'schema', 'table']" in out, out
+    assert "LAZY ['mapping', 'raw', 'schema', 'table']" in out, out
     assert "LOADED []" in out, out
     assert "PSUTIL True True" in out, out
     assert "RESOLVED RawView True" in out, out

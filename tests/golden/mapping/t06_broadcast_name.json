@@ -1,0 +1,33 @@
+{
+ "name": "t06_broadcast_name",
+ "description": "AGENT_PROMPT §14 test 6 (broadcast): name inside orders[]: every order gets the name",
+ "case": {
+  "name": "t06_broadcast_name",
+  "records": [{"name": "A", "orders": [{"oid": 7}, {"oid": 8}]}],
+  "ops": [{"op": "move", "node": "[].name", "target": "[].orders[]", "zone": "inside"}]
+ },
+ "output": [{"orders": [{"oid": 7, "name": "A"}, {"oid": 8, "name": "A"}]}],
+ "log": [{"i": 0, "op": "move", "applied": true, "changed": true, "undo": 1, "msg": ""}],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "orders", "kind": "array", "src": [null, "orders"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "orders", null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+     {"key": "oid", "kind": "value", "src": [null, "orders", null, "oid"], "types": ["number"], "count": 2, "pcount": 2, "samples": ["7", "8"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+     {"key": "name", "kind": "value", "src": [null, "name"], "types": ["string"], "count": 1, "pcount": 1, "samples": ["\"A\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+    ]}
+   ]}
+  ]}
+ ]},
+ "badges": [{"ref": [0, "orders", 0, "name"], "badges": ["ko'chirildi", "har elementga takrorlanadi"]}],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"orders\" array <- [].orders",
+  "      [] object <- [].orders[]",
+  "        \"oid\" value <- [].orders[].oid",
+  "        \"name\" value <- [].name"
+ ],
+ "preview": [{"orders": [{"oid": 7, "name": "A"}, {"oid": 8, "name": "A"}]}],
+ "perRecord": [[{"orders": [{"oid": 7, "name": "A"}, {"oid": 8, "name": "A"}]}]],
+ "perRecordConcatEqualsOutput": true
+}

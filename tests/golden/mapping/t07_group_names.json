@@ -1,0 +1,112 @@
+{
+ "name": "t07_group_names",
+ "description": "AGENT_PROMPT §14 test 7 (group): unique default names, nested groups, renames",
+ "case": {
+  "name": "t07_group_names",
+  "records": [{"a": 1, "c": {"x": 1}}],
+  "ops": [
+   {"op": "group", "node": "[]", "name": "holat"},
+   {"op": "group", "node": "[]"},
+   {"op": "group", "node": "[]"},
+   {"op": "group", "node": "[].holat"},
+   {"op": "group", "node": "[].c"},
+   {"op": "rename", "node": "[].yangi_guruh_2", "name": "holat"},
+   {"op": "group", "node": "[].a"}
+  ]
+ },
+ "output": [{"a": 1, "c": {"x": 1, "yangi_guruh": {}}, "holat": {"yangi_guruh": {}}, "yangi_guruh": {}, "holat_2": {}}],
+ "log": [
+  {
+   "i": 0,
+   "op": "group",
+   "applied": true,
+   "changed": true,
+   "undo": 2,
+   "msg": "",
+   "result": {"ref": [0, "holat"], "key": "holat"}
+  },
+  {
+   "i": 1,
+   "op": "group",
+   "applied": true,
+   "changed": true,
+   "undo": 3,
+   "msg": "",
+   "result": {"ref": [0, "yangi_guruh"], "key": "yangi_guruh"}
+  },
+  {
+   "i": 2,
+   "op": "group",
+   "applied": true,
+   "changed": true,
+   "undo": 4,
+   "msg": "",
+   "result": {"ref": [0, "yangi_guruh_2"], "key": "yangi_guruh_2"}
+  },
+  {
+   "i": 3,
+   "op": "group",
+   "applied": true,
+   "changed": true,
+   "undo": 5,
+   "msg": "",
+   "result": {"ref": [0, "holat", "yangi_guruh"], "key": "yangi_guruh"}
+  },
+  {
+   "i": 4,
+   "op": "group",
+   "applied": true,
+   "changed": true,
+   "undo": 6,
+   "msg": "",
+   "result": {"ref": [0, "c", "yangi_guruh"], "key": "yangi_guruh"}
+  },
+  {
+   "i": 5,
+   "op": "rename",
+   "applied": true,
+   "changed": true,
+   "undo": 7,
+   "msg": "«holat» band edi, «holat_2» deb nomlandi"
+  },
+  {"i": 6, "op": "group", "applied": false, "changed": false, "undo": 7, "msg": null}
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "a", "kind": "value", "src": [null, "a"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "c", "kind": "object", "src": [null, "c"], "types": ["object"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "x", "kind": "value", "src": [null, "c", "x"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+    {"key": "yangi_guruh", "kind": "object", "src": null, "types": ["object"], "count": 0, "pcount": null, "samples": [], "synthetic": true, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+   ]},
+   {"key": "holat", "kind": "object", "src": null, "types": ["object"], "count": 0, "pcount": null, "samples": [], "synthetic": true, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "yangi_guruh", "kind": "object", "src": null, "types": ["object"], "count": 0, "pcount": null, "samples": [], "synthetic": true, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+   ]},
+   {"key": "yangi_guruh", "kind": "object", "src": null, "types": ["object"], "count": 0, "pcount": null, "samples": [], "synthetic": true, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "holat_2", "kind": "object", "src": null, "types": ["object"], "count": 0, "pcount": null, "samples": [], "synthetic": true, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [
+  {"ref": [0, "c", "yangi_guruh"], "badges": ["yangi guruh"]},
+  {"ref": [0, "holat"], "badges": ["yangi guruh"]},
+  {"ref": [0, "holat", "yangi_guruh"], "badges": ["yangi guruh"]},
+  {"ref": [0, "yangi_guruh"], "badges": ["yangi guruh"]},
+  {"ref": [0, "holat_2"], "badges": ["yangi guruh"]}
+ ],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"a\" value <- [].a",
+  "    \"c\" object <- [].c",
+  "      \"x\" value <- [].c.x",
+  "      \"yangi_guruh\" object [synthetic]",
+  "    \"holat\" object [synthetic]",
+  "      \"yangi_guruh\" object [synthetic]",
+  "    \"yangi_guruh\" object [synthetic]",
+  "    \"holat_2\" object [synthetic]"
+ ],
+ "preview": [{"a": 1, "c": {"x": 1, "yangi_guruh": {}}, "holat": {"yangi_guruh": {}}, "yangi_guruh": {}, "holat_2": {}}],
+ "perRecord": [
+  [{"a": 1, "c": {"x": 1, "yangi_guruh": {}}, "holat": {"yangi_guruh": {}}, "yangi_guruh": {}, "holat_2": {}}]
+ ],
+ "perRecordConcatEqualsOutput": true
+}

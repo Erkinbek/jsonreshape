@@ -25,6 +25,23 @@ switching tabs shows the query of that tab's results. Exporting the hits searche
 A search export is not owned by the session: reopening the file (F5) or closing its tab
 lets it finish (the session closes the old document only after it ended).
 
+Editing (docs/ARCHITECTURE.md §12.9): a search reads ``session.snapshot()`` -- a document
+pinned to the edit state shown when it started and the view set of that state -- so its
+hits are positions of one state. When the document changes afterwards
+(``session.data_changed``): a running search is stopped and its results marked stale (search
+again); a reset (restore / discard of the edit layer) makes them stale too; otherwise the
+stored hits are kept and marked "outdated" -- moved to the new record positions and child
+indices when records / nodes moved (:func:`jsonreshape.gui.editing.remap_ref`; hits of
+deleted records dropped; more than :data:`REMAP_HITS_MAX` hits are cleared instead), and
+the record sets of the search (the copy of the view searched, the records with hits) are
+released when record positions moved: "open as record set" is then built from the hits
+(when they are complete) and exporting a search of a filtered view asks for a new search.
+Exports of hits run on a document pinned when the export starts. An export onto a file that
+another tab shows (review S3, :func:`open_target_check` -- the rule of Save As and the export
+dialog, shared with the other tool dialogs) is refused while that tab has unsaved, pending or
+running changes or another window of the program edits the file, and asked about when the tab
+shows it unchanged (that tab opens the new file once it was written: :func:`reload_tabs`).
+
 Layout: only standard Qt layouts and labels without Python size hints (no Python layout
 code runs while Qt lays the dock out).
 
@@ -34,10 +51,12 @@ the history file run in background tasks; worker results come back through task 
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import os
 import threading
 import time
+import weakref
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -76,10 +95,14 @@ from jsonreshape.tasks import CancelToken, check
 
 log = logging.getLogger(__name__)
 
-__all__ = ["MAX_HITS", "SearchPanel", "check_not_source", "hit_ref", "snapshot_recordset"]
+__all__ = ["MAX_HITS", "REMAP_HITS_MAX", "SearchPanel", "check_not_source", "hit_ref", "keep_for",
+           "open_target_check", "reload_tabs", "session_snapshot", "snapshot_recordset", "target_conflict_text"]
 
 #: Hits stored (and listed) per search by default; later hits are only counted.
 MAX_HITS = 100_000
+#: Stored hits moved to new positions after a structural edit in the GUI thread at most;
+#: more are cleared (search again).
+REMAP_HITS_MAX = 20_000
 #: Search texts longer than this are shortened in task titles and labels.
 TITLE_CHARS = 40
 #: Characters of a selection taken over by :meth:`SearchPanel.focus_search`.
@@ -103,6 +126,89 @@ def _display_text(text: str) -> str:
 def _short(text: str, limit: int = TITLE_CHARS) -> str:
     text = _display_text(text)
     return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def session_snapshot(session: Any) -> tuple[Any, Any]:
+    """``(pinned document, view record set)`` of ``session`` taken now (docs/ARCHITECTURE.md
+    §12.9): every task that takes positions starts from one, so an edit applied while it runs
+    (or waits in the queue) never mixes states. The session's ``snapshot()`` when it has
+    one, else its document pinned to the state it shows and its current view set."""
+    fn = getattr(session, "snapshot", None)
+    if callable(fn):
+        doc, view = fn()
+        return doc, view
+    doc = getattr(session, "doc", None)
+    pin = getattr(doc, "pinned", None) if doc is not None else None
+    if callable(pin):
+        doc = pin()
+    return doc, session.view_recordset()
+
+
+def keep_for(session: Any, task: Any, *, sets: Any = (), doc: Any = None) -> None:
+    """``session.keep_document_for(task, sets, doc=doc)`` (``doc``: the pinned document the
+    task reads; passed when the session takes it)."""
+    keep = getattr(session, "keep_document_for", None)
+    if not callable(keep) or task is None:
+        return
+    held = tuple(rs for rs in (sets or ()) if rs is not None)
+    kwargs: dict[str, Any] = {}
+    if held:
+        kwargs["sets"] = held
+    if doc is not None:
+        try:
+            import inspect
+
+            params = inspect.signature(keep).parameters
+            if "doc" in params or any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
+                kwargs["doc"] = doc
+        except (TypeError, ValueError):
+            pass
+    keep(task, **kwargs)
+
+
+def _remap_hits(session: Any, hits: list[SearchHit], cs: Any) -> list[SearchHit] | None:
+    """``hits`` moved to the positions / child indices after the ChangeSet ``cs`` (hits of
+    deleted records or nodes dropped); ``None`` when they cannot be moved here (nodes moved
+    and the editing module's ``remap_ref`` is not available)."""
+    try:
+        from jsonreshape.gui.editing import remap_ref
+    except ImportError:  # pragma: no cover - the editing controller is part of the package
+        remap_ref = None
+    nodes = bool(getattr(cs, "nodes", ()))
+    remap = getattr(cs, "remap", None)
+    if remap_ref is None and nodes:
+        return None
+    doc = getattr(session, "doc", None)
+    single = doc is not None and getattr(doc, "kind", None) == "single"
+    kwargs: dict[str, Any] = {}
+    if single and remap_ref is not None:
+        import inspect
+
+        try:
+            if "single" in inspect.signature(remap_ref).parameters:
+                kwargs["single"] = True        # single documents: GUI refs use record None, core NodeChanges 0
+        except (TypeError, ValueError):
+            pass
+    out: list[SearchHit] = []
+    for hit in hits:
+        if remap_ref is not None:
+            new = remap_ref(hit_ref(session, hit), cs, **kwargs)
+            if new is None:
+                continue
+            record = 0 if (single and new.record is None) else new.record
+            if record is None:
+                continue
+            path = tuple(new.path)
+        else:
+            record = hit.record if remap is None else remap.map(int(hit.record))
+            if record is None:
+                continue
+            path = tuple(hit.path)
+        if record == hit.record and path == tuple(hit.path):
+            out.append(hit)
+        else:
+            out.append(dataclasses.replace(hit, record=int(record), path=path))
+    return out
 
 
 def hit_ref(session: Any, hit: SearchHit) -> NodeRef:
@@ -204,6 +310,9 @@ class _SearchState:
         self.error: BaseException | None = None
         self.message = ""                    # extra status text (export done, file reopened, ...)
         self.inputs: dict[str, Any] | None = None   # the panel's inputs while this tab was shown
+        self.data_gen: int | None = None     # edit-state gen of the document searched
+        self.outdated = False                # the document was edited after the search
+        self.source_void = False             # record positions moved: the view searched is gone
 
     @property
     def running(self) -> bool:
@@ -533,6 +642,9 @@ class SearchPanel(QWidget):
             busy_changed = getattr(session, "view_busy_changed", None)
             if busy_changed is not None:
                 busy_changed.connect(self._on_session_busy)
+            data_changed = getattr(session, "data_changed", None)
+            if data_changed is not None and hasattr(data_changed, "connect"):
+                data_changed.connect(self._on_session_data)
         return st
 
     def state(self, session: Any = None) -> _SearchState | None:
@@ -559,19 +671,69 @@ class SearchPanel(QWidget):
         if value == "opening" and (st.opts is not None or st.hits or st.running or st.result is not None):
             # reopened: the tasks were detached and the record numbers may have changed (also a
             # cancelled search without hits: exporting it would search the new document)
-            st.gen += 1
-            st.release()
-            st.hits = []
-            st.hit_count = st.record_count = 0
-            st.truncated = False
-            st.task = None
-            st.opts = None
-            st.view_source = False
-            st.status = "stale"
-            st.message = t("gui.search.stale")
-            if session is self._session:
-                self.grid.reset()
-                self._refresh()
+            self._make_stale(st, t("gui.search.stale"))
+
+    def _make_stale(self, st: _SearchState, message: str) -> None:
+        """Forget the results of ``st`` (a running search is stopped): its record numbers do
+        not address the document's records any more."""
+        self._stop(st)
+        st.gen += 1
+        st.release()
+        st.hits = []
+        st.hit_count = st.record_count = 0
+        st.truncated = False
+        st.task = None
+        st.opts = None
+        st.view_source = False
+        st.outdated = False
+        st.source_void = False
+        st.status = "stale"
+        st.message = message
+        if st.session is self._session:
+            self.grid.reset()
+            self._refresh()
+
+    def _on_session_data(self, cs: Any) -> None:
+        """An edit was applied (a ChangeSet): see the module docstring."""
+        session = self.sender()
+        if session is None:
+            return
+        st = self._states.get(id(session))
+        if st is None or st.session is not session:
+            return
+        if st.opts is None and not st.hits and not st.running:
+            return
+        if bool(getattr(cs, "reset", False)) or st.running:
+            self._make_stale(st, t("gui.search.stale_edit"))
+            return
+        moved = getattr(cs, "remap", None) is not None
+        nodes = bool(getattr(cs, "nodes", ()))
+        if moved:
+            # the copy of the view searched and the records with hits hold old positions
+            for lease in (st.records, st.source):
+                if lease is not None:
+                    lease.release()
+            st.records = None
+            if st.result is not None:
+                st.result.records = None
+            if st.source is not None or st.view_source:
+                st.source_void = True
+            st.source = None
+        message = t("gui.search.outdated")
+        if (moved or nodes) and st.hits:
+            hits = _remap_hits(session, st.hits, cs) if len(st.hits) <= REMAP_HITS_MAX else None
+            if hits is None:
+                st.hits = []
+                st.truncated = st.truncated or st.hit_count > 0
+                message = t("gui.search.outdated_cleared")
+            else:
+                st.hits = hits
+        st.data_gen = getattr(cs, "gen", st.data_gen)
+        st.outdated = True
+        st.message = message
+        if st.session is self._session:
+            self.grid.reset()
+            self._refresh()
 
     def _on_session_busy(self, busy: bool) -> None:
         """The view's filter / sort finished: the "view busy" error is stale now."""
@@ -861,7 +1023,12 @@ class SearchPanel(QWidget):
         st.message = ""
         st.started = time.monotonic()
         st.elapsed = 0.0
-        view = None if session.view_is_base else session.view_recordset()
+        st.outdated = False
+        st.source_void = False
+        # the state shown now (§12.9): the pinned document and the view set of that state
+        doc, view_set = session_snapshot(session)
+        st.data_gen = getattr(doc, "gen", None)
+        view = None if session.view_is_base else view_set
         st.view_source = view is not None
         st.source_label = self._scope_text(session)
         st.view_serial = getattr(session, "view_serial", None)
@@ -891,6 +1058,7 @@ class SearchPanel(QWidget):
             on_done=lambda result: self._on_done(st, gen, result),
             on_error=lambda exc: self._on_failed(st, gen, exc),
             on_cancel=lambda: self._on_cancelled(st, gen))
+        keep_for(session, st.task, sets=(view,), doc=doc)     # the edit state it reads stays readable
         self._history_add(opts)
         if st.session is self._session:
             self.grid.reset()
@@ -1096,6 +1264,8 @@ class SearchPanel(QWidget):
             return False, t("gui.search.export.need_search")
         if st.status == "running":
             return False, t("gui.search.open_records.running")
+        if st.source_void:                         # an edit moved the records of the view searched
+            return False, t("gui.search.export.outdated")
         if st.view_source and st.source is None:   # stopped before the view was copied
             return False, t("gui.search.export.no_source")
         return True, ""
@@ -1110,7 +1280,8 @@ class SearchPanel(QWidget):
             return False, t("gui.search.open_records.running")
         if st.status == "done" and st.records is not None:
             return True, ""
-        if st.status == "cancelled":
+        if st.status == "cancelled" or (st.status == "done" and st.outdated):
+            # the listed hits (moved to the current positions after an edit) give the records
             if st.truncated:
                 return False, t("gui.search.open_records.truncated")
             return bool(st.hits), t("gui.search.open_records.no_hits")
@@ -1320,13 +1491,20 @@ class SearchPanel(QWidget):
         try:
             if kind not in ("csv", "json"):
                 raise UserInputError("search.export.bad_format", fmt=os.path.splitext(path)[1] or str(fmt))
-            doc = session.doc
-            check_not_source(path, (doc.source_path, doc.data_path, session.path))
+            live = session.doc
+            check_not_source(path, (live.source_path, live.data_path, session.path))
         except UserInputError as exc:
             self._set_error(_error_text(exc))
             return None
         self._set_error(None)
+        # a file another tab shows: refused while it has changes, else asked; that tab reloads it (review S3)
+        reload = open_target_check(self, path, exclude=session, on_refused=self._set_error, ask=self._confirm)
+        if reload is None:
+            return None
         opts = st.opts
+        # the state shown now: the copy of the view searched holds positions that are still
+        # valid (an edit moving records voids it, see _on_session_data)
+        doc = session_snapshot(session)[0]
         lease = st.source
         src = lease.acquire() if lease is not None else None
         name = os.path.basename(path)
@@ -1346,6 +1524,7 @@ class SearchPanel(QWidget):
                     lease.done_using()
 
         def done(count: int) -> None:
+            reload_tabs(reload)
             message = t("gui.search.export.done", count=format_count(count), path=path)
             st.message = message
             if st.session is self._session:
@@ -1357,9 +1536,7 @@ class SearchPanel(QWidget):
 
         task = self.app.tasks.run(work, title=t("gui.search.task.export", name=name), kind="export", owner=self,
                                   on_done=done, on_error=lambda exc: self.app.report_error(exc, self))
-        keep = getattr(session, "keep_document_for", None)
-        if callable(keep):
-            keep(task)            # the document stays open until the export ended
+        keep_for(session, task, doc=doc)    # the document (and the edit state read) stays open until it ended
         return task
 
     # ================================================================================
@@ -1394,6 +1571,62 @@ def check_not_source(path: str | os.PathLike[str], sources: Any) -> None:
             same = False
         if same:
             raise UserInputError("writer.error.same_file", path=str(path))
+
+
+def target_conflict_text(what: str, path: str | os.PathLike[str]) -> str:
+    """Why an output file is refused (review S3; the texts of Save As and the export dialog) -- the sentence and
+    its hint for the verdict ``what`` of :func:`jsonreshape.gui.editing.target_conflict`: ``"locked"`` (another
+    window of the program edits it), ``"pending"`` (unsaved changes of this program are kept for recovery), any
+    other refusal ``"unsaved"`` (a tab shows it with unsaved / pending / running changes)."""
+    shown = os.path.normpath(os.fspath(path))
+    if what == "locked":
+        return t("gui.edit.target.locked", path=shown) + " " + t("gui.edit.target.locked.hint")
+    if what == "pending":
+        return t("gui.edit.target.pending", path=shown) + " " + t("gui.edit.target.pending.hint")
+    return t("gui.edit.target.unsaved", path=shown) + " " + t("gui.edit.target.unsaved.hint")
+
+
+def open_target_check(parent: Any, path: str | os.PathLike[str], *, exclude: Any = None,
+                      on_refused: Callable[[str], Any] | None = None,
+                      ask: Callable[[str], bool] | None = None) -> list | None:
+    """An output file that a tab of this program shows (review S3: the rule of Save As and the export dialog,
+    :func:`jsonreshape.gui.editing.target_conflict`; ``exclude``: the document being read, left out):
+
+    * ``None`` -- refused, ``on_refused(text)`` says why (:func:`target_conflict_text`) -- when that tab has
+      unsaved or pending changes or a running change / save, when another window of the program edits the
+      file (its edit lock is held), or when unsaved changes of the file are kept for recovery (no tab);
+    * asked when the tabs show it without changes (``ask(question) -> bool``, default
+      :func:`~jsonreshape.gui.widgets.confirm`): ``None`` when declined, else the weak references of those
+      tabs, opened again with :func:`reload_tabs` once the file was written (this question replaces an
+      "overwrite the file?" question);
+    * ``[]`` -- no tab shows it.
+
+    GUI thread: a few stat calls and a lock probe, like the export dialog's own target checks."""
+    from jsonreshape.gui.editing import target_conflict
+
+    found = target_conflict(os.fspath(path), exclude=exclude)
+    if found is None:
+        return []
+    what, sessions = found
+    if what != "open":
+        if on_refused is not None:
+            on_refused(target_conflict_text(what, path))
+        return None
+    question = t("gui.edit.target.open", path=os.path.normpath(os.fspath(path)))
+    if not (ask(question) if ask is not None else confirm(parent, question)):
+        return None
+    return [weakref.ref(s) for s in sessions]
+
+
+def reload_tabs(refs: Any) -> None:
+    """Open the files of the tabs in ``refs`` (weak references from :func:`open_target_check`) again after this
+    program replaced them (:func:`jsonreshape.gui.editing.reload_sessions`: a tab that got changes meanwhile
+    is left alone)."""
+    if not refs:
+        return
+    from jsonreshape.gui.editing import reload_sessions
+
+    reload_sessions(refs)
 
 
 def _error_text(exc: BaseException | None) -> str:

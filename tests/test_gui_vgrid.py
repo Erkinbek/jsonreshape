@@ -1210,3 +1210,102 @@ def test_set_font_can_keep_the_zoom(make_grid) -> None:
     grid.zoom(2)
     grid.set_font(new)                                   # default: the zoom is reset
     assert grid.zoom_level() == 0 and grid.grid_font().pointSizeF() == 12
+
+
+# ----------------------------------------------------------------------------- row / cell backgrounds (stage 5 diff)
+class TintedSource(FakeSource):
+    """A source with ``row_background`` (theme roles per row) and cells with ``bg``."""
+
+    def __init__(self, rows: int, tints: dict[int, str | None], make=None) -> None:
+        super().__init__(rows, make or (lambda r, c: Cell(text="")))
+        self.tints = tints
+        self.asked_rows: list[int] = []
+
+    def row_background(self, row: int) -> str | None:
+        self.asked_rows.append(row)
+        return self.tints.get(row)
+
+
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_row_background_tints_rows_before_alternation(make_grid, themed, scheme) -> None:
+    theme.apply_theme(themed, scheme)
+    tints = {1: "diff_added", 2: "diff_removed", 3: "no_such_role", 4: None}
+    grid, src = make_grid(source=TintedSource(20, tints), mode="rows")
+    grid.set_alternating(True)
+    image = grid.viewport().grab().toImage()
+    pal = grid.viewport().palette()
+    x = grid.cell_rect(0, 1).center().x()
+
+    def at(row: int) -> QColor:
+        return image.pixelColor(x, grid.cell_rect(row, 1).center().y())
+
+    assert at(1) == theme.color("diff_added")                    # an odd row: the tint wins over alternation
+    assert at(2) == theme.color("diff_removed")
+    assert at(3) == pal.color(QPalette.ColorRole.AlternateBase)  # unknown role: ignored
+    assert at(4) == pal.color(QPalette.ColorRole.Base)
+    assert at(0) == pal.color(QPalette.ColorRole.Base)
+    assert set(src.asked_rows) >= {0, 1, 2, 3, 4}
+    # the selection wins over the tint; hovering a tinted row keeps a tinted (blended) colour
+    grid.set_current(2)
+    image = grid.viewport().grab().toImage()
+    selected = image.pixelColor(x, grid.cell_rect(2, 1).center().y())
+    assert selected != theme.color("diff_removed")
+    grid._set_hover(1)
+    image = grid.viewport().grab().toImage()
+    hovered = image.pixelColor(x, grid.cell_rect(1, 1).center().y())
+    assert hovered != theme.color("diff_added") and _distance(hovered, theme.color("diff_added")) < 60
+
+
+def test_cell_bg_paints_one_cell_unless_selected(make_grid, themed) -> None:
+    theme.apply_theme(themed, "light")
+
+    def make(row, col):
+        return Cell(text="", bg="diff_changed" if col.id == "c1" else None)
+
+    grid, _src = make_grid(source=FakeSource(10, make), mode="rows")
+    grid.set_alternating(False)
+    image = grid.viewport().grab().toImage()
+    base = grid.viewport().palette().color(QPalette.ColorRole.Base)
+    r0c1 = grid.cell_rect(0, 1).center()
+    r0c0 = grid.cell_rect(0, 0).center()
+    assert image.pixelColor(r0c1.x(), r0c1.y()) == theme.color("diff_changed")
+    assert image.pixelColor(r0c0.x(), r0c0.y()) == base
+    grid.set_current(0)                                   # a selected row keeps its selection colour
+    image = grid.viewport().grab().toImage()
+    assert image.pixelColor(r0c1.x(), r0c1.y()) != theme.color("diff_changed")
+    # cells mode: only the selected cell loses its background
+    grid.set_selection_mode("cells")
+    grid.set_current(1, 0)
+    image = grid.viewport().grab().toImage()
+    r1c1 = grid.cell_rect(1, 1).center()
+    assert image.pixelColor(r1c1.x(), r1c1.y()) == theme.color("diff_changed")
+    grid.set_current(1, 1)
+    image = grid.viewport().grab().toImage()
+    assert image.pixelColor(r1c1.x(), r1c1.y()) != theme.color("diff_changed")
+
+
+def test_cell_bg_on_the_frozen_column(make_grid, themed) -> None:
+    theme.apply_theme(themed, "light")
+    grid, _src = make_grid(source=FakeSource(10, lambda r, c: Cell(text="x", bg="diff_moved")), ncols=6,
+                           col_width=200)
+    grid.set_frozen_columns(1)
+    grid.set_horizontal_offset(150)
+    image = grid.viewport().grab().toImage()
+    rect = grid.cell_rect(3, 0)
+    assert image.pixelColor(rect.right() - 3, rect.center().y()) == theme.color("diff_moved")
+
+
+def test_broken_row_background_does_not_break_painting(make_grid, caplog) -> None:
+    class Broken(FakeSource):
+        def row_background(self, row: int) -> str | None:
+            raise RuntimeError("boom")
+
+    grid, _src = make_grid(source=Broken(30))
+    grid.viewport().repaint()
+    grid.viewport().repaint()
+    assert sum("row_background() failed" in r.message for r in caplog.records) <= 1
+
+
+def test_cell_default_bg_is_none() -> None:
+    assert Cell().bg is None
+    assert Cell("x", "string").bg is None          # positional construction is unchanged

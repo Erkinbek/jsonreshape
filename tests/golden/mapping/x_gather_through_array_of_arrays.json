@@ -1,0 +1,33 @@
+{
+ "name": "x_gather_through_array_of_arrays",
+ "description": "targeted reference case (batch7)",
+ "case": {
+  "name": "x_gather_through_array_of_arrays",
+  "records": [{"m": [[{"x": 1}, {"x": 2}], [{"x": 3}], []]}],
+  "ops": [{"op": "move", "node": "[].m[][].x", "target": "[].m", "zone": "after"}]
+ },
+ "output": [{"m": [[{}, {}], [{}], []], "x": [1, 2, 3]}],
+ "log": [{"i": 0, "op": "move", "applied": true, "changed": true, "undo": 1, "msg": ""}],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "m", "kind": "array", "src": [null, "m"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "array", "src": [null, "m", null], "types": ["array"], "count": 3, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+     {"key": "", "kind": "object", "src": [null, "m", null, null], "types": ["object"], "count": 3, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []}
+    ]}
+   ]},
+   {"key": "x", "kind": "value", "src": [null, "m", null, null, "x"], "types": ["number"], "count": 3, "pcount": 3, "samples": ["1", "2", "3"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [{"ref": [0, "x"], "badges": ["ko'chirildi", "ro'yxatga yig'iladi"]}],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"m\" array <- [].m",
+  "      [] array <- [].m[]",
+  "        [] object <- [].m[][]",
+  "    \"x\" value <- [].m[][].x"
+ ],
+ "preview": [{"m": [[{}, {}], [{}], []], "x": [1, 2, 3]}],
+ "perRecord": [[{"m": [[{}, {}], [{}], []], "x": [1, 2, 3]}]],
+ "perRecordConcatEqualsOutput": true
+}

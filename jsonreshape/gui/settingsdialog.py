@@ -1,11 +1,20 @@
 """Settings dialog: docs/ARCHITECTURE.md §4, §11.8; AGENT_PROMPT §11 "Sozlamalar".
 
 :class:`SettingsDialog` edits the core :class:`~jsonreshape.settings.Settings` (sample size,
-cache folder and its size limit, memory limit, sort memory, large-node thresholds and the
-format-detection head size in an advanced tab, export defaults, language) and the GUI
-preferences kept in :class:`~jsonreshape.gui.guistate.GuiState` (theme -- applied live
-while the dialog is open and reverted on cancel --, monospace font family and size, UI
-font size).
+cache folder and its size limit, memory limit, sort memory, large-node thresholds, the
+format-detection head size and the largest files compared in full without a key (stage 5,
+``diff_align_max_bytes``) in an advanced tab, export defaults, language, and -- under
+"Tahrirlash" on the General tab (§12.9) -- where unsaved changes are kept, the ``.bak`` copy
+on save and the number of undo steps) and the GUI preferences kept in
+:class:`~jsonreshape.gui.guistate.GuiState` (theme -- applied live while the dialog is open
+and reverted on cancel --, monospace font family and size, UI font size).
+
+Every core setting has a widget filled by :meth:`SettingsDialog.load` and read back by
+:meth:`SettingsDialog.values` (a setting missing there would be reset to its default by
+every save; a test checks that ``values()`` covers every field). Whole numbers use spin
+boxes; a value from the settings file beyond a spin box's range (``sample_size``,
+``large_node_children`` above 2**31-1, ``undo_limit`` above 100000) is kept as loaded
+until that field is edited.
 
 Byte sizes are typed as text with units (``512MB``, ``20GB``; binary multiples, the syntax
 of :func:`jsonreshape.tasks.parse_size`, read exactly -- no float rounding of big sizes)
@@ -60,15 +69,26 @@ from jsonreshape.gui.guistate import DEFAULTS as GUI_DEFAULTS
 from jsonreshape.gui.guistate import THEMES
 from jsonreshape.gui.widgets import format_count, format_size, open_local_path
 from jsonreshape.i18n import SUPPORTED_LANGUAGES, t
-from jsonreshape.settings import XLSX_MAX_ROWS, Settings, get_settings, set_settings
+from jsonreshape.settings import (
+    EDITS_LOCATIONS,
+    UNDO_LIMIT_MIN,
+    XLSX_MAX_ROWS,
+    Settings,
+    get_settings,
+    set_settings,
+)
 from jsonreshape.tasks import parse_size
 
 log = logging.getLogger(__name__)
 
-__all__ = ["SIZE_FIELDS", "SettingsDialog", "cache_dir_problem", "cache_usage", "exact_size", "size_text"]
+__all__ = ["SIZE_FIELDS", "SettingsDialog", "cache_dir_problem", "cache_usage", "edits_folder_text",
+           "edits_location_text", "exact_size", "size_text"]
 
-SIZE_FIELDS = ("cache_limit_bytes", "memory_limit_bytes", "sort_memory_bytes", "large_node_bytes", "head_bytes")
+SIZE_FIELDS = ("cache_limit_bytes", "memory_limit_bytes", "sort_memory_bytes", "large_node_bytes", "head_bytes",
+               "diff_align_max_bytes")
 INT_MAX = 2**31 - 1
+UNDO_LIMIT_MAX = 100000          # the dialog's range for undo_limit (the core only needs >= 200)
+_EDITS_FOLDER_DEFAULT = "%LOCALAPPDATA%\\jsonreshape\\edits"
 _UNITS = (("TB", 1 << 40), ("GB", 1 << 30), ("MB", 1 << 20), ("KB", 1 << 10))
 _INDENTS: tuple[tuple[str, Any], ...] = (("2", 2), ("4", 4), ("tab", "\t"), ("compact", None))
 _DELIMITERS: tuple[tuple[str, str], ...] = ((",", ","), (";", ";"), ("Tab", "\t"), ("|", "|"))
@@ -231,6 +251,32 @@ def env_language() -> str | None:
     return env if env in SUPPORTED_LANGUAGES else None
 
 
+def edits_folder_text() -> str:
+    """The app folder of edit layers as the dialog names it: ``%LOCALAPPDATA%\\jsonreshape\\edits``
+    when it lies there (the Windows default), else the real folder (``JSONRESHAPE_HOME``,
+    another system, the temporary fallback). Uses the app home resolved at start-up (it
+    creates no folder)."""
+    from jsonreshape.appdirs import app_home
+
+    try:
+        folder = os.path.join(os.fspath(app_home()), "edits")
+    except (JsonReshapeError, OSError):
+        return _EDITS_FOLDER_DEFAULT
+    local = (os.environ.get("LOCALAPPDATA") or "").strip()
+    if sys.platform == "win32" and local:
+        base = os.path.normcase(os.path.normpath(local)).rstrip("\\/") + os.sep
+        if os.path.normcase(folder).startswith(base):
+            return "%LOCALAPPDATA%" + os.sep + folder[len(base):]
+    return folder
+
+
+def edits_location_text(code: str) -> str:
+    """The localized choice of ``Settings.edits_location`` (``"appdata"`` / ``"beside"``)."""
+    if code == "beside":
+        return t("gui.settings.edits_location.beside")
+    return t("gui.settings.edits_location.appdata", path=edits_folder_text())
+
+
 class _TaskOwner:
     """Owner of the dialog's tasks: detached when the dialog is destroyed (the connected
     function keeps no reference to the dialog)."""
@@ -307,6 +353,8 @@ class SettingsDialog(QDialog):
         self.setSizeGripEnabled(True)
         self._fields: dict[str, QWidget] = {}
         self._hints: dict[str, QLabel] = {}
+        self._int_rows: list[str] = []               # settings shown in spin boxes (_int_row)
+        self._tips: dict[str, str] = {}              # tooltips hidden by an error tooltip (_mark)
         self._build()
         self.load(get_settings())
         self._measure_cache()
@@ -384,6 +432,7 @@ class SettingsDialog(QDialog):
         spin.valueChanged.connect(lambda _v, n=name: self._int_edited(n))
         form.addRow(t(f"settings.field.{name}") + ":", spin)
         self._fields[name] = spin
+        self._int_rows.append(name)
         return spin
 
     def _general_tab(self) -> QWidget:
@@ -425,7 +474,38 @@ class SettingsDialog(QDialog):
         self.language_combo.currentIndexChanged.connect(self._changed)
         form.addRow(t("settings.field.language") + ":", self.language_combo)
         self._fields["language"] = self.language_combo
+        self._editing_rows(page, form)
         return page
+
+    def _editing_rows(self, page: QWidget, form: QFormLayout) -> None:
+        """The editing settings (§12.9): where unsaved changes are kept, the ``.bak`` copy on
+        save, the number of undo steps."""
+        heading = QLabel(t("gui.settings.editing"), page)
+        font = QFont(heading.font())
+        font.setBold(True)
+        heading.setFont(font)
+        form.addRow(heading)
+        self.edits_location_combo = QComboBox(page)
+        for code in EDITS_LOCATIONS:
+            text = edits_location_text(code)
+            self.edits_location_combo.addItem(text, code)
+            self.edits_location_combo.setItemData(self.edits_location_combo.count() - 1, text,
+                                                  Qt.ItemDataRole.ToolTipRole)
+        # a long app folder (JSONRESHAPE_HOME, a fallback) must not widen the whole dialog:
+        # the combo takes the form's width and elides; the full text is the item's tooltip
+        self.edits_location_combo.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.edits_location_combo.setMinimumContentsLength(24)
+        self.edits_location_combo.setToolTip(t("gui.settings.edits_location.tip"))
+        self.edits_location_combo.currentIndexChanged.connect(self._changed)
+        form.addRow(t("settings.field.edits_location") + ":", self.edits_location_combo)
+        self._fields["edits_location"] = self.edits_location_combo
+        self.backup_check = QCheckBox(t("settings.field.backup_on_save"), page)
+        self.backup_check.setToolTip(t("gui.settings.backup_on_save.tip"))
+        self.backup_check.toggled.connect(self._changed)
+        form.addRow("", self.backup_check)
+        self._fields["backup_on_save"] = self.backup_check
+        self._int_row(form, "undo_limit", UNDO_LIMIT_MIN, UNDO_LIMIT_MAX, "gui.settings.undo_limit.tip")
 
     def _export_tab(self) -> QWidget:
         page, form = self._form_page()
@@ -501,6 +581,7 @@ class SettingsDialog(QDialog):
         self._size_row(form, "large_node_bytes", "gui.settings.large_node_bytes.tip")
         self._int_row(form, "large_node_children", 1, INT_MAX, "gui.settings.large_node_children.tip")
         self._size_row(form, "head_bytes", "gui.settings.head_bytes.tip")
+        self._size_row(form, "diff_align_max_bytes", "gui.settings.diff_align_max_bytes.tip")   # stage 5 (§14.0)
         return page
 
     def _style_labels(self) -> None:
@@ -518,23 +599,25 @@ class SettingsDialog(QDialog):
         gui = gui if gui is not None else {key: state.get(key) for key in ("theme", "mono_font", "mono_size",
                                                                           "ui_size")}
         self._loading = True
-        self._loaded_ints = {name: int(getattr(settings, name)) for name in ("sample_size", "large_node_children")
-                             if int(getattr(settings, name)) > INT_MAX}
+        ints = {name: int(getattr(settings, name)) for name in self._int_rows}
+        self._loaded_ints = {name: value for name, value in ints.items() if value > self._fields[name].maximum()}
         self._loaded_gui = dict(gui)
         self._font_edited = False
         try:
-            self._fields["sample_size"].setValue(min(INT_MAX, settings.sample_size))
+            for name, value in ints.items():           # sample_size, large_node_children, xlsx_max_rows, undo_limit
+                spin = self._fields[name]
+                spin.setValue(min(spin.maximum(), value))
             self.cache_dir_edit.setText(settings.cache_dir or "")
             for name in SIZE_FIELDS:
                 self._fields[name].setText(size_text(getattr(settings, name)))
-            self._fields["large_node_children"].setValue(min(INT_MAX, settings.large_node_children))
             self._select(self.language_combo, settings.language)
             self._select(self.indent_combo, settings.export_indent,
                          label=t("gui.export.indent.n", n=settings.export_indent))
             self.bom_check.setChecked(bool(settings.csv_bom))
             self._set_delimiter(settings.csv_delimiter)
             self.join_sep_edit.setText(settings.array_join_sep)
-            self._fields["xlsx_max_rows"].setValue(settings.xlsx_max_rows)
+            self._select(self.edits_location_combo, settings.edits_location)
+            self.backup_check.setChecked(bool(settings.backup_on_save))
             mode = gui.get("theme") if gui.get("theme") in THEMES else "system"
             self._select(self.theme_combo, mode)
             family = gui.get("mono_font") or ""
@@ -593,7 +676,10 @@ class SettingsDialog(QDialog):
             "csv_bom": self.bom_check.isChecked(),
             "csv_delimiter": _parse_delimiter(self.delimiter_combo.currentText()),
             "array_join_sep": self.join_sep_edit.text(),
-            "xlsx_max_rows": self._fields["xlsx_max_rows"].value(),
+            "xlsx_max_rows": self._int_value("xlsx_max_rows"),
+            "edits_location": self.edits_location_combo.currentData(),
+            "backup_on_save": self.backup_check.isChecked(),
+            "undo_limit": self._int_value("undo_limit"),
         }
         for name in SIZE_FIELDS:
             out[name] = self._fields[name].text()
@@ -695,11 +781,16 @@ class SettingsDialog(QDialog):
         if widget is None:
             return
         target = widget.lineEdit() if isinstance(widget, QComboBox) and widget.isEditable() else widget
+        was_bad = target.property("invalid") is True
         if bad:
+            if not was_bad:
+                self._tips[name] = target.toolTip()      # the field's own tooltip comes back once it is valid
             target.setStyleSheet(f"border: 1px solid {theme.color('danger').name()};")
             target.setToolTip(self._errors.get(name, ""))
         else:
             target.setStyleSheet("")
+            if was_bad:
+                target.setToolTip(self._tips.pop(name, ""))
         target.setProperty("invalid", bad)
 
     # ================================================================================

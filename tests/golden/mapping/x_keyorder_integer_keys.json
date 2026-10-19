@@ -1,0 +1,40 @@
+{
+ "name": "x_keyorder_integer_keys",
+ "description": "targeted reference case (batch2)",
+ "case": {
+  "name": "x_keyorder_integer_keys",
+  "records": [{"b": 1, "10": 2, "a": 3, "2": 4, "01": 5, "-1": 6, "1.5": 7, "4294967294": 8, "4294967295": 9}]
+ },
+ "output": [{"2": 4, "10": 2, "4294967294": 8, "b": 1, "a": 3, "01": 5, "-1": 6, "1.5": 7, "4294967295": 9}],
+ "log": [],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "2", "kind": "value", "src": [null, "2"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["4"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "10", "kind": "value", "src": [null, "10"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "4294967294", "kind": "value", "src": [null, "4294967294"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["8"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "b", "kind": "value", "src": [null, "b"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "a", "kind": "value", "src": [null, "a"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["3"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "01", "kind": "value", "src": [null, "01"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["5"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "-1", "kind": "value", "src": [null, "-1"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["6"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "1.5", "kind": "value", "src": [null, "1.5"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["7"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "4294967295", "kind": "value", "src": [null, "4294967295"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["9"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"2\" value <- [].2",
+  "    \"10\" value <- [].10",
+  "    \"4294967294\" value <- [].4294967294",
+  "    \"b\" value <- [].b",
+  "    \"a\" value <- [].a",
+  "    \"01\" value <- [].01",
+  "    \"-1\" value <- [].-1",
+  "    \"1.5\" value <- [].1.5",
+  "    \"4294967295\" value <- [].4294967295"
+ ],
+ "preview": [{"2": 4, "10": 2, "4294967294": 8, "b": 1, "a": 3, "01": 5, "-1": 6, "1.5": 7, "4294967295": 9}],
+ "perRecord": [[{"2": 4, "10": 2, "4294967294": 8, "b": 1, "a": 3, "01": 5, "-1": 6, "1.5": 7, "4294967295": 9}]],
+ "perRecordConcatEqualsOutput": true
+}

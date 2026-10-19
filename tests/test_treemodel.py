@@ -323,3 +323,24 @@ def test_plan_levels_cap_and_orders(tmp_path: Path, docs) -> None:
     ordered = src.plan([(0,)], levels=1, cap=100, order_for=order_for)
     mode, arr = ordered.items[0][2]
     assert mode == "keys" and list(arr) == [1, 0, 2]          # a, b, s
+
+
+def test_fetch_leaves_out_records_the_index_has_not_reached(tmp_path: Path) -> None:
+    """While the index grows, records beyond it are "not loaded yet" (left out of the result), never errors: the
+    tree's loader would keep an error after the index got there (review3 H1)."""
+    path = tmp_path / "g.json"
+    path.write_text(json.dumps([{"a": i} for i in range(5)]), encoding="utf-8")
+    doc = Document.open(path, use_cache=False)
+    try:
+        assert not doc.index_complete and doc.record_count == 0
+        src = NodeSource(doc.pinned())
+        assert src.not_indexed_yet(0) and src.not_indexed_yet(4)
+        assert not src.not_indexed_yet(WRAPPER) and not src.not_indexed_yet(ROOT) and not src.not_indexed_yet(True)
+        assert src.fetch([(0,), (3,), (3, 0)], None) == {}
+        doc.build_index()
+        assert not src.not_indexed_yet(4) and not src.not_indexed_yet(9)
+        got = src.fetch([(0,), (3,), (3, 0), (9,)], None)
+        assert got[(3,)].text == "{1} a: 3" and got[(3, 0)].text == "3"
+        assert isinstance(got[(9,)], IndexError)        # beyond the final count: a real error
+    finally:
+        doc.close()

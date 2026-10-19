@@ -9,17 +9,41 @@ document (the base set), not the current filter or sort; the header says so.
 A tree of fields (a ``QTreeWidget``: the number of fields is bounded by
 ``schema.MAX_FIELDS``; the rows are built in timed batches and old rows deleted in timed
 batches, so even 20 000 fields never hold the GUI thread for long) with the columns *field* (key, type badge), *types* (distribution text
-plus a stacked bar), *presence* (% with a bar), *count* (occurrences / records), *examples*
-and *details* (string length, number range, array length, object keys). ``$key`` comes
-first for keyed documents. Columns sort on a header click (the header menu restores the
-schema order); a search box filters the fields.
+plus a stacked bar), *presence* (% with a bar), *null / yo'q* (``FieldInfo.nulls`` /
+``FieldInfo.missing``), *count* (occurrences / records), *examples* and *details* (string
+length, number range and the share of integral numbers -- ``FieldInfo.integers``, exact
+values: ``1e400`` and ``1.000`` are integral --, array length, object keys). The null /
+missing counts and the integer share come from the schema on screen: a sample unless a full
+scan was made -- the tooltips of the null / yo'q column and of the presence column say which
+(and of how many records), the column header too. ``$key`` comes first for keyed documents.
+Columns sort on a header click (the header menu restores the schema order); a search box
+filters the fields.
 
 Actions on the selected field (toolbar and context menu; disabled with a tooltip saying why
 when they do not apply): add as a table column (:attr:`SchemaView.add_column_requested`),
 quick filter "exists" / "missing" (``session.set_quick_filter``), sort ascending /
 descending (``session.sort_by_field``; a field under ``[*]`` sorts by its first value, the
 rule of :class:`jsonreshape.sortkeys.SortKey`), copy the path, add to the filter builder
-(:attr:`SchemaView.filter_field_requested`).
+(:attr:`SchemaView.filter_field_requested`), **Statistika** (:attr:`SchemaView.stats_requested`
+with the field text, e.g. ``orders[*].sum``; also a double-click on a field row -- which
+therefore no longer expands / collapses it: the arrow does), **Takroriy yozuvlar…**
+(:attr:`SchemaView.dupes_requested`; only for fields outside arrays and not pooled ``*`` keys:
+a duplicates key is one value per record). The document tab forwards the two signals to the
+window's statistics dock / duplicates dialog. "Tuzilma quruvchi…" (a header button and the
+last context-menu entry; AGENT_PROMPT §4.4, docs/ARCHITECTURE.md §13.5) asks the tab to show
+the structure builder (:attr:`SchemaView.mapping_requested`), enabled once the document is
+ready (it builds its own tree, it does not need a selected field).
+
+Edits (docs/ARCHITECTURE.md §12.9): after ``session.data_changed`` the schema on screen is
+*stale* (the header says it is being updated). A visible view computes it again
+(:data:`EDIT_REFRESH_MS` after the last change: a sample through :func:`fields.get_schema` with
+``refresh=True``, which reads one pinned state of the effective records); a hidden one when it
+is activated (also when the cached schema is older than the data: :func:`fields.is_stale`). A
+result whose data generation (:func:`fields.schema_gen`) is not the one shown -- a computation
+already running when the refresh was asked for, or edits meanwhile -- is shown and asked for
+once more; a stale full scan gives way to a fresh sample (the full scan applies again and then
+computes the current data). The session's ``fields.forget`` (bulk / patch / restore / discard)
+only empties the cache; the view recomputes the same way.
 """
 
 from __future__ import annotations
@@ -61,9 +85,10 @@ from jsonreshape.schema import FieldInfo, Schema
 
 log = logging.getLogger(__name__)
 
-__all__ = ["SchemaView", "badge_colors", "field_label", "types_text", "details_text", "percent_text"]
+__all__ = ["SchemaView", "badge_colors", "field_label", "types_text", "details_text", "nulls_text", "percent_text"]
 
-COL_FIELD, COL_TYPES, COL_PRESENCE, COL_COUNT, COL_EXAMPLES, COL_DETAILS, COL_ORDER = range(7)
+COL_FIELD, COL_TYPES, COL_PRESENCE, COL_NULLS, COL_COUNT, COL_EXAMPLES, COL_DETAILS, COL_ORDER = range(8)
+COLUMN_COUNT = COL_ORDER + 1
 ROLE_KIND = int(Qt.ItemDataRole.UserRole) + 1        # main type of the field (badge)
 ROLE_DIST = int(Qt.ItemDataRole.UserRole) + 2        # [(type, fraction)] (types bar)
 ROLE_PRESENCE = int(Qt.ItemDataRole.UserRole) + 3    # 0..1 (presence bar)
@@ -73,6 +98,8 @@ EXPAND_ALL_LIMIT = 3000      # larger schemas start with the first level expande
 #: building all their rows at once kept the GUI thread busy for ~0.6 s.
 FILL_BUDGET_S = 0.02
 FILL_BATCH = 32              # rows built between two clock reads
+#: Milliseconds after the last data change before a visible schema is computed again.
+EDIT_REFRESH_MS = 400
 _DISPLAY_RE = re.compile("[\x00-\x1f\x7f-\x9f\u2028\u2029\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff\ud800-\udfff]")
 
 
@@ -142,14 +169,27 @@ def _span(lo: Any, hi: Any) -> str:
     return f"{lo}" if lo == hi else f"{lo}\N{EN DASH}{hi}"
 
 
+def integer_share(fi: FieldInfo) -> float | None:
+    """The share (0..1) of integral numbers among the field's numbers (``FieldInfo.integers``),
+    ``None`` when the field held no number."""
+    numbers = fi.types.get("number", 0)
+    if not numbers:
+        return None
+    return min(1.0, max(0.0, fi.integers / numbers))
+
+
 def details_text(fi: FieldInfo) -> str:
-    """String length, number range, array length, object keys (those that apply)."""
+    """String length, number range (+ the share of integers), array length, object keys (those
+    that apply)."""
     parts = []
     if fi.str_len is not None:
         parts.append(t("gui.schema.detail.str_len", range=_span(*fi.str_len)))
     if fi.num_range is not None:
         lo, hi = fi.num_range
         parts.append(t("gui.schema.detail.num_range", range=lo if lo == hi else f"{lo} \N{HORIZONTAL ELLIPSIS} {hi}"))
+    share = integer_share(fi)
+    if share is not None:
+        parts.append(t("gui.schema.detail.integers", pct=percent_text(share)))
     if fi.arr_len is not None:
         parts.append(t("gui.schema.detail.arr_len", range=_span(*fi.arr_len)))
     if fi.obj_keys is not None:
@@ -161,6 +201,38 @@ def _count_text(fi: FieldInfo) -> str:
     if fi.count == fi.records:
         return format_count(fi.count)
     return f"{format_count(fi.count)} / {format_count(fi.records)}"
+
+
+def nulls_text(fi: FieldInfo) -> str:
+    """The "null / yo'q" cell: ``12 / 3`` (null values / contexts without the field)."""
+    return f"{format_count(fi.nulls)} / {format_count(fi.missing)}"
+
+
+def basis_text(schema: Schema | None) -> str:
+    """Which records the counts come from: a sample of N (of M) records, or every record (a full
+    scan)."""
+    if schema is None:
+        return ""
+    if schema.complete:
+        return t("gui.schema.tip.basis.full", scanned=format_count(schema.scanned))
+    return t("gui.schema.tip.basis.sample", scanned=format_count(schema.scanned),
+             total=format_count(schema.total_records))
+
+
+def _context_text(fi: FieldInfo) -> str:
+    return t("gui.schema.tip.context_elements") if under_array(fi) else t("gui.schema.tip.context_records")
+
+
+def nulls_tooltip(fi: FieldInfo, basis: str = "") -> str:
+    """null values (of the occurrences), missing (of the contexts) and where the numbers come
+    from."""
+    lines = [t("gui.schema.tip.nulls", nulls=format_count(fi.nulls),
+               pct=percent_text(fi.nulls / fi.count) if fi.count else "0%"),
+             t("gui.schema.tip.missing", missing=format_count(fi.missing), base=format_count(fi.base),
+               context=_context_text(fi))]
+    if basis:
+        lines.append(basis)
+    return "\n".join(lines)
 
 
 def expression_field(fi: FieldInfo) -> str:
@@ -180,7 +252,7 @@ class _FieldItem(QTreeWidgetItem):
     tree for its column each time made sorting 20 000 rows take ~80 ms."""
 
     def __init__(self, fi: FieldInfo, order: int, sort_column: list[int] | None = None,
-                 parent_row: int = -1) -> None:
+                 parent_row: int = -1, basis: str = "") -> None:
         super().__init__()
         self.fi = fi
         self._sort_column = sort_column if sort_column is not None else [COL_ORDER]
@@ -196,6 +268,7 @@ class _FieldItem(QTreeWidgetItem):
             label.casefold(),
             (main, -fi.type_fraction(main) if main else 0.0),
             fi.presence,
+            (fi.missing, fi.nulls),
             fi.count,
             examples.casefold(),
             details.casefold(),
@@ -204,10 +277,12 @@ class _FieldItem(QTreeWidgetItem):
         self.setText(COL_FIELD, label)
         self.setText(COL_TYPES, types)
         self.setText(COL_PRESENCE, percent_text(fi.presence))
+        self.setText(COL_NULLS, nulls_text(fi))
         self.setText(COL_COUNT, _count_text(fi))
         self.setText(COL_EXAMPLES, examples)
         self.setText(COL_DETAILS, details)
         self.setText(COL_ORDER, str(order))
+        self.setTextAlignment(COL_NULLS, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.setTextAlignment(COL_COUNT, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.setData(COL_FIELD, ROLE_KIND, main)
         dist = [(k, n / fi.count) for k, n in fi.types.items()] if fi.count else []
@@ -221,12 +296,19 @@ class _FieldItem(QTreeWidgetItem):
             tip += "\n" + t("gui.schema.tip.key")
         self.setToolTip(COL_FIELD, tip)
         if fi.count:
-            self.setToolTip(COL_TYPES, "\n".join(
-                t("gui.schema.tip.type", type=_type_name(k), count=format_count(n), pct=percent_text(n / fi.count))
-                for k, n in fi.types.items()))
-        context = t("gui.schema.tip.context_elements") if under_array(fi) else t("gui.schema.tip.context_records")
-        self.setToolTip(COL_PRESENCE, t("gui.schema.tip.presence", present=format_count(fi.present),
-                                        base=format_count(fi.base), context=context))
+            lines = []
+            for k, n in fi.types.items():
+                lines.append(t("gui.schema.tip.type", type=_type_name(k), count=format_count(n),
+                               pct=percent_text(n / fi.count)))
+                if k == "number" and n:
+                    lines.append(t("gui.schema.tip.integers", count=format_count(fi.integers),
+                                   pct=percent_text(fi.integers / n)))
+            self.setToolTip(COL_TYPES, "\n".join(lines))
+        context = _context_text(fi)
+        presence_tip = t("gui.schema.tip.presence", present=format_count(fi.present), base=format_count(fi.base),
+                         context=context)
+        self.setToolTip(COL_PRESENCE, presence_tip + "\n" + nulls_tooltip(fi, basis))
+        self.setToolTip(COL_NULLS, nulls_tooltip(fi, basis))
         self.setToolTip(COL_COUNT, t("gui.schema.tip.count", count=format_count(fi.count),
                                      records=format_count(fi.records)))
         if fi.examples:
@@ -399,6 +481,9 @@ class SchemaView(ViewBase):
     add_column_requested = Signal(str)     # field text (paths syntax, "$key", "$")
     filter_field_requested = Signal(str)   # field text for the filter builder
     schema_shown = Signal()                # a schema was put on screen (tests, status)
+    mapping_requested = Signal()           # "Tuzilma quruvchi…": open the structure builder (§13.5)
+    stats_requested = Signal(str)          # "Statistika" / double-click: field text (e.g. "orders[*].sum")
+    dupes_requested = Signal(str)          # "Takroriy yozuvlar…": field text (fields outside arrays)
 
     def __init__(self, session: Any, parent: QWidget | None = None) -> None:
         super().__init__(session, parent)
@@ -420,11 +505,20 @@ class SchemaView(ViewBase):
         self._trash_timer.timeout.connect(self._trash_step)
         self._sort_column = [COL_ORDER]      # the column being sorted (see _FieldItem)
         self._zoom = 0
+        # edits: the schema on screen predates a data change
+        self._edit_stale = False
+        self._edit_timer = QTimer(self)
+        self._edit_timer.setSingleShot(True)
+        self._edit_timer.setInterval(EDIT_REFRESH_MS)
+        self._edit_timer.timeout.connect(self._refresh_after_edit)
         self._build_ui()
         session.opened.connect(self._on_opened)
         session.index_finished.connect(self._on_index_finished)
         session.state_changed.connect(self._on_state_changed)
         session.app.tasks.task_finished.connect(self._on_task_finished)
+        data_changed = getattr(session, "data_changed", None)
+        if data_changed is not None:
+            data_changed.connect(self._on_data_changed)
         theme.notifier().theme_changed.connect(self._on_theme_changed)
         self._update_actions()
         self._show_message(t("gui.schema.not_loaded"))
@@ -447,6 +541,13 @@ class SchemaView(ViewBase):
         self.full_button.setToolTip(t("gui.schema.full_scan.tip"))
         self.full_button.clicked.connect(self.full_scan)
         top.addWidget(self.full_button)
+        self.act_mapping = self._action("schema_mapping", "gui.schema.act.mapping", self._request_mapping)
+        self.act_mapping.setProperty("base_tip", t("gui.schema.act.mapping.tip"))
+        self.mapping_button = QToolButton(self)
+        self.mapping_button.setObjectName("schemaMapping")
+        self.mapping_button.setDefaultAction(self.act_mapping)
+        self.mapping_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        top.addWidget(self.mapping_button)
         lay.addLayout(top)
         self.note_label = QLabel(t("gui.schema.base_note"), self)
         self.note_label.setWordWrap(True)
@@ -474,6 +575,10 @@ class SchemaView(ViewBase):
         self.act_copy_path = self._action("schema_copy_path", "gui.schema.act.copy_path", self._copy_field_path)
         self.act_filter_builder = self._action("schema_filter_builder", "gui.schema.act.filter_builder",
                                                self._to_filter_builder)
+        self.act_stats = self._action("schema_stats", "gui.statspanel.action.node", self.request_stats)
+        self.act_stats.setProperty("base_tip", t("gui.statspanel.action.node.tip"))
+        self.act_dupes = self._action("schema_dupes", "gui.dupesdialog.action", self.request_dupes)
+        self.act_dupes.setProperty("base_tip", t("gui.dupesdialog.action.tip"))
         for act in self.actions_list():
             btn = QToolButton(self)
             btn.setDefaultAction(act)
@@ -501,18 +606,22 @@ class SchemaView(ViewBase):
 
         self.tree = QTreeWidget(self.stack)
         self.tree.setObjectName("schemaTree")
-        self.tree.setColumnCount(7)
+        self.tree.setColumnCount(COLUMN_COUNT)
         self.tree.setHeaderLabels([t("gui.schema.col.field"), t("gui.schema.col.types"),
-                                   t("gui.schema.col.presence"), t("gui.schema.col.count"),
-                                   t("gui.schema.col.examples"), t("gui.schema.col.details"), "#"])
+                                   t("gui.schema.col.presence"), t("gui.schema.col.nulls"),
+                                   t("gui.schema.col.count"), t("gui.schema.col.examples"),
+                                   t("gui.schema.col.details"), "#"])
+        self.tree.headerItem().setToolTip(COL_NULLS, t("gui.schema.col.nulls.tip"))
         self.tree.setColumnHidden(COL_ORDER, True)
         self.tree.setUniformRowHeights(True)
         self.tree.setAlternatingRowColors(True)
+        self.tree.setExpandsOnDoubleClick(False)       # a double-click asks for the statistics
         self.tree.setItemDelegate(_SchemaDelegate(self.tree))
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._context_menu)
         self.tree.currentItemChanged.connect(lambda *_: self._update_actions())
         self.tree.itemSelectionChanged.connect(self._update_actions)
+        self.tree.itemDoubleClicked.connect(self._on_double_clicked)
         header = self.tree.header()
         header.setStretchLastSection(True)
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
@@ -521,8 +630,9 @@ class SchemaView(ViewBase):
         header.customContextMenuRequested.connect(self._header_menu)
         # connected before the tree's own sorting slot (setSortingEnabled): runs first
         header.sortIndicatorChanged.connect(self._on_sort_indicator)
-        widths = (220, 210, 120, 90, 260)
-        for col, w in enumerate(widths):
+        widths = {COL_FIELD: 220, COL_TYPES: 210, COL_PRESENCE: 120, COL_NULLS: 100, COL_COUNT: 90,
+                  COL_EXAMPLES: 260}
+        for col, w in widths.items():
             self.tree.setColumnWidth(col, w)
         self.tree.setSortingEnabled(True)
         self.tree.sortByColumn(COL_ORDER, Qt.SortOrder.AscendingOrder)
@@ -537,9 +647,9 @@ class SchemaView(ViewBase):
         return act
 
     def actions_list(self) -> list[QAction]:
-        """The field actions in menu order."""
+        """The field actions in toolbar order."""
         return [self.act_add_column, self.act_filter_exists, self.act_filter_missing, self.act_sort_asc,
-                self.act_sort_desc, self.act_copy_path, self.act_filter_builder]
+                self.act_sort_desc, self.act_copy_path, self.act_filter_builder, self.act_stats, self.act_dupes]
 
     @staticmethod
     def _style_muted(label: QLabel) -> None:
@@ -554,8 +664,13 @@ class SchemaView(ViewBase):
 
     # -- ViewBase hooks ------------------------------------------------------------------
     def activate(self) -> None:
-        """Became visible: load the sample schema (or the cached one) once."""
+        """Became visible: load the sample schema (or the cached one) once; a schema made
+        stale by edits is computed again."""
         self._activated = True
+        if self._edit_stale and self._doc_id == id(self.session.doc) and self._ready():
+            self._edit_timer.stop()
+            self._refresh_after_edit(force=True)
+            return
         if (self._schema is None and self._fill is None) or self._stale or self._doc_id != id(self.session.doc):
             self._load()
 
@@ -600,6 +715,13 @@ class SchemaView(ViewBase):
     def shutdown(self) -> None:
         self._dead = True
         self._stop_fill()
+        self._edit_timer.stop()
+        data_changed = getattr(self.session, "data_changed", None)
+        if data_changed is not None:
+            try:
+                data_changed.disconnect(self._on_data_changed)
+            except (RuntimeError, TypeError):
+                pass
         for signal, slot in ((self.session.opened, self._on_opened),
                              (self.session.index_finished, self._on_index_finished),
                              (self.session.state_changed, self._on_state_changed),
@@ -652,6 +774,9 @@ class SchemaView(ViewBase):
             self._schema = None
             self._stop_fill()
             self._full_running = False
+        if not force and fields.is_stale(s):
+            force = True               # cached for older data (edited since): computed again
+            self._edit_stale = True
         schema = fields.get_schema(s, self._schema_ready, refresh=force)
         if schema is not None:
             self._loading = False
@@ -668,16 +793,67 @@ class SchemaView(ViewBase):
         s = self.session
         if self._doc_id != id(s.doc):
             self._schema = None
-        schema = fields.get_schema(s, self._schema_ready, full=True)
+        stale = self._edit_stale or fields.is_stale(s)
+        if stale:
+            self._edit_timer.stop()
+            self._edit_stale = True     # the cached full scan (if any) describes older data
+        schema = fields.get_schema(s, self._schema_ready, full=True, refresh=stale)
         if schema is not None:
             self._show(schema)
             return
         self._full_running = True
         self._update_header()
 
+    # -- edits -----------------------------------------------------------------------------
+    def _on_data_changed(self, cs: Any) -> None:
+        """The data changed: the schema on screen is stale; a visible view computes it again
+        (debounced), a hidden one when it is activated."""
+        if self._dead:
+            return
+        if not (getattr(cs, "reset", False) or getattr(cs, "wrapper", False) or getattr(cs, "nodes", ())
+                or getattr(cs, "remap", None) is not None or getattr(cs, "records", None) != frozenset()):
+            return                     # an empty change: the data is the same
+        self._edit_stale = True
+        self._update_header()
+        if self._activated and self.isVisible():
+            self._edit_timer.start()
+
+    def _refresh_after_edit(self, *, force: bool = False) -> None:
+        """Compute the schema of the current data (a sample, ``refresh=True``; a computation
+        still running for older data is waited for and asked for again, :meth:`_schema_ready`)."""
+        if self._dead or not self._edit_stale:
+            return
+        if not force and not (self._activated and self.isVisible()):
+            return
+        s = self.session
+        if not self._ready() or self._doc_id != id(s.doc):
+            self._load()
+            return
+        self._loading = True
+        self._update_header()
+        schema = fields.get_schema(s, self._schema_ready, refresh=True)
+        if schema is not None:         # pragma: no cover - refresh=True computes
+            self._schema_ready(schema)
+
+    def stale(self) -> bool:
+        """The schema on screen predates the last data change (tests / header)."""
+        return self._edit_stale
+
     def _schema_ready(self, schema: Schema) -> None:
         """A schema computed by :mod:`fields` (sample or full) for the current document."""
         if self._dead or self.session.doc is None:
+            return
+        if self._edit_stale:
+            # after edits: the newest result is shown (a stale full scan gives way to a sample);
+            # one computed for older data is asked for once more
+            self._loading = False
+            if schema.complete:
+                self._full_running = False
+            if fields.schema_gen(self.session) == int(getattr(self.session, "data_gen", 0) or 0):
+                self._edit_stale = False
+            elif self._activated and self.isVisible() and not self._edit_timer.isActive():
+                self._edit_timer.start()
+            self._show(schema)
             return
         self._loading = False
         if schema.complete:
@@ -803,11 +979,12 @@ class SchemaView(ViewBase):
         """Make rows until the budget is spent; True when every row exists."""
         flat, items, tops = f.flat, f.items, f.tops
         n = len(flat)
+        basis = basis_text(f.schema)
         while f.pos < n:
             end = min(n, f.pos + FILL_BATCH)
             for i in range(f.pos, end):
                 fi, parent = flat[i]
-                item = _FieldItem(fi, i, self._sort_column, parent)
+                item = _FieldItem(fi, i, self._sort_column, parent, basis)
                 items.append(item)
                 if parent < 0:
                     tops.append(item)
@@ -824,7 +1001,7 @@ class SchemaView(ViewBase):
         tree = self.tree
         header = tree.header()
         sort_col = tree.sortColumn()
-        sort_col = sort_col if 0 <= sort_col < 7 else COL_ORDER
+        sort_col = sort_col if 0 <= sort_col < COLUMN_COUNT else COL_ORDER
         order_flag = header.sortIndicatorOrder()
         tree.setSortingEnabled(False)
         self._discard_rows()
@@ -928,8 +1105,12 @@ class SchemaView(ViewBase):
                 text += " \N{MIDDLE DOT} " + t("gui.schema.header.truncated")
             if self._full_running:
                 text += " \N{MIDDLE DOT} " + t("gui.schema.header.scanning")
+            if self._edit_stale:
+                text += " \N{MIDDLE DOT} " + t("gui.schema.header.stale")
             self.header_label.setText(text)
-        complete = schema is not None and schema.complete
+        basis = basis_text(schema)
+        self.tree.headerItem().setToolTip(COL_NULLS, t("gui.schema.col.nulls.tip") + ("\n" + basis if basis else ""))
+        complete = schema is not None and schema.complete and not self._edit_stale
         self.full_button.setEnabled(self._ready() and not self._full_running and not complete)
         if self._full_running:
             self.full_button.setText(t("gui.schema.full_scan.running"))
@@ -1017,12 +1198,16 @@ class SchemaView(ViewBase):
 
     def _set(self, act: QAction, enabled: bool, why: str = "") -> None:
         act.setEnabled(enabled)
-        base = act.text()
+        base = act.property("base_tip") or act.text()
         act.setToolTip(base if enabled or not why else f"{base}\n{why}")
 
     def _update_actions(self) -> None:
         if self._dead:
             return
+        ready = self._ready()
+        self.act_mapping.setEnabled(ready)
+        tip = t("gui.schema.act.mapping.tip")
+        self.act_mapping.setToolTip(tip if ready else f"{tip}\n{t('gui.schema.why.mapping_wait')}")
         fi = self.current_field()
         none = t("gui.schema.why.no_field")
         if fi is None:
@@ -1046,6 +1231,11 @@ class SchemaView(ViewBase):
                 act.setToolTip(f"{act.text()}\n{t('gui.schema.tip.sort_first')}")
         self._set(self.act_copy_path, True)
         self._set(self.act_filter_builder, not single, single_why)
+        self._set(self.act_stats, True)
+        if pooled:
+            self._set(self.act_dupes, False, t("gui.schema.why.dupes_pooled"))
+        else:
+            self._set(self.act_dupes, not under_array(fi), t("gui.schema.why.dupes_array"))
 
     def _context_menu(self, pos: Any) -> QMenu | None:
         item = self.tree.itemAt(pos)
@@ -1070,7 +1260,12 @@ class SchemaView(ViewBase):
         menu.addAction(self.act_sort_asc)
         menu.addAction(self.act_sort_desc)
         menu.addSeparator()
+        menu.addAction(self.act_stats)
+        menu.addAction(self.act_dupes)
+        menu.addSeparator()
         menu.addAction(self.act_copy_path)
+        menu.addSeparator()
+        menu.addAction(self.act_mapping)
         return menu
 
     def _header_menu(self, pos: Any) -> None:
@@ -1118,3 +1313,35 @@ class SchemaView(ViewBase):
         fi = self.current_field()
         if fi is not None and not self._single():
             self.filter_field_requested.emit(fi.text)
+
+    def _request_mapping(self) -> None:
+        """"Tuzilma quruvchi…": the tab shows the structure builder (``mapping_requested``)."""
+        if not self._dead and self._ready():
+            self.mapping_requested.emit()
+
+    def request_stats(self) -> bool:
+        """"Statistika" (and a double-click): ``stats_requested(field text)`` for the selected
+        field. True when emitted."""
+        fi = self.current_field()
+        if self._dead or fi is None:
+            return False
+        self.stats_requested.emit(fi.text)
+        return True
+
+    def request_dupes(self) -> bool:
+        """"Takroriy yozuvlar…": ``dupes_requested(field text)`` for the selected field (fields
+        outside arrays and not pooled only). True when emitted."""
+        fi = self.current_field()
+        if self._dead or fi is None or under_array(fi) or is_pooled(fi):
+            return False
+        self.dupes_requested.emit(fi.text)
+        return True
+
+    def _on_double_clicked(self, item: Any, _column: int) -> None:
+        """A double-click on a field row asks for its statistics."""
+        if not isinstance(item, _FieldItem) or self._dead:
+            return
+        if self.tree.currentItem() is not item or not item.isSelected():
+            self.tree.setCurrentItem(item)
+            item.setSelected(True)
+        self.request_stats()

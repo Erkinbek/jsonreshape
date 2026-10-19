@@ -1,0 +1,40 @@
+{
+ "name": "x_fb_across_merged_elems",
+ "description": "targeted reference case (batch7)",
+ "case": {
+  "name": "x_fb_across_merged_elems",
+  "records": [{"b": "str"}, {"a": [1], "b": "s"}, {"a": 5, "b": [2]}],
+  "sample": [{"a": [1], "b": [2]}],
+  "ops": [{"op": "merge", "node": "[].b", "target": "[].a"}]
+ },
+ "output": [{"a": "str"}, {"a": [1]}, {"a": [2]}],
+ "log": [
+  {
+   "i": 0,
+   "op": "merge",
+   "applied": true,
+   "changed": true,
+   "undo": 1,
+   "msg": "«b» elementlari «a» massiviga qo'shildi"
+  }
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "a", "kind": "array", "src": [null, "a"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "value", "src": [null, "a", null], "types": ["number"], "count": 1, "pcount": null, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []},
+    {"key": "", "kind": "value", "src": [null, "b", null], "types": ["number"], "count": 1, "pcount": null, "samples": ["2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []}
+   ]}
+  ]}
+ ]},
+ "badges": [{"ref": [0, "a", 1], "badges": ["manba: [].b"]}],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"a\" array <- [].a",
+  "      [] value <- [].a[]",
+  "      [] value <- [].b[]"
+ ],
+ "preview": [{"a": "str"}, {"a": [1]}, {"a": [2]}],
+ "perRecord": [[{"a": "str"}], [{"a": [1]}], [{"a": [2]}]],
+ "perRecordConcatEqualsOutput": true
+}

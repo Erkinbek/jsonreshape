@@ -30,8 +30,14 @@ by the sum of ``sizeof(value)`` (the newest entry is always kept, even when it a
 * ``invalidate()`` forgets all cached values; ``invalidate(keys)`` forgets some. Results of
   fetches that started before (generation / per-key staleness check) are discarded; the keys
   of the current window are fetched again automatically.
+* ``clear()`` forgets everything -- the cache, the window, the queued and prefetched keys --
+  for keys that now mean something else (the view shows another document): running fetches
+  are discarded and nothing is fetched until the view asks again. (``invalidate()`` would
+  fetch the old window again -- against the new data.)
 * A failing ``fetch`` stores :class:`LoadFailed` for every key of the batch (logged once per
   loader); later ``get()`` calls return it until the key is invalidated.
+  ``invalidate_failed()`` forgets every cached :class:`LoadFailed` (the keys of the window are
+  fetched again): the data may have become readable (e.g. the index of the document grew).
 
 Signals
 -------
@@ -439,6 +445,45 @@ class RowLoader(QObject):
                     state.token.cancel()  # nothing of this batch is still useful
             if state.wanted or state.prefetch:
                 state.wake()
+
+    def clear(self) -> None:
+        """Forget everything: cached values, the window, the queued and prefetched keys (the
+        keys mean something else now, e.g. the view shows another document). Results of
+        fetches running now are discarded; nothing is fetched until the view asks again."""
+        state = self._state
+        with state.lock:
+            if state.closed:
+                return
+            state.window = OrderedDict()
+            state.wanted = OrderedDict()
+            state.prefetch = OrderedDict()
+            state.cache.clear()
+            state.sizes.clear()
+            state.nbytes = 0
+            state.gen += 1
+            state.stale.update(state.inflight)
+            if state.token is not None:
+                state.token.cancel()
+
+    def invalidate_failed(self) -> int:
+        """Forget every cached :class:`LoadFailed` (the keys of the window are fetched again):
+        what failed may be readable now. Returns how many were forgotten."""
+        state = self._state
+        with state.lock:
+            if state.closed:
+                return 0
+            gone = [key for key, value in state.cache.items() if isinstance(value, LoadFailed)]
+            for key in gone:
+                state.forget(key)
+            if not gone:
+                return 0
+            dropped = set(gone)
+            for key in state.window:     # fetched again in window order
+                if key in dropped:
+                    state.want(key)
+            if state.wanted:
+                state.wake()
+            return len(gone)
 
     def account(self, key: Hashable, nbytes: int) -> None:
         """Add ``nbytes`` to the accounted size of the cached value of ``key`` (the owner

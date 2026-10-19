@@ -1,0 +1,127 @@
+{
+ "name": "t09_rule_no_inside_value",
+ "description": "AGENT_PROMPT §14 test 9 (drag & drop rules): nothing can be dropped inside a value row",
+ "case": {
+  "name": "t09_rule_no_inside_value",
+  "records": [
+   {
+    "id": 1,
+    "name": "a",
+    "contact": {"phone": "1", "address": {"city": "T", "zip": "100"}},
+    "tags": ["x", "y"],
+    "children": [{"n": "c", "children": [{"n": "d"}]}],
+    "grid": [[1, 2], [3]],
+    "empty": []
+   }
+  ],
+  "ops": [
+   {"op": "drop", "node": "[].contact", "target": "[].id", "frac": 0.5},
+   {"op": "undo"},
+   {"op": "move", "node": "[].contact", "target": "[].id", "zone": "inside"},
+   {"op": "move", "node": "[].name", "target": "[].tags[]", "zone": "inside"},
+   {"op": "drop", "node": "[].name", "target": "[].tags[]", "frac": 0.5}
+  ]
+ },
+ "output": [
+  {
+   "id": 1,
+   "name": "a",
+   "contact": {"phone": "1", "address": {"city": "T", "zip": "100"}},
+   "tags": ["x", "y"],
+   "children": [{"n": "c", "children": [{"n": "d"}]}],
+   "grid": [[1, 2], [3]],
+   "empty": []
+  }
+ ],
+ "log": [
+  {"i": 0, "op": "drop", "applied": true, "changed": true, "undo": 1, "msg": "", "result": {"zone": "after"}},
+  {"i": 1, "op": "undo", "applied": true, "changed": true, "undo": 0, "msg": "Oxirgi o'zgarish bekor qilindi"},
+  {"i": 2, "op": "move", "applied": false, "changed": false, "undo": 0, "msg": null},
+  {"i": 3, "op": "move", "applied": false, "changed": false, "undo": 0, "msg": null},
+  {"i": 4, "op": "drop", "applied": false, "changed": false, "undo": 0, "msg": null, "result": {"zone": null}}
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "id", "kind": "value", "src": [null, "id"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "name", "kind": "value", "src": [null, "name"], "types": ["string"], "count": 1, "pcount": 1, "samples": ["\"a\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "contact", "kind": "object", "src": [null, "contact"], "types": ["object"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "phone", "kind": "value", "src": [null, "contact", "phone"], "types": ["string"], "count": 1, "pcount": 1, "samples": ["\"1\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+    {"key": "address", "kind": "object", "src": [null, "contact", "address"], "types": ["object"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+     {"key": "city", "kind": "value", "src": [null, "contact", "address", "city"], "types": ["string"], "count": 1, "pcount": 1, "samples": ["\"T\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+     {"key": "zip", "kind": "value", "src": [null, "contact", "address", "zip"], "types": ["string"], "count": 1, "pcount": 1, "samples": ["\"100\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+    ]}
+   ]},
+   {"key": "tags", "kind": "array", "src": [null, "tags"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "value", "src": [null, "tags", null], "types": ["string"], "count": 2, "pcount": null, "samples": ["\"x\"", "\"y\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []}
+   ]},
+   {"key": "children", "kind": "array", "src": [null, "children"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "children", null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+     {"key": "n", "kind": "value", "src": [null, "children", null, "n"], "types": ["string"], "count": 1, "pcount": 1, "samples": ["\"c\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+     {"key": "children", "kind": "array", "src": [null, "children", null, "children"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+      {"key": "", "kind": "object", "src": [null, "children", null, "children", null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+       {"key": "n", "kind": "value", "src": [null, "children", null, "children", null, "n"], "types": ["string"], "count": 1, "pcount": 1, "samples": ["\"d\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []}
+      ]}
+     ]}
+    ]}
+   ]},
+   {"key": "grid", "kind": "array", "src": [null, "grid"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "array", "src": [null, "grid", null], "types": ["array"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+     {"key": "", "kind": "value", "src": [null, "grid", null, null], "types": ["number"], "count": 3, "pcount": null, "samples": ["1", "2", "3"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []}
+    ]}
+   ]},
+   {"key": "empty", "kind": "array", "src": [null, "empty"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "value", "src": [null, "empty", null], "types": [], "count": 0, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []}
+   ]}
+  ]}
+ ]},
+ "badges": [],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"id\" value <- [].id",
+  "    \"name\" value <- [].name",
+  "    \"contact\" object <- [].contact",
+  "      \"phone\" value <- [].contact.phone",
+  "      \"address\" object <- [].contact.address",
+  "        \"city\" value <- [].contact.address.city",
+  "        \"zip\" value <- [].contact.address.zip",
+  "    \"tags\" array <- [].tags",
+  "      [] value <- [].tags[]",
+  "    \"children\" array <- [].children",
+  "      [] object <- [].children[]",
+  "        \"n\" value <- [].children[].n",
+  "        \"children\" array <- [].children[].children",
+  "          [] object <- [].children[].children[]",
+  "            \"n\" value <- [].children[].children[].n",
+  "    \"grid\" array <- [].grid",
+  "      [] array <- [].grid[]",
+  "        [] value <- [].grid[][]",
+  "    \"empty\" array <- [].empty",
+  "      [] value <- [].empty[]"
+ ],
+ "preview": [
+  {
+   "id": 1,
+   "name": "a",
+   "contact": {"phone": "1", "address": {"city": "T", "zip": "100"}},
+   "tags": ["x", "y"],
+   "children": [{"n": "c", "children": [{"n": "d"}]}],
+   "grid": [[1, 2], [3]],
+   "empty": []
+  }
+ ],
+ "perRecord": [
+  [
+   {
+    "id": 1,
+    "name": "a",
+    "contact": {"phone": "1", "address": {"city": "T", "zip": "100"}},
+    "tags": ["x", "y"],
+    "children": [{"n": "c", "children": [{"n": "d"}]}],
+    "grid": [[1, 2], [3]],
+    "empty": []
+   }
+  ]
+ ],
+ "perRecordConcatEqualsOutput": true
+}

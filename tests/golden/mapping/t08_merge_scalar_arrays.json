@@ -1,0 +1,29 @@
+{
+ "name": "t08_merge_scalar_arrays",
+ "description": "AGENT_PROMPT §14 test 8 (merge): arrays of scalars",
+ "case": {
+  "name": "t08_merge_scalar_arrays",
+  "data": {"a": [1, 2], "b": [3]},
+  "ops": [{"op": "merge", "node": "b", "target": "a"}]
+ },
+ "output": {"a": [1, 2, 3]},
+ "log": [
+  {
+   "i": 0,
+   "op": "merge",
+   "applied": true,
+   "changed": true,
+   "undo": 1,
+   "msg": "«b» elementlari «a» massiviga qo'shildi"
+  }
+ ],
+ "tree": {"key": "", "kind": "object", "src": [], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "a", "kind": "array", "src": ["a"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+   {"key": "", "kind": "value", "src": ["a", null], "types": ["number"], "count": 2, "pcount": null, "samples": ["1", "2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []},
+   {"key": "", "kind": "value", "src": ["b", null], "types": ["number"], "count": 1, "pcount": null, "samples": ["3"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [{"ref": ["a", 1], "badges": ["manba: b"]}],
+ "shape": ["(root) object <- (ildiz)", "  \"a\" array <- a", "    [] value <- a[]", "    [] value <- b[]"],
+ "preview": [{"a": [1, 2, 3]}]
+}

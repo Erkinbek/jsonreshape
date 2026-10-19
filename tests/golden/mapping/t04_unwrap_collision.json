@@ -1,0 +1,41 @@
+{
+ "name": "t04_unwrap_collision",
+ "description": "AGENT_PROMPT §14 test 4 (unwrap): a child takes a free name with a number",
+ "case": {
+  "name": "t04_unwrap_collision",
+  "records": [{"city": "A", "address": {"city": "B", "zip": 1}}],
+  "ops": [{"op": "unwrap", "node": "[].address"}]
+ },
+ "output": [{"city": "A", "city_2": "B", "zip": 1}],
+ "log": [
+  {
+   "i": 0,
+   "op": "unwrap",
+   "applied": true,
+   "changed": true,
+   "undo": 1,
+   "msg": "«address» ichidagi 2 ta maydon bir pog'ona yuqoriga chiqdi, 1 tasining nomiga raqam qo'shildi"
+  }
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "city", "kind": "value", "src": [null, "city"], "types": ["string"], "count": 1, "pcount": 1, "samples": ["\"A\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "city_2", "kind": "value", "src": [null, "address", "city"], "types": ["string"], "count": 1, "pcount": 1, "samples": ["\"B\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "zip", "kind": "value", "src": [null, "address", "zip"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [
+  {"ref": [0, "city_2"], "badges": ["ko'chirildi", "asl nomi: city"]},
+  {"ref": [0, "zip"], "badges": ["ko'chirildi"]}
+ ],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"city\" value <- [].city",
+  "    \"city_2\" value <- [].address.city",
+  "    \"zip\" value <- [].address.zip"
+ ],
+ "preview": [{"city": "A", "city_2": "B", "zip": 1}],
+ "perRecord": [[{"city": "A", "city_2": "B", "zip": 1}]],
+ "perRecordConcatEqualsOutput": true
+}

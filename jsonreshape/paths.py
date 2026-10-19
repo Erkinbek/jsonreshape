@@ -12,6 +12,10 @@ Accepted syntaxes (see docs/ARCHITECTURE.md §3):
 
 A ``str`` segment applied to a list acts as an index when it is a canonical non-negative
 decimal (``"0"`` or ``[1-9][0-9]*``) — the same rule as the core ``PathExtractor``.
+
+:func:`parse_pointer` is the STRICT RFC 6901 parser of JSON Patch (§12.8): the text is used as it
+is (no stripping), ``""`` is the whole document, every segment is a ``str``; :func:`format_pointer`
+is its inverse.
 """
 
 from __future__ import annotations
@@ -236,6 +240,28 @@ def _parse_pointer(text: str) -> list[PatternSegment]:
         out.append(raw.replace("~1", "/").replace("~0", "~"))
         pos += len(raw) + 1
     return out
+
+
+def parse_pointer(text: str) -> tuple[str, ...]:
+    """Parse a JSON Pointer STRICTLY (RFC 6901; JSON Patch, docs/ARCHITECTURE.md §12.8).
+
+    ``""`` is the whole document; any other pointer must start with ``/``. Every segment is a
+    ``str`` (also array indices: whether ``"12"`` is an index or a key depends on the value it is
+    applied to); ``~1`` becomes ``/`` and then ``~0`` becomes ``~`` (so ``~01`` is the key ``~1``);
+    any other ``~`` is an error. Nothing is stripped: whitespace belongs to the keys (``"/ a"`` is
+    the key ``" a"``) and ``"/"`` is the empty key. :class:`PathSyntaxError` otherwise.
+
+    The lenient path parser (:func:`parse_path`, which accepts pointers next to the other
+    syntaxes and ignores leading whitespace) is unchanged."""
+    if not isinstance(text, str):
+        raise TypeError(f"a JSON Pointer is a str, got {type(text).__name__}")
+    return tuple(_parse_pointer(text))  # type: ignore[arg-type]
+
+
+def format_pointer(path: tuple[Segment, ...] | list[Segment]) -> str:
+    """The JSON Pointer of a concrete path (``~`` -> ``~0``, ``/`` -> ``~1``; ``()`` -> ``""``);
+    the inverse of :func:`parse_pointer` (ints become their decimal text)."""
+    return format_path(tuple(path), "pointer")
 
 
 def _parse_segments(text: str, allow_wild: bool) -> list[PatternSegment]:

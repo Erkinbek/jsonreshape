@@ -305,16 +305,17 @@ def test_export_survives_a_reopen_and_the_old_document_closes_after_it(qtbot, ap
 
 
 def test_node_export_goes_on_after_a_reopen(qtbot, app, opened, tmp_path, monkeypatch) -> None:
-    from jsonreshape.gui import exportdialog as exportdialog_mod
+    # the node export moved to the writer (stage 5: exportdialog.export_node -> writer.export_node)
+    from jsonreshape import writer as writer_mod
 
     gate = threading.Event()
-    real = exportdialog_mod._stream_value
+    real = writer_mod._stream_value
 
     def slow(*a, **k):
         assert gate.wait(20)
         return real(*a, **k)
 
-    monkeypatch.setattr(exportdialog_mod, "_stream_value", slow)
+    monkeypatch.setattr(writer_mod, "_stream_value", slow)
     s = opened(people(tmp_path / "p.json", 20))
     s.select(NodeRef(4, ()))
     dlg = ExportDialog(s, scope="node")

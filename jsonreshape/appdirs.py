@@ -3,6 +3,16 @@
 Windows: ``%LOCALAPPDATA%\\jsonreshape``; elsewhere ``~/.local/share/jsonreshape``.
 ``JSONRESHAPE_HOME`` overrides the base directory (tests use it to stay isolated).
 
+Sub-folders: ``index`` (index cache), ``logs``, ``tmp`` (work files, prepared copies),
+``recordsets`` and ``edits`` (:func:`edits_dir`: the edit layers of stage 3 -- the user's
+unsaved changes -- with their lock files in ``edits/locks``, :func:`edits_locks_dir`).
+``edits`` is never part of the cache: cache eviction (``index.evict`` /
+``fileio.evict_entries``) only looks at the top level of the index folder and of
+``work_dir()/prepared``, the stale-file purges (``recordset.purge_stale_files``, the XLSX
+staging purge) only at the top level of ``recordsets`` and the ``tmp`` folders, each only
+for its own file-name patterns -- none of them descends into ``edits`` or a ``<name>.jredit``
+folder next to a data file (``tests/test_settings.py`` pins this).
+
 Every folder is created on demand with long-path support (``fileio.long_path``: paths
 beyond ``MAX_PATH`` work without the Windows ``LongPathsEnabled`` policy) and checked
 once per process for write access (a probe file is created and removed). A folder that
@@ -188,6 +198,28 @@ def work_dir(override: str | os.PathLike[str] | None = None) -> Path:
 
 def recordsets_dir() -> Path:
     return _sub("recordsets")
+
+
+def edits_dir() -> Path:
+    """The app folder of edit layers (docs/ARCHITECTURE.md §12.2): ``<app home>/edits``
+    with one ``<key>/`` folder per layer (also the fallback of layers kept next to their
+    file). Created on demand; an unusable folder falls back to the ``edits`` folder of the
+    temporary home with the usual notice (``fileio.warning.app_dir_fallback``). Never
+    touched by cache eviction or stale-file purges (see the module docstring)."""
+    return _sub("edits")
+
+
+def edits_locks_dir() -> Path:
+    """``edits_dir()/locks``: the lock files of edit layers (``<key>.lock``), wherever the
+    layer itself lives -- also for layers kept next to their file -- so taking a lock never
+    creates a folder beside the user's file. Created on demand.
+
+    Unlike the other folders it has no fallback of its own: two instances must always agree
+    on where a layer's lock is, so a lock folder that cannot be used (for example a file
+    named ``locks`` in the way) raises ``JsonReshapeError("fileio.error.no_work_dir")``
+    (editing is then refused) instead of silently taking locks somewhere else. It follows
+    :func:`edits_dir`, including that folder's fallback."""
+    return _usable("edits_locks", edits_dir() / "locks", [])
 
 
 def settings_file() -> Path:

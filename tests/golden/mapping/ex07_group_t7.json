@@ -1,0 +1,47 @@
+{
+ "name": "ex07_group_t7",
+ "description": "engine analysis worked example: group + rename + move",
+ "case": {
+  "name": "ex07_group_t7",
+  "records": [{"id": 1, "statusComment": "ok"}, {"id": 2}],
+  "ops": [
+   {"op": "group", "node": "[]", "name": "holat"},
+   {"op": "move", "node": "[].statusComment", "target": "[].holat", "zone": "inside"}
+  ]
+ },
+ "output": [{"id": 1, "holat": {"statusComment": "ok"}}, {"id": 2, "holat": {}}],
+ "log": [
+  {
+   "i": 0,
+   "op": "group",
+   "applied": true,
+   "changed": true,
+   "undo": 2,
+   "msg": "",
+   "result": {"ref": [0, "holat"], "key": "holat"}
+  },
+  {"i": 1, "op": "move", "applied": true, "changed": true, "undo": 3, "msg": ""}
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "id", "kind": "value", "src": [null, "id"], "types": ["number"], "count": 2, "pcount": 2, "samples": ["1", "2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "holat", "kind": "object", "src": null, "types": ["object"], "count": 0, "pcount": null, "samples": [], "synthetic": true, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "statusComment", "kind": "value", "src": [null, "statusComment"], "types": ["string"], "count": 1, "pcount": 2, "samples": ["\"ok\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+   ]}
+  ]}
+ ]},
+ "badges": [
+  {"ref": [0, "holat"], "badges": ["yangi guruh"]},
+  {"ref": [0, "holat", "statusComment"], "badges": ["ko'chirildi"]}
+ ],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"id\" value <- [].id",
+  "    \"holat\" object [synthetic]",
+  "      \"statusComment\" value <- [].statusComment"
+ ],
+ "preview": [{"id": 1, "holat": {"statusComment": "ok"}}, {"id": 2, "holat": {}}],
+ "perRecord": [[{"id": 1, "holat": {"statusComment": "ok"}}], [{"id": 2, "holat": {}}]],
+ "perRecordConcatEqualsOutput": true
+}

@@ -1,0 +1,11 @@
+{
+ "name": "t01_identity_value_2",
+ "description": "AGENT_PROMPT §14 test 1 (identity): single value null",
+ "case": {"name": "t01_identity_value_2", "data": null},
+ "output": null,
+ "log": [],
+ "tree": {"key": "", "kind": "value", "src": [], "types": ["null"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": []},
+ "badges": [],
+ "shape": ["(root) value <- (ildiz)"],
+ "preview": [null]
+}

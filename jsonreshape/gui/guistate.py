@@ -6,6 +6,12 @@ files (most recent first, at most :data:`RECENT_MAX`, deduplicated by normalized
 case-insensitively on Windows), bookmarks per normalized source path and table column
 layouts per file (at most :data:`LAYOUTS_MAX` files, least recently used dropped).
 
+Bookmarks of an edited document (docs/ARCHITECTURE.md §12.9) are stored by stable record id
+(*rid*): a record of the file is stored by its original position (``record`` = an int, as
+before), a record created in an edit layer as ``{"rid": n, "layer": "<layer key>"}``
+(:attr:`Bookmark.layer`); the session converts them to positions of the saved file on save.
+:meth:`GuiState.copy_table_layout` copies the table layouts of a file to another path (Save As).
+
 Several windows/processes may use the file at the same time, so :meth:`GuiState.save`
 reads, merges and writes it under an inter-process lock (:func:`jsonreshape.query.file_lock`):
 only the entries this instance changed are written over the file's current content (the
@@ -56,6 +62,7 @@ RECENT_MAX = 20
 LAYOUTS_MAX = 200
 BOOKMARK_FILES_MAX = 1000          # files with bookmarks kept (least recently changed dropped beyond)
 MAX_FILE_BYTES = 16 << 20          # a larger state file is treated as corrupt
+LAYER_KEY_MAX = 128                # longest edit-layer key a bookmark may carry
 LOCK_TIMEOUT = 2.0                 # seconds to wait for another window saving the file
 THEMES = ("system", "light", "dark")
 
@@ -98,23 +105,34 @@ def _clean_path_list(path: Iterable[Any]) -> list[str | int]:
 class Bookmark:
     """A named node: ``record`` (record number, ``None`` = outside the records) and
     ``path`` (relative to the record value, absolute when ``record`` is ``None``) as a
-    list of keys (str) and array indices (int); ``created``: ``time.time()``."""
+    list of keys (str) and array indices (int); ``created``: ``time.time()``.
+
+    ``record`` is a stable record id (§12.9): the record's original position in the file,
+    or -- with ``layer`` set -- the id of a record created in the edit layer ``layer`` (a
+    layer key); such a bookmark is persisted as ``"record": {"rid": n, "layer": key}``."""
 
     name: str
     record: int | None
     path: list = field(default_factory=list)
     created: float = field(default_factory=time.time)
+    layer: str | None = None
 
     def __post_init__(self) -> None:
         self.name = str(self.name)
         if self.record is not None and (isinstance(self.record, bool) or not isinstance(self.record, int)
                                         or self.record < 0):
             raise ValueError(f"bad bookmark record: {self.record!r}")
+        if self.layer is not None:
+            if not isinstance(self.layer, str) or not self.layer or len(self.layer) > LAYER_KEY_MAX:
+                raise ValueError(f"bad bookmark layer: {self.layer!r}")
+            if self.record is None:
+                raise ValueError("a bookmark of an edit layer needs a record id")
         self.path = _clean_path_list(self.path)
         self.created = float(self.created)
 
     def to_dict(self) -> dict[str, Any]:
-        return {"name": self.name, "record": self.record, "path": list(self.path), "created": self.created}
+        record: Any = self.record if self.layer is None else {"rid": self.record, "layer": self.layer}
+        return {"name": self.name, "record": record, "path": list(self.path), "created": self.created}
 
     @classmethod
     def from_dict(cls, data: Any) -> Bookmark:
@@ -130,7 +148,14 @@ class Bookmark:
         created = data.get("created", 0.0)
         if isinstance(created, bool) or not isinstance(created, (int, float)):
             created = 0.0
-        return cls(name=name, record=data.get("record"), path=path, created=float(created))
+        record = data.get("record")
+        layer = None
+        if isinstance(record, dict):
+            layer = record.get("layer")
+            record = record.get("rid")
+            if not isinstance(layer, str):
+                raise TypeError("bookmark layer must be a string")
+        return cls(name=name, record=record, path=path, created=float(created), layer=layer)
 
 
 def _empty() -> dict[str, Any]:
@@ -430,6 +455,16 @@ class GuiState:
                     self._dirty_layouts.add(dropped)
                 self._data["layouts"] = trimmed
             self._dirty_layouts.add(key)
+
+    def copy_table_layout(self, src: str | os.PathLike[str], dst: str | os.PathLike[str]) -> bool:
+        """Give the file ``dst`` the table layouts of ``src`` (Save As: the document now
+        lives at another path). True when ``src`` had a layout; ``dst`` keeps its own when
+        ``src`` has none."""
+        layout = self.table_layout(src)
+        if layout is None or norm_path(src) == norm_path(dst):
+            return layout is not None
+        self.set_table_layout(dst, layout)
+        return True
 
 
 _MISSING = object()

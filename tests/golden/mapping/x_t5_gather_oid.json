@@ -1,0 +1,65 @@
+{
+ "name": "x_t5_gather_oid",
+ "description": "targeted reference case (batch1)",
+ "case": {
+  "name": "x_t5_gather_oid",
+  "records": [
+   {"id": 1, "name": "A", "orders": [{"oid": 7, "sum": 10}, {"oid": 8, "sum": 20}]},
+   {"id": 2, "name": "B"},
+   {"id": 3, "name": "C", "orders": []},
+   {"id": 4, "name": "D", "orders": [{"sum": 5}, {"oid": null}]},
+   {"id": 5, "name": "E", "orders": null},
+   {"id": 6, "name": "F", "orders": "x"}
+  ],
+  "ops": [{"op": "move", "node": "[].orders[].oid", "target": "[].name", "zone": "after"}]
+ },
+ "output": [
+  {"id": 1, "name": "A", "oid": [7, 8], "orders": [{"sum": 10}, {"sum": 20}]},
+  {"id": 2, "name": "B"},
+  {"id": 3, "name": "C", "oid": [], "orders": []},
+  {"id": 4, "name": "D", "oid": [null], "orders": [{"sum": 5}, {}]},
+  {"id": 5, "name": "E", "oid": [], "orders": null},
+  {"id": 6, "name": "F", "oid": [], "orders": "x"}
+ ],
+ "log": [{"i": 0, "op": "move", "applied": true, "changed": true, "undo": 1, "msg": ""}],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 6, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "id", "kind": "value", "src": [null, "id"], "types": ["number"], "count": 6, "pcount": 6, "samples": ["1", "2", "3"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "name", "kind": "value", "src": [null, "name"], "types": ["string"], "count": 6, "pcount": 6, "samples": ["\"A\"", "\"B\"", "\"C\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "oid", "kind": "value", "src": [null, "orders", null, "oid"], "types": ["number", "null"], "count": 3, "pcount": 4, "samples": ["7", "8"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "orders", "kind": "array", "src": [null, "orders"], "types": ["array", "string", "null"], "count": 5, "pcount": 6, "samples": ["\"x\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "orders", null], "types": ["object"], "count": 4, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+     {"key": "sum", "kind": "value", "src": [null, "orders", null, "sum"], "types": ["number"], "count": 3, "pcount": 4, "samples": ["10", "20", "5"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+    ]}
+   ]}
+  ]}
+ ]},
+ "badges": [{"ref": [0, "oid"], "badges": ["ko'chirildi", "ro'yxatga yig'iladi"]}],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"id\" value <- [].id",
+  "    \"name\" value <- [].name",
+  "    \"oid\" value <- [].orders[].oid",
+  "    \"orders\" array <- [].orders",
+  "      [] object <- [].orders[]",
+  "        \"sum\" value <- [].orders[].sum"
+ ],
+ "preview": [
+  {"id": 1, "name": "A", "oid": [7, 8], "orders": [{"sum": 10}, {"sum": 20}]},
+  {"id": 2, "name": "B"},
+  {"id": 3, "name": "C", "oid": [], "orders": []},
+  {"id": 4, "name": "D", "oid": [null], "orders": [{"sum": 5}, {}]},
+  {"id": 5, "name": "E", "oid": [], "orders": null},
+  {"id": 6, "name": "F", "oid": [], "orders": "x"}
+ ],
+ "perRecord": [
+  [{"id": 1, "name": "A", "oid": [7, 8], "orders": [{"sum": 10}, {"sum": 20}]}],
+  [{"id": 2, "name": "B"}],
+  [{"id": 3, "name": "C", "oid": [], "orders": []}],
+  [{"id": 4, "name": "D", "oid": [null], "orders": [{"sum": 5}, {}]}],
+  [{"id": 5, "name": "E", "oid": [], "orders": null}],
+  [{"id": 6, "name": "F", "oid": [], "orders": "x"}]
+ ],
+ "perRecordConcatEqualsOutput": true
+}

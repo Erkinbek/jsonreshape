@@ -459,3 +459,46 @@ def test_rows_of_the_window_are_not_evicted_for_size(qtbot, make_loader):
     loader.request([20])
     qtbot.waitUntil(lambda: loader.peek(20) is not None, timeout=3000)
     assert cached_keys(loader, list(range(8)) + [20]) == [7, 20]  # 20 bytes <= 25: the newest old row stays
+
+
+# --------------------------------------------------------------------------- clear / failed keys (review3 H1)
+
+
+def test_clear_forgets_the_window_and_fetches_nothing_again(qtbot, make_loader):
+    """``clear()``: the keys mean something else now -- nothing of the old window is fetched again (``invalidate()``
+    would fetch it from the new data), running results are dropped, later requests work as usual."""
+    fetch = GatedFetch()
+    loader = make_loader(fetch)
+    loader.request([1, 2])
+    assert fetch.started.wait(3)
+    loader.request([1, 2, 3])                   # 3 queued behind the running batch
+    loader.clear()
+    assert fetch.tokens[0].cancelled
+    fetch.gate.set()
+    qtbot.waitUntil(lambda: loader.pending() == 0, timeout=3000)
+    assert fetch.calls == [[1, 2]] and cached_keys(loader, [1, 2, 3]) == []
+    loader.request([7])
+    qtbot.waitUntil(lambda: loader.peek(7) == "v7", timeout=3000)
+    assert fetch.calls == [[1, 2], [7]]
+
+
+def test_invalidate_failed_fetches_the_failed_keys_again(qtbot, make_loader):
+    failing = {1, 3}
+    calls: list[list] = []
+
+    def fetch(keys, cancel):
+        calls.append(list(keys))
+        if failing & set(keys):
+            raise IndexError("not indexed yet")
+        return {k: f"v{k}" for k in keys}
+
+    loader = make_loader(fetch, batch=1)
+    loader.request([1, 2, 3])
+    qtbot.waitUntil(lambda: cached_keys(loader, [1, 2, 3]) == [1, 2, 3], timeout=3000)
+    assert isinstance(loader.peek(1), LoadFailed) and loader.peek(2) == "v2"
+    failing.clear()
+    loader.request([1, 2])                      # 3 left the window: forgotten, not fetched
+    assert loader.invalidate_failed() == 2
+    qtbot.waitUntil(lambda: loader.peek(1) == "v1", timeout=3000)
+    assert loader.peek(3) is None and loader.peek(2) == "v2"
+    assert calls[3:] == [[1]] and loader.invalidate_failed() == 0

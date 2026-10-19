@@ -138,6 +138,17 @@ Other helpers: :func:`iter_hits` (every hit of the same pass, lazily, never stor
 exporting arbitrarily many hits), :func:`export_hits` (CSV/JSON, streamed, atomic),
 :class:`SearchHistory` (``app_home()/search_history.json``: most recent first,
 de-duplicated by search text, at most 200 entries).
+
+Edited documents (docs/ARCHITECTURE.md §12.3)
+=============================================
+:func:`search`, :func:`iter_hits` and :func:`reference_search` begin with ``doc =
+doc.pinned()``: the whole pass reads ONE overlay state (record numbers are its positions,
+``doc.flags`` -- the needle decision -- covers its edited content). A ``source`` whose ``gen``
+belongs to another state raises ``EditError("edits.error.stale_scope")`` (sources without
+``gen``, or with ``None``, are accepted); the result's RecordSet carries the pinned state's
+``gen``. Huge records are read through ``doc.open_data()`` (edited ones live in the edit
+layer). Progress totals of an edited document come from ``doc.effective_bytes()`` instead
+of the spans of its first and last record.
 """
 
 from __future__ import annotations
@@ -160,7 +171,7 @@ import orjson
 
 from . import codec, core
 from .appdirs import app_home
-from .errors import JsonDecodeError, TooLargeError, UserInputError
+from .errors import EditError, JsonDecodeError, TooLargeError, UserInputError
 from .fileio import atomic_write, long_path, make_dirs, open_shared, os_error, read_range
 from .i18n import get_language, t
 from .paths import PathPattern, Wild, canonical_index, format_path, parse_pattern
@@ -1159,12 +1170,36 @@ class _RecordBatch:
         return len(self.indices)
 
 
+def _open_data(doc: Any) -> Any:
+    """``doc.open_data()`` (the virtual address space: edited records live in the edit layer); a
+    document-like object without it is read from ``doc.data_path``."""
+    open_data = getattr(doc, "open_data", None)
+    if open_data is not None:
+        return open_data()
+    return open_shared(doc.data_path, "rb")
+
+
+def _pin(doc: Any) -> Any:
+    """``doc.pinned()``: one overlay state for the whole pass (a document-like object without
+    ``pinned`` is used as it is)."""
+    pinned = getattr(doc, "pinned", None)
+    return pinned() if callable(pinned) else doc
+
+
+def _check_scope(doc: Any, source: Any) -> None:
+    """A ``source`` made for another overlay state (``source.gen`` set and not ``doc.gen``) is
+    refused: its positions would address other records."""
+    gen = getattr(source, "gen", None) if source is not None else None
+    if gen is not None and gen != getattr(doc, "gen", 0):
+        raise EditError("edits.error.stale_scope")
+
+
 def _huge_contains(doc: Any, span: tuple[int, int], finder: Any, maxlen: int, cancel: CancelToken | None) -> bool:
     """Whether a needle occurs inside ``span`` (read in chunks that overlap by
     ``maxlen - 1`` bytes, so no occurrence is missed)."""
     start, end = span
     overlap = max(0, maxlen - 1)
-    with open_shared(doc.data_path, "rb") as f:
+    with _open_data(doc) as f:
         pos = start
         while pos < end:
             check(cancel)
@@ -1194,7 +1229,18 @@ def _iter_indices(source: Any) -> Iterator[int]:
 
 def _source_total(doc: Any, source: Any) -> int | None:
     """Bytes the scan will read (exact for ``None`` and ranges; estimated from the average
-    record size for other sized sources; ``None`` when unknown)."""
+    record size for other sized sources; ``None`` when unknown). An edited document:
+    ``doc.effective_bytes()`` for all records, in proportion for any other source."""
+    if getattr(doc, "edited", False):
+        full = int(doc.effective_bytes())
+        if source is None:
+            return full
+        count = doc.record_count
+        try:
+            n = len(source)
+        except TypeError:
+            return None
+        return int(full * min(1.0, n / count)) if count else 0
     if source is None:
         return max(0, int(doc.data_size) - int(doc.info.data_start))
     if not doc.index_complete:
@@ -1229,11 +1275,13 @@ except Exception as _exc:  # pragma: no cover - recordset module unavailable or 
 
 class _RecordSink:
     """Collects matching record numbers: a :class:`jsonreshape.recordset.RecordSet`
-    (``kind="search"``) when that module is available, else a plain list. Indices are
-    buffered and handed over per block (``RecordSetBuilder.extend``)."""
+    (``kind="search"``, ``gen`` = the searched state's) when that module is available, else a
+    plain list. Indices are buffered and handed over per block (``RecordSetBuilder.extend``)."""
 
-    def __init__(self, description: str) -> None:
+    def __init__(self, description: str, gen: int | None = None) -> None:
         self._builder: Any = _RecordSetBuilder("search", description) if _RecordSetBuilder is not None else None
+        if self._builder is not None:
+            self._builder.recordset.gen = gen
         self._items: list[int] = []
         self._buf = array("Q")
 
@@ -1646,9 +1694,11 @@ def search(doc: Any, opts: SearchOptions, source: Any = None, *, max_hits: int |
     if max_hits is not None and (isinstance(max_hits, bool) or int(max_hits) < 0):
         raise ValueError(f"max_hits must be >= 0 or None, got {max_hits!r}")
     max_hits = None if max_hits is None else int(max_hits)
+    doc = _pin(doc)
+    _check_scope(doc, source)
     started = time.perf_counter()
     stats = _ScanStats()
-    sink = _RecordSink(t("search.recordset_description", text=opts.query.text))
+    sink = _RecordSink(t("search.recordset_description", text=opts.query.text), getattr(doc, "gen", None))
     settings = getattr(doc, "settings", None) or get_settings()
     col = _Collector(max_hits, on_hits, sink, budget=max(1, int(settings.memory_limit_bytes) // 4))
     scan = _scan(doc, opts, source, stats, block_bytes=block_bytes, progress=progress, cancel=cancel)
@@ -1687,9 +1737,12 @@ def iter_hits(doc: Any, opts: SearchOptions, source: Any = None, *, progress: Pr
               cancel: CancelToken | None = None, block_bytes: int = BLOCK_BYTES) -> Iterator[SearchHit]:
     """Every hit of :func:`search` (same order, same values), produced lazily and never
     stored: memory stays bounded however many hits there are, e.g.
-    ``export_hits(iter_hits(doc, opts), "hits.csv")``. Arguments are checked at once;
+    ``export_hits(iter_hits(doc, opts), "hits.csv")``. Arguments are checked at once (the
+    document is pinned now: the hits are those of the state shown when this is called);
     progress, cancellation and errors happen while iterating."""
     _check_opts(opts)
+    doc = _pin(doc)
+    _check_scope(doc, source)
     return _iter_hits(_scan(doc, opts, source, _ScanStats(), block_bytes=block_bytes, progress=progress,
                             cancel=cancel))
 
@@ -1719,6 +1772,8 @@ def reference_search(doc: Any, opts: SearchOptions, source: Any = None) -> list[
     ``Settings.memory_limit_bytes``, else :class:`TooLargeError`) so this stays the exact
     reference; meant for tests and diagnostics, not for multi-GB records."""
     _check_opts(opts)
+    doc = _pin(doc)
+    _check_scope(doc, source)
     matcher = _Matcher(opts)
     if not doc.index_complete:
         doc.build_index()
@@ -1738,7 +1793,7 @@ def reference_search(doc: Any, opts: SearchOptions, source: Any = None) -> list[
                 if e - s > limit:
                     raise TooLargeError(size=format_bytes(e - s))
                 if handle is None:
-                    handle = open_shared(doc.data_path, "rb")
+                    handle = _open_data(doc)
                 buf = read_range(handle, s, e)
             try:
                 value, key = _parse_record(buf, member)

@@ -1,0 +1,175 @@
+{
+ "name": "t02_flatten_undo",
+ "description": "AGENT_PROMPT §14 test 2 (recursive flatten): flatten is one undo step",
+ "case": {
+  "name": "t02_flatten_undo",
+  "records": [
+   {
+    "name": "p1",
+    "children": [
+     {
+      "name": "child1",
+      "children": [
+       {
+        "name": "child1.2",
+        "children": [{"name": "child1.2.1", "children": []}, {"name": "child1.2.3", "children": []}]
+       }
+      ]
+     },
+     {"name": "child2", "children": []}
+    ]
+   }
+  ],
+  "ops": [{"op": "flatten", "node": "[].children"}, {"op": "output"}, {"op": "undo"}, {"op": "output"}]
+ },
+ "output": [
+  {
+   "name": "p1",
+   "children": [
+    {
+     "name": "child1",
+     "children": [
+      {
+       "name": "child1.2",
+       "children": [{"name": "child1.2.1", "children": []}, {"name": "child1.2.3", "children": []}]
+      }
+     ]
+    },
+    {"name": "child2", "children": []}
+   ]
+  }
+ ],
+ "log": [
+  {
+   "i": 0,
+   "op": "flatten",
+   "applied": true,
+   "changed": true,
+   "undo": 1,
+   "msg": "«children» ichidagi barcha darajalar bitta massivga yig'ildi: 5 ta element"
+  },
+  {
+   "i": 1,
+   "op": "output",
+   "applied": false,
+   "changed": false,
+   "undo": 1,
+   "msg": null,
+   "result": [
+    {
+     "name": "p1",
+     "children": [
+      {"_depth": 1, "name": "child1"},
+      {"_depth": 2, "name": "child1.2"},
+      {"_depth": 3, "name": "child1.2.1"},
+      {"_depth": 3, "name": "child1.2.3"},
+      {"_depth": 1, "name": "child2"}
+     ]
+    }
+   ]
+  },
+  {"i": 2, "op": "undo", "applied": true, "changed": true, "undo": 0, "msg": "Oxirgi o'zgarish bekor qilindi"},
+  {
+   "i": 3,
+   "op": "output",
+   "applied": false,
+   "changed": false,
+   "undo": 0,
+   "msg": null,
+   "result": [
+    {
+     "name": "p1",
+     "children": [
+      {
+       "name": "child1",
+       "children": [
+        {
+         "name": "child1.2",
+         "children": [{"name": "child1.2.1", "children": []}, {"name": "child1.2.3", "children": []}]
+        }
+       ]
+      },
+      {"name": "child2", "children": []}
+     ]
+    }
+   ]
+  }
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "name", "kind": "value", "src": [null, "name"], "types": ["string"], "count": 1, "pcount": 1, "samples": ["\"p1\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "children", "kind": "array", "src": [null, "children"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "children", null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+     {"key": "name", "kind": "value", "src": [null, "children", null, "name"], "types": ["string"], "count": 2, "pcount": 2, "samples": ["\"child1\"", "\"child2\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+     {"key": "children", "kind": "array", "src": [null, "children", null, "children"], "types": ["array"], "count": 2, "pcount": 2, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+      {"key": "", "kind": "object", "src": [null, "children", null, "children", null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+       {"key": "name", "kind": "value", "src": [null, "children", null, "children", null, "name"], "types": ["string"], "count": 1, "pcount": 1, "samples": ["\"child1.2\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []},
+       {"key": "children", "kind": "array", "src": [null, "children", null, "children", null, "children"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": [
+        {"key": "", "kind": "object", "src": [null, "children", null, "children", null, "children", null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": true, "is_root": false, "children": [
+         {"key": "name", "kind": "value", "src": [null, "children", null, "children", null, "children", null, "name"], "types": ["string"], "count": 2, "pcount": 2, "samples": ["\"child1.2.1\"", "\"child1.2.3\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []},
+         {"key": "children", "kind": "array", "src": [null, "children", null, "children", null, "children", null, "children"], "types": ["array"], "count": 2, "pcount": 2, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": [
+          {"key": "", "kind": "value", "src": [null, "children", null, "children", null, "children", null, "children", null], "types": [], "count": 0, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": true, "is_root": false, "children": []}
+         ]}
+        ]}
+       ]}
+      ]}
+     ]}
+    ]}
+   ]}
+  ]}
+ ]},
+ "badges": [],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"name\" value <- [].name",
+  "    \"children\" array <- [].children",
+  "      [] object <- [].children[]",
+  "        \"name\" value <- [].children[].name",
+  "        \"children\" array <- [].children[].children",
+  "          [] object <- [].children[].children[]",
+  "            \"name\" value <- [].children[].children[].name",
+  "            \"children\" array <- [].children[].children[].children",
+  "              [] object <- [].children[].children[].children[]",
+  "                \"name\" value <- [].children[].children[].children[].name",
+  "                \"children\" array <- [].children[].children[].children[].children",
+  "                  [] value <- [].children[].children[].children[].children[]"
+ ],
+ "preview": [
+  {
+   "name": "p1",
+   "children": [
+    {
+     "name": "child1",
+     "children": [
+      {
+       "name": "child1.2",
+       "children": [{"name": "child1.2.1", "children": []}, {"name": "child1.2.3", "children": []}]
+      }
+     ]
+    },
+    {"name": "child2", "children": []}
+   ]
+  }
+ ],
+ "perRecord": [
+  [
+   {
+    "name": "p1",
+    "children": [
+     {
+      "name": "child1",
+      "children": [
+       {
+        "name": "child1.2",
+        "children": [{"name": "child1.2.1", "children": []}, {"name": "child1.2.3", "children": []}]
+       }
+      ]
+     },
+     {"name": "child2", "children": []}
+    ]
+   }
+  ]
+ ],
+ "perRecordConcatEqualsOutput": true
+}

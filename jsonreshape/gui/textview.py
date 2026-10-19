@@ -44,6 +44,39 @@ member is meant also among duplicate keys. Nodes too large for the text (or the 
 Lines file) show an info bar whose button emits :attr:`TextView.open_raw_requested`
 ``(offset, length)``; a JSON error inside the node shows the valid part plus the error.
 The data font follows the settings (``app.settings_changed``), keeping the zoom.
+
+Editing (docs/ARCHITECTURE.md §12.9 "Text")
+-------------------------------------------
+* :func:`build_pretty` reads the node from ONE pinned state of the document
+  (:func:`~jsonreshape.gui.widgets.task_node`) and its text through ``doc.node_chunks`` -- the
+  effective text of edited nodes (spans in the edit layer) and of composite nodes (the root of
+  an edited array, the wrapper of an edited wrapped document). The shared cache key contains
+  ``session.data_gen`` while the document shows edits (0 while it reads like the file: texts
+  made before editing became possible stay valid), so a text of an older state is never shown
+  for a newer one. The state is pinned in the GUI thread when the text is asked for, together
+  with the key (review CL-9: a ChangeSet applied before the worker starts never mixes in), and a
+  build that finished after it was cancelled -- the last view stopped waiting, the document was
+  reopened -- is never cached (:func:`_cacheable`).
+* ``session.data_changed(cs)``: the shown (and the pending) node is remapped with
+  :func:`jsonreshape.gui.editing.remap_ref` (array indices of its path follow inserts /
+  deletes / moves); when that node -- or its record, or for the wrapper / root of the records
+  the records -- changed, the text is built again keeping the position: the lines before
+  and after the changed part (common prefix / suffix of the old and new text) keep their
+  folds, the first shown line and the caret follow them (:func:`line_mapping`); a node whose
+  text did not change is only remapped (its path label follows). A hidden view does this when
+  it is shown again. A deleted node shows a notice until another node is selected. A reset
+  (restore / discard of the layer) follows the session's current node. The view remembers the
+  data generation of the shown and of the pending ref: a node selected while a ChangeSet is
+  being delivered (a view whose ``data_changed`` slot ran earlier selected it) belongs to the
+  new state -- it is not remapped again and it is shown (never the "deleted" notice of the
+  node whose place it took); refs of two generations are never compared directly.
+* "JSON sifatida tahrirlash…" (Shift+Enter in the editor, the context menu, the toolbar
+  button): :class:`~jsonreshape.gui.editors.JsonEditDialog` with the node's complete pretty
+  text (exact tokens) -> ``session.edit.set_value``. Refused (disabled, with the reason as
+  tooltip) without an available edit controller, for the virtual root of JSON Lines, for a
+  text cut at :data:`TEXT_CAP` and for a node with a JSON error.
+* Edited nodes (``is_edit_offset``) have no bytes in the data file: "open in raw view" is
+  not offered for them, and the size label says "tahrirlangan".
 """
 
 from __future__ import annotations
@@ -102,10 +135,18 @@ from jsonreshape.gui.widgets import (
     ElidedLabel,
     InfoBar,
     ViewBase,
+    edit_controller,
+    edit_unavailable_text,
+    edited_span,
     format_count,
     format_size,
     mono_font,
+    node_text_chunks,
+    remap_node_ref,
+    resolve_in,
     set_clipboard_text,
+    task_doc,
+    task_node,
 )
 from jsonreshape.i18n import t
 from jsonreshape.tasks import CancelToken, check
@@ -120,11 +161,13 @@ __all__ = [
     "TEXT_CAP",
     "CodeEditor",
     "FoldModel",
+    "LineMap",
     "LineRanges",
     "PrettyText",
     "TextView",
     "build_pretty",
     "find_matches",
+    "line_mapping",
     "line_starts",
     "node_path_at",
     "qt_mime_data",
@@ -335,6 +378,91 @@ def line_starts(text: str) -> array:
         pos = end
     out.append(n + 1)
     return out
+
+
+_CMP_CHUNK = 1 << 16
+
+
+def _common_prefix(a: str, b: str) -> int:
+    """Length of the common prefix of ``a`` and ``b`` (chunked slice comparisons: C speed)."""
+    n = min(len(a), len(b))
+    i = 0
+    while i < n:
+        j = min(n, i + _CMP_CHUNK)
+        if a[i:j] == b[i:j]:
+            i = j
+            continue
+        lo, hi = i, j          # a[:lo] == b[:lo], a[lo:hi] != b[lo:hi]
+        while hi - lo > 1:
+            mid = (lo + hi) // 2
+            if a[lo:mid] == b[lo:mid]:
+                lo = mid
+            else:
+                hi = mid
+        return lo
+    return n
+
+
+def _common_suffix(a: str, b: str, limit: int) -> int:
+    """Length of the common suffix of ``a`` and ``b``, at most ``limit``."""
+    la, lb = len(a), len(b)
+    k = 0
+    while k < limit:
+        m = min(limit, k + _CMP_CHUNK)
+        if a[la - m:la - k] == b[lb - m:lb - k]:
+            k = m
+            continue
+        lo, hi = k, m          # the last lo characters agree, the last hi do not
+        while hi - lo > 1:
+            mid = (lo + hi) // 2
+            if a[la - mid:la - lo] == b[lb - mid:lb - lo]:
+                lo = mid
+            else:
+                hi = mid
+        return lo
+    return limit
+
+
+class LineMap(NamedTuple):
+    """Where the lines of an old text are in a new text of the same node (:func:`line_mapping`):
+    lines ``< head`` are unchanged, lines ``>= tail`` are unchanged and moved by ``delta``, the
+    lines in between were changed."""
+
+    head: int
+    tail: int
+    delta: int
+
+    def map(self, line: int) -> int | None:
+        """The new line of old ``line`` (``None``: it lies in the changed part)."""
+        if line < self.head:
+            return line
+        if line >= self.tail:
+            return line + self.delta
+        return None
+
+    def clamp(self, line: int) -> int:
+        """The new line of old ``line``; a changed line goes to the start of the change."""
+        got = self.map(line)
+        return self.head if got is None else got
+
+
+def line_mapping(old: str, old_starts: array, new: str, new_starts: array) -> LineMap:
+    """The :class:`LineMap` of two texts (their ``"\\n"``-separated lines, :func:`line_starts`):
+    the common prefix and suffix of the texts decide which lines are unchanged (a line counts
+    as unchanged only with the line break before / after it). Linear in the common parts;
+    used to keep the position and the folds when an edited node's text is shown again."""
+    old_n = max(1, len(old_starts) - 1)
+    new_n = max(1, len(new_starts) - 1)
+    if old == new:
+        return LineMap(old_n, old_n, 0)
+    p = _common_prefix(old, new)
+    # the common suffix may reach into the common prefix (an inserted / deleted line next to equal
+    # ones): the LINES of the two parts are bounded below so that none is counted twice
+    q = _common_suffix(old, new, min(len(old), len(new)))
+    head = max(0, bisect.bisect_right(old_starts, p, 0, old_n + 1) - 1)
+    tail = bisect.bisect_left(old_starts, len(old) - q + 1, 1, old_n) if old_n > 1 else old_n
+    tail_count = min(old_n - tail, max(0, min(old_n, new_n) - head))
+    return LineMap(head, old_n - tail_count, new_n - old_n)
 
 
 # ==================================================================================
@@ -584,10 +712,17 @@ class PrettyText:
     starts: array | None = None    # line starts of ``text`` (line_starts)
     full_starts: array | None = None   # line starts of ``full`` when lines were shortened
     ipath: tuple | None = None     # child indices along the node's path (None: unknown)
+    end: int = 0                   # end of the node's span (``end - start``: its bytes in the file)
+    edited: bool = False           # the node lies in the edit layer: no bytes of the data file
 
     @property
     def copy_text(self) -> str:
         return self.full if self.full is not None else self.text
+
+    @property
+    def raw_size(self) -> int:
+        """Bytes of the node's span (the file bytes "open in raw view" selects)."""
+        return max(0, self.end - self.start) if self.end else self.size
 
     def line_starts(self) -> array:
         if self.starts is None:
@@ -687,36 +822,51 @@ def node_path_at(pretty: PrettyText, line: int) -> tuple[tuple, tuple] | None:
 
 
 def build_pretty(session: Any, ref: Any, indent: int | str = 2, cancel: CancelToken | None = None, *,
-                 cap: int = TEXT_CAP, max_line: int = MAX_LINE_CHARS) -> PrettyText:
-    """Pretty text of ``ref`` (worker threads only): the node's bytes through one
+                 cap: int = TEXT_CAP, max_line: int = MAX_LINE_CHARS, doc: Any = None) -> PrettyText:
+    """Pretty text of ``ref`` (worker threads only): the node of one pinned state -- ``doc``,
+    the state pinned when the text was asked for (review CL-9; default: pinned here,
+    :func:`~jsonreshape.gui.widgets.task_doc`) -- and its effective text
+    (``doc.node_chunks``: edited and composite nodes too) through one
     ``core.Reformatter(indent)`` (read in 1 MiB pieces, stopped once ``cap`` bytes of
     output exist; a JSON error inside the node stops at the error), fold ranges, display
     clean-up, line starts. ``UserInputError`` when the node does not exist."""
     from jsonreshape.core import Reformatter
 
-    node = session.node(ref, cancel)
+    pinned = doc if doc is not None else task_doc(session)
+    node = task_node(session, ref, cancel, doc=pinned)
     doc = node.doc
     if getattr(node, "is_virtual", False):
         return PrettyText(kind=node.kind, start=node.start, size=node.size, virtual=True,
                           records=int(doc.record_count))
-    ipath = _node_ipath(session, ref, cancel)
+    ipath = _node_ipath(session, ref, cancel, doc=pinned)
     start, end = int(node.start), int(node.end)
+    edited = edited_span(start)
     err = doc.error
     eo = getattr(doc, "error_data_offset", None) if err is not None else None
-    stop = eo if eo is not None and start <= eo < end else end
+    # a JSON error inside the node (a partial document: never edited, the text is its file bytes)
+    limit = eo - start if eo is not None and start <= eo < end and not edited else None
     fmt = Reformatter(indent=indent)
     out = bytearray()
-    pos = start
-    with doc.open_data() as f:
-        f.seek(pos)
-        while pos < stop and len(out) <= cap:
+    fed = 0
+    consumed = True
+    chunks = node_text_chunks(node, cancel, chunk=_READ_CHUNK)
+    try:
+        for piece in chunks:
             check(cancel)
-            chunk = f.read(min(_READ_CHUNK, stop - pos))
-            if not chunk:
-                raise FileChangedError(path=str(getattr(doc, "source_path", "")))
-            pos += len(chunk)
-            out += fmt.feed(chunk)
-    consumed = pos >= stop
+            if limit is not None:
+                if fed >= limit:
+                    break
+                if fed + len(piece) > limit:
+                    piece = piece[:limit - fed]
+            fed += len(piece)
+            out += fmt.feed(piece)
+            if len(out) > cap:
+                consumed = limit is not None and fed >= limit
+                break
+    finally:
+        chunks.close()
+    if fed == 0 and end > start and limit is None:
+        raise FileChangedError(path=str(getattr(doc, "source_path", "")))
     if consumed:
         out += fmt.finish()
     truncated = len(out) > cap or not consumed
@@ -730,29 +880,40 @@ def build_pretty(session: Any, ref: Any, indent: int | str = 2, cancel: CancelTo
     folds, balanced = scan_folds(text)
     check(cancel)
     error = None
-    if eo is not None and start <= eo and (eo < end or (not truncated and not balanced)):
+    if eo is not None and start <= eo and (eo < end or (not truncated and not balanced)) and not edited:
         error = err
     display, cut_lines = _display_text(text, max_line, cancel)
     full = None if display == text else text
     check(cancel)
     starts = line_starts(display)
     full_starts = line_starts(text) if cut_lines else None
-    return PrettyText(text=display, full=full, folds=folds, kind=node.kind, start=start, size=end - start,
+    size = int(node.size) if getattr(node, "is_composite", False) else end - start   # composite: effective
+    return PrettyText(text=display, full=full, folds=folds, kind=node.kind, start=start, size=size,
                       truncated=truncated, shown_bytes=shown, error=error,
                       error_offset=eo if error is not None else None, cut_lines=cut_lines, starts=starts,
-                      full_starts=full_starts, ipath=ipath)
+                      full_starts=full_starts, ipath=ipath, end=end, edited=edited)
 
 
-def _node_ipath(session: Any, ref: Any, cancel: CancelToken | None) -> tuple | None:
+def _node_ipath(session: Any, ref: Any, cancel: CancelToken | None, *, doc: Any = None) -> tuple | None:
     """The child indices along ``ref``'s path (``ref.ipath`` when complete, else resolved
-    like :meth:`DocSession.node` resolves the path; ``None`` when unknown). With them the
-    node at the caret is addressed exactly, also among duplicate keys."""
+    like :meth:`DocSession.node` resolves the path -- in ``doc``, the pinned state the text
+    is read from, when given; ``None`` when unknown). With them the node at the caret is
+    addressed exactly, also among duplicate keys."""
     path = tuple(getattr(ref, "path", ()) or ())
     ipath = getattr(ref, "ipath", None)
     if ipath is not None and len(ipath) == len(path):
         return tuple(ipath)
     if not path:
         return ()
+    if doc is not None:
+        try:
+            found = resolve_in(doc, ref, cancel)
+        except (Cancelled, FileChangedError):
+            raise
+        except (JsonReshapeError, IndexError, LookupError) as exc:
+            log.debug("text view: resolving %r failed: %r", ref, exc)
+            return None
+        return tuple(found.ipath) if found is not None else None
     resolve = getattr(session, "resolve", None)
     if resolve is None:
         return None
@@ -1779,6 +1940,11 @@ class CodeEditor(QPlainTextEdit):
         super().wheelEvent(event)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802 (Qt name)
+        mods = event.modifiers() & ~Qt.KeyboardModifier.KeypadModifier
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and mods == Qt.KeyboardModifier.ShiftModifier:
+            self._view.edit_as_json()       # Shift+Enter: edit the node as JSON text
+            event.accept()
+            return
         before = self.textCursor().position()
         super().keyPressEvent(event)
         if self.textCursor().position() != before:
@@ -1900,6 +2066,22 @@ class _SharedTexts:
 _SHARED: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 
 
+def _cacheable(build: _Build, current: bool, st: _SharedTexts, pinned: Any) -> bool:
+    """A finished build may enter the shared cache: it was still the pending build of its key
+    (``current``: not dropped by the last view leaving it, nor by a reopened document), its task
+    was not cancelled -- a build that completed after its cancel is never cached (review CL-9) --
+    and it read the document the cache is for (``pinned``: the state it was asked for)."""
+    if not current:
+        return False
+    task = build.task
+    if task is not None and getattr(task, "cancel_requested", False):
+        return False
+    if pinned is not None and st.doc_ref is not None:
+        if st.doc_ref() is not getattr(pinned, "origin", pinned):
+            return False
+    return True
+
+
 def _shared_texts(session: Any) -> _SharedTexts:
     """The shared texts of ``session`` (emptied when it shows another Document)."""
     st = _SHARED.get(session)
@@ -1937,6 +2119,12 @@ class TextView(ViewBase):
         self.setObjectName("TextView")
         self._ref: Any = None              # the node shown (or being loaded)
         self._pending: Any = getattr(session, "current", None)
+        # the data generation (session.data_gen) each of the two refs belongs to: a ref selected while a
+        # ChangeSet is being delivered (another view's data_changed slot ran first) is of the NEW state and is
+        # neither remapped with that ChangeSet nor compared with a ref of the old state (review3 M2)
+        self._pending_gen = _data_gen(session)
+        self._ref_gen = self._pending_gen
+        self._gen_wait = False             # a _load_pending waits for the end of a generation change
         self._dirty = True
         self._build: tuple[tuple, _Build] | None = None     # the pretty text this view waits for
         self._gen = 0
@@ -1946,9 +2134,15 @@ class TextView(ViewBase):
         self._match_cur: int | None = None
         self._find_task: Any = None
         self._find_gen = 0
-        self._restore: tuple[int, int, set[int], int, bool] | None = None   # indent change: position, folds
+        # indent change / data change: (first line, caret line, folded lines, line count, cut, old text
+        # and line starts when the node's data changed -- the lines are then mapped, see line_mapping)
+        self._restore: tuple[int, int, set[int], int, bool, tuple[str, array] | None] | None = None
         self._zoom = 0.0
         self._dead = False
+        self._stale = False                # the shown node's data changed while the view was hidden
+        self._deleted = False              # the shown node was deleted by an edit
+        self._json_dialog: Any = None      # the open "edit as JSON" dialog
+        self._json_ref: Any = None         # the node it edits (remapped while it is open)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -1992,6 +2186,11 @@ class TextView(ViewBase):
         self.copy_button.setToolTip(t("gui.text.copy.tip"))
         self.copy_button.clicked.connect(lambda _c=False: self.copy_text())
         top.addWidget(self.copy_button)
+        self.edit_button = QToolButton(self)
+        self.edit_button.setObjectName("text_edit_json")
+        self.edit_button.setText(t("gui.text.edit_json.button"))
+        self.edit_button.clicked.connect(lambda _c=False: self.edit_as_json())
+        top.addWidget(self.edit_button)
         layout.addLayout(top)
 
         self.info_bar = InfoBar("info", "", parent=self)
@@ -2047,8 +2246,16 @@ class TextView(ViewBase):
         settings_changed = getattr(session.app, "settings_changed", None)
         if settings_changed is not None:
             settings_changed.connect(self._on_settings_changed)
+        data_changed = getattr(session, "data_changed", None)
+        if data_changed is not None:
+            data_changed.connect(self._on_data_changed)
+        for name in ("index_finished", "state_changed", "edit_changed", "edit_state_changed"):
+            signal = getattr(session, name, None)
+            if signal is not None:
+                signal.connect(self._update_edit_actions)
         self._show_empty()
         self._update_fold_actions()
+        self._update_edit_actions()
 
     # ------------------------------------------------------------------ options
     def indent(self) -> int | str:
@@ -2070,7 +2277,18 @@ class TextView(ViewBase):
             # a position still being restored (its lines not inserted yet) is kept as it is;
             # while the text is formatted again (r None) the saved one stays
             first, caret = ed.position()
-            self._restore = (first, caret, set(ed.folded), ed.line_count(), r.truncated)
+            self._restore = (first, caret, set(ed.folded), ed.line_count(), r.truncated, None)
+        self._start_load(self._ref)
+
+    def _reload_keeping_position(self) -> None:
+        """Format the shown node again (its data changed): the first shown line, the caret
+        and the folds of the unchanged lines are kept (:func:`line_mapping`)."""
+        ed = self.editor
+        r = self._result
+        if r is not None and self._ref is not None and not r.virtual:
+            first, caret = ed.position()
+            self._restore = (first, caret, set(ed.folded), ed.line_count(), r.truncated, (r.text, r.line_starts()))
+        # (no text shown yet: a position still waiting to be restored stays as it is)
         self._start_load(self._ref)
 
     def wrap(self) -> bool:
@@ -2133,12 +2351,23 @@ class TextView(ViewBase):
         if origin is self:
             return
         self._pending = ref
+        self._pending_gen = _data_gen(self.session)
         self._dirty = True
+        if ref is None and self._ref is not None:
+            # an applied edit clears the current node and selects its own one right after (the
+            # same slot): the shown text is left only when nothing was selected meanwhile
+            QTimer.singleShot(0, self, self._load_if_visible)
+            return
         if self.isVisible():
+            self._load_pending()
+
+    def _load_if_visible(self) -> None:
+        if not self._dead and self.isVisible():
             self._load_pending()
 
     def _on_doc_opened(self) -> None:
         self._pending = getattr(self.session, "current", None)
+        self._pending_gen = _data_gen(self.session)
         self._dirty = True
         self._ref = None
         if self.isVisible():
@@ -2156,13 +2385,50 @@ class TextView(ViewBase):
     def _load_pending(self) -> None:
         if not self._dirty or self._dead:
             return
+        if self._ref is not None and self._pending_gen != self._ref_gen:
+            # the pending ref belongs to another data generation than the shown one: it was selected
+            # while a ChangeSet is being delivered (another view's data_changed slot selected it before
+            # this view's ran -- _on_data_changed loads it then) or the generation changed without one
+            # (the same data). Comparing the two refs now could take a node of the new state for the
+            # shown one of the old state: decide once the event is over.
+            if not self._gen_wait:
+                self._gen_wait = True
+                QTimer.singleShot(0, self, self._load_after_gen_change)
+            return
         self._dirty = False
         ref = self._pending
-        if ref is not None and self._ref is not None and _same(ref, self._ref) and \
+        if ref is not None and self._ref is not None and self._shows(ref) and \
                 (self._build is not None or self._result is not None):
+            if self._stale:                 # its data changed while the view was hidden
+                self._reload_keeping_position()
             return
+        if ref is None and self._deleted:
+            return                          # the deleted node's notice stays until another node is selected
         self._restore = None
         self._start_load(ref)
+        self._ref_gen = self._pending_gen
+
+    def _load_after_gen_change(self) -> None:
+        self._gen_wait = False
+        if self._dead or not self._dirty:
+            return
+        if self._pending_gen != self._ref_gen:
+            # no ChangeSet came: the generation changed without moving anything (e.g. the edit
+            # session's initial state was installed) -- the shown ref is valid in it
+            self._ref_gen = self._pending_gen
+        if self.isVisible():
+            self._load_pending()
+
+    def _shows(self, ref: Any) -> bool:
+        """``ref`` is the node shown (the session's rule, :func:`_same_node`: child indices are
+        compared when both refs have them); a ref with complete indices replaces one without
+        (e.g. the selection an edit of the shown node makes: its text and position stay)."""
+        shown = self._ref
+        if not _same_node(ref, shown):
+            return False
+        if _identity(ref) is not None and _identity(shown) is None:
+            self._ref = ref
+        return True
 
     def shown_ref(self) -> Any:
         """The node whose text is shown / being loaded."""
@@ -2206,7 +2472,8 @@ class TextView(ViewBase):
 
     # ------------------------------------------------------------------ loading
     def _cache_key(self, ref: Any, indent: int | str) -> tuple:
-        return (ref.record, tuple(ref.path), _identity(ref), str(indent))
+        # the data generation: a text of an older state of an edited document is never reused
+        return (_data_key(self.session), ref.record, tuple(ref.path), _identity(ref), str(indent))
 
     def _leave_build(self) -> None:
         """Stop waiting for a pretty text (cancelled when no other view waits for it)."""
@@ -2231,8 +2498,11 @@ class TextView(ViewBase):
         self._ref = ref
         self._result = None
         self._error = None
+        self._stale = False
+        self._deleted = False
         self._clear_find()
         self.info_bar.setVisible(False)
+        self._update_edit_actions()
         if ref is None or getattr(self.session, "doc", None) is None:
             self._show_empty()
             return
@@ -2253,12 +2523,15 @@ class TextView(ViewBase):
             build = st.pending[key] = _Build()
 
             session_ref = weakref.ref(session)
+            # the state the key (its data generation) and the ref belong to, pinned NOW: a ChangeSet
+            # applied before the worker starts must not make it read another state (review CL-9)
+            pinned = task_doc(session)
 
             def work(ctx: Any) -> PrettyText:
                 s = session_ref()
                 if s is None:
                     raise Cancelled()
-                return build_pretty(s, ref, indent, ctx.cancel, cap=TEXT_CAP, max_line=MAX_LINE_CHARS)
+                return build_pretty(s, ref, indent, ctx.cancel, cap=TEXT_CAP, max_line=MAX_LINE_CHARS, doc=pinned)
 
             def finished() -> list[tuple[Any, int]]:
                 if st.pending.get(key) is build:
@@ -2268,8 +2541,9 @@ class TextView(ViewBase):
                 return waiters
 
             def done(result: PrettyText) -> None:
+                current = st.pending.get(key) is build
                 waiters = finished()
-                if not result.virtual:
+                if not result.virtual and _cacheable(build, current, st, pinned):
                     st.put(key, result)
                 for view, g in waiters:
                     view._loaded(g, result)
@@ -2332,22 +2606,32 @@ class TextView(ViewBase):
         self.path_label.setText(self._location(ref))
         kind_key = f"gui.text.kind.{result.kind}"
         kind = t(kind_key)
-        self.size_label.setText(t("gui.text.size", kind=result.kind if kind == kind_key else kind,
-                                  size=format_size(result.size)))
+        size_text = t("gui.text.size", kind=result.kind if kind == kind_key else kind, size=format_size(result.size))
+        if result.edited:
+            size_text += " · " + t("gui.text.edited")
+        self.size_label.setText(size_text)
         self._show_notices(result)
         restore = self._restore
         self._restore = None
         starts = result.line_starts()
-        # the lines of the same node are the same tokens with any indent; a text cut at the
-        # size limit ends at another line (its folds / position are taken where they exist)
-        if restore is not None and (restore[3] == len(starts) - 1 or restore[4] or result.truncated):
-            first, caret, folded, _n, _cut = restore
+        if restore is not None and restore[5] is not None:
+            # the node's data changed: unchanged lines keep their folds, the position follows them
+            first, caret, folded, _n, _cut, (old_text, old_starts) = restore
+            lm = line_mapping(old_text, old_starts, result.text, starts)
+            kept = {m for m in map(lm.map, folded) if m is not None}
+            self.editor.set_content(result.text, result.folds, starts=starts, folded=kept,
+                                    goal=_Goal(top=lm.clamp(first), caret=lm.clamp(caret)))
+        elif restore is not None and (restore[3] == len(starts) - 1 or restore[4] or result.truncated):
+            # the lines of the same node are the same tokens with any indent; a text cut at the
+            # size limit ends at another line (its folds / position are taken where they exist)
+            first, caret, folded = restore[0], restore[1], restore[2]
             self.editor.set_content(result.text, result.folds, starts=starts, folded=folded,
                                     goal=_Goal(top=first, caret=caret))
         else:
             self.editor.set_content(result.text, result.folds, starts=starts)
         self._update_status()
         self._update_fold_actions()
+        self._update_edit_actions()
         self.loaded.emit()
 
     def loading_progress(self, fraction: float) -> None:
@@ -2403,7 +2687,8 @@ class TextView(ViewBase):
             if kind != "error":
                 kind = "warning"
             parts.append(t("gui.text.too_large", size=format_size(r.size), shown=format_size(r.shown_bytes)))
-            buttons.append((t("gui.text.open_raw"), lambda: self.request_raw()))
+            if not r.edited:            # an edited node has no bytes in the data file
+                buttons.append((t("gui.text.open_raw"), lambda: self.request_raw()))
         if r.cut_lines:
             parts.append(t("gui.text.long_lines", count=format_count(r.cut_lines), chars=format_count(MAX_LINE_CHARS)))
         if not parts:
@@ -2426,11 +2711,17 @@ class TextView(ViewBase):
         return self.info_bar.message() if self.info_bar.isVisibleTo(self) else None
 
     def request_raw(self) -> None:
-        """Ask the document tab to show the node's bytes in a raw view."""
+        """Ask the document tab to show the node's bytes in a raw view (not for an edited
+        node: the raw view shows the original file, where it has no bytes)."""
         r = self._result
-        if r is None:
+        if r is None or r.edited or edited_span(r.start):
             return
-        self.open_raw_requested.emit(int(r.start), int(r.size))
+        self.open_raw_requested.emit(int(r.start), int(r.raw_size))
+
+    def can_open_raw(self) -> bool:
+        """"Open in raw view" applies: a node with bytes in the data file is shown."""
+        r = self._result
+        return r is not None and not r.edited and not edited_span(r.start)
 
     # ------------------------------------------------------------------ status / actions
     def _update_status(self) -> None:
@@ -2497,6 +2788,18 @@ class TextView(ViewBase):
         menu.addAction(wrap)
         if self._ref is not None:
             menu.addSeparator()
+            from jsonreshape.gui.actions import with_keys
+
+            # the key is shown only (the editor handles Shift+Enter itself; no shortcut is registered)
+            edit = QAction(with_keys(t("gui.text.menu.edit_json"), "Shift+Enter"), menu)
+            edit.setObjectName("text_edit_json")
+            why = self.edit_json_block()
+            edit.setEnabled(why is None)
+            if why is not None:
+                edit.setToolTip(why)
+            edit.triggered.connect(lambda _c=False: self.edit_as_json())
+            menu.addAction(edit)
+            menu.setToolTipsVisible(True)
             try:
                 from jsonreshape.gui.actions import node_menu
 
@@ -2685,6 +2988,220 @@ class TextView(ViewBase):
             out.append(sel)
         return out
 
+    # ------------------------------------------------------------------ data changes (§12.9)
+    def _on_data_changed(self, cs: Any) -> None:
+        """An edit / undo / redo / bulk change was applied: remap the shown and the pending
+        node; build the text again (keeping the position) when the shown node changed. A ref
+        selected while this ChangeSet was being delivered (another view's ``data_changed`` slot
+        ran first) already belongs to the new state: it is not remapped, and it is shown now."""
+        if self._dead:
+            return
+        gen = _change_gen(cs, self.session)
+        if self._json_ref is not None:
+            self._json_ref = remap_node_ref(self.session, self._json_ref, cs)
+        if getattr(cs, "reset", False):
+            # positions of the old state mean nothing: follow the session's current node
+            self._pending = getattr(self.session, "current", None)
+            self._pending_gen = self._ref_gen = gen
+            self._ref = None
+            self._dirty = True
+            if self.isVisible():
+                self._load_pending()
+            self._update_edit_actions()
+            return
+        fresh = self._dirty and self._pending is not None and self._pending_gen == gen
+        if self._pending is not None and self._pending_gen != gen:
+            self._pending = remap_node_ref(self.session, self._pending, cs)
+        self._pending_gen = gen
+        ref = self._ref
+        if ref is None or self._ref_gen == gen:
+            # nothing shown, or the shown node was selected (and loaded) for the new state already
+            self._ref_gen = gen
+            if self._dirty and self.isVisible():
+                self._load_pending()
+            self._update_edit_actions()
+            return
+        self._ref_gen = gen
+        r = self._result
+        if _identity(ref) is None and r is not None and r.ipath is not None and len(r.ipath) == len(ref.path):
+            ref = type(ref)(ref.record, tuple(ref.path), tuple(r.ipath))    # the exact node shown
+        new = remap_node_ref(self.session, ref, cs)
+        if new is None:
+            if fresh:
+                # the node selected meanwhile (e.g. the one that took the deleted node's place) is shown
+                # instead of the "deleted" notice
+                self._ref = None
+                if self.isVisible():
+                    self._load_pending()
+                self._update_edit_actions()
+                return
+            self._show_deleted()
+            return
+        affected = self._affected(new, cs)
+        old_label = (ref.record, tuple(ref.path))
+        self._ref = new
+        if (new.record, tuple(new.path)) != old_label:
+            self.path_label.setText(self._location(new))
+        if fresh and not _same_node(self._pending, new):
+            if self.isVisible():
+                self._load_pending()        # another node was selected meanwhile: it replaces this one
+            self._update_edit_actions()
+            return
+        if affected:
+            if self.isVisible():
+                self._reload_keeping_position()
+            else:
+                self._stale = True
+                self._dirty = True
+                if self._pending is None or _same_node(self._pending, new):
+                    self._pending = new
+        elif fresh and self.isVisible():
+            self._load_pending()            # the same node, selected meanwhile: kept as it is
+        self._update_edit_actions()
+
+    def _affected(self, ref: Any, cs: Any) -> bool:
+        """The text of ``ref`` (a ref of the new state) may have changed with ``cs``: its record
+        changed, or -- outside the records -- the wrapper changed or the node holds records that
+        changed (the root of an array, the wrapper of a wrapped document)."""
+        records = getattr(cs, "records", None)
+        if records is None:
+            return True
+        doc = getattr(self.session, "doc", None)
+        kind = getattr(doc, "kind", None)
+        if kind == "single":
+            return 0 in records or bool(getattr(cs, "wrapper", False))
+        if ref.record is not None:
+            return int(ref.record) in records
+        if getattr(cs, "wrapper", False):
+            return True
+        changed = bool(records) or getattr(cs, "remap", None) is not None or bool(getattr(cs, "nodes", ()))
+        return changed and _holds_records(ref, doc)
+
+    def _show_deleted(self) -> None:
+        """The shown node was deleted by an edit."""
+        self._leave_build()
+        self._caret_timer.stop()
+        self._gen += 1
+        self._ref = None
+        self._result = None
+        self._error = None
+        self._stale = False
+        self._deleted = True
+        self._restore = None
+        self._clear_find()
+        self.info_bar.setVisible(False)
+        self.editor.clear_content()
+        self.editor.set_empty_text(t("gui.text.node_deleted"))
+        self.size_label.setText("")
+        self.status_label.setText("")
+        self._update_fold_actions()
+        self._update_edit_actions()
+        self.loaded.emit()
+
+    def node_deleted(self) -> bool:
+        """The node shown last was deleted by an edit (tests)."""
+        return self._deleted
+
+    # ------------------------------------------------------------------ edit as JSON (§12.9)
+    def _update_edit_actions(self, *_args: Any) -> None:
+        if self._dead:
+            return
+        why = self.edit_json_block()
+        self.edit_button.setEnabled(why is None)
+        self.edit_button.setToolTip(t("gui.text.edit_json.tip") if why is None else why)
+
+    def edit_json_block(self) -> str | None:
+        """Why "edit as JSON" does not apply now (localized), ``None`` when it does."""
+        r = self._result
+        if self._ref is None:
+            return t("gui.text.edit_json.no_node")
+        if r is None:
+            return t("gui.common.loading") if self._build is not None else t("gui.text.edit_json.no_node")
+        if r.virtual:
+            return t("gui.text.edit_json.virtual")
+        _edit, why = edit_controller(self.session)
+        if why is not None:
+            return why
+        if r.truncated:
+            return t("gui.text.edit_json.too_large", size=format_size(TEXT_CAP))
+        if r.error is not None:
+            return t("gui.text.edit_json.json_error")
+        return None
+
+    def edit_as_json(self) -> Any:
+        """Shift+Enter / menu / toolbar: edit the shown node as JSON text
+        (:class:`~jsonreshape.gui.editors.JsonEditDialog`, live validation) -> ``set_value``.
+        Returns the dialog (``None`` when refused: the reason goes to the status bar)."""
+        why = self.edit_json_block()
+        if why is not None:
+            self._status(why)
+            return None
+        dlg = self._json_dialog
+        if dlg is not None:
+            dlg.raise_()
+            dlg.activateWindow()
+            return dlg
+        from jsonreshape.gui import editors
+
+        r = self._result
+        ref = self._ref
+        assert r is not None and ref is not None
+        self._json_ref = ref
+        dlg = editors.JsonEditDialog(self, r.copy_text, title=t("gui.text.edit_json.title", path=self._location(ref)),
+                                     indent=self.indent(), tasks=self.session.app.tasks,
+                                     on_accept=lambda text: self._json_accepted(dlg, text))
+        self._json_dialog = dlg
+        dlg.finished.connect(lambda result, d=dlg: self._json_closed(d, result))
+        dlg.open()
+        return dlg
+
+    def _json_accepted(self, dlg: Any, text: str) -> None:
+        """The dialog's changed JSON text: set as the value of the node it was opened for
+        (remapped while it was open; refused when that node was deleted)."""
+        if self._dead:
+            return
+        ref = self._json_ref if dlg is self._json_dialog or self._json_dialog is None else None
+        self._json_ref = None
+        if ref is None:
+            self._status(t("gui.text.edit_json.gone"))
+            return
+        edit, why = edit_controller(self.session)
+        if why is not None or edit is None:
+            self._status(why or edit_unavailable_text(edit))
+            return
+        edit.set_value(ref, text)
+
+    def _json_closed(self, dlg: Any, result: int) -> None:
+        if dlg is self._json_dialog:
+            self._json_dialog = None
+            if result != 1:              # rejected: no value follows (accepted: on_accept follows)
+                self._json_ref = None
+        dlg.deleteLater()
+
+    def json_dialog(self) -> Any:
+        """The open "edit as JSON" dialog (tests)."""
+        return self._json_dialog
+
+    # -- the view edit protocol (jsonreshape.gui.actions: node menu / Edit menu) ---------
+    def edit_value(self) -> Any:
+        """"Edit value": the text view edits the shown node as JSON text."""
+        return self.edit_as_json()
+
+    def edit_command_state(self, name: str) -> tuple[bool, str] | None:
+        """``(enabled, reason)`` of the edit commands this view carries out."""
+        if name in ("edit_value", "edit_json"):
+            why = self.edit_json_block()
+            return (why is None, why or "")
+        return None
+
+    def _status(self, text: str, timeout: int = 4000) -> None:
+        fn = getattr(self.session.app, "show_status", None)
+        if callable(fn):
+            try:
+                fn(text, timeout)
+            except Exception:
+                log.debug("show_status failed", exc_info=True)
+
     # ------------------------------------------------------------------ lifetime
     def shutdown(self) -> None:
         if self._dead:
@@ -2702,6 +3219,24 @@ class TextView(ViewBase):
                 settings_changed.disconnect(self._on_settings_changed)
             except (RuntimeError, TypeError):
                 pass
+        for name, slot in (("data_changed", self._on_data_changed), ("index_finished", self._update_edit_actions),
+                           ("state_changed", self._update_edit_actions), ("edit_changed", self._update_edit_actions),
+                           ("edit_state_changed", self._update_edit_actions)):
+            signal = getattr(self.session, name, None)
+            if signal is not None:
+                try:
+                    signal.disconnect(slot)
+                except (RuntimeError, TypeError):
+                    pass
+        dlg = self._json_dialog
+        self._json_dialog = None
+        self._json_ref = None
+        if dlg is not None:
+            try:
+                discard = getattr(dlg, "discard", None)
+                discard() if callable(discard) else dlg.reject()
+            except RuntimeError:
+                pass
         super().shutdown()
 
 
@@ -2716,3 +3251,57 @@ def _identity(ref: Any) -> tuple | None:
 
 def _same(a: Any, b: Any) -> bool:
     return a.record == b.record and tuple(a.path) == tuple(b.path) and _identity(a) == _identity(b)
+
+
+def _same_node(a: Any, b: Any) -> bool:
+    """The rule of :func:`jsonreshape.gui.session.same_node`: the child indices are compared only
+    when both refs carry them completely."""
+    if a.record != b.record or tuple(a.path) != tuple(b.path):
+        return False
+    ia, ib = _identity(a), _identity(b)
+    return ia is None or ib is None or ia == ib
+
+
+def _data_gen(session: Any) -> int:
+    """The session's data generation (``session.data_gen``; 0 without one)."""
+    try:
+        return int(getattr(session, "data_gen", 0) or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _change_gen(cs: Any, session: Any) -> int:
+    """The data generation a ChangeSet installs (``cs.gen``; the session's when it carries none)."""
+    gen = getattr(cs, "gen", None)
+    try:
+        return int(gen) if gen is not None else _data_gen(session)
+    except (TypeError, ValueError):
+        return _data_gen(session)
+
+
+def _data_key(session: Any) -> int:
+    """The data generation of the cache keys: ``session.data_gen`` while the document shows edits,
+    0 while it reads exactly like the file (before editing became possible, after its initial state
+    was installed, after everything was undone) -- those texts are the file's and stay valid."""
+    doc = getattr(session, "doc", None)
+    if doc is None or not getattr(doc, "edited", False):
+        return 0
+    return int(getattr(session, "data_gen", 0) or 0)
+
+
+def _seg_text(seg: Any) -> str:
+    return str(seg)
+
+
+def _holds_records(ref: Any, doc: Any) -> bool:
+    """A ref outside the records (``record`` None) whose text contains them: the root of an
+    array / keyed / JSON Lines document, the wrapper of a wrapped document and its members on
+    the way to the record container (or a node through it)."""
+    if doc is None:
+        return True
+    if getattr(doc, "kind", None) != "wrapped":
+        return True
+    rp = tuple((getattr(doc.info, "record_path", None) or ()))
+    path = tuple(ref.path)
+    n = min(len(path), len(rp))
+    return all(_seg_text(a) == _seg_text(b) for a, b in zip(path[:n], rp[:n]))

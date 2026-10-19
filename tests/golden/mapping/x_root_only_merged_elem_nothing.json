@@ -1,0 +1,37 @@
+{
+ "name": "x_root_only_merged_elem_nothing",
+ "description": "targeted reference case (root_fb)",
+ "case": {
+  "name": "x_root_only_merged_elem_nothing",
+  "records": [{"a": 1}],
+  "sample": [{"k": [1]}],
+  "ops": [{"op": "merge", "node": "[].k", "target": ""}, {"op": "delete", "node": [0]}]
+ },
+ "output": null,
+ "log": [
+  {
+   "i": 0,
+   "op": "merge",
+   "applied": true,
+   "changed": true,
+   "undo": 1,
+   "msg": "«k» elementlari «ildiz» massiviga qo'shildi"
+  },
+  {
+   "i": 1,
+   "op": "delete",
+   "applied": true,
+   "changed": true,
+   "undo": 2,
+   "msg": "«element» natijadan olib tashlandi"
+  }
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "value", "src": [null, "k", null], "types": ["number"], "count": 1, "pcount": null, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []}
+ ]},
+ "badges": [],
+ "shape": ["(root) array <- (ildiz)", "  [] value <- [].k[]"],
+ "preview": [null],
+ "perRecord": [null],
+ "perRecordConcatEqualsOutput": false
+}

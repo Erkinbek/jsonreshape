@@ -1,0 +1,419 @@
+{
+ "started": 1792402579.0658064,
+ "args": {
+  "child": "False",
+  "op": "",
+  "scen": "base",
+  "home": "base",
+  "keep": "",
+  "patch": "",
+  "data": "E:/Projects/json flatting/bench/data/syn_2g.json",
+  "work": "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\65e44ff0-18e2-413f-b083-b5e57d67f8f7\\scratchpad\\p3\\w2g_after",
+  "pkg": "C:/Users/user34/AppData/Local/Temp/claude/e--Projects-json-flatting/65e44ff0-18e2-413f-b083-b5e57d67f8f7/scratchpad/p3/final",
+  "repeat": "2",
+  "max_repeat_seconds": "150.0",
+  "only": "patch_export",
+  "label": "final-patch",
+  "results_dir": "C:/Users/user34/AppData/Local/Temp/claude/e--Projects-json-flatting/65e44ff0-18e2-413f-b083-b5e57d67f8f7/scratchpad/p3/results",
+  "quiet_load": "35.0",
+  "quiet_timeout": "60.0",
+  "keep_work": "False",
+  "report": "",
+  "baseline": "",
+  "lang": "uz",
+  "md": ""
+ },
+ "machine": {
+  "python": "3.14.3",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "cpus": 24,
+  "ram_gb": 205.6,
+  "processor": "Intel64 Family 6 Model 198 Stepping 2, GenuineIntel"
+ },
+ "runs": [
+  {
+   "op": "patch_export",
+   "scen": "point",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 49.6,
+     "private_peak_mb": 38.4,
+     "workers": 0,
+     "seconds": 0.021,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 100,
+     "count": 6513235,
+     "layers": 1,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 47.8,
+     "private_peak_mb": 36.2,
+     "workers": 0,
+     "seconds": 0.028,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "ops": 100,
+     "written": 6576,
+     "bytes": 2147482440,
+     "phase": "op",
+     "rss_peak_mb": 52.1,
+     "private_peak_mb": 39.3,
+     "workers": 0,
+     "seconds": 0.083,
+     "fsync_s": 0.004
+    }
+   },
+   "effective_bytes": 2147482440,
+   "process_peak_wset_mb": 67.9,
+   "process_peak_pagefile_mb": 56.4,
+   "backend": "rust",
+   "wall": 1.21,
+   "load_before": 9.8,
+   "load_mean": 0.0,
+   "load_max": 0.0,
+   "repeat": 1
+  },
+  {
+   "op": "patch_export",
+   "scen": "point",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 41.4,
+     "private_peak_mb": 30.2,
+     "workers": 0,
+     "seconds": 0.009,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 100,
+     "count": 6513235,
+     "layers": 1,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 43.1,
+     "private_peak_mb": 31.5,
+     "workers": 0,
+     "seconds": 0.027,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "ops": 100,
+     "written": 6576,
+     "bytes": 2147482440,
+     "phase": "op",
+     "rss_peak_mb": 46.0,
+     "private_peak_mb": 34.1,
+     "workers": 0,
+     "seconds": 0.046,
+     "fsync_s": 0.014
+    }
+   },
+   "effective_bytes": 2147482440,
+   "process_peak_wset_mb": 62.8,
+   "process_peak_pagefile_mb": 50.9,
+   "backend": "rust",
+   "wall": 0.93,
+   "load_before": 4.9,
+   "load_mean": 0.0,
+   "load_max": 0.0,
+   "repeat": 2
+  },
+  {
+   "op": "patch_export",
+   "scen": "third",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 41.3,
+     "private_peak_mb": 29.9,
+     "workers": 0,
+     "seconds": 0.01,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 1,
+     "count": 6513235,
+     "layers": 3,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 44.3,
+     "private_peak_mb": 32.9,
+     "workers": 0,
+     "seconds": 0.579,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "ops": 2171079,
+     "written": 123381132,
+     "bytes": 2169194636,
+     "phase": "op",
+     "rss_peak_mb": 398.0,
+     "private_peak_mb": 200.4,
+     "workers": 4,
+     "seconds": 22.111,
+     "fsync_s": 0.04
+    }
+   },
+   "effective_bytes": 2169194636,
+   "process_peak_wset_mb": 249.0,
+   "process_peak_pagefile_mb": 81.3,
+   "backend": "rust",
+   "wall": 24.28,
+   "load_before": 6.7,
+   "load_mean": 18.0,
+   "load_max": 26.2,
+   "repeat": 1
+  },
+  {
+   "op": "patch_export",
+   "scen": "third",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 41.5,
+     "private_peak_mb": 30.4,
+     "workers": 0,
+     "seconds": 0.01,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 1,
+     "count": 6513235,
+     "layers": 3,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 45.3,
+     "private_peak_mb": 34.4,
+     "workers": 0,
+     "seconds": 0.536,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "ops": 2171079,
+     "written": 123381132,
+     "bytes": 2169194636,
+     "phase": "op",
+     "rss_peak_mb": 401.1,
+     "private_peak_mb": 198.1,
+     "workers": 4,
+     "seconds": 21.858,
+     "fsync_s": 0.009
+    }
+   },
+   "effective_bytes": 2169194636,
+   "process_peak_wset_mb": 249.7,
+   "process_peak_pagefile_mb": 83.2,
+   "backend": "rust",
+   "wall": 24.01,
+   "load_before": 8.1,
+   "load_mean": 16.5,
+   "load_max": 30.0,
+   "repeat": 2
+  },
+  {
+   "op": "patch_export",
+   "scen": "all",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 41.5,
+     "private_peak_mb": 30.2,
+     "workers": 0,
+     "seconds": 0.021,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 1,
+     "count": 6513235,
+     "layers": 3,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 45.5,
+     "private_peak_mb": 34.4,
+     "workers": 0,
+     "seconds": 1.742,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "ops": 6513235,
+     "written": 376656523,
+     "bytes": 2232155965,
+     "phase": "op",
+     "rss_peak_mb": 352.4,
+     "private_peak_mb": 196.8,
+     "workers": 4,
+     "seconds": 29.71,
+     "fsync_s": 0.379
+    }
+   },
+   "effective_bytes": 2232155965,
+   "process_peak_wset_mb": 193.8,
+   "process_peak_pagefile_mb": 74.1,
+   "backend": "rust",
+   "wall": 33.04,
+   "load_before": 13.3,
+   "load_mean": 25.6,
+   "load_max": 38.7,
+   "repeat": 1
+  },
+  {
+   "op": "patch_export",
+   "scen": "all",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 41.5,
+     "private_peak_mb": 30.3,
+     "workers": 0,
+     "seconds": 0.01,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 1,
+     "count": 6513235,
+     "layers": 3,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 45.6,
+     "private_peak_mb": 34.5,
+     "workers": 0,
+     "seconds": 1.718,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "ops": 6513235,
+     "written": 376656523,
+     "bytes": 2232155965,
+     "phase": "op",
+     "rss_peak_mb": 352.5,
+     "private_peak_mb": 198.3,
+     "workers": 4,
+     "seconds": 29.501,
+     "fsync_s": 0.28
+    }
+   },
+   "effective_bytes": 2232155965,
+   "process_peak_wset_mb": 193.8,
+   "process_peak_pagefile_mb": 74.3,
+   "backend": "rust",
+   "wall": 32.78,
+   "load_before": 9.7,
+   "load_mean": 23.6,
+   "load_max": 28.4,
+   "repeat": 2
+  },
+  {
+   "op": "patch_export",
+   "scen": "dels",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 41.5,
+     "private_peak_mb": 30.3,
+     "workers": 0,
+     "seconds": 0.022,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 101,
+     "count": 5862911,
+     "layers": 1,
+     "pieces": 651513,
+     "phase": "restore",
+     "rss_peak_mb": 129.8,
+     "private_peak_mb": 118.4,
+     "workers": 0,
+     "seconds": 0.518,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "ops": 652324,
+     "written": 24788787,
+     "bytes": 1931613258,
+     "phase": "op",
+     "rss_peak_mb": 157.8,
+     "private_peak_mb": 147.0,
+     "workers": 0,
+     "seconds": 3.036,
+     "fsync_s": 0.055
+    }
+   },
+   "effective_bytes": 1931613258,
+   "process_peak_wset_mb": 171.9,
+   "process_peak_pagefile_mb": 161.0,
+   "backend": "rust",
+   "wall": 5.29,
+   "load_before": 11.0,
+   "load_mean": 13.5,
+   "load_max": 20.7,
+   "repeat": 1
+  },
+  {
+   "op": "patch_export",
+   "scen": "dels",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 41.7,
+     "private_peak_mb": 30.5,
+     "workers": 0,
+     "seconds": 0.01,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 101,
+     "count": 5862911,
+     "layers": 1,
+     "pieces": 651513,
+     "phase": "restore",
+     "rss_peak_mb": 129.8,
+     "private_peak_mb": 118.5,
+     "workers": 0,
+     "seconds": 0.515,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "ops": 652324,
+     "written": 24788787,
+     "bytes": 1931613258,
+     "phase": "op",
+     "rss_peak_mb": 154.8,
+     "private_peak_mb": 144.3,
+     "workers": 0,
+     "seconds": 3.0,
+     "fsync_s": 0.047
+    }
+   },
+   "effective_bytes": 1931613258,
+   "process_peak_wset_mb": 168.8,
+   "process_peak_pagefile_mb": 158.2,
+   "backend": "rust",
+   "wall": 5.3,
+   "load_before": 11.3,
+   "load_mean": 13.7,
+   "load_max": 17.4,
+   "repeat": 2
+  }
+ ]
+}

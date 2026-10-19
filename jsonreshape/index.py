@@ -57,7 +57,11 @@ every time a file is opened) -- and, with ``prepared_dir``, the prepared copies 
 ``Settings.cache_limit_bytes``; unused alternates go first. Files that are kept anyway
 (in use by this or another process, ``keep``, prepared copies used within the last hour)
 are not counted against the limit (:func:`jsonreshape.fileio.evict_entries`): a few big,
-recently used prepared copies must not make every index file go.
+recently used prepared copies must not make every index file go. Listing the cache is cheap
+(one ``os.scandir`` per folder, no per-entry path work) and skipped while this process knows the
+cache fits the budget (a tally of the last listing plus the files built since, renewed at least
+every :data:`SCAN_INTERVAL` seconds): indexing small files no longer lists a cache of tens of
+thousands of files every time (fix round R5).
 """
 
 from __future__ import annotations
@@ -86,7 +90,7 @@ from .fileio import (
     make_dirs,
     normalize_path,
     os_error,
-    prepared_cache_entries,
+    scan_prepared_entries,
 )
 
 log = logging.getLogger(__name__)
@@ -104,6 +108,7 @@ __all__ = [
     "INDEX_SUFFIX",
     "INDEX_VERSION",
     "MAGIC",
+    "SCAN_INTERVAL",
     "BuildLock",
     "IndexReader",
     "IndexWriter",
@@ -784,34 +789,76 @@ class IndexWriter:
 def _index_entries(base: Path, keep_norm: set[str], now: float) -> list[CacheEntry]:
     """The index files of ``base`` as cache entries; leftover temporary files older than
     a day are removed on the way. An alternate (``<key>~<hex>.jri``) whose canonical index
-    exists is never read again: it counts as least recently used."""
+    exists is never read again: it counts as least recently used.
+
+    One ``os.scandir`` listing (fix round R5): sizes and times come with it (Windows: no
+    ``stat`` call per file) and no path is made long or normalized per entry -- the files in
+    ``keep`` are recognized by their (case-folded) names in ``base``."""
     try:
-        names = os.listdir(long_path(base))
+        with os.scandir(long_path(base)) as it:
+            listed = list(it)
     except OSError:
         return []
-    name_set = set(names)
+    base_norm = normalize_path(base)
+    keep_names = set()
+    for k in keep_norm:
+        head, tail = os.path.split(k)
+        if head == base_norm:
+            keep_names.add(tail)
+    name_set = {e.name for e in listed}
     entries: list[CacheEntry] = []
-    for name in names:
-        p = base / name
+    for e in listed:
+        name = e.name
         if name.endswith(TEMP_SUFFIX) and name.startswith("."):
             try:
-                if now - os.stat(long_path(p)).st_mtime > TEMP_MAX_AGE:
-                    _remove_quiet(p)
+                if now - e.stat().st_mtime > TEMP_MAX_AGE:
+                    _remove_quiet(base / name)
             except OSError:
                 pass
             continue
         if not name.endswith(INDEX_SUFFIX):
             continue
         try:
-            st = os.stat(long_path(p))
+            st = e.stat()
         except OSError:
             continue
         last_used = st.st_mtime
         stem = name[:-len(INDEX_SUFFIX)]
         if "~" in stem and stem.split("~", 1)[0] + INDEX_SUFFIX in name_set:
             last_used = 0.0   # a duplicate of an existing canonical index: evicted first
-        entries.append(CacheEntry(last_used, st.st_size, (p,), normalize_path(p) in keep_norm))
+        protected = bool(keep_names) and os.path.normcase(name) in keep_names
+        entries.append(CacheEntry(last_used, st.st_size, (base / name,), protected))
     return entries
+
+
+#: :func:`evict`: the whole cache is listed at most this often (seconds) while this process knows that it fits
+SCAN_INTERVAL = 600.0
+
+
+class _Tally:
+    """What :func:`evict` knows about one cache (index folder + prepared folder) in this process: when it
+    was listed last (``time.monotonic()``), the bytes of every file left then -- protected and in-use ones
+    included, so the tally is an upper bound of what counts against the budget -- plus the files callers
+    named in ``keep`` since (the index or copy just built), counted once each (``seen``)."""
+
+    __slots__ = ("seen", "total", "when")
+
+    def __init__(self, when: float, total: int, seen: set[str]) -> None:
+        self.when = when
+        self.total = total
+        self.seen = seen
+
+
+_TALLY_LOCK = threading.Lock()
+_TALLIES: dict[tuple[str, str], _Tally] = {}
+_TALLIES_MAX = 64                 # cache folders remembered at once
+
+
+def _file_size(p: StrPath) -> int:
+    try:
+        return os.stat(long_path(p)).st_size
+    except (OSError, ValueError):
+        return 0
 
 
 def evict(limit_bytes: int, keep: Iterable[StrPath] = (), *, directory: StrPath | None = None,
@@ -821,7 +868,7 @@ def evict(limit_bytes: int, keep: Iterable[StrPath] = (), *, directory: StrPath 
 
     The cache is the ``*.jri`` files of ``directory`` (default: the app index folder)
     and, with ``prepared_dir``, the prepared (gunzipped / transcoded) copies there
-    (:func:`jsonreshape.fileio.prepared_cache_entries`): one budget for both
+    (:func:`jsonreshape.fileio.scan_prepared_entries`): one budget for both
     (``Settings.cache_limit_bytes``). "Used" = modification time (an index is touched by
     every :meth:`IndexReader.open`, a prepared copy's ``.meta`` whenever it is reused).
     Files in ``keep``, prepared copies open documents of this process read or used within
@@ -831,15 +878,39 @@ def evict(limit_bytes: int, keep: Iterable[StrPath] = (), *, directory: StrPath 
     size, but they never cause unrelated files to be evicted (two recently used multi-GB
     prepared copies used to wipe the whole index cache for an hour). Leftover temporary
     files older than a day are removed as well.
+
+    Listing the cache is skipped when it cannot be over the budget (fix round R5: every
+    index build and every prepared copy calls this, and listing 20 000 cache files took
+    ~0.6 s): after a listing this process keeps a tally of the bytes left -- every file,
+    protected or not -- and adds the size of each file a later call names in ``keep`` (the
+    index or copy just built); while the tally is at most ``limit_bytes`` and the last
+    listing is younger than :data:`SCAN_INTERVAL` seconds, nothing can be evicted and the
+    call returns 0 at once. Files other processes add are seen by the next listing (at most
+    :data:`SCAN_INTERVAL` later; those processes evict on their own as well).
     """
     base = Path(directory) if directory is not None else default_index_dir()
     keep_list = list(keep)
     keep_norm = {normalize_path(k) for k in keep_list}
+    key = (normalize_path(base), normalize_path(prepared_dir) if prepared_dir is not None else "")
+    with _TALLY_LOCK:
+        tally = _TALLIES.get(key)
+        if tally is not None and time.monotonic() - tally.when < SCAN_INTERVAL:
+            for norm in keep_norm - tally.seen:
+                tally.seen.add(norm)
+                tally.total += _file_size(norm)
+            if tally.total <= limit_bytes:
+                return 0
     now = time.time()
     entries = _index_entries(base, keep_norm, now)
     if prepared_dir is not None:
-        entries += prepared_cache_entries(prepared_dir, keep=keep_list)
-    return evict_entries(entries, limit_bytes)
+        entries += scan_prepared_entries(prepared_dir, keep=keep_list)
+    present = sum(e.size for e in entries)
+    freed = evict_entries(entries, limit_bytes)
+    with _TALLY_LOCK:
+        if len(_TALLIES) >= _TALLIES_MAX and key not in _TALLIES:
+            _TALLIES.clear()            # caches of many folders (tests): forgetting them only costs a listing
+        _TALLIES[key] = _Tally(time.monotonic(), max(0, present - freed), set(keep_norm))
+    return freed
 
 
 # ----------------------------------------------------------------------------------

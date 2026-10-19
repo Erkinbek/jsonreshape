@@ -783,14 +783,17 @@ def test_stale_sort_runs_in_the_cache_folder_are_purged(tmp_path: Path, monkeypa
 # requirements/F1: the scans check that the file did not change meanwhile
 # ==================================================================================
 def _change_after_last_block(doc: Document, monkeypatch) -> None:
-    real = doc.iter_blocks
+    # patched on the class: the scans read a pinned view of ``doc`` (docs/ARCHITECTURE.md §12.3),
+    # which does not see an instance attribute of the live document
+    real = Document.iter_blocks
 
-    def iter_blocks(*args: Any, **kwargs: Any) -> Any:
-        yield from real(*args, **kwargs)
-        st = os.stat(doc.source_path)  # another program touches the file after the last read
-        os.utime(doc.source_path, ns=(st.st_atime_ns, st.st_mtime_ns + 5_000_000_000))
+    def iter_blocks(self: Any, *args: Any, **kwargs: Any) -> Any:
+        yield from real(self, *args, **kwargs)
+        if getattr(self, "origin", self) is doc:
+            st = os.stat(doc.source_path)  # another program touches the file after the last read
+            os.utime(doc.source_path, ns=(st.st_atime_ns, st.st_mtime_ns + 5_000_000_000))
 
-    monkeypatch.setattr(doc, "iter_blocks", iter_blocks)
+    monkeypatch.setattr(Document, "iter_blocks", iter_blocks)
 
 
 @pytest.mark.parametrize("operation", ["filter", "sort", "search", "iter_hits", "schema"])

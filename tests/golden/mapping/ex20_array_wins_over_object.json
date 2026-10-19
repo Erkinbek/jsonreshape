@@ -1,0 +1,19 @@
+{
+ "name": "ex20_array_wins_over_object",
+ "description": "engine analysis worked example: array beats object in inference",
+ "case": {"name": "ex20_array_wins_over_object", "records": [{"f": {"a": 1}}, {"f": [1]}]},
+ "output": [{"f": {"a": 1}}, {"f": [1]}],
+ "log": [],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "f", "kind": "array", "src": [null, "f"], "types": ["object", "array"], "count": 2, "pcount": 2, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "value", "src": [null, "f", null], "types": ["number"], "count": 1, "pcount": null, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []}
+   ]}
+  ]}
+ ]},
+ "badges": [],
+ "shape": ["(root) array <- (ildiz)", "  [] object <- []", "    \"f\" array <- [].f", "      [] value <- [].f[]"],
+ "preview": [{"f": {"a": 1}}, {"f": [1]}],
+ "perRecord": [[{"f": {"a": 1}}], [{"f": [1]}]],
+ "perRecordConcatEqualsOutput": true
+}

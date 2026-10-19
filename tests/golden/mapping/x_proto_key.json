@@ -1,0 +1,28 @@
+{
+ "name": "x_proto_key",
+ "description": "targeted reference case (batch2)",
+ "case": {"name": "x_proto_key", "records": [{"__proto__": {"x": 1}, "constructor": 2, "toString": 3}]},
+ "output": [{"__proto__": {"x": 1}, "constructor": 2, "toString": 3}],
+ "log": [],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "__proto__", "kind": "object", "src": [null, "__proto__"], "types": ["object"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "x", "kind": "value", "src": [null, "__proto__", "x"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+   ]},
+   {"key": "constructor", "kind": "value", "src": [null, "constructor"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "toString", "kind": "value", "src": [null, "toString"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["3"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"__proto__\" object <- [].__proto__",
+  "      \"x\" value <- [].__proto__.x",
+  "    \"constructor\" value <- [].constructor",
+  "    \"toString\" value <- [].toString"
+ ],
+ "preview": [{"__proto__": {"x": 1}, "constructor": 2, "toString": 3}],
+ "perRecord": [[{"__proto__": {"x": 1}, "constructor": 2, "toString": 3}]],
+ "perRecordConcatEqualsOutput": true
+}

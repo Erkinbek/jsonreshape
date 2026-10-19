@@ -1,0 +1,71 @@
+{
+ "name": "x_undo_reset",
+ "description": "targeted reference case (batch3)",
+ "case": {
+  "name": "x_undo_reset",
+  "records": [{"a": 1, "b": 2}],
+  "ops": [
+   {"op": "undo"},
+   {"op": "rename", "node": "[].a", "name": "x"},
+   {"op": "delete", "node": "[].b"},
+   {"op": "output"},
+   {"op": "reset"},
+   {"op": "output"},
+   {"op": "undo"},
+   {"op": "output"},
+   {"op": "undo"},
+   {"op": "output"},
+   {"op": "undo"},
+   {"op": "undo"}
+  ]
+ },
+ "output": [{"a": 1, "b": 2}],
+ "log": [
+  {"i": 0, "op": "undo", "applied": false, "changed": false, "undo": 0, "msg": null},
+  {"i": 1, "op": "rename", "applied": true, "changed": true, "undo": 1, "msg": ""},
+  {"i": 2, "op": "delete", "applied": true, "changed": true, "undo": 2, "msg": "«b» natijadan olib tashlandi"},
+  {"i": 3, "op": "output", "applied": false, "changed": false, "undo": 2, "msg": null, "result": [{"x": 1}]},
+  {"i": 4, "op": "reset", "applied": true, "changed": true, "undo": 3, "msg": "Asl tuzilma tiklandi"},
+  {
+   "i": 5,
+   "op": "output",
+   "applied": false,
+   "changed": false,
+   "undo": 3,
+   "msg": null,
+   "result": [{"a": 1, "b": 2}]
+  },
+  {"i": 6, "op": "undo", "applied": true, "changed": true, "undo": 2, "msg": "Oxirgi o'zgarish bekor qilindi"},
+  {"i": 7, "op": "output", "applied": false, "changed": false, "undo": 2, "msg": null, "result": [{"x": 1}]},
+  {"i": 8, "op": "undo", "applied": true, "changed": true, "undo": 1, "msg": "Oxirgi o'zgarish bekor qilindi"},
+  {
+   "i": 9,
+   "op": "output",
+   "applied": false,
+   "changed": false,
+   "undo": 1,
+   "msg": null,
+   "result": [{"x": 1, "b": 2}]
+  },
+  {
+   "i": 10,
+   "op": "undo",
+   "applied": true,
+   "changed": true,
+   "undo": 0,
+   "msg": "Oxirgi o'zgarish bekor qilindi"
+  },
+  {"i": 11, "op": "undo", "applied": false, "changed": false, "undo": 0, "msg": null}
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "a", "kind": "value", "src": [null, "a"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "b", "kind": "value", "src": [null, "b"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [],
+ "shape": ["(root) array <- (ildiz)", "  [] object <- []", "    \"a\" value <- [].a", "    \"b\" value <- [].b"],
+ "preview": [{"a": 1, "b": 2}],
+ "perRecord": [[{"a": 1, "b": 2}]],
+ "perRecordConcatEqualsOutput": true
+}

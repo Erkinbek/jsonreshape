@@ -1,0 +1,39 @@
+{
+ "name": "ex21_object_root",
+ "description": "engine analysis worked example: object root gather and broadcast",
+ "case": {
+  "name": "ex21_object_root",
+  "data": {"list": [{"a": 1}, {"a": 2}], "meta": {"v": 1}},
+  "ops": [
+   {"op": "move", "node": "list[].a", "target": "list", "zone": "before"},
+   {"op": "move", "node": "meta.v", "target": "list[]", "zone": "inside"}
+  ]
+ },
+ "output": {"a": [1, 2], "list": [{"v": 1}, {"v": 1}], "meta": {}},
+ "log": [
+  {"i": 0, "op": "move", "applied": true, "changed": true, "undo": 1, "msg": ""},
+  {"i": 1, "op": "move", "applied": true, "changed": true, "undo": 2, "msg": ""}
+ ],
+ "tree": {"key": "", "kind": "object", "src": [], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "a", "kind": "value", "src": ["list", null, "a"], "types": ["number"], "count": 2, "pcount": 2, "samples": ["1", "2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+  {"key": "list", "kind": "array", "src": ["list"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+   {"key": "", "kind": "object", "src": ["list", null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+    {"key": "v", "kind": "value", "src": ["meta", "v"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+   ]}
+  ]},
+  {"key": "meta", "kind": "object", "src": ["meta"], "types": ["object"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+ ]},
+ "badges": [
+  {"ref": ["a"], "badges": ["ko'chirildi", "ro'yxatga yig'iladi"]},
+  {"ref": ["list", 0, "v"], "badges": ["ko'chirildi", "har elementga takrorlanadi"]}
+ ],
+ "shape": [
+  "(root) object <- (ildiz)",
+  "  \"a\" value <- list[].a",
+  "  \"list\" array <- list",
+  "    [] object <- list[]",
+  "      \"v\" value <- meta.v",
+  "  \"meta\" object <- meta"
+ ],
+ "preview": [{"a": [1, 2], "list": [{"v": 1}, {"v": 1}], "meta": {}}]
+}

@@ -1,0 +1,42 @@
+{
+ "name": "x_gathered_object",
+ "description": "targeted reference case (batch4)",
+ "case": {
+  "name": "x_gathered_object",
+  "records": [{"orders": [{"oid": 7, "customer": {"n": "x", "t": 1}}, {"oid": 8, "customer": "raw"}, {"oid": 9}]}],
+  "ops": [{"op": "move", "node": "[].orders[].customer", "target": "[].orders", "zone": "before"}]
+ },
+ "output": [{"customer": [{"n": "x", "t": 1}, "raw"], "orders": [{"oid": 7}, {"oid": 8}, {"oid": 9}]}],
+ "log": [{"i": 0, "op": "move", "applied": true, "changed": true, "undo": 1, "msg": ""}],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "customer", "kind": "object", "src": [null, "orders", null, "customer"], "types": ["object", "string"], "count": 2, "pcount": 3, "samples": ["\"raw\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "n", "kind": "value", "src": [null, "orders", null, "customer", "n"], "types": ["string"], "count": 1, "pcount": 1, "samples": ["\"x\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+    {"key": "t", "kind": "value", "src": [null, "orders", null, "customer", "t"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+   ]},
+   {"key": "orders", "kind": "array", "src": [null, "orders"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "orders", null], "types": ["object"], "count": 3, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+     {"key": "oid", "kind": "value", "src": [null, "orders", null, "oid"], "types": ["number"], "count": 3, "pcount": 3, "samples": ["7", "8", "9"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+    ]}
+   ]}
+  ]}
+ ]},
+ "badges": [
+  {"ref": [0, "customer"], "badges": ["ko'chirildi", "ro'yxatga yig'iladi"]},
+  {"ref": [0, "customer", "n"], "badges": ["ro'yxatga yig'iladi"]},
+  {"ref": [0, "customer", "t"], "badges": ["ro'yxatga yig'iladi"]}
+ ],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"customer\" object <- [].orders[].customer",
+  "      \"n\" value <- [].orders[].customer.n",
+  "      \"t\" value <- [].orders[].customer.t",
+  "    \"orders\" array <- [].orders",
+  "      [] object <- [].orders[]",
+  "        \"oid\" value <- [].orders[].oid"
+ ],
+ "preview": [{"customer": [{"n": "x", "t": 1}, "raw"], "orders": [{"oid": 7}, {"oid": 8}, {"oid": 9}]}],
+ "perRecord": [[{"customer": [{"n": "x", "t": 1}, "raw"], "orders": [{"oid": 7}, {"oid": 8}, {"oid": 9}]}]],
+ "perRecordConcatEqualsOutput": true
+}

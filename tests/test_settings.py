@@ -2,7 +2,16 @@
 
 Settings: defaults exactly as docs/ARCHITECTURE.md §4, validation with localized errors,
 to_dict/from_dict (unknown keys ignored), load() never failing (missing/corrupt file ->
-defaults + logged warning), atomic save(), process-wide get_settings().
+defaults + logged warning), atomic save(), process-wide get_settings(); the stage-3 editing
+settings (``edits_location``, ``backup_on_save``, ``undo_limit``, §12.9) including settings
+files written before they existed.
+
+The edit-layer folders live here as well (``appdirs.edits_dir()`` / ``edits_locks_dir()``,
+§12.2): under ``JSONRESHAPE_HOME``, created on demand, the fallback with its notice, no
+silent fallback for the lock folder, and -- the user's unsaved changes -- never touched by
+cache eviction (``index.evict`` / ``fileio.evict_entries``, ``prune_prepared``) or the
+stale-file purges (``recordset.purge_stale_files``, the XLSX staging purge), whatever the
+cache folder is.
 
 Logging lives here as well (no separate test module is owned by the infra role): rotating
 UTF-8 log file in logs_dir(), idempotent setup, console handler, rollover that survives a
@@ -16,16 +25,19 @@ import json
 import logging
 import os
 import sys
+import tempfile
 import threading
+import time
 from pathlib import Path
 
 import pytest
 
-from jsonreshape import appdirs
+from jsonreshape import appdirs, fileio, recordset, writer
+from jsonreshape import index as index_mod
 from jsonreshape import log as jlog
 from jsonreshape import settings as settings_mod
-from jsonreshape.errors import UserInputError
-from jsonreshape.i18n import MESSAGES, set_language
+from jsonreshape.errors import JsonReshapeError, UserInputError
+from jsonreshape.i18n import MESSAGES, has, set_language, t
 from jsonreshape.settings import SETTINGS_VERSION, Settings, get_settings, set_settings
 
 GiB = 1 << 30
@@ -46,6 +58,10 @@ SPEC_DEFAULTS = {
     "csv_delimiter": ",",
     "array_join_sep": ";",
     "xlsx_max_rows": 1048576,
+    "edits_location": "appdata",
+    "backup_on_save": True,
+    "undo_limit": 1000,
+    "diff_align_max_bytes": 200 * MiB,      # stage 5 (docs/ARCHITECTURE.md §14.0)
 }
 
 
@@ -91,6 +107,18 @@ def test_every_field_has_a_localized_label() -> None:
         ("array_join_sep", ", ", ", "),
         ("xlsx_max_rows", 2, 2),
         ("xlsx_max_rows", 1048576, 1048576),
+        ("edits_location", "beside", "beside"),
+        ("edits_location", " AppData ", "appdata"),
+        ("edits_location", "\tBESIDE\r\n", "beside"),
+        ("backup_on_save", False, False),
+        ("backup_on_save", True, True),
+        ("undo_limit", 200, 200),                      # AGENT_PROMPT §1.5: at least 200 steps
+        ("undo_limit", 1000.0, 1000),
+        ("undo_limit", " 5000 ", 5000),
+        ("undo_limit", 12345678901234567890, 12345678901234567890),   # no upper bound in the core
+        ("diff_align_max_bytes", 1, 1),
+        ("diff_align_max_bytes", "500MB", 500 * MiB),               # binary units like the other sizes
+        ("diff_align_max_bytes", 2.0 * GiB, 2 * GiB),
     ],
 )
 def test_valid_values_are_normalized(field: str, value, normalized) -> None:
@@ -132,6 +160,34 @@ def test_valid_values_are_normalized(field: str, value, normalized) -> None:
         ("array_join_sep", "a\nb"),
         ("xlsx_max_rows", 1),
         ("xlsx_max_rows", 1048577),
+        ("edits_location", ""),
+        ("edits_location", "next to the file"),
+        ("edits_location", "app data"),
+        ("edits_location", "аppdata"),          # Cyrillic "а": looks the same, is not accepted
+        ("edits_location", "beside.jredit"),
+        ("edits_location", None),
+        ("edits_location", 1),
+        ("edits_location", ["beside"]),
+        ("backup_on_save", "yes"),
+        ("backup_on_save", "false"),                   # a string that looks false must not switch it
+        ("backup_on_save", 1),
+        ("backup_on_save", 0),
+        ("backup_on_save", None),
+        ("undo_limit", 199),
+        ("undo_limit", 0),
+        ("undo_limit", -1000),
+        ("undo_limit", True),
+        ("undo_limit", 200.5),
+        ("undo_limit", float("inf")),
+        ("undo_limit", float("nan")),
+        ("undo_limit", "1e3"),
+        ("undo_limit", "many"),
+        ("undo_limit", None),
+        ("diff_align_max_bytes", 0),
+        ("diff_align_max_bytes", -1),
+        ("diff_align_max_bytes", True),
+        ("diff_align_max_bytes", "lots"),
+        ("diff_align_max_bytes", None),
     ],
 )
 def test_invalid_values_raise_localized_errors(field: str, value) -> None:
@@ -153,6 +209,100 @@ def test_error_message_wording(lang_uz) -> None:
     with pytest.raises(UserInputError) as info:
         Settings(xlsx_max_rows=5_000_000)
     assert str(info.value) == 'Invalid setting: "Maximum rows per Excel sheet" = 5000000. Expected: a whole number from 2 to 1048576.'
+
+
+def test_editing_settings_error_wording(lang_uz) -> None:
+    with pytest.raises(UserInputError) as info:
+        Settings(edits_location="yonida")
+    assert str(info.value) == ("Sozlama noto'g'ri: «Saqlanmagan o'zgarishlar joyi» = 'yonida'. Kutilgan qiymat: "
+                               "appdata (dastur papkasida) yoki beside (fayl yonida).")
+    assert info.value.hint == "Sozlamalar oynasida qiymatni tuzating."
+    with pytest.raises(UserInputError) as info:
+        Settings(undo_limit=150)
+    assert str(info.value) == ("Sozlama noto'g'ri: «Ortga qaytarish (undo) qadamlari» = 150. Kutilgan qiymat: "
+                               "200 yoki undan katta butun son.")
+    with pytest.raises(UserInputError) as info:
+        Settings(backup_on_save="ha")
+    assert str(info.value) == ("Sozlama noto'g'ri: «Saqlashda .bak zaxira nusxasini qoldirish» = 'ha'. "
+                               "Kutilgan qiymat: ha yoki yo'q (true/false).")
+    set_language("en")
+    with pytest.raises(UserInputError) as info:
+        Settings(edits_location="next")
+    assert str(info.value) == ('Invalid setting: "Where unsaved changes are kept" = \'next\'. Expected: appdata '
+                               '(in the app folder) or beside (next to the file).')
+    with pytest.raises(UserInputError) as info:
+        Settings(undo_limit=-1)
+    assert str(info.value) == 'Invalid setting: "Undo steps" = -1. Expected: a whole number of at least 200.'
+    with pytest.raises(UserInputError) as info:
+        Settings(backup_on_save=None)
+    assert str(info.value) == ('Invalid setting: "Keep a .bak copy when saving" = None. '
+                               'Expected: yes or no (true/false).')
+
+
+def test_editing_settings_constants() -> None:
+    assert settings_mod.EDITS_LOCATIONS == ("appdata", "beside")
+    assert settings_mod.UNDO_LIMIT_MIN == 200
+    assert Settings(undo_limit=settings_mod.UNDO_LIMIT_MIN).undo_limit == 200
+
+
+def test_diff_align_setting(tmp_path: Path, caplog: pytest.LogCaptureFixture, lang_uz) -> None:
+    """Stage 5 (§14.0): the full-diff size limit; a settings file of stage 3 gets the default
+    quietly, a bad value in the file falls back alone, the error is localized."""
+    p = tmp_path / "settings.json"
+    old = {"version": 1, **{k: v for k, v in SPEC_DEFAULTS.items() if k != "diff_align_max_bytes"}}
+    p.write_text(json.dumps(old), encoding="utf-8")
+    with caplog.at_level(logging.WARNING, logger="jsonreshape.settings"):
+        assert Settings.load(p).diff_align_max_bytes == 200 * MiB
+    assert not caplog.records
+    p.write_text(json.dumps({**old, "diff_align_max_bytes": "1GB", "sample_size": 7}), encoding="utf-8")
+    s = Settings.load(p)
+    assert (s.diff_align_max_bytes, s.sample_size) == (GiB, 7)
+    p.write_text(json.dumps({**old, "diff_align_max_bytes": -5, "sample_size": 7}), encoding="utf-8")
+    with caplog.at_level(logging.WARNING, logger="jsonreshape.settings"):
+        s = Settings.load(p)
+    assert (s.diff_align_max_bytes, s.sample_size) == (200 * MiB, 7)
+    assert "diff_align_max_bytes" in caplog.text
+    with pytest.raises(UserInputError) as info:
+        Settings(diff_align_max_bytes=0)
+    assert str(info.value) == ("Sozlama noto'g'ri: «Kalitsiz to'liq taqqoslanadigan fayl hajmi chegarasi» = 0. "
+                               "Kutilgan qiymat: 1 yoki undan katta butun son.")
+    set_language("en")
+    with pytest.raises(UserInputError) as info:
+        Settings(diff_align_max_bytes="huge")
+    assert str(info.value) == ("Invalid setting: \"Largest file compared in full without a key\" = 'huge'. "
+                               "Expected: a whole number of at least 1.")
+
+
+def test_settings_file_from_before_the_editing_fields(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    """A stage-2 settings.json (no editing keys) keeps its values and gets the editing
+    defaults, quietly; saving adds the new keys; invalid editing values fall back alone."""
+    p = tmp_path / "settings.json"
+    old = {"version": 1, **{k: v for k, v in SPEC_DEFAULTS.items()
+                            if k not in ("edits_location", "backup_on_save", "undo_limit", "diff_align_max_bytes")}}
+    old.update(sample_size=4321, language="en", csv_delimiter="|")
+    p.write_text(json.dumps(old, ensure_ascii=False, indent=2), encoding="utf-8")
+    with caplog.at_level(logging.WARNING, logger="jsonreshape.settings"):
+        s = Settings.load(p)
+    assert not caplog.records
+    assert (s.sample_size, s.language, s.csv_delimiter) == (4321, "en", "|")
+    assert (s.edits_location, s.backup_on_save, s.undo_limit) == ("appdata", True, 1000)
+    assert s.diff_align_max_bytes == 200 * MiB
+    s.save(p)
+    raw = json.loads(p.read_text(encoding="utf-8"))
+    assert list(raw)[-4:] == ["edits_location", "backup_on_save", "undo_limit", "diff_align_max_bytes"]
+    assert (raw["edits_location"], raw["backup_on_save"], raw["undo_limit"]) == ("appdata", True, 1000)
+    # a hand-edited file: each bad editing value falls back to its own default, the rest is kept
+    raw.update(edits_location="Beside", backup_on_save="no", undo_limit=50)
+    p.write_text(json.dumps(raw), encoding="utf-8")
+    with caplog.at_level(logging.WARNING, logger="jsonreshape.settings"):
+        s2 = Settings.load(p)
+    assert (s2.edits_location, s2.backup_on_save, s2.undo_limit) == ("beside", True, 1000)
+    assert s2.sample_size == 4321
+    warned = " ".join(r.getMessage() for r in caplog.records)
+    assert "backup_on_save" in warned and "undo_limit" in warned and "edits_location" not in warned
+    s3 = dataclasses.replace(s2, backup_on_save=False, undo_limit=100000)
+    s3.save(p)
+    assert Settings.load(p) == s3
 
 
 def test_replace_validates_and_validate_rechecks() -> None:
@@ -276,6 +426,209 @@ def test_get_settings_is_thread_safe() -> None:
     for th in threads:
         th.join(10)
     assert len(seen) == 8 and all(s is seen[0] for s in seen)
+
+
+# ----------------------------------------------------------------------------------
+# edit-layer folders (appdirs.edits_dir / edits_locks_dir, ARCHITECTURE §12.2)
+# ----------------------------------------------------------------------------------
+@pytest.fixture
+def private_temp(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A private system temp folder (the fallback home goes there) and fresh appdirs state."""
+    temp = tmp_path / "system_temp"
+    temp.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(temp))
+    appdirs._reset_for_tests()
+    yield temp
+    appdirs._reset_for_tests()
+
+
+def test_edits_dir_lives_under_the_app_home(_isolated_app_home: Path) -> None:
+    edits = appdirs.edits_dir()
+    assert edits == _isolated_app_home / "edits" and edits.is_dir()
+    assert os.listdir(edits) == []                    # created on demand, no probe file left behind
+    locks = appdirs.edits_locks_dir()
+    assert locks == edits / "locks" and locks.is_dir()
+    assert os.listdir(edits) == ["locks"] and os.listdir(locks) == []
+    assert appdirs.edits_dir() == edits and appdirs.edits_locks_dir() == locks   # stable
+    # removed while the program runs (e.g. by the user): created again on the next use
+    os.rmdir(locks)
+    os.rmdir(edits)
+    assert appdirs.edits_locks_dir() == locks and locks.is_dir() and edits.is_dir()
+    assert appdirs.take_notices() == []               # no fallback happened
+
+
+def test_edits_dir_follows_jsonreshape_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    home = tmp_path / "Ma'lumotlar Тошкент" / "jr home"
+    monkeypatch.setenv("JSONRESHAPE_HOME", str(home))
+    assert appdirs.edits_dir() == home / "edits" and appdirs.edits_locks_dir() == home / "edits" / "locks"
+    assert (home / "edits" / "locks").is_dir()
+
+
+def test_unusable_edits_dir_falls_back_with_one_notice(_isolated_app_home: Path, private_temp: Path,
+                                                         lang_en) -> None:
+    blocker = _isolated_app_home / "edits"
+    blocker.write_bytes(b"not a folder")              # a file in the way
+    fallback = private_temp / "jsonreshape" / "edits"
+    assert appdirs.edits_dir() == fallback and fallback.is_dir()
+    assert appdirs.edits_locks_dir() == fallback / "locks" and (fallback / "locks").is_dir()
+    notices = appdirs.take_notices()
+    assert notices == [("fileio.warning.app_dir_fallback",
+                        {"path": str(blocker), "fallback": str(fallback), "detail": t("fileio.reason.not_a_folder")})]
+    assert has("fileio.warning.app_dir_fallback")     # notice keys are data: not seen by the i18n scan
+    text = t(notices[0][0], **notices[0][1])
+    assert str(fallback) in text and "a file of that name is in the way" in text
+    assert appdirs.edits_dir() == fallback and appdirs.take_notices() == []   # reported once per process
+    assert blocker.read_bytes() == b"not a folder"    # the file in the way is left alone
+
+
+def test_edits_locks_dir_never_falls_back_silently(_isolated_app_home: Path, private_temp: Path, lang_en) -> None:
+    """Two instances must agree on where a layer's lock is: no fallback for the lock folder."""
+    edits = appdirs.edits_dir()
+    blocker = edits / "locks"
+    blocker.write_bytes(b"x")
+    with pytest.raises(JsonReshapeError) as info:
+        appdirs.edits_locks_dir()
+    assert info.value.key == "fileio.error.no_work_dir"
+    assert info.value.params == {"path": str(blocker), "detail": "a file of that name is in the way"}
+    assert str(blocker) in str(info.value) and info.value.hint
+    assert appdirs.take_notices() == []               # nothing was used instead
+    assert not (private_temp / "jsonreshape").exists()
+    assert blocker.read_bytes() == b"x"
+    blocker.unlink()                                  # fixed: works now (a failure is not remembered)
+    assert appdirs.edits_locks_dir() == edits / "locks" and (edits / "locks").is_dir()
+
+
+_DEAD = 999999        # pid of a process that no longer runs (_pid_alive is patched to say so)
+_OLD = 3 * 86400.0    # older than every age limit of the cleaners (one day, one hour)
+
+
+def _make_files(root: Path, files: dict[str, bytes]) -> None:
+    for rel, data in files.items():
+        p = root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(data)
+
+
+def _age_tree(root: Path) -> None:
+    then = time.time() - _OLD
+    for dirpath, dirnames, filenames in os.walk(root):
+        for name in filenames + dirnames:
+            os.utime(os.path.join(dirpath, name), (then, then))
+    os.utime(root, (then, then))
+
+
+def _snapshot(*roots: Path) -> dict[str, bytes | None]:
+    """Every file (-> bytes) and folder (-> None) under ``roots``."""
+    out: dict[str, bytes | None] = {}
+    for root in roots:
+        for dirpath, dirnames, filenames in os.walk(root):
+            for name in dirnames:
+                out[os.path.join(dirpath, name)] = None
+            for name in filenames:
+                p = os.path.join(dirpath, name)
+                with open(p, "rb") as f:
+                    out[p] = f.read()
+    return out
+
+
+#: what an edit layer folder holds (§12.2)
+_LAYER = {
+    "layer.sqlite": b"SQLite format 3\x00" + bytes(84),
+    "layer.sqlite-wal": b"\x37\x7f\x06\x82" + bytes(28),
+    "seg-00000.dat": '{"shahar": "Toshkent", "nom": "O\u2018zbekiston", "v": 1e400}'.encode(),
+    "seg-00001.dat": b'{"n": 12345678901234567890, "x": -0.0, "y": 1.10}\r\n',
+    "layer-00001.bin": bytes(range(16)),
+}
+#: files named like the ones each cleaner removes from its own folders (an index, temp
+#: files, prepared copies, record sets, sort runs, XLSX staging): a cleaner that ever looked
+#: into an edits folder would take them
+_DECOYS = {
+    "0123abcd.jri": b"index",
+    ".seg.0badf00d.tmp": b"temp",
+    "c0ffee.json": b"[]",
+    "c0ffee.part": b"part",
+    "d00d.json": b"[1]",
+    "d00d.meta": b"{}",
+    f"rs-{_DEAD}-0a1b.u64": bytes(8),
+    f"sort-{_DEAD}-0a1b/run-0.bin": b"run",
+    f"xlsx-{_DEAD}-0a1b/sheet1.xml": b"<x/>",
+    "xlsx-abcd1234/sheet1.xml": b"<x/>",
+}
+
+
+@pytest.mark.parametrize("cache", ["default", "app_home", "edits", "data_folder"])
+def test_cache_eviction_and_purges_never_touch_edit_layers(cache: str, tmp_path: Path, _isolated_app_home: Path,
+                                                             monkeypatch: pytest.MonkeyPatch) -> None:
+    """Cache eviction (``index.evict`` -> ``fileio.evict_entries``, ``prune_prepared``) and the
+    stale-file purges (``recordset.purge_stale_files``, the XLSX staging purge) run with
+    everything expired (limit 0, files three days old, every pid dead) and leave every edit
+    layer intact -- in the app folder and next to a data file -- whatever the cache folder
+    is: none, the app home itself, the edits folder itself, the data folder."""
+    key = "5f2b" * 8                                  # a layer key: 32 hex digits
+    edits = appdirs.edits_dir()
+    locks = appdirs.edits_locks_dir()
+    data = tmp_path / "ma'lumot"
+    beside = data / "Тошкент.json.jredit"
+    settings = {
+        "default": Settings(),
+        "app_home": Settings(cache_dir=str(_isolated_app_home)),
+        "edits": Settings(cache_dir=str(edits)),
+        "data_folder": Settings(cache_dir=str(data)),
+    }[cache]
+    # the user's things: edit layers in both places, their locks, the source and its backup
+    _make_files(edits / key, {**_LAYER, **_DECOYS})
+    _make_files(beside, {**_LAYER, **_DECOYS})
+    _make_files(locks, {f"{key}.lock": b"", f"{'9' * 32}.lock": b""})
+    _make_files(edits, {"index.json": b'{"c:\\\\data\\\\a.json": ["%s"]}' % key.encode(), "index.json.lock": b""})
+    # decoys at the top of the edits folder too -- except index files and temp files when the
+    # user made the edits folder itself the cache folder: there they ARE cache files
+    _make_files(edits, {k: v for k, v in _DECOYS.items()
+                        if cache != "edits" or not k.endswith((".jri", ".tmp"))})
+    _make_files(data, {"Тошкент.json": b'[{"a": 1}]', "Тошкент.json.bak": b'[{"a": 0}]'})
+    _age_tree(edits)
+    _age_tree(data)
+    before = _snapshot(edits, data)
+    assert len(before) > 40
+    # expired cache files where the cleaners look: they must go (so the cleaners did run)
+    index_dir = appdirs.index_dir(settings.cache_dir)
+    prepared = fileio.prepared_dir(settings.cache_dir)
+    work = appdirs.work_dir(settings.cache_dir)
+    sentinels = [index_dir / "feedface.jri", index_dir / ".feedface.0badf00d.tmp", prepared / "beef.json",
+                 prepared / "beef.meta", prepared / "cafe.json", appdirs.recordsets_dir() / f"rs-{_DEAD}-0f.u64",
+                 appdirs.tmp_dir() / f"sort-{_DEAD}-0f" / "run.bin", work / f"sort-{_DEAD}-1f" / "run.bin",
+                 appdirs.tmp_dir() / f"xlsx-{_DEAD}-0f" / "s.xml", work / f"xlsx-{_DEAD}-1f" / "s.xml"]
+    then = time.time() - _OLD
+    for p in sentinels:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b"cache")
+        os.utime(p, (then, then))
+        os.utime(p.parent, (then, then))
+    # every entry handed to the eviction (index files, prepared copies) is recorded
+    entries: list[Path] = []
+    real_evict = fileio.evict_entries
+
+    def recording(items, limit_bytes):
+        items = list(items)
+        entries.extend(p for item in items for p in item.paths)
+        return real_evict(items, limit_bytes)
+
+    monkeypatch.setattr(fileio, "evict_entries", recording)
+    monkeypatch.setattr(index_mod, "evict_entries", recording)
+    monkeypatch.setattr(recordset, "_pid_alive", lambda pid: False)
+    monkeypatch.setattr(writer, "_pid_alive", lambda pid: False)
+    set_settings(settings)
+
+    index_mod.evict(0, directory=index_dir, prepared_dir=prepared)
+    fileio.prune_prepared(0, min_age=0, directory=prepared)
+    assert recordset.purge_stale_files() >= 3
+    assert writer._purge_staging(settings) >= 2
+
+    assert not [p for p in sentinels if p.exists()]
+    assert {p for p in entries} >= {index_dir / "feedface.jri", prepared / "beef.json"}
+    protected = [os.path.normcase(str(p)) for p in (edits / key, locks, beside, edits / "index.json")]
+    assert not [p for p in entries if any(os.path.normcase(str(p)).startswith(q) for q in protected)]
+    after = _snapshot(edits, data)
+    assert {p: v for p, v in before.items() if after.get(p, b"<gone>") != v} == {}
 
 
 # ----------------------------------------------------------------------------------

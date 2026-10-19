@@ -23,6 +23,47 @@ scrolling is in pixels; the header and the frozen first column stay in place.
 Deviation from §11.5: row-carrying signals use ``object`` for the row
 (``current_changed = Signal(object, int)`` ...) because a Qt ``int`` signal argument
 overflows above 2**31 - 1 rows.
+
+Keys: the key handler (:meth:`VirtualGrid.set_key_handler`) and the grid's own keys act only
+on key events meant for the grid. A key a focused child widget did not use (an inline editor
+over a cell, a line edit of the header strip) bubbles up to the grid; it is ignored there, so
+typing F2 / Ins / Ctrl+D into such a line edit never runs a view command (review3 M1).
+
+Row drag & drop (docs/ARCHITECTURE.md §12.9 "Selection & drag")
+--------------------------------------------------------------
+:meth:`VirtualGrid.set_row_drag` installs a handler with three methods (no ``QDrag``: the
+drag never leaves the grid, so no MIME data and no nested event loop):
+
+* ``can_start(rows) -> bool``: the mouse moved :func:`QApplication.startDragDistance`
+  pixels with the left button held on a row; ``rows`` = the selected rows as sorted, merged,
+  inclusive ``(first, last)`` ranges (a selection may hold millions of rows). False: the
+  gesture becomes the usual drag selection.
+* ``target(row, frac) -> (row, zone) | None``: the row under the mouse and the position in
+  it (``0.0`` top .. ``1.0`` bottom; :func:`drop_zone` turns it into ``"before"`` /
+  ``"inside"`` / ``"after"``); the handler answers where the drop would go (any row and
+  zone) or ``None`` (refused: ``ForbiddenCursor``, no indicator).
+* ``drop(rows, row, zone)``: the left button was released over an accepted target.
+
+A press on an already selected row keeps the selection (the rows can be dragged) and
+changes it on release only (when no drag happened). The grid paints the indicator (a line
+before / after the target row, starting at its tree indentation, or a box around it),
+scrolls while the mouse is near the top / bottom edge, and Esc, a reset / structure change
+(``rows_changed(keep_current=False)``) or hiding the grid cancel the drag. Without a handler
+everything behaves as before (press-and-move selects rows).
+
+Smart values (docs/ARCHITECTURE.md §14.7, §14.9)
+------------------------------------------------
+* ``Cell.link`` (an ``http(s)://`` / ``mailto:`` URL; ``Cell.link_span`` = the characters of
+  ``text`` that show it, default the whole text): that text is underlined in the cell's pen
+  colour (the views give such cells the theme role ``link``); a Ctrl+click on the drawn link
+  text emits :attr:`VirtualGrid.link_activated` ``(row, column, url)`` instead of changing the
+  selection (the view asks before anything is opened), and while Ctrl is held over it the
+  cursor is a pointing hand. :meth:`VirtualGrid.link_at` is the hit test.
+* ``Cell.swatch`` (``(r, g, b, a)``): a small square of that colour (over a checkerboard when
+  it is translucent, with a thin border so white / black stay visible in both themes) painted
+  before the text; the text area moves right by its width.
+* :meth:`VirtualGrid.text_rect` is the public form of the text area of a cell (after the tree
+  indentation, expander, badge and swatch) for widgets placed over a cell (inline editors).
 """
 
 from __future__ import annotations
@@ -59,9 +100,13 @@ from jsonreshape.i18n import t
 
 log = logging.getLogger(__name__)
 
-__all__ = ["Cell", "Column", "GridSource", "GridHeader", "VirtualGrid", "MIN_COLUMN_WIDTH", "SELECTION_MODES"]
+__all__ = ["Cell", "Column", "DROP_AFTER", "DROP_BEFORE", "DROP_ZONES", "GridSource", "GridHeader", "VirtualGrid",
+           "MIN_COLUMN_WIDTH", "SELECTION_MODES", "drop_zone"]
 
 SELECTION_MODES = ("single", "rows", "cells")
+DROP_ZONES = ("before", "inside", "after")
+DROP_BEFORE = 0.28            # a drop in the top 28 % of a row goes before it ...
+DROP_AFTER = 0.72             # ... in the bottom 28 % after it, else inside
 SCROLL_MODES = ("ensure", "center", "top", "bottom", "none")
 MIN_COLUMN_WIDTH = 24
 MAX_FIT_WIDTH = 1200          # double-click "fit" never makes a column wider than this
@@ -81,6 +126,8 @@ _MAX_POINT_SIZE = 64.0
 SEL_BLEND = (0.22, 0.30)
 SEL_INACTIVE_BLEND = (0.18, 0.22)
 FOCUS_INACTIVE_BLEND = (0.45, 0.55)
+#: share of the highlight color in the hover background of a row tinted by ``row_background``
+HOVER_TINT_BLEND = 0.10
 
 
 # ---------------------------------------------------------------------------------
@@ -100,6 +147,10 @@ class Cell:
     bold: bool = False
     align: str = "left"         # left | right | center ("left" = the column's alignment)
     tooltip: str | None = None
+    bg: str | None = None       # theme role painted as this cell's background (not when selected)
+    link: str | None = None     # URL of a smart value: its text is underlined; Ctrl+click -> link_activated
+    link_span: tuple | None = None   # (start, end) characters of ``text`` showing the link (None: all of it)
+    swatch: tuple | None = None      # (r, g, b, a): a colour square painted before the text
 
 
 @dataclass
@@ -118,7 +169,8 @@ class Column:
 
 
 class GridSource(Protocol):
-    """Data provider of a :class:`VirtualGrid`. ``rows_shown`` and ``row_label`` are optional."""
+    """Data provider of a :class:`VirtualGrid`. ``rows_shown``, ``row_label`` and
+    ``row_background`` are optional."""
 
     def row_count(self) -> int: ...
 
@@ -127,6 +179,8 @@ class GridSource(Protocol):
     def rows_shown(self, first: int, last: int) -> None: ...          # visible window (+1 page) changed
 
     def row_label(self, row: int) -> str | None: ...                  # gutter text ("#12")
+
+    def row_background(self, row: int) -> str | None: ...             # theme role tinting the row (or None)
 
 
 # ---------------------------------------------------------------------------------
@@ -142,6 +196,44 @@ def _blend(a: QColor, b: QColor, f: float) -> QColor:
 
 def _clamp(v: int, lo: int, hi: int) -> int:
     return lo if v < lo else hi if v > hi else v
+
+
+def drop_zone(frac: float) -> str:
+    """The drop zone of a position inside a row (``0.0`` = top edge, ``1.0`` = bottom edge):
+    ``"before"`` below :data:`DROP_BEFORE`, ``"after"`` above :data:`DROP_AFTER`, else
+    ``"inside"``."""
+    if frac < DROP_BEFORE:
+        return "before"
+    if frac > DROP_AFTER:
+        return "after"
+    return "inside"
+
+
+class _RowDrag:
+    """A left-button press that may become a row drag (see the module docstring)."""
+
+    __slots__ = ("row", "col", "pos", "deferred", "active", "rows", "target", "mouse")
+
+    def __init__(self, row: int, col: int, pos: QPoint, deferred: bool) -> None:
+        self.row = row
+        self.col = col
+        self.pos = QPoint(pos)
+        self.deferred = deferred                       # selection change waits for the release
+        self.active = False
+        self.rows: list[tuple[int, int]] = []
+        self.target: tuple[int, str] | None = None
+        self.mouse = QPoint(pos)
+
+
+def _link_range(cell: Cell, kept: int) -> tuple[int, int]:
+    """``(start, end)`` characters of a cell's shown text that are its link (``Cell.link_span``,
+    default the whole text), clamped to the ``kept`` characters shown before an ellipsis."""
+    span = cell.link_span
+    if span is None:
+        s, e = 0, len(cell.text)
+    else:
+        s, e = int(span[0]), int(span[1])
+    return max(0, s), min(e, kept)
 
 
 def _wrap_tip(text: str) -> str:
@@ -226,6 +318,7 @@ class VirtualGrid(QAbstractScrollArea):
     viewport_changed = Signal()                       # visible rows or horizontal offset changed
     font_changed = Signal()                           # zoom / set_font
     header_geometry_changed = Signal()                # sections moved / resized, gutter, header placed again
+    link_activated = Signal(object, int, str)         # row, column index, Cell.link (Ctrl+click on the link)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -263,6 +356,8 @@ class VirtualGrid(QAbstractScrollArea):
         self._wheel_zoom = 0
         self._dragging = False
         self._drag_pos = QPoint()
+        self._row_drag: Any = None          # set_row_drag() handler
+        self._rd: _RowDrag | None = None    # press / row drag in progress
         self._colors: _Colors | None = None
         self._pix: dict[tuple, QPixmap] = {}
         self._cell_error_logged = False
@@ -312,6 +407,7 @@ class VirtualGrid(QAbstractScrollArea):
 
     def reset(self) -> None:
         """New rows: re-read the count; top row, current row and selection are cleared."""
+        self.cancel_row_drag()
         self._rows = self._read_count()
         self._top = 0
         self._hover = -1
@@ -326,8 +422,14 @@ class VirtualGrid(QAbstractScrollArea):
 
     def rows_changed(self, keep_current: bool = True) -> None:
         """The row count changed (live growth / shrink): keep the top row and, when still
-        valid and ``keep_current``, the current row; the selection is clamped."""
+        valid and ``keep_current``, the current row; the selection is clamped (rows that
+        stay where they were stay selected). ``keep_current=False`` (the rows were
+        rearranged) also clears the selection and cancels a row drag."""
         rows = self._read_count()
+        if not keep_current:
+            self.cancel_row_drag()
+        elif self._rd is not None and self._rd.target is not None and self._rd.target[0] >= rows:
+            self._rd.target = None
         self._rows = rows
         if not keep_current or self._cur_row >= rows:
             self._set_current_raw(-1, -1)
@@ -625,8 +727,120 @@ class VirtualGrid(QAbstractScrollArea):
             self.viewport().update()
 
     def set_key_handler(self, fn: Callable[[QKeyEvent], bool] | None) -> None:
-        """``fn(QKeyEvent) -> bool`` runs before the grid's own keys; True consumes the key."""
+        """``fn(QKeyEvent) -> bool`` runs before the grid's own keys; True consumes the key.
+        Neither runs for keys that bubble up from a focused child widget (an inline editor,
+        a line edit in the header strip): those widgets keep every key."""
         self._key_handler = fn
+
+    # ------------------------------------------------------------------ row drag & drop
+    def set_row_drag(self, handler: Any) -> None:
+        """Enable dragging selected rows (see the module docstring): ``handler`` has
+        ``can_start(rows) -> bool``, ``target(row, frac) -> (row, zone) | None`` and
+        ``drop(rows, row, zone)``; ``None`` disables it (a running drag is cancelled)."""
+        self.cancel_row_drag()
+        self._row_drag = handler
+
+    def row_drag(self) -> Any:
+        return self._row_drag
+
+    def row_drag_active(self) -> bool:
+        """A row drag is in progress."""
+        return self._rd is not None and self._rd.active
+
+    def drop_target(self) -> tuple[int, str] | None:
+        """``(row, zone)`` the running drag would drop on now (``None``: refused / no drag)."""
+        rd = self._rd
+        return rd.target if rd is not None and rd.active else None
+
+    def cancel_row_drag(self) -> None:
+        """Stop a pending press / running row drag without dropping (Esc does this)."""
+        rd = self._rd
+        if rd is None:
+            return
+        self._rd = None
+        if rd.active:
+            self._auto.stop()
+            self.viewport().unsetCursor()
+            self.viewport().update()
+
+    def _drag_row_frac(self, pos: QPoint) -> tuple[int, float]:
+        """Row under ``pos`` and the position inside it (outside the rows: the nearest
+        row's edge)."""
+        if self._rows <= 0:
+            return -1, 0.0
+        rh = self._row_h
+        y = pos.y()
+        if y < 0:
+            return self._top, 0.0
+        first, last = self.visible_rows()
+        if y >= self.viewport().height():
+            return last, 1.0
+        row = self._top + y // rh
+        if row >= self._rows:
+            return self._rows - 1, 1.0
+        frac = (y - (row - self._top) * rh) / rh
+        return row, min(1.0, max(0.0, frac))
+
+    def _update_row_drag(self, pos: QPoint) -> None:
+        rd = self._rd
+        handler = self._row_drag
+        if rd is None or not rd.active or handler is None:
+            return
+        rd.mouse = QPoint(pos)
+        row, frac = self._drag_row_frac(pos)
+        target: tuple[int, str] | None = None
+        if row >= 0:
+            try:
+                got = handler.target(row, frac)
+            except Exception:  # noqa: BLE001 - a broken handler must not break the grid
+                log.exception("row drag target() failed")
+                got = None
+            if got is not None:
+                trow, zone = int(got[0]), str(got[1])
+                if 0 <= trow < self._rows and zone in DROP_ZONES:
+                    target = (trow, zone)
+        if target != rd.target:
+            rd.target = target
+            self.viewport().update()
+        shape = Qt.CursorShape.DragMoveCursor if target is not None else Qt.CursorShape.ForbiddenCursor
+        if self.viewport().cursor().shape() != shape:
+            self.viewport().setCursor(shape)
+
+    def _start_row_drag(self, rd: _RowDrag, pos: QPoint) -> bool:
+        """The press moved far enough: ask the handler; True when the row drag started."""
+        handler = self._row_drag
+        if handler is None:
+            return False
+        rows = self.selected_row_ranges()
+        if not any(r0 <= rd.row <= r1 for r0, r1 in rows):
+            rows = [(rd.row, rd.row)]
+        try:
+            ok = bool(handler.can_start(list(rows)))
+        except Exception:  # noqa: BLE001
+            log.exception("row drag can_start() failed")
+            ok = False
+        if not ok:
+            return False
+        rd.active = True
+        rd.deferred = False
+        rd.rows = list(rows)
+        self._update_row_drag(pos)
+        return True
+
+    def _finish_row_drag(self, rd: _RowDrag) -> None:
+        """Release over the grid: drop on the current target (if any) and end the drag."""
+        self._rd = None
+        self._auto.stop()
+        self.viewport().unsetCursor()
+        self.viewport().update()
+        target = rd.target
+        handler = self._row_drag
+        if target is None or handler is None:
+            return
+        try:
+            handler.drop(list(rd.rows), target[0], target[1])
+        except Exception:  # noqa: BLE001
+            log.exception("row drag drop() failed")
 
     # ------------------------------------------------------------------ fonts / zoom
     @staticmethod
@@ -706,6 +920,7 @@ class VirtualGrid(QAbstractScrollArea):
         bfm = QFontMetrics(small)
         self._badge_w = max(bfm.horizontalAdvance(g) for g in theme.BADGES.values()) + 8
         self._badge_h = min(self._row_h - 2, bfm.height() + 3)
+        self._swatch_w = max(8, min(self._row_h - 4, fm.ascent()))   # side of a colour swatch
         self._pix.clear()
         self._sync_vbar()
         self._update_gutter()
@@ -804,14 +1019,90 @@ class VirtualGrid(QAbstractScrollArea):
 
     def _text_area(self, cell: Cell, index: int, x: int, width: int) -> tuple[int, int]:
         """(text x, right edge) of a cell drawn at ``x`` with ``width``; shared by painting,
-        hit testing, tooltips and "fit column"."""
+        hit testing, tooltips and "fit column" (the public form is :meth:`text_rect`; kept
+        under this name for callers outside this module)."""
         left = x + self._pad_x
         tx = left
         if index == self._tree_col:
             tx += cell.depth * self._indent + self._indent
         if cell.badge:
             tx += self._badge_w + self._gap
+        if cell.swatch is not None:
+            tx += self._swatch_w + self._gap
         return tx, x + width - self._pad_x
+
+    def text_rect(self, row: int, col: int) -> QRect:
+        """Viewport rect of the text of cell (``row``, ``col``): right of the tree indentation,
+        the expander, the type badge and a colour swatch, up to the cell's right padding, the
+        full row height. A null rect when the row / column is invalid or hidden or the cell is
+        not loaded (an empty rect when nothing of the text fits)."""
+        rect = self.cell_rect(row, col)
+        if rect.isNull() or self._source is None:
+            return QRect()
+        cell = self._fetch(row, self._cols[col])
+        if cell is None:
+            return QRect()
+        tx, right = self._text_area(cell, col, rect.x(), rect.width())
+        return QRect(tx, rect.y(), max(0, right - tx), rect.height())
+
+    def _aligned_x(self, cell: Cell, col: Column, fm: QFontMetrics, shown: str, tx: int, right: int) -> int:
+        """x where the (elided) text ``shown`` starts in a text area ``tx .. right`` (the cell's
+        or the column's alignment)."""
+        align = cell.align if cell.align != "left" else col.align
+        if align == "left":
+            return tx
+        tw = fm.horizontalAdvance(shown)
+        if align == "right":
+            return right - tw
+        if align == "center":
+            return tx + max(0, (right - tx - tw) // 2)
+        return tx
+
+    def _link_extent(self, row: int, col: int) -> tuple[int, int, str] | None:
+        """``(x0, x1, url)``: the viewport x range of the drawn (underlined) link text of a
+        cell -- the geometry of :meth:`_paint_cell` -- or ``None`` when no link is shown."""
+        if not (0 <= row < self._rows) or not self._col_ok(col) or self._source is None:
+            return None
+        column = self._cols[col]
+        cell = self._fetch(row, column)
+        if cell is None or not cell.link or not cell.text:
+            return None
+        rect = self.cell_rect(row, col)
+        tx, right = self._text_area(cell, col, rect.x(), rect.width())
+        if right - tx <= 0:
+            return None
+        fm = self._metrics(cell)
+        shown, kept = self._elide(fm, cell.text, right - tx)
+        if not shown:
+            return None
+        tx = self._aligned_x(cell, column, fm, shown, tx, right)
+        s, e = _link_range(cell, kept)
+        if s >= e:
+            return None
+        return tx + fm.horizontalAdvance(shown[:s]), tx + fm.horizontalAdvance(shown[:e]), str(cell.link)
+
+    def link_at(self, pos: QPoint) -> tuple[int, int, str] | None:
+        """``(row, column, url)`` when viewport ``pos`` lies on the drawn link text of a cell
+        (``Cell.link``), else ``None``."""
+        row, col = self.row_at(pos.y()), self.column_at(pos.x())
+        if row < 0 or col < 0:
+            return None
+        ext = self._link_extent(row, col)
+        if ext is None or not ext[0] <= pos.x() < ext[1]:
+            return None
+        return row, col, ext[2]
+
+    def _update_link_cursor(self, pos: QPoint, mods: Any) -> None:
+        """A pointing hand while Ctrl is held over a link (never during a drag)."""
+        vp = self.viewport()
+        shape = vp.cursor().shape()
+        over = bool(mods & Qt.KeyboardModifier.ControlModifier) and self._rd is None and not self._dragging \
+            and self.link_at(pos) is not None
+        if over:
+            if shape != Qt.CursorShape.PointingHandCursor:
+                vp.setCursor(Qt.CursorShape.PointingHandCursor)
+        elif shape == Qt.CursorShape.PointingHandCursor:
+            vp.unsetCursor()
 
     def expander_rect(self, row: int) -> QRect:
         """Viewport rect of the expander of ``row`` (null when the row has none)."""
@@ -1058,6 +1349,7 @@ class VirtualGrid(QAbstractScrollArea):
     def hideEvent(self, event) -> None:  # noqa: N802
         super().hideEvent(event)
         self._last_shown = None      # hidden views do no I/O; ask again when shown
+        self.cancel_row_drag()
 
     def changeEvent(self, event: QEvent) -> None:  # noqa: N802
         super().changeEvent(event)
@@ -1101,6 +1393,8 @@ class VirtualGrid(QAbstractScrollArea):
             return True
         if kind == QEvent.Type.Leave:
             self._set_hover(-1)
+            if self.viewport().cursor().shape() == Qt.CursorShape.PointingHandCursor:
+                self.viewport().unsetCursor()
         return super().viewportEvent(event)
 
     # ------------------------------------------------------------------ current / selection
@@ -1199,6 +1493,56 @@ class VirtualGrid(QAbstractScrollArea):
                 return True
         return False
 
+    def selected_row_ranges(self) -> list[tuple[int, int]]:
+        """The selected rows as sorted, merged, inclusive ``(first, last)`` ranges (``single``
+        mode: the current row)."""
+        spans = sorted((r0, r1) for r0, r1, *_ in self.selected_ranges())
+        merged: list[tuple[int, int]] = []
+        for r0, r1 in spans:
+            if merged and r0 <= merged[-1][1] + 1:
+                if r1 > merged[-1][1]:
+                    merged[-1] = (merged[-1][0], r1)
+            else:
+                merged.append((r0, r1))
+        return merged
+
+    def set_selected_ranges(self, ranges: Any) -> None:
+        """Replace the selection (the current row and the Shift anchor stay). Items are
+        inclusive ``(row0, row1)`` or ``(row0, row1, col0, col1)`` tuples: ``rows`` mode takes
+        whole rows (columns ignored), ``cells`` mode the rectangles (whole rows without
+        columns); rows are clamped to the row count, empty ranges dropped. No-op in
+        ``single`` mode (the current row is the selection). Emits ``selection_changed`` when
+        the selection changed."""
+        if self._mode == "single":
+            return
+        out: list[tuple[int, int, int, int]] = []
+        last = self._rows - 1
+        ncols = len(self._cols)
+        for rng in ranges:
+            r0, r1 = int(rng[0]), int(rng[1])
+            if r0 > r1:
+                r0, r1 = r1, r0
+            r0, r1 = max(0, r0), min(last, r1)
+            if r0 > r1:
+                continue
+            if self._mode == "rows":
+                out.append((r0, r1, 0, -1))
+                continue
+            if len(rng) >= 4:
+                c0, c1 = int(rng[2]), int(rng[3])
+                if c0 > c1:
+                    c0, c1 = c1, c0
+                c0, c1 = max(0, c0), min(ncols - 1, c1)
+                if c0 > c1:
+                    continue
+            else:
+                c0, c1 = 0, ncols - 1
+                if c1 < 0:
+                    continue
+            out.append((r0, r1, c0, c1))
+        self._base_ranges = []
+        self._set_ranges(out)
+
     def clear_selection(self) -> None:
         self._base_ranges = []
         self._set_ranges([])
@@ -1250,7 +1594,24 @@ class VirtualGrid(QAbstractScrollArea):
         self._set_ranges(self._base_ranges + [self._span(anchor, (row, col))])
 
     # ------------------------------------------------------------------ keyboard
+    def _from_focused_child(self) -> bool:
+        """The key event came up from a child widget that has the keyboard focus (an inline
+        editor over a cell, a line edit of the header strip): a key such a widget did not use
+        bubbles to its parents, and the grid must not act on it (the user typed into the child)."""
+        focus = QApplication.focusWidget()
+        return focus is not None and focus is not self and self.isAncestorOf(focus)
+
     def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
+        if event.key() == Qt.Key.Key_Control:
+            self._update_link_cursor(self.viewport().mapFromGlobal(QCursor.pos()), event.modifiers())
+        if self._from_focused_child():
+            event.ignore()               # the child keeps its keys (no grid / view command runs)
+            return
+        if self._rd is not None and self._rd.active:
+            if event.key() == Qt.Key.Key_Escape:
+                self.cancel_row_drag()
+            event.accept()               # no other key acts while rows are dragged
+            return
         if self._key_handler is not None:
             try:
                 if self._key_handler(event):
@@ -1262,6 +1623,11 @@ class VirtualGrid(QAbstractScrollArea):
             event.accept()
         else:
             event.ignore()
+
+    def keyReleaseEvent(self, event: QKeyEvent) -> None:  # noqa: N802
+        if event.key() == Qt.Key.Key_Control:
+            self._update_link_cursor(self.viewport().mapFromGlobal(QCursor.pos()), event.modifiers())
+        super().keyReleaseEvent(event)
 
     def _handle_key(self, event: QKeyEvent) -> bool:
         key = event.key()
@@ -1362,6 +1728,10 @@ class VirtualGrid(QAbstractScrollArea):
 
     def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         self.setFocus(Qt.FocusReason.MouseFocusReason)
+        if self._rd is not None and self._rd.active:
+            event.accept()               # another button while dragging rows: ignored
+            return
+        self._rd = None
         pos = self._event_pos(event)
         row, col = self.row_at(pos.y()), self.column_at(pos.x())
         button = event.button()
@@ -1378,6 +1748,23 @@ class VirtualGrid(QAbstractScrollArea):
             mods = event.modifiers()
             ctrl = bool(mods & Qt.KeyboardModifier.ControlModifier)
             shift = bool(mods & Qt.KeyboardModifier.ShiftModifier)
+            if ctrl and not shift:
+                hit = self.link_at(pos)
+                if hit is not None:      # Ctrl+click on a link: the view asks before opening it
+                    self.link_activated.emit(hit[0], hit[1], hit[2])
+                    event.accept()
+                    return
+            if self._row_drag is not None and not ctrl and not shift and self._mode != "cells":
+                # a press that may start a row drag: a selected row keeps the selection until
+                # the release; drag selection only once the drag was refused (_start_row_drag)
+                deferred = self.is_selected(row)
+                if not deferred:
+                    self.set_current(row, col, scroll="none")
+                self._rd = _RowDrag(row, col, pos, deferred)
+                self._dragging = False
+                self._drag_pos = pos
+                event.accept()
+                return
             if self._mode == "single":
                 self.set_current(row, col, scroll="none")
             elif shift:
@@ -1405,6 +1792,32 @@ class VirtualGrid(QAbstractScrollArea):
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
         pos = self._event_pos(event)
+        rd = self._rd
+        if rd is not None and not event.buttons() & Qt.MouseButton.LeftButton:
+            self.cancel_row_drag()       # the release happened elsewhere
+            rd = None
+        if rd is not None:
+            if rd.active:
+                self._update_row_drag(pos)
+                vp = self.viewport()
+                margin = max(4, self._row_h // 2)
+                near = pos.y() < margin or pos.y() >= vp.height() - margin
+                if near and not self._auto.isActive():
+                    self._auto.start()
+                elif not near:
+                    self._auto.stop()
+            elif (pos - rd.pos).manhattanLength() >= QApplication.startDragDistance():
+                if not self._start_row_drag(rd, pos):
+                    # refused: the press acts like a plain one (drag selection from its row)
+                    self._rd = None
+                    if rd.deferred:
+                        self.set_current(rd.row, rd.col, scroll="none")
+                    if self._mode != "single":
+                        self._dragging = True
+                        self._drag_pos = pos
+                        self._drag_select(pos)
+            event.accept()
+            return
         if self._dragging:
             self._drag_pos = pos
             self._drag_select(pos)
@@ -1417,9 +1830,17 @@ class VirtualGrid(QAbstractScrollArea):
                 self._auto.stop()
         else:
             self._set_hover(self.row_at(pos.y()))
+            self._update_link_cursor(pos, event.modifiers())
         event.accept()
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        rd = self._rd
+        if rd is not None and event.button() == Qt.MouseButton.LeftButton:
+            self._rd = None
+            if rd.active:
+                self._finish_row_drag(rd)
+            elif rd.deferred:            # a click on a selected row: now it selects that row
+                self.set_current(rd.row, rd.col, scroll="none")
         self._dragging = False
         self._auto.stop()
         event.accept()
@@ -1429,6 +1850,9 @@ class VirtualGrid(QAbstractScrollArea):
         row, col = self.row_at(pos.y()), self.column_at(pos.x())
         if row < 0 or event.button() != Qt.MouseButton.LeftButton:
             event.accept()
+            return
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier and self.link_at(pos) is not None:
+            event.accept()               # the second press of a Ctrl+double-click on a link: nothing more
             return
         if self._hit_expander(row, col, pos.x()):
             self.expander_clicked.emit(row)
@@ -1451,6 +1875,20 @@ class VirtualGrid(QAbstractScrollArea):
             self._extend_to(row, col)
 
     def _auto_scroll_tick(self) -> None:
+        rd = self._rd
+        if rd is not None and rd.active:     # dragging rows: scroll near the top / bottom edge
+            pos = rd.mouse
+            vp = self.viewport()
+            rh = self._row_h
+            margin = max(4, rh // 2)
+            if pos.y() < margin:
+                self._set_top(self._top - 1 - max(0, -pos.y()) // rh)
+            elif pos.y() >= vp.height() - margin:
+                self._set_top(self._top + 1 + max(0, pos.y() - vp.height()) // rh)
+            else:
+                self._auto.stop()
+            self._update_row_drag(pos)
+            return
         if not self._dragging:
             self._auto.stop()
             return
@@ -1673,12 +2111,16 @@ class VirtualGrid(QAbstractScrollArea):
         alternating = self._alternating
         rows = range(first, last + 1)
         marked = self._selected_rows_in(first, last)    # rows with a selection (once per paint)
+        tint_of = self._row_tints(first, last)          # source.row_background (theme roles), once per paint
 
         def row_bg(row: int) -> QColor | None:
             if not cells_mode and row in marked:
                 return sel
+            tint = tint_of.get(row) if tint_of else None
             if row == hover:
-                return c.hover
+                return c.hover if tint is None else _blend(tint, c.focus, HOVER_TINT_BLEND)
+            if tint is not None:
+                return tint
             if alternating and row & 1:
                 return c.alt
             return None
@@ -1693,10 +2135,13 @@ class VirtualGrid(QAbstractScrollArea):
         self._pfont = 0
         for row in rows:
             y = (row - top) * rh
+            row_sel = not cells_mode and row in marked
             for i, col, x, cw in cols:
+                cell_sel = row_sel
                 if cells_mode and self._cell_selected(row, i):
                     p.fillRect(x, y, cw, rh, sel)
-                self._paint_cell(p, c, row, i, col, x, y, cw)
+                    cell_sel = True
+                self._paint_cell(p, c, row, i, col, x, y, cw, selected=cell_sel)
         if self._grid_lines:
             p.setPen(c.line)
             bottom = (last - top + 1) * rh - 1
@@ -1709,10 +2154,12 @@ class VirtualGrid(QAbstractScrollArea):
             for row in rows:
                 y = (row - top) * rh
                 bg = row_bg(row)
+                cell_sel = not cells_mode and row in marked
                 if cells_mode and self._cell_selected(row, fc):
                     bg = sel
+                    cell_sel = True
                 p.fillRect(gw, y, fw, rh, bg if bg is not None else c.base)
-                self._paint_cell(p, c, row, fc, col, gw, y, fw)
+                self._paint_cell(p, c, row, fc, col, gw, y, fw, selected=cell_sel)
             p.setPen(c.line)
             p.drawLine(gw + fw - 1, 0, gw + fw - 1, h)
         if self._grid_lines:
@@ -1735,6 +2182,48 @@ class VirtualGrid(QAbstractScrollArea):
                 p.setPen(c.focus if self.hasFocus() else c.focus_inactive)
                 p.setBrush(Qt.BrushStyle.NoBrush)
                 p.drawRect(rect.adjusted(0, 0, -1, -1))
+        # 6. drop indicator of a row drag
+        rd = self._rd
+        if rd is not None and rd.active and rd.target is not None:
+            self._paint_drop(p, c, rd.target, first, last, w)
+
+    def drop_indicator_rect(self) -> QRect:
+        """Viewport rect of the drop indicator being painted (null when there is none):
+        a 2 px line before / after the target row, or the target row's box."""
+        rd = self._rd
+        if rd is None or not rd.active or rd.target is None:
+            return QRect()
+        row, zone = rd.target
+        if not 0 <= row < self._rows:
+            return QRect()
+        rh = self._row_h
+        y = _clamp((row - self._top) * rh, -_Y_LIMIT, _Y_LIMIT)
+        gw = self._gutter_w
+        right = min(self.viewport().width(), max(self._content_right(), gw + 1))
+        if zone == "inside":
+            return QRect(gw, y, max(1, right - gw), rh)
+        x0 = gw
+        tc = self._tree_col
+        if tc is not None and self._col_ok(tc):
+            cell = self._fetch(row, self._cols[tc])
+            depth = cell.depth if cell is not None else 0
+            x0 = max(gw, self._section_x(tc) + self._pad_x + depth * self._indent)
+        ly = y - 1 if zone == "before" else y + rh - 1
+        return QRect(x0, max(0, ly), max(1, right - x0), 2)
+
+    def _paint_drop(self, p: QPainter, c: _Colors, target: tuple[int, str], first: int, last: int, w: int) -> None:
+        row, zone = target
+        if not first - 1 <= row <= last + 1:
+            return
+        rect = self.drop_indicator_rect()
+        if not rect.isValid():
+            return
+        if zone == "inside":
+            p.setPen(QPen(c.accent, 2))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawRect(rect.adjusted(1, 1, -1, -1))
+        else:
+            p.fillRect(rect, c.accent)
 
     def _selected_rows_in(self, first: int, last: int) -> set[int]:
         """Rows in [first, last] touched by the selection (cells mode: by any selected cell)."""
@@ -1772,8 +2261,29 @@ class VirtualGrid(QAbstractScrollArea):
         p.setPen(c.line)
         p.drawLine(gw - 1, 0, gw - 1, h)
 
+    def _row_tints(self, first: int, last: int) -> dict[int, QColor]:
+        """Row backgrounds the source asks for (``row_background(row)`` -> theme role; unknown
+        roles and ``None`` are ignored) for the rows in [first, last]; empty without the method."""
+        fn = getattr(self._source, "row_background", None)
+        if fn is None:
+            return {}
+        roles = self._palette_colors().roles
+        out: dict[int, QColor] = {}
+        for row in range(first, last + 1):
+            try:
+                role = fn(row)
+            except Exception:  # noqa: BLE001 - one broken row must not stop painting
+                if not self._cell_error_logged:
+                    self._cell_error_logged = True
+                    log.exception("grid source row_background() failed (row %s)", row)
+                continue
+            color = roles.get(role) if role else None
+            if color is not None:
+                out[row] = color
+        return out
+
     def _paint_cell(self, p: QPainter, c: _Colors, row: int, index: int, col: Column, x: int, y: int,
-                    cw: int) -> None:
+                    cw: int, *, selected: bool = False) -> None:
         cell = self._fetch(row, col)
         if cell is None:
             if self._pfont != 0:
@@ -1782,8 +2292,12 @@ class VirtualGrid(QAbstractScrollArea):
             p.setPen(c.faint)
             p.drawText(x + self._pad_x, y + self._text_dy, PLACEHOLDER)
             return
-        tx, right = self._text_area(cell, index, x, cw)
         rh = self._row_h
+        if cell.bg is not None and not selected:
+            bg = c.roles.get(cell.bg)
+            if bg is not None:
+                p.fillRect(x, y, cw, rh, bg)
+        tx, right = self._text_area(cell, index, x, cw)
         if index == self._tree_col:
             left = x + self._pad_x
             depth = cell.depth
@@ -1801,8 +2315,15 @@ class VirtualGrid(QAbstractScrollArea):
                 p.drawPixmap(ex, y, self._expander_pixmap(cell.expander, c.muted))
         if cell.badge:
             bx = tx - self._badge_w - self._gap
+            if cell.swatch is not None:
+                bx -= self._swatch_w + self._gap
             if bx + self._badge_w <= right:
                 p.drawPixmap(bx, y + (rh - self._badge_h) // 2, self._badge_pixmap(cell.badge))
+        if cell.swatch is not None:
+            sw = self._swatch_w
+            sx = tx - sw - self._gap
+            if sx + sw <= right:
+                self._paint_swatch(p, c, sx, y + (rh - sw) // 2, sw, cell.swatch)
         avail = right - tx
         text = cell.text
         if avail <= 0 or not text:
@@ -1815,13 +2336,7 @@ class VirtualGrid(QAbstractScrollArea):
         shown, kept = self._elide(fm, text, avail)
         if not shown:
             return
-        align = cell.align if cell.align != "left" else col.align
-        if align != "left":
-            tw = fm.horizontalAdvance(shown)
-            if align == "right":
-                tx = right - tw
-            elif align == "center":
-                tx += max(0, (avail - tw) // 2)
+        tx = self._aligned_x(cell, col, fm, shown, tx, right)
         if cell.spans:
             pad = max(1, self._pad_y - 2)
             for span in cell.spans:
@@ -1836,6 +2351,40 @@ class VirtualGrid(QAbstractScrollArea):
         role = cell.role
         p.setPen(c.roles.get(role, c.text) if role else c.text)
         p.drawText(tx, y + self._text_dy, shown)
+        if cell.link:
+            s, e = _link_range(cell, kept)
+            if s < e:
+                ux0 = tx + fm.horizontalAdvance(shown[:s])
+                ux1 = tx + fm.horizontalAdvance(shown[:e])
+                uy = min(y + rh - 2, y + self._text_dy + max(1, fm.underlinePos()))
+                p.drawLine(ux0, uy, max(ux0, ux1 - 1), uy)
+
+    def _paint_swatch(self, p: QPainter, c: _Colors, x: int, y: int, size: int, rgba: tuple) -> None:
+        """A ``size`` square of the colour ``rgba`` (a checkerboard shows through a translucent
+        one; a thin muted border keeps white / black / the base colour visible)."""
+        try:
+            r, g, b = (max(0, min(255, int(v))) for v in rgba[:3])
+            a = max(0, min(255, int(rgba[3]))) if len(rgba) > 3 else 255
+        except (TypeError, ValueError, IndexError):
+            return
+        if a < 255:
+            p.drawPixmap(x, y, self._checker_pixmap(size))
+        p.fillRect(x, y, size, size, QColor(r, g, b, a))
+        p.setPen(c.muted)
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawRect(x, y, size - 1, size - 1)
+
+    def _checker_pixmap(self, size: int) -> QPixmap:
+        def draw(q: QPainter) -> None:
+            q.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+            q.fillRect(0, 0, size, size, QColor(255, 255, 255))
+            step = max(2, size // 4)
+            for yy in range(0, size, step):
+                for xx in range(0, size, step):
+                    if (xx // step + yy // step) & 1:
+                        q.fillRect(xx, yy, step, step, QColor(204, 204, 204))
+
+        return self._pixmap(("checker", size), size, size, draw)
 
 
 def _clamp_f(v: float, lo: float, hi: float) -> float:

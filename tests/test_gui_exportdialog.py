@@ -245,13 +245,12 @@ def test_scope_node_json_is_byte_exact(qtbot, app, opened, dialog, tmp_path) -> 
     s.select(NodeRef(7, ("nums",)))
     dlg = dialog(s, scope="node")
     dlg.set_output_path(tmp_path / "nums.csv")
-    assert dlg.format() == "json" and "(.csv)" in dlg.warning_label.text()   # a node is never CSV
+    # stage 5: an array / object node can be CSV / XLSX / SQLite too (its elements as the records; the
+    # node-to-table exports are tested in test_gui_roundb_shell.py)
+    assert dlg.format() == "csv" and dlg.error_text() == ""
     assert dlg.scope() == "node" and "#7.nums" in dlg.scope_buttons["node"].text()
-    # only JSON / JSON Lines for a node
     model = dlg.format_combo.model()
-    assert [model.item(i).isEnabled() for i in range(5)] == [True, True, False, False, False]
-    dlg.set_format("csv")
-    assert dlg.format() == "csv" and dlg.error_text()            # a disabled choice is refused
+    assert [model.item(i).isEnabled() for i in range(5)] == [True] * 5
     dlg.set_format("json")
     dlg.set_output_path(tmp_path / "nums.json")
     outcome = run_export(qtbot, dlg)

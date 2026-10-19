@@ -1,0 +1,39 @@
+{
+ "name": "ex09_merge_into_root",
+ "description": "engine analysis worked example: merge into the root array",
+ "case": {
+  "name": "ex09_merge_into_root",
+  "records": [{"n": 1, "k": [{"m": "a"}]}, {"n": 2, "k": [{"m": "b"}]}],
+  "ops": [{"op": "merge", "node": "[].k", "target": ""}]
+ },
+ "output": [{"n": 1}, {"n": 2}, {"m": "a"}, {"m": "b"}],
+ "log": [
+  {
+   "i": 0,
+   "op": "merge",
+   "applied": true,
+   "changed": true,
+   "undo": 1,
+   "msg": "«k» elementlari «ildiz» massiviga qo'shildi"
+  }
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "n", "kind": "value", "src": [null, "n"], "types": ["number"], "count": 2, "pcount": 2, "samples": ["1", "2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+  ]},
+  {"key": "", "kind": "object", "src": [null, "k", null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "m", "kind": "value", "src": [null, "k", null, "m"], "types": ["string"], "count": 2, "pcount": 2, "samples": ["\"a\"", "\"b\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"n\" value <- [].n",
+  "  [] object <- [].k[]",
+  "    \"m\" value <- [].k[].m"
+ ],
+ "preview": [[{"n": 1}, {"m": "a"}], [{"n": 2}, {"m": "b"}]],
+ "perRecord": [[{"n": 1}, {"m": "a"}], [{"n": 2}, {"m": "b"}]],
+ "perRecordConcatEqualsOutput": false
+}

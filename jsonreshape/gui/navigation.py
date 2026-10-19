@@ -8,17 +8,24 @@
   open -- then ``session.select(ref, reveal=True)``. Recent texts are kept in the GUI state
   (``goto_history``).
 * :class:`BookmarksDialog`: the bookmarks of the file (name, location, created): go
-  (double click / Enter), rename, delete. Adding is the main window's Ctrl+D.
+  (double click / Enter), rename, delete. Adding is the main window's Ctrl+B. Locations come
+  from ``session.bookmark_ref(i)`` -- while an edit layer is active the session keeps
+  bookmarks by stable record ids and gives their current position (docs/ARCHITECTURE.md
+  §12.9); a bookmark whose node was deleted shows "(o'chirilgan)". The list follows
+  ``session.data_changed``.
 * :class:`RecordPathDialog`: the record path of an object-rooted document: the detected
   candidates (items seen in the head, their kind), a free path and a format override;
-  accepting reopens the session with the choice.
+  accepting reopens the session with the choice -- after asking about unsaved changes
+  (non-blocking; a Cancel keeps the dialog open).
 * :class:`BrokenLinesDialog`: the broken lines of a JSON Lines file (line, column, offset,
   reason, text) in a virtual grid; activating a line emits :attr:`goto_requested` (the tab
   shows it in the raw view).
 
 The dialogs run their background tasks with a private owner token that is detached when
 the dialog closes *or is destroyed* (e.g. together with its closed tab), so no task
-callback ever reaches a deleted dialog.
+callback ever reaches a deleted dialog. A go-to / bookmark lookup resolves positions of the
+edit state shown when it started; when an edit is applied meanwhile (``session.data_gen``
+changed) it is looked up again.
 """
 
 from __future__ import annotations
@@ -45,6 +52,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from shiboken6 import isValid
 
 from jsonreshape.errors import JsonReshapeError, PathSyntaxError, QuerySyntaxError
 from jsonreshape.gui import copyfmt
@@ -103,6 +111,19 @@ def _ref(record: int | None, path: Any) -> Any:
     from jsonreshape.gui.session import NodeRef
 
     return NodeRef(record, tuple(path))
+
+
+def _data_gen(session: Any) -> Any:
+    """The session's edit-state generation (changes with every applied edit)."""
+    gen = getattr(session, "data_gen", None)
+    if gen is not None:
+        return gen
+    doc = getattr(session, "doc", None)
+    return getattr(doc, "gen", 0) if doc is not None else 0
+
+
+#: A lookup is repeated at most this many times when edits keep arriving meanwhile.
+RESOLVE_RETRIES = 3
 
 
 def _set_error_style(label: QLabel) -> None:
@@ -246,7 +267,7 @@ class GoToDialog(QDialog):
         self.ok_button.setEnabled(self._task is None)
 
     # -- resolving ------------------------------------------------------------------------
-    def accept(self) -> None:  # noqa: D401 (Qt name)
+    def accept(self, _retry: int = 0) -> None:  # noqa: D401 (Qt name)
         """Resolve the location in a silent task; the dialog closes when it was found."""
         if self._task is not None:
             return
@@ -256,6 +277,7 @@ class GoToDialog(QDialog):
             return
         session = self.session
         text = self.text()
+        gen = _data_gen(session)
 
         def work(ctx: Any) -> Any:
             return session.ref_for_location(loc, ctx.cancel)
@@ -263,12 +285,16 @@ class GoToDialog(QDialog):
         self.busy_label.setVisible(True)
         self.ok_button.setEnabled(False)
         self._task = session.app.tasks.run(work, title=t("gui.nav.goto.task"), kind="goto", owner=self._owner,
-                                           silent=True, on_done=lambda ref: self._found(text, ref),
+                                           silent=True, on_done=lambda ref: self._found(text, ref, gen, _retry),
                                            on_error=self._not_found, on_cancel=self._resolve_cancelled)
 
-    def _found(self, text: str, ref: Any) -> None:
+    def _found(self, text: str, ref: Any, gen: Any = None, retry: int = 0) -> None:
         self._task = None
         self.busy_label.setVisible(False)
+        if gen is not None and gen != _data_gen(self.session) and retry < RESOLVE_RETRIES:
+            # an edit was applied meanwhile: the record number may address another record now
+            self.accept(retry + 1)
+            return
         self._remember(text)
         self.session.select(ref, reveal=True)
         self.resolved.emit(ref)
@@ -361,23 +387,45 @@ class BookmarksDialog(QDialog):
         layout.addLayout(row)
 
         session.bookmarks_changed.connect(self.refresh)
+        self._data_signal = getattr(session, "data_changed", None)
+        if self._data_signal is not None and hasattr(self._data_signal, "connect"):
+            self._data_signal.connect(self.refresh)     # positions move with edits
+        else:
+            self._data_signal = None
         self.refresh()
         self.resize(640, 360)
 
-    def refresh(self) -> None:
+    def _location(self, i: int, bm: Any) -> tuple[str, bool]:
+        """``(location text, deleted)`` of bookmark ``i`` -- at its current position (the
+        session converts the record ids it keeps while an edit layer is active)."""
+        try:
+            ref = self.session.bookmark_ref(i)
+        except (IndexError, KeyError, LookupError, ValueError):
+            ref = None
+        except Exception:
+            log.debug("bookmark_ref(%d) failed", i, exc_info=True)
+            ref = _ref(bm.record, bm.path)
+        if ref is None:
+            return t("gui.nav.bookmarks.deleted"), True
+        try:
+            return self.session.location_text(ref), False
+        except Exception:
+            return "?", False
+
+    def refresh(self, *_args: Any) -> None:
         current = self.current_index()
         self.tree.clear()
         for i, bm in enumerate(self.session.bookmarks):
-            ref = _ref(bm.record, bm.path)
-            try:
-                location = self.session.location_text(ref)
-            except Exception:
-                location = "?"
+            location, deleted = self._location(i, bm)
             created = time.strftime("%Y-%m-%d %H:%M", time.localtime(bm.created)) if bm.created else ""
             item = QTreeWidgetItem(self.tree, [copyfmt.escape_surrogates(bm.name),
                                                copyfmt.escape_surrogates(location), created])
             item.setData(0, Qt.ItemDataRole.UserRole, i)
-            item.setToolTip(1, copyfmt.escape_surrogates(location))
+            item.setToolTip(1, t("gui.nav.bookmarks.deleted.tip") if deleted else copyfmt.escape_surrogates(location))
+            if deleted:
+                font = item.font(1)
+                font.setItalic(True)
+                item.setFont(1, font)
         count = self.tree.topLevelItemCount()
         if count:
             self.tree.setCurrentItem(self.tree.topLevelItem(min(max(current, 0), count - 1)))
@@ -405,20 +453,32 @@ class BookmarksDialog(QDialog):
         i = self.current_index() if index is None else index
         return i if 0 <= i < len(self.session.bookmarks) else None
 
-    def go(self, index: int | None = None) -> None:
+    def go(self, index: int | None = None, _retry: int = 0) -> None:
         """Resolve the bookmark in a silent task, select it (``reveal``) and close."""
         i = self._index(index)
         if i is None or self._task is not None:
             return
         session = self.session
-        ref = session.bookmark_ref(i)
+        try:
+            ref = session.bookmark_ref(i)
+        except Exception:
+            log.debug("bookmark_ref(%d) failed", i, exc_info=True)
+            ref = None
+        if ref is None:                      # its node was deleted by an edit
+            self.error_label.setText(t("gui.nav.bookmarks.deleted.tip"))
+            self.error_label.setVisible(True)
+            return
         self.error_label.setVisible(False)
+        gen = _data_gen(session)
 
         def work(ctx: Any) -> Any:
             return session.resolve(ref, ctx.cancel)
 
         def found(resolved: Any) -> None:
             self._task = None
+            if gen != _data_gen(session) and _retry < RESOLVE_RETRIES:
+                self.go(i, _retry + 1)       # an edit moved things meanwhile: look again
+                return
             session.select(resolved, reveal=True)
             self.resolved.emit(resolved)
             self.accept()
@@ -467,6 +527,12 @@ class BookmarksDialog(QDialog):
             pass
         except Exception:
             log.debug("bookmarks dialog cleanup failed", exc_info=True)
+        if self._data_signal is not None:
+            try:
+                self._data_signal.disconnect(self.refresh)
+            except (RuntimeError, TypeError):
+                pass
+            self._data_signal = None
         self._task = None
         super().done(result)
 
@@ -572,6 +638,7 @@ class RecordPathDialog(QDialog):
         layout.addWidget(self.buttons)
 
         self._filling = False
+        self._asking = False             # the unsaved-changes question is open
         self._fill()
         self.resize(560, 380)
 
@@ -665,12 +732,34 @@ class RecordPathDialog(QDialog):
         return not error
 
     def accept(self) -> None:  # noqa: D401 (Qt name)
+        """Reopen the session with the choice (``apply``) -- after asking about unsaved
+        changes; the dialog closes when the answer lets the reopen go on."""
         if not self._validate():
             return
-        if self.apply:
-            record_path, fmt = self.chosen()
-            self.session.reopen(record_path=record_path, format=fmt)
-        super().accept()
+        if not self.apply:
+            super().accept()
+            return
+        if self._asking:
+            return
+        record_path, fmt = self.chosen()
+        from jsonreshape.gui.doctab import confirm_drop_edits, reopen_session
+
+        def answered(ok: bool) -> None:
+            if not isValid(self):
+                return                   # the dialog went away meanwhile
+            self._asking = False
+            if not ok:
+                return                   # Cancel: the dialog stays open
+            try:
+                reopen_session(self.session, record_path=record_path, format=fmt)
+            except Exception as exc:
+                log.exception("reopening %s failed", getattr(self.session, "name", "?"))
+                self.session.app.report_error(exc, self)
+                return
+            QDialog.accept(self)
+
+        self._asking = True
+        confirm_drop_edits(self.session, self, answered, why="reopen")
 
 
 # ==================================================================================

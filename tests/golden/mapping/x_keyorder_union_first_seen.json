@@ -1,0 +1,32 @@
+{
+ "name": "x_keyorder_union_first_seen",
+ "description": "targeted reference case (batch2)",
+ "case": {
+  "name": "x_keyorder_union_first_seen",
+  "records": [{"x": 1, "y": 2}, {"z": 3, "y": 4, "x": 5}, {"7": 0, "w": 1}]
+ },
+ "output": [{"x": 1, "y": 2}, {"x": 5, "y": 4, "z": 3}, {"7": 0, "w": 1}],
+ "log": [],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 3, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "x", "kind": "value", "src": [null, "x"], "types": ["number"], "count": 2, "pcount": 3, "samples": ["1", "5"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "y", "kind": "value", "src": [null, "y"], "types": ["number"], "count": 2, "pcount": 3, "samples": ["2", "4"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "z", "kind": "value", "src": [null, "z"], "types": ["number"], "count": 1, "pcount": 3, "samples": ["3"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "7", "kind": "value", "src": [null, "7"], "types": ["number"], "count": 1, "pcount": 3, "samples": ["0"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "w", "kind": "value", "src": [null, "w"], "types": ["number"], "count": 1, "pcount": 3, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"x\" value <- [].x",
+  "    \"y\" value <- [].y",
+  "    \"z\" value <- [].z",
+  "    \"7\" value <- [].7",
+  "    \"w\" value <- [].w"
+ ],
+ "preview": [{"x": 1, "y": 2}, {"x": 5, "y": 4, "z": 3}, {"7": 0, "w": 1}],
+ "perRecord": [[{"x": 1, "y": 2}], [{"x": 5, "y": 4, "z": 3}], [{"7": 0, "w": 1}]],
+ "perRecordConcatEqualsOutput": true
+}

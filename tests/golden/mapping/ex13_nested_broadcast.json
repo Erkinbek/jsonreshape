@@ -1,0 +1,83 @@
+{
+ "name": "ex13_nested_broadcast",
+ "description": "engine analysis worked example: deepest bound prefix (nested broadcast)",
+ "case": {
+  "name": "ex13_nested_broadcast",
+  "records": [{"name": "P", "kids": [{"name": "K1", "toys": [{"t": 1}, {"t": 2}]}, {"name": "K2", "toys": [{"t": 3}]}]}],
+  "ops": [
+   {"op": "move", "node": "[].kids[].name", "target": "[].kids[].toys[]", "zone": "inside"},
+   {"op": "move", "node": "[].name", "target": "[].kids[].toys[]", "zone": "inside"}
+  ]
+ },
+ "output": [
+  {
+   "kids": [
+    {"toys": [{"t": 1, "name": "K1", "name_2": "P"}, {"t": 2, "name": "K1", "name_2": "P"}]},
+    {"toys": [{"t": 3, "name": "K2", "name_2": "P"}]}
+   ]
+  }
+ ],
+ "log": [
+  {"i": 0, "op": "move", "applied": true, "changed": true, "undo": 1, "msg": ""},
+  {
+   "i": 1,
+   "op": "move",
+   "applied": true,
+   "changed": true,
+   "undo": 2,
+   "msg": "«name» nomi band edi, «name_2» deb qo'yildi"
+  }
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "kids", "kind": "array", "src": [null, "kids"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "kids", null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+     {"key": "toys", "kind": "array", "src": [null, "kids", null, "toys"], "types": ["array"], "count": 2, "pcount": 2, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+      {"key": "", "kind": "object", "src": [null, "kids", null, "toys", null], "types": ["object"], "count": 3, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+       {"key": "t", "kind": "value", "src": [null, "kids", null, "toys", null, "t"], "types": ["number"], "count": 3, "pcount": 3, "samples": ["1", "2", "3"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []},
+       {"key": "name", "kind": "value", "src": [null, "kids", null, "name"], "types": ["string"], "count": 2, "pcount": 2, "samples": ["\"K1\"", "\"K2\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+       {"key": "name_2", "kind": "value", "src": [null, "name"], "types": ["string"], "count": 1, "pcount": 1, "samples": ["\"P\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+      ]}
+     ]}
+    ]}
+   ]}
+  ]}
+ ]},
+ "badges": [
+  {"ref": [0, "kids", 0, "toys", 0, "name"], "badges": ["ko'chirildi", "har elementga takrorlanadi"]},
+  {
+   "ref": [0, "kids", 0, "toys", 0, "name_2"],
+   "badges": ["ko'chirildi", "asl nomi: name", "har elementga takrorlanadi"]
+  }
+ ],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"kids\" array <- [].kids",
+  "      [] object <- [].kids[]",
+  "        \"toys\" array <- [].kids[].toys",
+  "          [] object <- [].kids[].toys[]",
+  "            \"t\" value <- [].kids[].toys[].t",
+  "            \"name\" value <- [].kids[].name",
+  "            \"name_2\" value <- [].name"
+ ],
+ "preview": [
+  {
+   "kids": [
+    {"toys": [{"t": 1, "name": "K1", "name_2": "P"}, {"t": 2, "name": "K1", "name_2": "P"}]},
+    {"toys": [{"t": 3, "name": "K2", "name_2": "P"}]}
+   ]
+  }
+ ],
+ "perRecord": [
+  [
+   {
+    "kids": [
+     {"toys": [{"t": 1, "name": "K1", "name_2": "P"}, {"t": 2, "name": "K1", "name_2": "P"}]},
+     {"toys": [{"t": 3, "name": "K2", "name_2": "P"}]}
+    ]
+   }
+  ]
+ ],
+ "perRecordConcatEqualsOutput": true
+}

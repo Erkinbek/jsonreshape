@@ -1,0 +1,31 @@
+{
+ "name": "x_zones_elem_value",
+ "description": "targeted reference case (batch3)",
+ "case": {
+  "name": "x_zones_elem_value",
+  "records": [{"t": ["a"]}],
+  "ops": [
+   {"op": "zone", "node": "[].t", "target": "[].t[]", "frac": 0.1},
+   {"op": "zone", "node": "[].t", "target": "[].t[]", "frac": 0.5},
+   {"op": "zone", "node": "[].t", "target": "[].t[]", "frac": 0.9}
+  ]
+ },
+ "output": [{"t": ["a"]}],
+ "log": [
+  {"i": 0, "op": "zone", "applied": false, "changed": false, "undo": 0, "msg": null, "result": null},
+  {"i": 1, "op": "zone", "applied": false, "changed": false, "undo": 0, "msg": null, "result": null},
+  {"i": 2, "op": "zone", "applied": false, "changed": false, "undo": 0, "msg": null, "result": null}
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "t", "kind": "array", "src": [null, "t"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "value", "src": [null, "t", null], "types": ["string"], "count": 1, "pcount": null, "samples": ["\"a\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []}
+   ]}
+  ]}
+ ]},
+ "badges": [],
+ "shape": ["(root) array <- (ildiz)", "  [] object <- []", "    \"t\" array <- [].t", "      [] value <- [].t[]"],
+ "preview": [{"t": ["a"]}],
+ "perRecord": [[{"t": ["a"]}]],
+ "perRecordConcatEqualsOutput": true
+}

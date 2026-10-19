@@ -1,0 +1,32 @@
+{
+ "name": "x_object_root_keyed_tree",
+ "description": "targeted reference case (batch2)",
+ "case": {
+  "name": "x_object_root_keyed_tree",
+  "data": {"child1": {"child1.2": {"child1.2.1": {}, "child1.2.3": {"ok": true}}}, "child2": {}}
+ },
+ "output": {"child1": {"child1.2": {"child1.2.1": {}, "child1.2.3": {"ok": true}}}, "child2": {}},
+ "log": [],
+ "tree": {"key": "", "kind": "object", "src": [], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "child1", "kind": "object", "src": ["child1"], "types": ["object"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+   {"key": "child1.2", "kind": "object", "src": ["child1", "child1.2"], "types": ["object"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "child1.2.1", "kind": "object", "src": ["child1", "child1.2", "child1.2.1"], "types": ["object"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+    {"key": "child1.2.3", "kind": "object", "src": ["child1", "child1.2", "child1.2.3"], "types": ["object"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+     {"key": "ok", "kind": "value", "src": ["child1", "child1.2", "child1.2.3", "ok"], "types": ["boolean"], "count": 1, "pcount": 1, "samples": ["true"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+    ]}
+   ]}
+  ]},
+  {"key": "child2", "kind": "object", "src": ["child2"], "types": ["object"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+ ]},
+ "badges": [],
+ "shape": [
+  "(root) object <- (ildiz)",
+  "  \"child1\" object <- child1",
+  "    \"child1.2\" object <- child1.child1.2",
+  "      \"child1.2.1\" object <- child1.child1.2.child1.2.1",
+  "      \"child1.2.3\" object <- child1.child1.2.child1.2.3",
+  "        \"ok\" value <- child1.child1.2.child1.2.3.ok",
+  "  \"child2\" object <- child2"
+ ],
+ "preview": [{"child1": {"child1.2": {"child1.2.1": {}, "child1.2.3": {"ok": true}}}, "child2": {}}]
+}

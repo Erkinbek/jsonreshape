@@ -1,0 +1,36 @@
+{
+ "name": "ex18_flatten_root",
+ "description": "engine analysis worked example: flatten the root array",
+ "case": {
+  "name": "ex18_flatten_root",
+  "records": [{"n": "r1", "children": [{"n": "c1", "children": [{"n": "g1"}]}]}, {"n": "r2"}],
+  "ops": [{"op": "flatten", "node": ""}]
+ },
+ "output": [{"_depth": 1, "n": "r1"}, {"_depth": 2, "n": "c1"}, {"_depth": 3, "n": "g1"}, {"_depth": 1, "n": "r2"}],
+ "log": [
+  {
+   "i": 0,
+   "op": "flatten",
+   "applied": true,
+   "changed": true,
+   "undo": 1,
+   "msg": "«children» ichidagi barcha darajalar bitta massivga yig'ildi: 4 ta element"
+  }
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 4, "pcount": null, "samples": [], "synthetic": false, "rec_key": "children", "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "_depth", "kind": "value", "src": null, "types": ["number"], "count": 0, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": "depth", "ctx": [null], "open": false, "is_elem": false, "is_root": false, "children": []},
+   {"key": "n", "kind": "value", "src": [null, "n"], "types": ["string"], "count": 4, "pcount": 4, "samples": ["\"r1\"", "\"c1\"", "\"g1\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [{"ref": [0], "badges": ["rekursiv · children"]}, {"ref": [0, "_depth"], "badges": ["daraja raqami"]}],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object [recKey=children] <- []",
+  "    \"_depth\" value [computed=depth ctx=[]]",
+  "    \"n\" value <- [].n"
+ ],
+ "preview": [[{"_depth": 1, "n": "r1"}, {"_depth": 2, "n": "c1"}, {"_depth": 3, "n": "g1"}], {"_depth": 1, "n": "r2"}],
+ "perRecord": [[{"_depth": 1, "n": "r1"}, {"_depth": 2, "n": "c1"}, {"_depth": 3, "n": "g1"}], [{"_depth": 1, "n": "r2"}]],
+ "perRecordConcatEqualsOutput": true
+}

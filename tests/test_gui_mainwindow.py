@@ -253,11 +253,14 @@ def test_keyboard_shortcut_switches_the_view(qtbot, window, data) -> None:
 
 
 def test_shortcuts_of_the_spec(window) -> None:
+    # stage 3 (ARCHITECTURE §12.9): the bookmark moved from Ctrl+D to Ctrl+B -- Ctrl+D duplicates
+    # nodes in the views (AGENT_PROMPT §8.1); Save / Undo / Redo / Bulk are window shortcuts
     expected = {"open": "Ctrl+O", "close_tab": "Ctrl+W", "copy_value": "Ctrl+C", "copy_path": "Ctrl+Shift+C",
                 "quick_find": "Ctrl+F", "find_next": "F3", "find_prev": "Shift+F3", "search": "Ctrl+Shift+F",
                 "filter": "Ctrl+Shift+L", "goto": "Ctrl+G", "back": "Alt+Left", "forward": "Alt+Right",
-                "export": "Ctrl+E", "reopen": "F5", "bookmark_add": "Ctrl+D", "bookmarks": "Ctrl+Shift+D",
-                "zoom_reset": "Ctrl+0", "expand_all": "*"}
+                "export": "Ctrl+E", "reopen": "F5", "bookmark_add": "Ctrl+B", "bookmarks": "Ctrl+Shift+D",
+                "zoom_reset": "Ctrl+0", "expand_all": "*", "save": "Ctrl+S", "save_as": "Ctrl+Shift+S",
+                "undo": "Ctrl+Z", "redo": "Ctrl+Y", "bulk": "Ctrl+H"}
     for key, seq in expected.items():
         assert QKeySequence(seq) in window.action(key).shortcuts(), (key, window.action(key).shortcuts())
     assert QKeySequence("Ctrl+=") in window.action("zoom_in").shortcuts()
@@ -372,10 +375,14 @@ def test_sort_export_settings_dialogs(qtbot, app, window, data) -> None:
     assert sort.args == (tab.session, window) and sort.isVisible()
     window.action("export").trigger()
     export = StubDialog.made[-1]
+    # "selected records": the bulk dialog's selection source (asked when needed; stage 5)
+    selection = export.kwargs.pop("selection")
+    assert callable(selection) and selection() is None              # the stub views select nothing
     assert export.args == (tab.session, window) and export.kwargs == {"columns": None, "scope": "view"}
     tab.set_active_view_kind("table")
     window.action("export").trigger()
-    assert StubDialog.made[-1].kwargs == {"columns": TableStub.columns, "scope": "view"}
+    kwargs = dict(StubDialog.made[-1].kwargs)
+    assert callable(kwargs.pop("selection")) and kwargs == {"columns": TableStub.columns, "scope": "view"}
     window.action("settings").trigger()
     assert StubDialog.made[-1].args == (app, window)
     for dialog in list(StubDialog.made):
@@ -403,7 +410,8 @@ def test_missing_panels_disable_their_commands(qtbot, app, data) -> None:
 
 def test_default_panel_factories_are_lazy() -> None:
     factories = default_panel_factories()
-    assert set(factories) == {"search", "filter", "sort", "export", "settings"}
+    # stage 3 (ARCHITECTURE §12.9) adds the bulk operations dialog (Ctrl+H), stage 5 the statistics dock
+    assert set(factories) == {"search", "filter", "stats", "sort", "export", "settings", "bulk"}
     assert factory_available(None) is False
     assert factory_available(lambda: None) is True
     for factory in factories.values():
@@ -672,10 +680,10 @@ def test_smoke_with_the_default_registry(qtbot, app, tmp_path) -> None:
     try:
         path = wrapped_file(tmp_path / "w.json", 300)
         tab = open_ready(qtbot, w, path)
-        assert tab.available_kinds() == ["tree", "table", "text", "raw", "schema"]
+        assert tab.available_kinds() == ["tree", "table", "text", "raw", "schema", "mapping"]
         for pane in (0, 1):
             tab.set_active_pane(pane)
-            for kind in ("tree", "table", "text", "raw", "schema"):
+            for kind in ("tree", "table", "text", "raw", "schema", "mapping"):
                 w.action(f"view_{kind}").trigger()
                 assert tab.active_kind() == kind
                 qtbot.wait(30)

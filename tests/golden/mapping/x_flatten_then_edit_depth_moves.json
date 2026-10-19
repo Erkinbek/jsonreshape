@@ -1,0 +1,223 @@
+{
+ "name": "x_flatten_then_edit_depth_moves",
+ "description": "targeted reference case (batch5)",
+ "case": {
+  "name": "x_flatten_then_edit_depth_moves",
+  "records": [
+   {
+    "id": 1,
+    "name": "parent1",
+    "statusComment": null,
+    "contact": {"phone": "+998 90 123 45 67", "address": {"city": "Toshkent", "street": "Navoiy 12"}},
+    "children": [
+     {
+      "id": 11,
+      "name": "child1",
+      "statusComment": null,
+      "children": [
+       {
+        "id": 112,
+        "name": "child1.2",
+        "children": [
+         {"id": 1121, "name": "child1.2.1", "children": []},
+         {"id": 1123, "name": "child1.2.3", "statusComment": "ok", "children": []}
+        ]
+       }
+      ]
+     },
+     {"id": 12, "name": "child2", "children": []}
+    ]
+   },
+   {
+    "id": 2,
+    "name": "parent2",
+    "statusComment": "tekshirilgan",
+    "contact": {"phone": "+998 93 555 44 33", "address": {"city": "Samarqand"}},
+    "children": [{"id": 21, "name": "child2.1", "children": [{"id": 211, "name": "child2.1.1", "children": []}]}]
+   }
+  ],
+  "ops": [
+   {"op": "flatten", "node": "[].children"},
+   {"op": "canFlatten", "node": "[].children"},
+   {"op": "flatten", "node": "[].children"},
+   {"op": "group", "node": "[].children[]", "name": "meta"},
+   {"op": "move", "node": "[].children[]._depth", "target": "[].children[].meta", "zone": "inside"},
+   {"op": "output"},
+   {"op": "move", "node": "[].children[].meta._depth", "target": "[].id", "zone": "after"}
+  ]
+ },
+ "output": [
+  {
+   "id": 1,
+   "name": "parent1",
+   "statusComment": null,
+   "contact": {"phone": "+998 90 123 45 67", "address": {"city": "Toshkent", "street": "Navoiy 12"}},
+   "children": [
+    {"id": 11, "name": "child1", "statusComment": null, "meta": {}},
+    {"id": 112, "name": "child1.2", "meta": {}},
+    {"id": 1121, "name": "child1.2.1", "meta": {}},
+    {"id": 1123, "name": "child1.2.3", "statusComment": "ok", "meta": {}},
+    {"id": 12, "name": "child2", "meta": {}}
+   ]
+  },
+  {
+   "id": 2,
+   "name": "parent2",
+   "statusComment": "tekshirilgan",
+   "contact": {"phone": "+998 93 555 44 33", "address": {"city": "Samarqand"}},
+   "children": [{"id": 21, "name": "child2.1", "meta": {}}, {"id": 211, "name": "child2.1.1", "meta": {}}]
+  }
+ ],
+ "log": [
+  {
+   "i": 0,
+   "op": "flatten",
+   "applied": true,
+   "changed": true,
+   "undo": 1,
+   "msg": "«children» ichidagi barcha darajalar bitta massivga yig'ildi: 7 ta element"
+  },
+  {"i": 1, "op": "canFlatten", "applied": false, "changed": false, "undo": 1, "msg": null, "result": false},
+  {"i": 2, "op": "flatten", "applied": false, "changed": false, "undo": 1, "msg": null},
+  {
+   "i": 3,
+   "op": "group",
+   "applied": true,
+   "changed": true,
+   "undo": 3,
+   "msg": "",
+   "result": {"ref": [0, "children", 0, "meta"], "key": "meta"}
+  },
+  {"i": 4, "op": "move", "applied": true, "changed": true, "undo": 4, "msg": ""},
+  {
+   "i": 5,
+   "op": "output",
+   "applied": false,
+   "changed": false,
+   "undo": 4,
+   "msg": null,
+   "result": [
+    {
+     "id": 1,
+     "name": "parent1",
+     "statusComment": null,
+     "contact": {"phone": "+998 90 123 45 67", "address": {"city": "Toshkent", "street": "Navoiy 12"}},
+     "children": [
+      {"id": 11, "name": "child1", "statusComment": null, "meta": {"_depth": 1}},
+      {"id": 112, "name": "child1.2", "meta": {"_depth": 2}},
+      {"id": 1121, "name": "child1.2.1", "meta": {"_depth": 3}},
+      {"id": 1123, "name": "child1.2.3", "statusComment": "ok", "meta": {"_depth": 3}},
+      {"id": 12, "name": "child2", "meta": {"_depth": 1}}
+     ]
+    },
+    {
+     "id": 2,
+     "name": "parent2",
+     "statusComment": "tekshirilgan",
+     "contact": {"phone": "+998 93 555 44 33", "address": {"city": "Samarqand"}},
+     "children": [
+      {"id": 21, "name": "child2.1", "meta": {"_depth": 1}},
+      {"id": 211, "name": "child2.1.1", "meta": {"_depth": 2}}
+     ]
+    }
+   ]
+  },
+  {"i": 6, "op": "move", "applied": true, "changed": true, "undo": 5, "msg": ""}
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "id", "kind": "value", "src": [null, "id"], "types": ["number"], "count": 2, "pcount": 2, "samples": ["1", "2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "_depth", "kind": "value", "src": null, "types": ["number"], "count": 0, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": "depth", "ctx": [null, "children", null], "open": false, "is_elem": false, "is_root": false, "children": []},
+   {"key": "name", "kind": "value", "src": [null, "name"], "types": ["string"], "count": 2, "pcount": 2, "samples": ["\"parent1\"", "\"parent2\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "statusComment", "kind": "value", "src": [null, "statusComment"], "types": ["string", "null"], "count": 2, "pcount": 2, "samples": ["\"tekshirilgan\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "contact", "kind": "object", "src": [null, "contact"], "types": ["object"], "count": 2, "pcount": 2, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "phone", "kind": "value", "src": [null, "contact", "phone"], "types": ["string"], "count": 2, "pcount": 2, "samples": ["\"+998 90 123 45 67\"", "\"+998 93 555 44 33\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+    {"key": "address", "kind": "object", "src": [null, "contact", "address"], "types": ["object"], "count": 2, "pcount": 2, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+     {"key": "city", "kind": "value", "src": [null, "contact", "address", "city"], "types": ["string"], "count": 2, "pcount": 2, "samples": ["\"Toshkent\"", "\"Samarqand\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+     {"key": "street", "kind": "value", "src": [null, "contact", "address", "street"], "types": ["string"], "count": 1, "pcount": 2, "samples": ["\"Navoiy 12\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+    ]}
+   ]},
+   {"key": "children", "kind": "array", "src": [null, "children"], "types": ["array"], "count": 2, "pcount": 2, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "children", null], "types": ["object"], "count": 7, "pcount": null, "samples": [], "synthetic": false, "rec_key": "children", "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+     {"key": "id", "kind": "value", "src": [null, "children", null, "id"], "types": ["number"], "count": 7, "pcount": 7, "samples": ["11", "112", "1121"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []},
+     {"key": "name", "kind": "value", "src": [null, "children", null, "name"], "types": ["string"], "count": 7, "pcount": 7, "samples": ["\"child1\"", "\"child1.2\"", "\"child1.2.1\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []},
+     {"key": "statusComment", "kind": "value", "src": [null, "children", null, "statusComment"], "types": ["string", "null"], "count": 2, "pcount": 7, "samples": ["\"ok\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []},
+     {"key": "meta", "kind": "object", "src": null, "types": ["object"], "count": 0, "pcount": null, "samples": [], "synthetic": true, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+    ]}
+   ]}
+  ]}
+ ]},
+ "badges": [
+  {"ref": [0, "_depth"], "badges": ["daraja raqami"]},
+  {"ref": [0, "children", 0], "badges": ["rekursiv · children"]},
+  {"ref": [0, "children", 0, "meta"], "badges": ["yangi guruh"]}
+ ],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"id\" value <- [].id",
+  "    \"_depth\" value [computed=depth ctx=[].children[]]",
+  "    \"name\" value <- [].name",
+  "    \"statusComment\" value <- [].statusComment",
+  "    \"contact\" object <- [].contact",
+  "      \"phone\" value <- [].contact.phone",
+  "      \"address\" object <- [].contact.address",
+  "        \"city\" value <- [].contact.address.city",
+  "        \"street\" value <- [].contact.address.street",
+  "    \"children\" array <- [].children",
+  "      [] object [recKey=children] <- [].children[]",
+  "        \"id\" value <- [].children[].id",
+  "        \"name\" value <- [].children[].name",
+  "        \"statusComment\" value <- [].children[].statusComment",
+  "        \"meta\" object [synthetic]"
+ ],
+ "preview": [
+  {
+   "id": 1,
+   "name": "parent1",
+   "statusComment": null,
+   "contact": {"phone": "+998 90 123 45 67", "address": {"city": "Toshkent", "street": "Navoiy 12"}},
+   "children": [
+    {"id": 11, "name": "child1", "statusComment": null, "meta": {}},
+    {"id": 112, "name": "child1.2", "meta": {}},
+    {"id": 1121, "name": "child1.2.1", "meta": {}},
+    {"id": 1123, "name": "child1.2.3", "statusComment": "ok", "meta": {}},
+    {"id": 12, "name": "child2", "meta": {}}
+   ]
+  },
+  {
+   "id": 2,
+   "name": "parent2",
+   "statusComment": "tekshirilgan",
+   "contact": {"phone": "+998 93 555 44 33", "address": {"city": "Samarqand"}},
+   "children": [{"id": 21, "name": "child2.1", "meta": {}}, {"id": 211, "name": "child2.1.1", "meta": {}}]
+  }
+ ],
+ "perRecord": [
+  [
+   {
+    "id": 1,
+    "name": "parent1",
+    "statusComment": null,
+    "contact": {"phone": "+998 90 123 45 67", "address": {"city": "Toshkent", "street": "Navoiy 12"}},
+    "children": [
+     {"id": 11, "name": "child1", "statusComment": null, "meta": {}},
+     {"id": 112, "name": "child1.2", "meta": {}},
+     {"id": 1121, "name": "child1.2.1", "meta": {}},
+     {"id": 1123, "name": "child1.2.3", "statusComment": "ok", "meta": {}},
+     {"id": 12, "name": "child2", "meta": {}}
+    ]
+   }
+  ],
+  [
+   {
+    "id": 2,
+    "name": "parent2",
+    "statusComment": "tekshirilgan",
+    "contact": {"phone": "+998 93 555 44 33", "address": {"city": "Samarqand"}},
+    "children": [{"id": 21, "name": "child2.1", "meta": {}}, {"id": 211, "name": "child2.1.1", "meta": {}}]
+   }
+  ]
+ ],
+ "perRecordConcatEqualsOutput": true
+}

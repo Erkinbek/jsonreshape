@@ -7,9 +7,16 @@
   absolute path) -- a normal widget, hidden while a temporary message is shown;
 * the selection size of the active view (``view.selection_count()`` when > 1);
 * the byte range of the current node (``start–end``), resolved in a silent task after a
-  short debounce (never blocks: the node may be inside a record not indexed yet);
+  short debounce (never blocks: the node may be inside a record not indexed yet); an edited
+  node -- its bytes live in the edit layer (an edit offset), or a node built from edited
+  records (the root of an edited array) -- shows "tahrirlangan" instead (it has no place in
+  the file);
 * the record count -- live while indexing (``… (indekslanmoqda 45 %)``), ``shown / total``
-  for a filtered / sorted / search-result view;
+  for a filtered / sorted / search-result view; with edits these are the counts of the
+  effective (edited) document, refreshed on ``session.data_changed``;
+* "● N o'zgarish" next to it while the document has unsaved changes (N = the controller's
+  ``steps``; tooltip: the step Undo would take back), following the tab's
+  ``edit_state_changed``;
 * the format (``doc.info.label`` + record path), the encoding (+ gzip), the file size;
 * the process memory (RSS through psutil every 2 s; tooltip with the memory limit; psutil
   is imported in a silent task, not on the GUI thread at start-up);
@@ -42,6 +49,7 @@ from jsonreshape.errors import Cancelled
 from jsonreshape.gui import copyfmt
 from jsonreshape.gui.widgets import format_count, format_size
 from jsonreshape.i18n import t
+from jsonreshape.overlay import is_edit_offset
 
 log = logging.getLogger(__name__)
 
@@ -253,6 +261,7 @@ class StatusBar(QStatusBar):
         self._offset_task: Any = None
         self._abs_path_text: str | None = None
         self._span: tuple[int, int] | None = None
+        self._edited_offset = False
         self._shut = False
 
         self.path_label = StatusLabel(self, mode=Qt.TextElideMode.ElideMiddle, fixed=False)
@@ -262,12 +271,14 @@ class StatusBar(QStatusBar):
         self.selection_label = self._label("status_selection")
         self.offset_label = self._label("status_offset")
         self.count_label = self._label("status_count")
+        self.dirty_label = self._label("status_dirty")
+        self.dirty_label.setVisible(False)
         self.format_label = self._label("status_format")
         self.encoding_label = self._label("status_encoding")
         self.size_label = self._label("status_size")
         self.memory_label = self._label("status_memory")
-        for label in (self.selection_label, self.offset_label, self.count_label, self.format_label,
-                      self.encoding_label, self.size_label, self.memory_label):
+        for label in (self.selection_label, self.offset_label, self.count_label, self.dirty_label,
+                      self.format_label, self.encoding_label, self.size_label, self.memory_label):
             self.addPermanentWidget(label)
         self.tasks_button = _TasksButton(self)
         self.tasks_button.setObjectName("status_tasks")
@@ -342,8 +353,8 @@ class StatusBar(QStatusBar):
         return label
 
     def labels(self) -> list[StatusLabel]:
-        return [self.path_label, self.selection_label, self.offset_label, self.count_label, self.format_label,
-                self.encoding_label, self.size_label, self.memory_label]
+        return [self.path_label, self.selection_label, self.offset_label, self.count_label, self.dirty_label,
+                self.format_label, self.encoding_label, self.size_label, self.memory_label]
 
     def update_metrics(self) -> None:
         """The font may have changed (settings): recompute the fixed sizes."""
@@ -374,9 +385,13 @@ class StatusBar(QStatusBar):
             self._connect(s.view_changed, self.refresh_count)
             self._connect(s.view_busy_changed, self.refresh_count)
             self._connect(s.current_changed, self._on_current_changed)
+            data_changed = getattr(s, "data_changed", None)
+            if data_changed is not None and hasattr(data_changed, "connect"):
+                self._connect(data_changed, self._on_data_changed)
         if tab is not None:
             for name, slot in (("active_view_changed", self.refresh_selection),
-                               ("selection_changed", self.refresh_selection)):
+                               ("selection_changed", self.refresh_selection),
+                               ("edit_state_changed", self.refresh_dirty)):
                 signal = getattr(tab, name, None)
                 if signal is not None:
                     self._connect(signal, slot)
@@ -411,6 +426,7 @@ class StatusBar(QStatusBar):
     def refresh(self) -> None:
         self.refresh_document()
         self.refresh_count()
+        self.refresh_dirty()
         self.refresh_path()
         self.refresh_selection()
         self.refresh_tasks()
@@ -420,6 +436,44 @@ class StatusBar(QStatusBar):
     def _on_doc_changed(self, *_args: Any) -> None:
         self.refresh_document()
         self.refresh_count()
+        self.refresh_dirty()
+
+    def _on_data_changed(self, *_args: Any) -> None:
+        """An edit was applied: counts, the dirty mark and the current node's place may differ."""
+        self.refresh_count()
+        self.refresh_dirty()
+        self._abs_path_text = None
+        self.refresh_path()
+        self._schedule_offset()
+
+    def _edit(self) -> Any:
+        s = self._session
+        if s is None or getattr(s, "closed", False):
+            return None
+        return getattr(s, "edit", None)
+
+    def dirty_text(self) -> str:
+        """"● N o'zgarish" while the document has unsaved changes, else ``""``."""
+        edit = self._edit()
+        if edit is None or not bool(getattr(edit, "dirty", False)):
+            return ""
+        steps = int(getattr(edit, "steps", 0) or 0)
+        return t("gui.status.dirty", count=format_count(steps))
+
+    def refresh_dirty(self, *_args: Any) -> None:
+        text = self.dirty_text()
+        self.dirty_label.setText(text)
+        if text:
+            edit = self._edit()
+            undo = str(getattr(edit, "undo_text", "") or "") if edit is not None else ""
+            tip = t("gui.status.dirty.tip")
+            if undo:
+                tip += "\n" + t("gui.status.dirty.undo_tip", label=undo)
+            self.dirty_label.set_tip(tip)
+        else:
+            self.dirty_label.set_tip("")
+        if self.dirty_label.isHidden() == bool(text):
+            self.dirty_label.setVisible(bool(text))
 
     def _on_current_changed(self, *_args: Any) -> None:
         self._abs_path_text = None
@@ -599,14 +653,19 @@ class StatusBar(QStatusBar):
         self._offset_serial += 1
         serial = self._offset_serial
         session = s
+        doc = s.doc
 
-        def work(ctx: Any) -> tuple[int, int, str | None]:
+        def work(ctx: Any) -> tuple[int, int, str | None, bool]:
             node = session.node(ref, ctx.cancel)
             try:
                 path = copyfmt.path_text(session.absolute_path(ref), "dotted") or "$"
             except Exception:
                 path = None
-            return int(node.start), int(node.end), path
+            start, end = int(node.start), int(node.end)
+            # bytes of the edit layer, or text built from edited records: no place in the file
+            edited = is_edit_offset(start) or (bool(getattr(node, "is_composite", False))
+                                               and bool(getattr(doc, "edited", False)))
+            return start, end, path, edited
 
         self._offset_task = self.app.tasks.run(
             work, title=t("gui.status.task.offset"), kind="offset", owner=self, silent=True,
@@ -614,13 +673,14 @@ class StatusBar(QStatusBar):
             on_error=lambda exc, n=serial: self._offset_failed(n, exc),
             on_cancel=lambda n=serial: self._offset_cancelled(n))
 
-    def _offset_done(self, serial: int, result: tuple[int, int, str | None]) -> None:
+    def _offset_done(self, serial: int, result: tuple) -> None:
         if serial != self._offset_serial:
             return
         self._offset_task = None
-        start, end, path = result
+        start, end, path = result[:3]
+        edited = bool(result[3]) if len(result) > 3 else False
         self._abs_path_text = path
-        self._set_offset((start, end))
+        self._set_offset((start, end), edited=edited)
         self.refresh_path()
 
     def _offset_failed(self, serial: int, exc: BaseException) -> None:
@@ -634,12 +694,18 @@ class StatusBar(QStatusBar):
         if serial == self._offset_serial:
             self._offset_task = None
 
-    def _set_offset(self, span: tuple[int, int] | None) -> None:
-        self._span = span
+    def _set_offset(self, span: tuple[int, int] | None, *, edited: bool = False) -> None:
+        self._span = None if edited else span
+        self._edited_offset = bool(edited and span is not None)
         if span is None:
             self.offset_label.setText("")
             self.offset_label.set_tip("")
             self.offset_label.setVisible(False)
+            return
+        if edited:
+            self.offset_label.setText(t("gui.status.offset.edited"))
+            self.offset_label.set_tip(t("gui.status.offset.edited.tip"))
+            self.offset_label.setVisible(True)
             return
         start, end = span
         self.offset_label.setText(t("gui.status.offset", start=format_count(start), end=format_count(end)))
@@ -648,8 +714,12 @@ class StatusBar(QStatusBar):
         self.offset_label.setVisible(True)
 
     def offset_span(self) -> tuple[int, int] | None:
-        """The byte range shown, ``None`` when none is."""
+        """The byte range shown, ``None`` when none is (also for an edited node)."""
         return self._span
+
+    def offset_edited(self) -> bool:
+        """The current node is edited: "tahrirlangan" is shown instead of a byte range."""
+        return self._edited_offset
 
     # ------------------------------------------------------------------ memory / tasks
     def refresh_memory(self) -> None:

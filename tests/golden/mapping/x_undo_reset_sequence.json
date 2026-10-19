@@ -1,0 +1,107 @@
+{
+ "name": "x_undo_reset_sequence",
+ "description": "undo / reset (reset is undoable and always a step)",
+ "case": {
+  "name": "x_undo_reset_sequence",
+  "records": [{"a": 1, "b": {"c": 2}}],
+  "ops": [
+   {"op": "undo"},
+   {"op": "reset"},
+   {"op": "rename", "node": "[].a", "name": "A"},
+   {"op": "unwrap", "node": "[].b"},
+   {"op": "output"},
+   {"op": "reset"},
+   {"op": "output"},
+   {"op": "undo"},
+   {"op": "output"},
+   {"op": "undo"},
+   {"op": "undo"},
+   {"op": "undo"},
+   {"op": "undo"},
+   {"op": "reset"},
+   {"op": "reset"}
+  ]
+ },
+ "output": [{"a": 1, "b": {"c": 2}}],
+ "log": [
+  {"i": 0, "op": "undo", "applied": false, "changed": false, "undo": 0, "msg": null},
+  {"i": 1, "op": "reset", "applied": true, "changed": false, "undo": 1, "msg": "Asl tuzilma tiklandi"},
+  {"i": 2, "op": "rename", "applied": true, "changed": true, "undo": 2, "msg": ""},
+  {
+   "i": 3,
+   "op": "unwrap",
+   "applied": true,
+   "changed": true,
+   "undo": 3,
+   "msg": "«b» ichidagi 1 ta maydon bir pog'ona yuqoriga chiqdi"
+  },
+  {
+   "i": 4,
+   "op": "output",
+   "applied": false,
+   "changed": false,
+   "undo": 3,
+   "msg": null,
+   "result": [{"A": 1, "c": 2}]
+  },
+  {"i": 5, "op": "reset", "applied": true, "changed": true, "undo": 4, "msg": "Asl tuzilma tiklandi"},
+  {
+   "i": 6,
+   "op": "output",
+   "applied": false,
+   "changed": false,
+   "undo": 4,
+   "msg": null,
+   "result": [{"a": 1, "b": {"c": 2}}]
+  },
+  {"i": 7, "op": "undo", "applied": true, "changed": true, "undo": 3, "msg": "Oxirgi o'zgarish bekor qilindi"},
+  {
+   "i": 8,
+   "op": "output",
+   "applied": false,
+   "changed": false,
+   "undo": 3,
+   "msg": null,
+   "result": [{"A": 1, "c": 2}]
+  },
+  {"i": 9, "op": "undo", "applied": true, "changed": true, "undo": 2, "msg": "Oxirgi o'zgarish bekor qilindi"},
+  {
+   "i": 10,
+   "op": "undo",
+   "applied": true,
+   "changed": true,
+   "undo": 1,
+   "msg": "Oxirgi o'zgarish bekor qilindi"
+  },
+  {
+   "i": 11,
+   "op": "undo",
+   "applied": true,
+   "changed": false,
+   "undo": 0,
+   "msg": "Oxirgi o'zgarish bekor qilindi"
+  },
+  {"i": 12, "op": "undo", "applied": false, "changed": false, "undo": 0, "msg": null},
+  {"i": 13, "op": "reset", "applied": true, "changed": false, "undo": 1, "msg": "Asl tuzilma tiklandi"},
+  {"i": 14, "op": "reset", "applied": true, "changed": false, "undo": 2, "msg": "Asl tuzilma tiklandi"}
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "a", "kind": "value", "src": [null, "a"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "b", "kind": "object", "src": [null, "b"], "types": ["object"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "c", "kind": "value", "src": [null, "b", "c"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+   ]}
+  ]}
+ ]},
+ "badges": [],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"a\" value <- [].a",
+  "    \"b\" object <- [].b",
+  "      \"c\" value <- [].b.c"
+ ],
+ "preview": [{"a": 1, "b": {"c": 2}}],
+ "perRecord": [[{"a": 1, "b": {"c": 2}}]],
+ "perRecordConcatEqualsOutput": true
+}

@@ -9,6 +9,30 @@ warning is logged. :func:`get_settings` returns the process-wide instance.
 Treat the shared instance as read-only; to change settings build a new one with
 ``dataclasses.replace(get_settings(), ...)`` (validated), then :func:`set_settings` and
 :meth:`Settings.save`.
+
+Editing (stage 3, docs/ARCHITECTURE.md §12.9) adds three fields at the end of the dataclass
+(the field order is pinned by tests; a settings file written before them simply gives their
+defaults):
+
+* ``edits_location`` -- where the edit layer of a document is *created*: ``"appdata"``
+  (``appdirs.edits_dir()/<key>``, the default) or ``"beside"`` (``<name>.jredit`` next to
+  the file; an unusable folder falls back to the app folder, §12.2). Only the exact two
+  words are accepted (stripped, case-insensitive): an unknown value is never guessed, so a
+  typo in the file falls back to the safe default instead of a surprising location.
+  Pending layers are searched in both places whatever this says (§12.2 ``find_pending``).
+* ``backup_on_save`` -- keep ``<file>.bak`` when Save replaces a file (§12.7). A bool only
+  (``"yes"``/``1`` are rejected like for ``csv_bom``): the backup of the user's data must
+  never be switched by a value that merely looks true or false.
+* ``undo_limit`` -- how many steps can be undone (AGENT_PROMPT §1.5: at least 200). An
+  integer >= 200 without an upper bound in the core (the settings dialog offers
+  200..100000 and keeps a larger value from the file as long as the field is not edited).
+
+The tools (stage 5, docs/ARCHITECTURE.md §14.0) add one more field at the end:
+
+* ``diff_align_max_bytes`` -- two files are compared in full without a key (records aligned
+  by content, ``diff.py`` "align" mode) only while each holds at most this many bytes of
+  records (default 200 MiB, AGENT_PROMPT §4.5 "200 MB gacha to'liq"); bigger files need a key
+  or the position mode. A byte size >= 1 (``"500MB"`` accepted).
 """
 
 from __future__ import annotations
@@ -27,7 +51,7 @@ from .i18n import SUPPORTED_LANGUAGES, t
 
 log = logging.getLogger(__name__)
 
-__all__ = ["SETTINGS_VERSION", "Settings", "get_settings", "set_settings"]
+__all__ = ["EDITS_LOCATIONS", "SETTINGS_VERSION", "UNDO_LIMIT_MIN", "Settings", "get_settings", "set_settings"]
 
 KiB = 1 << 10
 MiB = 1 << 20
@@ -35,6 +59,8 @@ GiB = 1 << 30
 
 SETTINGS_VERSION = 1
 XLSX_MAX_ROWS = 1048576          # Excel's hard limit of rows per sheet
+EDITS_LOCATIONS = ("appdata", "beside")   # Settings.edits_location: the app folder / next to the file
+UNDO_LIMIT_MIN = 200             # AGENT_PROMPT §1.5: undo/redo of at least 200 steps
 _MAX_SETTINGS_FILE = 1 << 20      # a settings file larger than this is treated as corrupt
 
 StrPath = Union[str, "os.PathLike[str]"]
@@ -62,7 +88,11 @@ class Settings:
     * ``export_indent``: ``None`` (compact), an integer 0..16 or ``"\\t"``;
     * ``csv_bom``: bool; ``csv_delimiter``: one character other than ``"``, CR, LF;
     * ``array_join_sep``: 1..16 characters without CR/LF;
-    * ``xlsx_max_rows``: integer 2..1048576.
+    * ``xlsx_max_rows``: integer 2..1048576;
+    * ``edits_location``: ``"appdata"`` or ``"beside"`` (where new edit layers are kept);
+    * ``backup_on_save``: bool (keep ``<file>.bak`` when saving);
+    * ``undo_limit``: integer >= 200 (undoable steps);
+    * ``diff_align_max_bytes``: integer >= 1 (the largest files compared in full without a key).
 
     Byte sizes may also be given as strings such as ``"512MB"`` (see
     :func:`jsonreshape.tasks.parse_size`), ``export_indent`` as ``"tab"``; they are
@@ -83,6 +113,10 @@ class Settings:
     csv_delimiter: str = ","
     array_join_sep: str = ";"
     xlsx_max_rows: int = XLSX_MAX_ROWS
+    edits_location: str = "appdata"
+    backup_on_save: bool = True
+    undo_limit: int = 1000
+    diff_align_max_bytes: int = 200 * MiB
 
     def __post_init__(self) -> None:
         for f in fields(self):
@@ -187,7 +221,8 @@ class Settings:
 # validation
 # ----------------------------------------------------------------------------------
 _SIZE_FIELDS = frozenset(
-    {"cache_limit_bytes", "memory_limit_bytes", "sort_memory_bytes", "large_node_bytes", "head_bytes"}
+    {"cache_limit_bytes", "memory_limit_bytes", "sort_memory_bytes", "large_node_bytes", "head_bytes",
+     "diff_align_max_bytes"}
 )
 _MIN_INT = {
     "sample_size": 1,
@@ -197,6 +232,8 @@ _MIN_INT = {
     "large_node_bytes": 1,
     "large_node_children": 1,
     "head_bytes": 1,
+    "undo_limit": UNDO_LIMIT_MIN,
+    "diff_align_max_bytes": 1,
 }
 
 
@@ -273,10 +310,14 @@ def _normalize(name: str, value: Any) -> Any:
         if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 16:
             return int(value)
         raise _invalid(name, value, "settings.expected.indent")
-    if name == "csv_bom":
+    if name in ("csv_bom", "backup_on_save"):
         if isinstance(value, bool):
             return value
         raise _invalid(name, value, "settings.expected.bool")
+    if name == "edits_location":
+        if isinstance(value, str) and value.strip().lower() in EDITS_LOCATIONS:
+            return value.strip().lower()
+        raise _invalid(name, value, "settings.expected.edits_location")
     if name == "csv_delimiter":
         if isinstance(value, str) and len(value) == 1 and value not in "\"\r\n":
             return value

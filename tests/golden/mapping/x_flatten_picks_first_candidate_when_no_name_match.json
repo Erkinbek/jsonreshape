@@ -1,0 +1,61 @@
+{
+ "name": "x_flatten_picks_first_candidate_when_no_name_match",
+ "description": "targeted reference case (batch5)",
+ "case": {
+  "name": "x_flatten_picks_first_candidate_when_no_name_match",
+  "records": [{"list": [{"items": [{"q": 1, "items": []}], "children": [{"children": [], "items": []}]}]}],
+  "ops": [{"op": "flatten", "node": "[].list"}]
+ },
+ "output": [{"list": [{"_depth": 1, "children": [{"children": [], "items": []}]}, {"_depth": 2, "q": 1}]}],
+ "log": [
+  {
+   "i": 0,
+   "op": "flatten",
+   "applied": true,
+   "changed": true,
+   "undo": 1,
+   "msg": "«items» ichidagi barcha darajalar bitta massivga yig'ildi: 2 ta element"
+  }
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "list", "kind": "array", "src": [null, "list"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "list", null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": "items", "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+     {"key": "_depth", "kind": "value", "src": null, "types": ["number"], "count": 0, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": "depth", "ctx": [null, "list", null], "open": false, "is_elem": false, "is_root": false, "children": []},
+     {"key": "children", "kind": "array", "src": [null, "list", null, "children"], "types": ["array"], "count": 1, "pcount": 2, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": [
+      {"key": "", "kind": "object", "src": [null, "list", null, "children", null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": true, "is_root": false, "children": [
+       {"key": "children", "kind": "array", "src": [null, "list", null, "children", null, "children"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": [
+        {"key": "", "kind": "value", "src": [null, "list", null, "children", null, "children", null], "types": [], "count": 0, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": true, "is_root": false, "children": []}
+       ]},
+       {"key": "items", "kind": "array", "src": [null, "list", null, "children", null, "items"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": [
+        {"key": "", "kind": "value", "src": [null, "list", null, "children", null, "items", null], "types": [], "count": 0, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": true, "is_root": false, "children": []}
+       ]}
+      ]}
+     ]},
+     {"key": "q", "kind": "value", "src": [null, "list", null, "q"], "types": ["number"], "count": 1, "pcount": 2, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []}
+    ]}
+   ]}
+  ]}
+ ]},
+ "badges": [
+  {"ref": [0, "list", 0], "badges": ["rekursiv · items"]},
+  {"ref": [0, "list", 0, "_depth"], "badges": ["daraja raqami"]}
+ ],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"list\" array <- [].list",
+  "      [] object [recKey=items] <- [].list[]",
+  "        \"_depth\" value [computed=depth ctx=[].list[]]",
+  "        \"children\" array <- [].list[].children",
+  "          [] object <- [].list[].children[]",
+  "            \"children\" array <- [].list[].children[].children",
+  "              [] value <- [].list[].children[].children[]",
+  "            \"items\" array <- [].list[].children[].items",
+  "              [] value <- [].list[].children[].items[]",
+  "        \"q\" value <- [].list[].q"
+ ],
+ "preview": [{"list": [{"_depth": 1, "children": [{"children": [], "items": []}]}, {"_depth": 2, "q": 1}]}],
+ "perRecord": [[{"list": [{"_depth": 1, "children": [{"children": [], "items": []}]}, {"_depth": 2, "q": 1}]}]],
+ "perRecordConcatEqualsOutput": true
+}

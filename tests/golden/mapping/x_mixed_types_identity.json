@@ -1,0 +1,20 @@
+{
+ "name": "x_mixed_types_identity",
+ "description": "targeted reference case (batch2)",
+ "case": {
+  "name": "x_mixed_types_identity",
+  "records": [{"f": {"a": 1}}, {"f": "s"}, {"f": [1, 2]}, {"f": null}, {"f": {"b": 2}}, 7, null, [1]]
+ },
+ "output": [{"f": {"a": 1}}, {"f": "s"}, {"f": [1, 2]}, {"f": null}, {"f": {"b": 2}}, 7, null, [1]],
+ "log": [],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "array", "src": [null], "types": ["object", "array", "number", "null"], "count": 8, "pcount": null, "samples": ["7"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "", "kind": "value", "src": [null, null], "types": ["number"], "count": 1, "pcount": null, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [],
+ "shape": ["(root) array <- (ildiz)", "  [] array <- []", "    [] value <- [][]"],
+ "preview": [{"f": {"a": 1}}, {"f": "s"}, {"f": [1, 2]}, {"f": null}, {"f": {"b": 2}}, 7, null, [1]],
+ "perRecord": [[{"f": {"a": 1}}], [{"f": "s"}], [{"f": [1, 2]}], [{"f": null}], [{"f": {"b": 2}}], [7], [null], [[1]]],
+ "perRecordConcatEqualsOutput": true
+}

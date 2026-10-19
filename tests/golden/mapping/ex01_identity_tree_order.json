@@ -1,0 +1,28 @@
+{
+ "name": "ex01_identity_tree_order",
+ "description": "engine analysis worked example: identity normalizes key order to the tree",
+ "case": {
+  "name": "ex01_identity_tree_order",
+  "records": [{"id": 1, "name": "a"}, {"name": "b", "id": 2, "extra": true}]
+ },
+ "output": [{"id": 1, "name": "a"}, {"id": 2, "name": "b", "extra": true}],
+ "log": [],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "id", "kind": "value", "src": [null, "id"], "types": ["number"], "count": 2, "pcount": 2, "samples": ["1", "2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "name", "kind": "value", "src": [null, "name"], "types": ["string"], "count": 2, "pcount": 2, "samples": ["\"a\"", "\"b\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "extra", "kind": "value", "src": [null, "extra"], "types": ["boolean"], "count": 1, "pcount": 2, "samples": ["true"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"id\" value <- [].id",
+  "    \"name\" value <- [].name",
+  "    \"extra\" value <- [].extra"
+ ],
+ "preview": [{"id": 1, "name": "a"}, {"id": 2, "name": "b", "extra": true}],
+ "perRecord": [[{"id": 1, "name": "a"}], [{"id": 2, "name": "b", "extra": true}]],
+ "perRecordConcatEqualsOutput": true
+}

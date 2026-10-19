@@ -44,7 +44,11 @@ Object lifetime: the worker thread never holds a reference to the :class:`GuiTas
 ``QObject`` (it only sees a plain-Python :class:`_TaskCore`), and it drops its references
 to the task function before it reports the end. So every ``GuiTask``, task function and
 callback (which may capture widgets) is released by the GUI thread -- a ``QObject`` must
-never be destroyed in a worker thread.
+never be destroyed in a worker thread. Another thread that must wait for a task's end
+(``DocSession`` closing a document after its tasks) waits on :attr:`GuiTask.done_event`, a
+plain ``threading.Event``, never on the ``GuiTask`` itself; a finished task forgets its
+``owner`` (it may be a ``QObject`` such as the edit controller), so a finished task kept
+somewhere (the tasks panel, a list of document users) does not keep its owner alive.
 
 Threading rules: :meth:`TaskManager.run`, :meth:`~TaskManager.detach`,
 :meth:`~TaskManager.cancel_all`, :meth:`~TaskManager.wait_idle` are called in the GUI
@@ -300,6 +304,13 @@ class GuiTask(QObject):
     def thread_alive(self) -> bool:
         """The worker thread has not ended yet (callbacks may still be pending)."""
         return not self._core.ended.is_set()
+
+    @property
+    def done_event(self) -> threading.Event:
+        """Set once the worker thread has ended (a queued task that was cancelled: once it was
+        dropped). A plain ``threading.Event``: another thread may wait on it without holding
+        this ``QObject`` (review CL-8)."""
+        return self._core.ended
 
     def join(self, timeout: float | None = None) -> bool:
         """Wait for the worker thread to end (not for the GUI-thread callbacks); True when
@@ -562,6 +573,9 @@ class TaskManager(QObject):
                 self._emit_error(cb_exc, task)
         if not task.silent:
             self._emit(self.task_finished, task)
+        # a finished task kept somewhere (tasks panel, document users) must not keep its owner (e.g. an
+        # edit controller) alive: the owner is only needed while the task can still be detached
+        task.owner = None
 
     # -- signal helpers ------------------------------------------------------------------------
     def _emit(self, signal: Any, task: GuiTask) -> None:

@@ -56,6 +56,72 @@ top level, the others under ``"others"`` (:data:`LAYOUT_VARIANTS_MAX` per file) 
 columns of one record path never come back for another (all cells empty). An entry saved
 before layouts were kept per record path (no ``"kind"``) is used only when the file is
 opened with the automatic record path and format.
+
+Editing (docs/ARCHITECTURE.md §12.9 "Table"; commands go through ``session.edit``)
+--------------------------------------------------------------------------------
+* **Editable cells**: a concrete column path, or a wildcard column with exactly one match
+  (its concrete path); ``$index`` is read-only; ``$key`` renames the record key of
+  member-record documents (keyed, wrapped object); ``$`` is the record value. Enter and a
+  double click reveal a container cell in the tree (as before) and edit any other cell. F2
+  renames (AGENT_PROMPT §11 "F2 nomlash"; review3 L5): the record key on a ``$key`` cell, else
+  the key of the cell's member in its record (:meth:`TableView.rename_key`); the view's menus
+  show no move keys (``edit_keys``: Alt+Down opens the quick filter here). Key editors refuse
+  keys that exist already in place (``taken``: the loaded rows / the kept parsed record;
+  ``key_check``: a lookup in a silent task when the key is committed; review3 L1). The exact
+  value is loaded first in a silent task
+  (:func:`~jsonreshape.gui.editors.load_edit_value`, one pinned state); the editor opens when
+  it arrives and the cell is still current: an :class:`~jsonreshape.gui.editors.InlineEditor`
+  over the cell for numbers and for one-line strings of at most
+  :data:`~jsonreshape.gui.editors.INLINE_MAX_CHARS` characters (exact number tokens, decoded
+  strings), a :class:`~jsonreshape.gui.editors.StringDialog` for other strings (its own loader
+  above 64 KiB; up to 4 MiB), a toggle for booleans, a
+  :class:`~jsonreshape.gui.editors.JsonEditDialog` for ``null`` and containers (Shift+Enter:
+  for any cell). A missing field is created with ``set_path`` (missing intermediate objects
+  too); its editor follows the column's type in the schema (strings / numbers inline,
+  anything else as JSON text). An unchanged value commits nothing.
+* **Del** deletes the fields of the selected cells with concrete paths (``$`` cells: the
+  records); the nodes are looked up in a silent task (rows not loaded too) and deleted in ONE
+  step; wildcard cells are left alone with a status message pointing to Bulk operations.
+  Insert adds a record after the current row (:class:`~jsonreshape.gui.editors.InsertDialog`,
+  the key too in member-record documents), Ctrl+D duplicates the records of the selected
+  rows, Ctrl+V pastes the clipboard's JSON as a record after the current row; the cell menu
+  also deletes the records of the selected rows. Up to :data:`EDIT_SELECTION_MAX` records go
+  through ``delete`` / ``duplicate`` (node commands), more through ``delete_records`` /
+  ``duplicate_records`` (tasks of the edit worker; asked first). These keys are handled in
+  :meth:`TableView._grid_key` -- never as window shortcuts.
+* The view edit protocol of :mod:`jsonreshape.gui.actions` (node menu, Edit menu):
+  ``edit_value``, ``edit_as_json``, ``rename_key`` (``$key``: the record key, else the cell's
+  member key in its record), ``insert_node`` (``before`` / ``after``: a record next to the
+  current row's record; ``child``: into the cell's container), ``duplicate_selection`` and
+  ``delete_selection`` (as Ctrl+D / Del), ``move_selection`` (records, base view only),
+  ``change_type`` (the selected cells' nodes), ``paste_json`` and ``edit_command_state``.
+* **Data changes** (``session.data_changed``): with a record remap (insert / delete /
+  move), a reset or ``records is None`` the loader forgets every row, else only the rows of
+  the changed records; the window cache of view positions is cleared on a remap; quick-find
+  hits are searched again; the current record (and the node followed from another view) is
+  remapped with :func:`~jsonreshape.gui.widgets.remap_node_ref` and kept current (a deleted
+  one: the ChangeSet's selection, which the session then selects -- the table follows it like
+  any selection), the first shown record stays on top; without a remap the selection stays as
+  it is. An open inline editor whose record changed or moved is cancelled; an open dialog
+  keeps its node (remapped; refused on OK when it was deleted). The fetch closure pins
+  ``doc.pinned()`` once per batch, so a batch never mixes two states. The silent lookups of
+  the key editors and of Del pin the state when they are asked for (review CL-9).
+
+Stage 5 (docs/ARCHITECTURE.md §14.7, §14.9)
+-------------------------------------------
+* **Smart values**: a cell holding ONE scalar shows its smart value
+  (:func:`~jsonreshape.gui.treemodel.smart_value`, computed with the cells in the loader worker
+  -- or, for a column added later, from the kept parsed record; never an extra read): unix
+  times and ISO dates get a tooltip in Tashkent time (Uzbek weekday, the pre-1992 note),
+  ``http(s)`` / ``mailto`` links are drawn underlined in the theme's link colour and a
+  Ctrl+click asks "Brauzerda ochilsinmi?" before :func:`~jsonreshape.gui.widgets.open_url`
+  opens them, colours get a swatch, base64 images a size tooltip; a string of a streamed huge
+  record that was cut counts only as an image. ``$key`` cells too.
+* The header menu's **Statistika** (``table_stats``) asks the window for the statistics of the
+  column's field (duck-typed ``window().show_stats(field)``; disabled for ``$index``).
+* The cell menu's **Tanlangan ikkitasini taqqoslash** (``compare_selected``): enabled for exactly
+  two selected cells of loaded rows (:meth:`TableView.compare_refs`) ->
+  :func:`jsonreshape.gui.comparewindow.compare_selected`.
 """
 
 from __future__ import annotations
@@ -68,7 +134,9 @@ import sys
 import threading
 import weakref
 from array import array
-from typing import Any, Iterable
+from decimal import Decimal
+from itertools import chain
+from typing import Any, Iterable, NamedTuple
 
 from PySide6.QtCore import QEvent, QObject, QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QKeyEvent, QKeySequence
@@ -94,14 +162,24 @@ from jsonreshape.errors import Cancelled, JsonReshapeError, PathSyntaxError, Que
 from jsonreshape.gui import copyfmt, fields, quickfind, theme
 from jsonreshape.gui.loader import LoadFailed, RowLoader
 from jsonreshape.gui.session import NodeRef
+from jsonreshape.gui.treemodel import smart_cell, smart_value
 from jsonreshape.gui.vgrid import Cell, Column, VirtualGrid
 from jsonreshape.gui.widgets import (
     ViewBase,
+    ask,
     confirm,
+    edit_controller,
+    edit_unavailable_text,
     format_count,
     mono_font,
+    open_url,
+    remap_node_ref,
+    report_task_error,
+    resolve_in,
     run_value_task,
     set_clipboard_text,
+    task_doc,
+    task_node,
 )
 from jsonreshape.i18n import t
 from jsonreshape.paths import PathPattern, Wild, parse_pattern
@@ -113,6 +191,7 @@ from jsonreshape.tasks import CancelToken
 log = logging.getLogger(__name__)
 
 __all__ = [
+    "EDIT_SELECTION_MAX",
     "ColumnChooserDialog",
     "ColumnSpec",
     "TableView",
@@ -157,6 +236,13 @@ QUICK_FIND_ROWS = 5000
 QUICK_FIND_MAX_MATCHES = 10_000
 QUICK_FIND_RESCAN_MS = 300
 FIND_QUEUE_MAX = 64            # F3 presses kept while a quick-find search runs
+
+#: Editing (ARCHITECTURE §12.9): node commands take at most this many nodes / records (bigger
+#: record selections go to delete_records / duplicate_records; bigger field deletions to Bulk
+#: operations). The editors' own limits are in :mod:`jsonreshape.gui.editors`.
+EDIT_SELECTION_MAX = 10_000
+#: Deleting more records than this asks first.
+DELETE_CONFIRM_RECORDS = EDIT_SELECTION_MAX
 
 SELECT_DEBOUNCE_MS = 120
 QF_DEBOUNCE_MS = 400
@@ -351,10 +437,32 @@ def _matches(value: Any, spec: ColumnSpec) -> list[tuple[tuple, Any]]:
     return pattern.resolve(value)
 
 
+def _smart_decorate(cell: Cell, value: Any, *, cut: bool = False) -> Cell:
+    """Show the smart value (:func:`jsonreshape.gui.treemodel.smart_value`) of a cell holding ONE
+    scalar ``value``: its tooltip, a link (underlined, Ctrl+click), a colour swatch. ``cut``: a
+    streamed string shortened with ``…`` (then only an image counts). No file is read."""
+    if value is None or isinstance(value, (bool, _Box, dict, list)):
+        return cell
+    if isinstance(value, str):
+        text = value[:-1] if cut and value.endswith(_ELLIPSIS) else value
+        smart = smart_value(text, "string", prefix=cut)
+    elif isinstance(value, (int, float, Decimal)):
+        smart = smart_value(value, "number")
+    else:
+        return cell
+    if smart is not None:
+        decor = smart_cell(smart, cell.text)
+        cell.role = decor.pop("role", cell.role)
+        for name, item in decor.items():
+            setattr(cell, name, item)
+    return cell
+
+
 def _key_cell(key: str | None) -> _CellData:
     if key is None:
         return _EMPTY
-    return _CellData(_make_cell(copyfmt.escape_surrogates(key), "key"), key, (), False, False)
+    cell = _smart_decorate(_make_cell(copyfmt.escape_surrogates(key), "key"), key)
+    return _CellData(cell, key, (), False, False)
 
 
 def _index_cell(record: int) -> _CellData:
@@ -369,7 +477,10 @@ def _cell_from_items(items: list, more: int, path: tuple, container: bool, *, cu
         return _EMPTY
     full, role = values_text(items, more)
     has_containers = any(isinstance(v, (dict, list, _Box)) for v in items)
-    return _CellData(_make_cell(full, role), full, path, container, has_containers, count=len(items) + more,
+    cell = _make_cell(full, role)
+    if len(items) == 1 and more == 0 and not has_containers:
+        _smart_decorate(cell, items[0], cut=cut)     # one scalar: a time / date / link / colour / image
+    return _CellData(cell, full, path, container, has_containers, count=len(items) + more,
                      exact=not has_containers and more == 0 and not cut)
 
 
@@ -667,6 +778,8 @@ def _cell_cost(cd: _CellData) -> int:
         n += sizeof(cell.text)
     if cell.tooltip is not None:
         n += sizeof(cell.tooltip)
+    if cell.link is not None and cell.link is not cd.full:
+        n += sizeof(cell.link)
     return n
 
 
@@ -1148,12 +1261,36 @@ class _FetchHolder:
             return self.specs, self.gen
 
 
+def _pin(doc: Any) -> Any:
+    """A view of ``doc`` bound to the overlay state shown now (``doc.pinned()``): a batch of
+    reads never mixes two states of an edited document (the live document when it cannot be
+    pinned)."""
+    pin = getattr(doc, "pinned", None)
+    if pin is None:
+        return doc
+    try:
+        return pin()
+    except (ValueError, TypeError):
+        return doc
+
+
+def _not_indexed_yet(doc: Any, record: int) -> bool:
+    """``record`` lies beyond the records a growing index holds so far: not loaded yet (never an
+    error -- the loader would keep the error after the index got there)."""
+    try:
+        return not doc.index_complete and record >= int(doc.record_count)
+    except Exception:  # noqa: BLE001 - a closed document: read (and fail) as before
+        return False
+
+
 def _fetch_rows(holder: _FetchHolder, doc: Any, keys: list, cancel: CancelToken) -> dict[int, _Row]:
     specs, gen = holder.snapshot()
     budget = capture_budget(doc.settings)
     out: dict[int, _Row] = {}
     for record in keys:
         cancel.check()
+        if _not_indexed_yet(doc, record):
+            continue
         try:
             out[record] = load_row(doc, record, specs, gen, budget=budget, cancel=cancel)
         except Cancelled:
@@ -1281,6 +1418,97 @@ def _matches_text(values: list, fmt: str) -> str | None:
     return copyfmt.value_text(values[0] if len(values) == 1 else list(values), fmt)
 
 
+# ==================================================================================
+# editing (GUI thread; values are loaded by jsonreshape.gui.editors.load_edit_value)
+# ==================================================================================
+class _EditTarget(NamedTuple):
+    """The node a cell edit / deletion acts on: grid ``row`` / ``col`` (column id ``col_id``),
+    ``record`` (position), ``kind`` -- ``value`` (an existing node), ``missing`` (a field to
+    create with ``set_path``) or ``key`` (the record key of a member record) --, ``path``
+    relative to the record value, ``container`` (the node is an object / array) and the
+    record ``key`` (``$key`` cells)."""
+
+    row: int
+    col: int
+    record: int
+    col_id: str
+    kind: str
+    path: tuple
+    container: bool = False
+    key: str | None = None
+
+
+class _PendingEdit:
+    """An open editor dialog and the node it edits (remapped while the dialog is open; ``None``
+    once that node was deleted)."""
+
+    __slots__ = ("dialog", "target")
+
+    def __init__(self, target: _EditTarget | None) -> None:
+        self.dialog: Any = None
+        self.target = target
+
+
+#: a key editor's target: the record keys of a member-record document (review3 L1)
+_RECORD_KEYS: Any = object()
+#: "change type" menus look at the kinds of at most this many selected cells (more: all types offered)
+KINDS_CELLS_MAX = 2000
+#: keys of loaded rows compared at once by the record key editors (the rest: their key check)
+WINDOW_KEYS_MAX = 4096
+
+
+class _WindowKeys:
+    """``key in taken`` for the record key editors: a loaded row of the table has that record key
+    (known without I/O; the records not loaded are left to the editors' key check)."""
+
+    __slots__ = ("view",)
+
+    def __init__(self, view: TableView) -> None:
+        self.view = view
+
+    def __contains__(self, key: object) -> bool:
+        view = self.view
+        loader = view._loader
+        if loader is None or view._dead or not isinstance(key, str):
+            return False
+        for rec in list(view._win.values())[:WINDOW_KEYS_MAX]:
+            row = loader.peek(rec)
+            if isinstance(row, _Row) and row.key == key:
+                return True
+        return False
+
+
+class _RowMemberKeys:
+    """``key in taken`` for the member key editors: the object ``target()`` names -- ``(record,
+    path)`` -- has a member with that key in the record's parsed value the table keeps (small
+    records; bigger ones and rows not loaded are left to the editors' key check)."""
+
+    __slots__ = ("target", "view")
+
+    def __init__(self, view: TableView, target: Any) -> None:
+        self.view = view
+        self.target = target
+
+    def __contains__(self, key: object) -> bool:
+        where = self.target()
+        if where is None or not isinstance(key, str) or self.view._dead:
+            return False
+        record, path = where
+        row = self.view._row(record)
+        if row is None or row.error is not None or row.value is _NOVALUE:
+            return False
+        value = row.value
+        for seg in path:
+            if isinstance(value, dict) and isinstance(seg, str) and seg in value:
+                value = value[seg]
+            elif isinstance(value, list) and isinstance(seg, int) and not isinstance(seg, bool) \
+                    and 0 <= seg < len(value):
+                value = value[seg]
+            else:
+                return False
+        return isinstance(value, dict) and key in value
+
+
 # remembered quick filter texts: session -> {column path: (typed text, expression)}
 _typed_filters: "weakref.WeakKeyDictionary[Any, dict[str, tuple[str, str]]]" = weakref.WeakKeyDictionary()
 
@@ -1360,6 +1588,9 @@ class _FilterEdit(QLineEdit):
             event.accept()
             return
         super().keyPressEvent(event)
+        # every key stays here: the line edit lives inside the grid, an unused key would bubble up
+        # to it and run a table command (F2 / Ins / Ctrl+D ...; review3 M1)
+        event.accept()
 
 
 class _FilterStrip(QWidget):
@@ -1743,6 +1974,9 @@ class TableView(ViewBase):
     """Records as rows, fields as columns (see the module doc)."""
 
     view_id = "table"
+    #: the keys the menus show for edit commands where they differ from ``actions.EDIT_COMMANDS``
+    #: (``actions.command_keys``): records move without keys here (Alt+Down opens the quick filter)
+    edit_keys = {"move_up": None, "move_down": None}
 
     selection_changed = Signal()      # the grid's cell selection changed (status bar)
     columns_changed = Signal()        # the columns (paths / order / visibility) changed
@@ -1782,6 +2016,15 @@ class TableView(ViewBase):
         self._find_task: Any = None
         self._find_queue: list[bool] = []    # F3 presses (backwards?) waiting for a running search
         self._settings_signal: Any = None
+        # editing (§12.9)
+        self._data_gen = int(getattr(session, "data_gen", 0) or 0)   # the data generation handled last
+        self._absorb_view_change = False     # the view_changed that follows a structural data change
+        self._edit_serial = 0                # the newest value load / reference collection
+        self._edit_task: Any = None
+        self._inline: Any = None             # the open InlineEditor
+        self._inline_target: _EditTarget | None = None
+        self._pending: _PendingEdit | None = None    # the open editor dialog and its node
+        self._anchor_serial = 0
         try:
             self._copy_headers = bool(session.app.state.get(STATE_COPY_HEADERS, False))
         except Exception:
@@ -1815,6 +2058,12 @@ class TableView(ViewBase):
         session.view_busy_changed.connect(self._on_busy)
         session.current_changed.connect(self._on_session_current)
         session.state_changed.connect(self._on_state)
+        data_changed = getattr(session, "data_changed", None)
+        if data_changed is not None:
+            data_changed.connect(self._on_data_changed)
+        index_finished = getattr(session, "index_finished", None)
+        if index_finished is not None:
+            index_finished.connect(self._on_index_finished)
         if getattr(session, "doc", None) is not None:
             self._on_opened()
         else:
@@ -1877,6 +2126,7 @@ class TableView(ViewBase):
         self.grid.columns_changed.connect(self._on_grid_columns_changed)
         self.grid.selection_changed.connect(self.selection_changed)
         self.grid.viewport_changed.connect(self._on_viewport_changed)
+        self.grid.link_activated.connect(self._on_link)
         lay.addWidget(self.grid, 1)
         self.find_bar = quickfind.QuickFindBar(self, hint=t("gui.table.find.hint"))
         self.find_bar.setObjectName("tableFindBar")
@@ -2057,6 +2307,9 @@ class TableView(ViewBase):
                 self._columns_source = "placeholder"
         self._doc = doc
         self._options = options
+        self._data_gen = int(getattr(self.session, "data_gen", 0) or 0)
+        self._absorb_view_change = False
+        self._cancel_edits()
         old = self._loader
         if old is not None:
             old.close()
@@ -2064,7 +2317,7 @@ class TableView(ViewBase):
         holder = self._holder
 
         def fetch(keys: list, cancel: CancelToken) -> dict:
-            return _fetch_rows(holder, doc, keys, cancel)
+            return _fetch_rows(holder, _pin(doc), keys, cancel)     # one state per batch
 
         self._loader = RowLoader(fetch, capacity=LOADER_CAPACITY, batch=32, max_bytes=RECORD_CACHE_BYTES,
                                  sizeof=row_cost, name=f"table:{self.session.name}", parent=self)
@@ -2104,8 +2357,23 @@ class TableView(ViewBase):
         self.grid.rows_changed()
         self._update_placeholder()
 
+    def _on_index_finished(self) -> None:
+        """The index is final: rows that failed while it was growing are read again."""
+        if self._dead or self._loader is None or self._doc is not getattr(self.session, "doc", None):
+            return
+        self._loader.invalidate_failed()
+
     def _on_view_changed(self) -> None:
         if self._dead:
+            return
+        if self._absorb_view_change:
+            # a view installed by a data change (DocSession._apply_change emits view_changed right
+            # after data_changed): _on_data_changed has moved the rows already
+            self._absorb_view_change = False
+            self._update_sort_indicators()
+            self._sync_filter_editors()
+            self._update_clear_button()
+            self._update_placeholder()
             return
         remember = self._cur_record
         col = self.grid.current()[1]
@@ -2168,9 +2436,16 @@ class TableView(ViewBase):
         if row is None or row < 0:
             self._cur_record = None
             return
+        before = self._cur_record
         self._cur_record = self._record_of(row)
         if self._following:
             return
+        if self._cur_record != before:
+            # the user moved to another row: a follow of another view's selection still looking up
+            # its row (_goto_record) is older -- it must not move the cell back (a value load
+            # waiting for this cell would be dropped). Column changes (also the programmatic ones
+            # of new columns) leave it alone.
+            self._follow_serial += 1
         self._followed = None
         self._select_waiting = False
         self._select_timer.start()
@@ -2190,6 +2465,8 @@ class TableView(ViewBase):
         self.session.select(ref, origin=self)
 
     def _on_activated(self, row: int, col: int) -> None:
+        """Enter / double click: a container cell is revealed in the tree, any other cell is
+        edited (:meth:`edit_cell`)."""
         if row is None or row < 0 or col < 0 or self._dead:
             return
         rec = self._record_of(row)
@@ -2198,7 +2475,10 @@ class TableView(ViewBase):
         if data is None or data.error is not None or not 0 <= col < len(cols):
             return
         cd = self._cell_data(data, cols[col].id)
-        if cd is None or not cd.container:
+        if cd is None:
+            return
+        if not cd.container:
+            self.edit_cell(row, col)
             return
         self._select_timer.stop()
         self._select_waiting = False
@@ -2229,7 +2509,10 @@ class TableView(ViewBase):
                 return
             record = 0
         self._followed = (int(record), tuple(ref.path))
-        self._goto_record(int(record), self._column_for_path(tuple(ref.path)), scroll="center")
+        row = self.grid.current()[0]
+        # a node of the current row (e.g. the node an edit of this row selects): no scrolling
+        scroll = "none" if row >= 0 and self._record_of(row) == int(record) else "center"
+        self._goto_record(int(record), self._column_for_path(tuple(ref.path)), scroll=scroll)
 
     def _retarget_followed(self) -> None:
         """The columns changed (the schema's defaults replaced ``$``): put the current cell
@@ -2249,7 +2532,9 @@ class TableView(ViewBase):
         finally:
             self._following -= 1
 
-    def _goto_record(self, record: int, col: int | None, *, scroll: str = "center") -> None:
+    def _goto_record(self, record: int, col: int | None, *, scroll: str = "center", emit: bool = False) -> None:
+        """Make the row of ``record`` current (async: its view position is looked up);
+        ``emit``: the session follows (a record this view created or moved to itself)."""
         self._follow_serial += 1
         serial = self._follow_serial
 
@@ -2265,6 +2550,10 @@ class TableView(ViewBase):
                 self._cur_record = record
             finally:
                 self._following -= 1
+            if emit:
+                self._followed = None
+                self._select_waiting = False
+                self._select_timer.start()
 
         self.session.position_of(record, found)
 
@@ -2280,6 +2569,1096 @@ class TableView(ViewBase):
         if row < 0:
             return getattr(self.session, "current", None)
         return self._ref_at(row, col, require_loaded=False)
+
+    # ------------------------------------------------------------------ data changes (§12.9)
+    def _on_data_changed(self, cs: Any) -> None:
+        """A ChangeSet was applied (edit / undo / redo / bulk / patch / restore / discard)."""
+        if self._dead:
+            return
+        self._data_gen = int(getattr(self.session, "data_gen", 0) or getattr(cs, "gen", 0) or 0)
+        reset = bool(getattr(cs, "reset", False))
+        remap = getattr(cs, "remap", None)
+        records = getattr(cs, "records", None)
+        structural = reset or remap is not None
+        self._remap_edits(cs, structural, records)
+        loader = self._loader
+        if loader is not None:
+            if structural or records is None:
+                loader.invalidate()
+            elif records:
+                loader.invalidate(sorted(int(r) for r in records))
+        if not structural:
+            # the rows stay where they are (the selection too): the changed ones load again
+            if records is None or records:
+                self._find_reset()
+            self.grid.refresh(request=True)
+            self._update_placeholder()
+            return
+        self._absorb_view_change = True
+        QTimer.singleShot(0, self, self._end_absorb)
+        self._rows_moved(cs, remap if not reset else None, reset)
+
+    def _end_absorb(self) -> None:
+        self._absorb_view_change = False
+
+    def _rows_moved(self, cs: Any, remap: Any, reset: bool) -> None:
+        """Records were inserted / deleted / moved (or the layer was reset): the rows follow --
+        the top shown record stays on top, the current record stays current."""
+        col = self.grid.current()[1]
+        old_cur = self._cur_record
+        top = self.grid.top_row()
+        first, last = self.grid.visible_rows()
+        window = [self._win.get(p) for p in range(max(0, top), max(top, last) + 1)] if top >= 0 else []
+        new_top = None
+        new_cur = None
+        if not reset:
+            mapper = remap.map if remap is not None else (lambda p: p)
+            for rec in window:
+                if rec is not None:
+                    got = mapper(int(rec))
+                    if got is not None:
+                        new_top = got          # the first record of the screen that is still there
+                        break
+            if old_cur is not None:
+                new_cur = mapper(int(old_cur))
+            sel = getattr(cs, "select", None)
+            sel_rec = sel[0] if sel is not None and len(sel) and sel[0] is not None else None
+            if new_cur is None and old_cur is not None:
+                if sel_rec is not None:
+                    new_cur = int(sel_rec)
+                else:
+                    count = self.session.view_len()
+                    new_cur = min(int(old_cur), count - 1) if count > 0 else None
+            if self._followed is not None:
+                rec, path = self._followed
+                moved = remap_node_ref(self.session, NodeRef(rec, path), cs)
+                self._followed = (int(moved.record), tuple(moved.path)) if moved is not None and \
+                    moved.record is not None else None
+        else:
+            self._followed = None
+        self._win.clear()
+        self._refetch.clear()
+        self._find_reset()
+        self._follow_serial += 1
+        self._resetting = True
+        try:
+            if reset:
+                self.grid.reset()          # positions of the old state mean nothing
+            else:
+                self.grid.rows_changed(keep_current=False)
+        finally:
+            self._resetting = False
+        self._cur_record = new_cur
+        self._update_sort_indicators()
+        self._sync_filter_editors()
+        self._update_clear_button()
+        self._update_placeholder()
+        if new_top is not None:
+            self._anchor_top(new_top)
+        if new_cur is not None:
+            self._goto_record(new_cur, col if col >= 0 else None, scroll="none")
+
+    def _anchor_top(self, record: int) -> None:
+        """Scroll so that ``record`` is the first shown row (its view position is looked up)."""
+        self._anchor_serial += 1
+        serial = self._anchor_serial
+
+        def found(pos: int | None) -> None:
+            if self._dead or serial != self._anchor_serial or pos is None:
+                return
+            if pos >= self.grid.row_count():
+                self.grid.rows_changed()
+            self.grid.scroll_to(pos, "top")
+
+        self.session.position_of(record, found)
+
+    def _remap_edits(self, cs: Any, structural: bool, records: Any) -> None:
+        """Editors and pending edit loads after a data change: an inline editor whose row
+        moved or whose record changed is cancelled (it would write over the change or into
+        another row), a pending value load is dropped, a dialog keeps its node (remapped; a
+        deleted node is refused when the dialog is accepted)."""
+        def touched(rec: int) -> bool:
+            return structural or records is None or rec in records
+
+        tgt = self._inline_target
+        if self._inline is not None and tgt is not None and touched(tgt.record):
+            self._close_inline()
+        if self._edit_task is not None:
+            self._edit_serial += 1
+            self._edit_task.cancel()
+            self._edit_task = None
+        pe = self._pending
+        tgt = pe.target if pe is not None else None
+        if tgt is not None and (structural or getattr(cs, "nodes", ())):
+            moved = remap_node_ref(self.session, NodeRef(None if self._is_single() else tgt.record, tgt.path), cs)
+            if moved is None:
+                pe.target = None
+            else:
+                rec = tgt.record if moved.record is None else int(moved.record)
+                pe.target = tgt._replace(record=rec, path=tuple(moved.path))
+        # the key checks of the open editors answered for the old data: ask again (review3 L1)
+        for editor in (self._inline, pe.dialog if pe is not None else None):
+            forget = getattr(editor, "forget_key_checks", None)
+            if callable(forget):
+                try:
+                    forget()
+                except RuntimeError:       # the widget is being destroyed
+                    pass
+
+    # ------------------------------------------------------------------ editing (§12.9)
+    def _member_records(self) -> bool:
+        doc = self.session.doc
+        return bool(doc is not None and getattr(doc, "member_records", False))
+
+    def _is_single(self) -> bool:
+        doc = self.session.doc
+        return doc is not None and getattr(doc, "kind", None) == "single"
+
+    def edit_target(self, row: int | None = None, col: int | None = None) -> tuple[_EditTarget | None, str | None]:
+        """The node a cell edit acts on (default: the current cell), or ``(None, why)``
+        (localized; ``why`` None: no cell)."""
+        if row is None or col is None:
+            row, col = self.grid.current()
+        cols = self.grid.columns()
+        if row is None or row < 0 or not 0 <= col < len(cols):
+            return None, None
+        spec = self._specs.get(cols[col].id)
+        rec = self._record_of(row)
+        if spec is None or rec is None:
+            return None, None
+        if spec.kind == "index":
+            return None, t("gui.table.edit.index")
+        data = self._row(rec)
+        if data is None:
+            return None, t("gui.table.edit.loading")
+        if data.error is not None:
+            return None, data.error
+        if spec.kind == "key":
+            if not self._member_records():
+                return None, t("gui.table.edit.no_key")
+            return _EditTarget(row, col, rec, spec.text, "key", (), key=data.key), None
+        if spec.pattern is None:
+            return None, spec.error or t("gui.table.edit.invalid_column")
+        cd = self._cell_data(data, spec.text)
+        if cd is None:
+            return None, t("gui.table.edit.loading")
+        if data.huge:
+            return None, t("gui.table.edit.huge")
+        if spec.pattern.is_concrete:
+            if cd.count == 0:
+                return _EditTarget(row, col, rec, spec.text, "missing", spec.prefix()), None
+            return _EditTarget(row, col, rec, spec.text, "value", tuple(cd.path), cd.container), None
+        if cd.count == 1 and spec.pattern.matches(tuple(cd.path)):
+            return _EditTarget(row, col, rec, spec.text, "value", tuple(cd.path), cd.container), None
+        if cd.count == 0:
+            return None, t("gui.table.edit.wildcard_none")
+        return None, t("gui.table.edit.wildcard_many")
+
+    def edit_block(self, row: int | None = None, col: int | None = None) -> str | None:
+        """Why the cell (default: the current one) cannot be edited now (localized), or ``None``."""
+        tgt, why = self.edit_target(row, col)
+        if tgt is None:
+            return why or t("gui.table.edit.no_cell")
+        _edit, why = edit_controller(self.session)
+        return why
+
+    def edit_cell(self, row: int | None = None, col: int | None = None, *, as_json: bool = False) -> Any:
+        """Enter / F2 / double click (``as_json``: Shift+Enter): edit the cell's node -- see the
+        module docstring. Returns the editor / dialog / loading task (``None``: refused, the
+        reason is shown in the status bar)."""
+        if row is None or col is None:
+            row, col = self.grid.current()
+        tgt, why = self.edit_target(row, col)
+        if tgt is None:
+            self._status(why or t("gui.table.edit.no_cell"))
+            return None
+        _edit, why = edit_controller(self.session)
+        if why is not None:
+            self._status(why)
+            return None
+        self._close_inline()
+        if tgt.kind == "key":
+            if as_json:
+                self._status(t("gui.table.edit.key_no_json"))
+                return None
+            return self._open_inline(tgt, "key", tgt.key or "")
+        if tgt.kind == "missing":
+            return self._edit_missing(tgt, as_json)
+        if as_json or tgt.container:
+            return self._json_dialog_for(tgt)
+        return self._load_for_edit(tgt)
+
+    def _load_for_edit(self, tgt: _EditTarget) -> Any:
+        """Read the exact value (silent task, :func:`~jsonreshape.gui.editors.load_edit_value`)
+        and open the editor when it arrives -- if the cell is still current and the data did
+        not change meanwhile."""
+        from jsonreshape.gui import editors
+
+        self._edit_serial += 1
+        serial = self._edit_serial
+        if self._edit_task is not None:
+            self._edit_task.cancel()
+        gen = self._data_gen
+
+        def done(value: Any) -> None:
+            if self._dead or serial != self._edit_serial:
+                return
+            self._edit_task = None
+            if gen != self._data_gen or self.grid.current() != (tgt.row, tgt.col):
+                return                   # the data changed or the user moved on meanwhile
+            self._open_editor(tgt, value)
+
+        def failed(exc: BaseException) -> None:
+            if serial == self._edit_serial:
+                self._edit_task = None
+            if self._dead or isinstance(exc, Cancelled):
+                return
+            if isinstance(exc, JsonReshapeError):
+                self._status(exc.message)
+            else:
+                report_task_error(self.session, exc, self, purpose="view")
+
+        self._edit_task = editors.load_edit_value(self.session, self._make_ref(tgt.record, tgt.path), done,
+                                                  owner=self, on_error=failed)
+        return self._edit_task
+
+    def _open_editor(self, tgt: _EditTarget, value: Any) -> Any:
+        """The editor for a loaded value: a toggle (bool), the inline editor (numbers, short
+        one-line strings), a string dialog (other strings; read by its own loader above the
+        inline limit), a JSON dialog (null, containers, numbers too long to keep)."""
+        from jsonreshape.gui import editors
+
+        kind = value.kind
+        if kind == "bool" and value.token in ("true", "false"):
+            edit, why = edit_controller(self.session)
+            if edit is None or why is not None:
+                self._status(why or edit_unavailable_text(edit))
+                return None
+            edit.set_value(self._make_ref(tgt.record, tgt.path), "false" if value.token == "true" else "true")
+            return None
+        if kind == "number" and value.token is not None:
+            return self._open_inline(tgt, "number", value.token.strip())
+        if kind == "string":
+            if value.decoded is not None and editors.inline_editable(value.decoded):
+                return self._open_inline(tgt, "string", value.decoded)
+            return self._string_dialog_for(tgt, value.decoded)
+        return self._json_dialog_for(tgt)
+
+    def _edit_missing(self, tgt: _EditTarget, as_json: bool) -> Any:
+        """A missing field: an editor following the column's type in the schema (strings and
+        numbers in the cell, anything else as JSON text); the value is created with
+        ``set_path``."""
+        kind = None if as_json else self._column_type(tgt.col_id)
+        if kind in ("string", "number"):
+            return self._open_inline(tgt, kind, "")
+        return self._open_pending(tgt, lambda pe: self._make_json_dialog(pe, "", tgt))
+
+    def _column_type(self, col_id: str) -> str | None:
+        """The most frequent type of a column's field: from the schema when it is known, else
+        from the loaded cells of the column (``None``: unknown)."""
+        schema = self._schema or fields.cached_schema(self.session)
+        if schema is not None:
+            try:
+                fi = schema.find(col_id)
+            except (JsonReshapeError, ValueError):
+                fi = None
+            if fi is not None and fi.main_type is not None:
+                return fi.main_type
+        loader = self._loader
+        if loader is None:
+            return None
+        votes: dict[str, int] = {}
+        for rec in list(self._win.values())[:2000]:
+            row = loader.peek(rec)
+            if not isinstance(row, _Row) or row.error is not None:
+                continue
+            cd = row.cells.get(col_id)
+            if cd is None or cd.count != 1:
+                continue
+            kind = {None: "string", "key": "string"}.get(cd.cell.role, cd.cell.role)
+            if kind != "null":           # a null says nothing about the column's type
+                votes[kind] = votes.get(kind, 0) + 1
+        return max(votes, key=votes.__getitem__) if votes else None
+
+    def _open_inline(self, tgt: _EditTarget, kind: str, text: str) -> Any:
+        """An :class:`~jsonreshape.gui.editors.InlineEditor` over the cell (``kind``: string |
+        number | key | json); an unchanged value commits nothing (the editor cancels)."""
+        from jsonreshape.gui import editors
+
+        self._close_inline()
+        self.grid.scroll_to(tgt.row, "ensure")
+        self.grid.scroll_to_column(tgt.col)
+        holder: list[Any] = []
+
+        def commit(value: str) -> None:
+            ed = holder[0] if holder else None
+            if ed is not None and self._inline is ed:
+                self._inline = None
+                target, self._inline_target = self._inline_target, None
+                self._commit(target or tgt, value)
+
+        def cancel() -> None:
+            ed = holder[0] if holder else None
+            if ed is not None and self._inline is ed:
+                self._inline = None
+                self._inline_target = None
+
+        keys: dict[str, Any] = {}
+        if kind == "key":                  # a record key: unique among the records (review3 L1)
+            keys = {"taken": _WindowKeys(self), "key_check": self._key_check(lambda: _RECORD_KEYS)}
+        ed = editors.InlineEditor(self.grid, tgt.row, tgt.col, kind, text, commit, cancel, **keys)
+        holder.append(ed)
+        self._inline = ed
+        self._inline_target = tgt
+        ed.setFocus(Qt.FocusReason.OtherFocusReason)
+        return ed
+
+    def _key_check(self, target: Any) -> Any:
+        """The editors' ``key_check`` (review3 L1): is ``key`` a key of the object ``target()`` names
+        -- ``(record, path)``, or :data:`_RECORD_KEYS` for the record keys of a member-record
+        document; ``None``: nothing to compare -- in the state shown now? Looked up in a silent task
+        on one pinned state (``Node.find_child_index``; record keys through the key index the edit
+        session keeps when it has one)."""
+
+        def check(key: str, reply: Any) -> None:
+            where = target()
+            session = self.session
+            if where is None or self._dead or getattr(session, "doc", None) is None:
+                reply(False)
+                return
+            ref = None if where is _RECORD_KEYS else self._make_ref(int(where[0]), tuple(where[1]))
+            doc = task_doc(session)          # the state ``ref`` belongs to (review CL-9)
+
+            def work(ctx: Any) -> bool:
+                if doc is None:
+                    return False
+                node = doc.records_node() if ref is None else task_node(session, ref, ctx.cancel, doc=doc)
+                if node is None or node.kind != "object":
+                    return False
+                return node.find_child_index(key, cancel=ctx.cancel) is not None
+
+            session.app.tasks.run(work, title=t("gui.table.task.key_check"), kind="value", owner=self, silent=True,
+                                  on_done=lambda taken: reply(bool(taken)), on_error=lambda _exc: reply(False))
+
+        return check
+
+    def _close_inline(self) -> None:
+        """Cancel the open inline editor (nothing is committed)."""
+        ed = self._inline
+        self._inline = None
+        self._inline_target = None
+        if ed is not None:
+            try:
+                ed.cancel()
+            except RuntimeError:         # the widget is gone already
+                pass
+
+    def _open_pending(self, tgt: _EditTarget | None, make: Any) -> Any:
+        """Open one editor dialog (``make(pending) -> dialog``) for ``tgt``; a dialog still
+        open is closed first."""
+        self._close_dialog()
+        pe = _PendingEdit(tgt)
+        dlg = make(pe)
+        pe.dialog = dlg
+        self._pending = pe
+
+        def finished(_result: int) -> None:
+            if self._pending is pe:
+                self._pending = None
+
+        dlg.finished.connect(finished)
+        return dlg
+
+    def _close_dialog(self) -> None:
+        pe = self._pending
+        self._pending = None
+        if pe is not None and pe.dialog is not None:
+            discard = getattr(pe.dialog, "discard", None)
+            try:
+                if callable(discard):
+                    discard()
+                else:
+                    pe.dialog.reject()
+            except RuntimeError:
+                pass
+
+    def _dialog_title(self, tgt: _EditTarget) -> str:
+        try:
+            path = self.session.location_text(self._make_ref(tgt.record, tgt.path))
+        except Exception:  # noqa: BLE001 - a title only
+            path = f"#{tgt.record}"
+        return t("gui.table.edit.title", path=path)
+
+    def _accepted(self, pe: _PendingEdit, text: str) -> None:
+        """A dialog's changed value: sent to the node the dialog edits (remapped meanwhile)."""
+        if self._dead:
+            return
+        if pe.target is None:
+            self._status(t("gui.table.edit.gone"))
+            return
+        self._commit(pe.target, text)
+
+    def _make_json_dialog(self, pe: _PendingEdit, text: str, tgt: _EditTarget) -> Any:
+        from jsonreshape.gui import editors
+
+        dlg = editors.JsonEditDialog(self, text, title=self._dialog_title(tgt), indent=2,
+                                     tasks=self.session.app.tasks, on_accept=lambda value: self._accepted(pe, value))
+        dlg.open()
+        return dlg
+
+    def _json_dialog_for(self, tgt: _EditTarget) -> Any:
+        """:class:`~jsonreshape.gui.editors.JsonEditDialog` with the node's effective text
+        (its own loader: a pinned document, refused above 4 MiB)."""
+        from jsonreshape.gui import editors
+
+        ref = self._make_ref(tgt.record, tgt.path)
+
+        def make(pe: _PendingEdit) -> Any:
+            return editors.JsonEditDialog.for_node(self.session, ref, parent=self, title=self._dialog_title(tgt),
+                                                   indent=2, on_accept=lambda value: self._accepted(pe, value))
+
+        return self._open_pending(tgt, make)
+
+    def _string_dialog_for(self, tgt: _EditTarget, decoded: str | None) -> Any:
+        """:class:`~jsonreshape.gui.editors.StringDialog` with the decoded string (read by the
+        dialog's own loader when it was too long to load with the cell)."""
+        from jsonreshape.gui import editors
+
+        ref = self._make_ref(tgt.record, tgt.path)
+
+        def make(pe: _PendingEdit) -> Any:
+            def accept(token: str) -> None:
+                self._accepted(pe, token)
+
+            if decoded is None:
+                return editors.StringDialog.for_node(self.session, ref, parent=self, title=self._dialog_title(tgt),
+                                                     on_accept=accept)
+            dlg = editors.StringDialog(self, decoded, title=self._dialog_title(tgt), on_accept=accept)
+            dlg.open()
+            return dlg
+
+        return self._open_pending(tgt, make)
+
+    def _commit(self, tgt: _EditTarget, value: str) -> None:
+        """Send an edited value: a record key (``$key``) or JSON text (``set_path`` for a
+        missing field, else ``set_value``)."""
+        edit, why = edit_controller(self.session)
+        if edit is None or why is not None:
+            self._status(why or edit_unavailable_text(edit))
+            return
+        if tgt.kind == "key":
+            if isinstance(value, str) and value != tgt.key:
+                edit.rename_key(self._make_ref(tgt.record, ()), value)
+            return
+        ref = self._make_ref(tgt.record, tgt.path)
+        if tgt.kind == "missing":
+            edit.set_path(ref, value)
+        else:
+            edit.set_value(ref, value)
+
+    def inline_editor(self) -> Any:
+        """The open inline editor (tests)."""
+        return self._inline
+
+    def edit_dialog(self) -> Any:
+        """The open string / JSON / key / insert dialog (tests)."""
+        return self._pending.dialog if self._pending is not None else None
+
+    def _cancel_edits(self) -> None:
+        self._edit_serial += 1
+        if self._edit_task is not None:
+            self._edit_task.cancel()
+            self._edit_task = None
+        self._close_inline()
+        self._close_dialog()
+
+    # -- the view edit protocol (jsonreshape.gui.actions: node menu / Edit menu) ---------
+    def edit_value(self) -> Any:
+        """"Edit value": the current cell (a container cell as JSON text)."""
+        return self.edit_cell()
+
+    def edit_as_json(self) -> Any:
+        """"Edit as JSON": the current cell's node as JSON text."""
+        return self.edit_cell(as_json=True)
+
+    def rename_key(self) -> Any:
+        """"Rename": the record key on a ``$key`` cell, else the key of the cell's member in
+        this record (:class:`~jsonreshape.gui.editors.KeyDialog`)."""
+        from jsonreshape.gui import editors
+
+        tgt, why = self.edit_target()
+        if tgt is None or tgt.kind == "missing" or (tgt.kind == "value" and not self._member_path(tgt.path)):
+            self._status(why or t("gui.table.edit.no_rename"))
+            return None
+        _edit, why = edit_controller(self.session)
+        if why is not None:
+            self._status(why)
+            return None
+        if tgt.kind == "key":
+            return self.edit_cell()
+        key = str(tgt.path[-1])
+
+        def make(pe: _PendingEdit) -> Any:
+            def accept(new: str) -> None:
+                if self._dead:
+                    return
+                if pe.target is None:
+                    self._status(t("gui.table.edit.gone"))
+                    return
+                edit, why = edit_controller(self.session)
+                if edit is None or why is not None:
+                    self._status(why or edit_unavailable_text(edit))
+                    return
+                edit.rename_key(self._make_ref(pe.target.record, pe.target.path), new)
+
+            def parent() -> tuple[int, tuple] | None:      # the object the key must be unique in (review3 L1)
+                return None if pe.target is None else (pe.target.record, tuple(pe.target.path)[:-1])
+
+            dlg = editors.KeyDialog(self, key, title=self._dialog_title(tgt), on_accept=accept,
+                                    taken=_RowMemberKeys(self, parent), key_check=self._key_check(parent))
+            dlg.open()
+            return dlg
+
+        return self._open_pending(tgt, make)
+
+    @staticmethod
+    def _member_path(path: tuple) -> bool:
+        return bool(path) and isinstance(path[-1], str)
+
+    def insert_node(self, where: str = "after") -> Any:
+        """"Insert": ``before`` / ``after`` -- a record next to the current row's record;
+        ``child`` -- a child of the cell's object / array."""
+        if where == "child":
+            return self._insert_child()
+        return self.insert_record(before=where == "before")
+
+    def duplicate_selection(self) -> Any:
+        """"Duplicate" (Ctrl+D): the records of the selected rows."""
+        return self.duplicate_records()
+
+    def delete_selection(self) -> Any:
+        """"Delete" (Del): the fields of the selected cells."""
+        return self.delete_cells()
+
+    def move_selection(self, delta: int) -> Any:
+        """"Move up / down": the records of the selected rows as one block (base view only)."""
+        why = self._move_block()
+        if why is not None:
+            self._status(why)
+            return None
+        spans = self._selected_row_spans()
+
+        def ready(positions: Any, _count: int) -> None:
+            edit, why = edit_controller(self.session)
+            if edit is None or why is not None:
+                self._status(why or edit_unavailable_text(edit))
+                return
+            edit.move_by([self._make_ref(p, ()) for p in positions], int(delta))
+
+        return self._record_positions(spans, ready)
+
+    def _move_block(self) -> str | None:
+        why = self.record_block()
+        if why is not None:
+            return why
+        if not bool(getattr(self.session, "view_is_base", False)):
+            return t("gui.table.records.move_base_only")
+        n = sum(r1 - r0 + 1 for r0, r1 in self._selected_row_spans())
+        if n > EDIT_SELECTION_MAX:
+            return t("gui.table.records.too_many", count=format_count(n), limit=format_count(EDIT_SELECTION_MAX))
+        return None
+
+    def change_type(self, kind: str) -> Any:
+        """"Change type": the nodes of the selected cells (concrete columns, existing values)."""
+        cells, why = self._selected_value_cells()
+        if why is not None:
+            self._status(why)
+            return None
+        _edit, why = edit_controller(self.session)
+        if why is not None:
+            self._status(why)
+            return None
+        return self._collect_and_run(cells, ("change_type", kind))
+
+    def change_type_kinds(self) -> tuple[str, ...] | None:
+        """The kinds of the nodes :meth:`change_type` would convert (the selected cells of concrete
+        columns that hold a value) for the menus' rules; ``None`` when one of them is not loaded
+        yet (or more than :data:`KINDS_CELLS_MAX` cells are selected)."""
+        spans, col_idx, ranges = self._selection_cells()
+        cols = self.grid.columns()
+        kinds: dict[str, None] = {}
+        seen = 0
+        for r0, r1 in spans:
+            for row in range(r0, r1 + 1):
+                for ci in col_idx:
+                    spec = self._specs.get(cols[ci].id)
+                    if spec is None or spec.kind != "value" or spec.pattern is None or not spec.pattern.is_concrete:
+                        continue
+                    if not any(a <= row <= b and c0 <= ci <= c1 for a, b, c0, c1 in ranges):
+                        continue
+                    seen += 1
+                    if seen > KINDS_CELLS_MAX:
+                        return None
+                    rec = self._record_of(row)
+                    data = self._row(rec) if rec is not None else None
+                    if data is None or data.error is not None:
+                        return None
+                    cd = self._cell_data(data, spec.text)
+                    if cd is None:
+                        return None
+                    if cd.count:
+                        kinds[cd.cell.role or "string"] = None
+        return tuple(kinds) or None
+
+    def paste_json(self) -> Any:
+        """"Paste" (Ctrl+V): the clipboard's JSON as a new record after the current row (a
+        member record gets a free key)."""
+        why = self.record_block()
+        if why is not None:
+            self._status(why)
+            return None
+        from PySide6.QtGui import QGuiApplication
+
+        text = QGuiApplication.clipboard().text()
+        if not text.strip():
+            self._status(t("gui.table.records.paste_empty"))
+            return None
+        row = self.grid.current()[0]
+        rec = self._record_of(row) if row >= 0 else None
+        index = int(rec) + 1 if rec is not None else None
+        edit, why = edit_controller(self.session)
+        if edit is None or why is not None:
+            self._status(why or edit_unavailable_text(edit))
+            return None
+        edit.paste(None, text, index=index, on_done=self._new_record_shown)
+        return True
+
+    def edit_command_state(self, name: str) -> tuple[bool, str] | None:
+        """``(enabled, reason)`` of an edit command of :mod:`jsonreshape.gui.actions` for the
+        current cell / selection."""
+        if name in ("edit_value", "edit_json"):
+            why = self.edit_block()
+            if why is None and name == "edit_json":
+                tgt, _w = self.edit_target()
+                if tgt is not None and tgt.kind == "key":
+                    why = t("gui.table.edit.key_no_json")
+            return (why is None, why or "")
+        if name == "rename":
+            tgt, why = self.edit_target()
+            if tgt is not None and (tgt.kind == "key" or (tgt.kind == "value" and self._member_path(tgt.path))):
+                return True, ""
+            return False, why or t("gui.table.edit.no_rename")
+        if name == "insert_child":
+            tgt, why = self.edit_target()
+            if tgt is not None and tgt.kind == "value" and tgt.container:
+                return True, ""
+            return False, why or t("gui.table.edit.no_container")
+        if name in ("insert_before", "insert_after", "duplicate", "paste"):
+            why = self.record_block()
+            return (why is None, why or "")
+        if name == "delete":
+            why = self._delete_block(self.grid.current()[1], selection=True)
+            return (why is None, why or "")
+        if name in ("move_up", "move_down"):
+            why = self._move_block()
+            return (why is None, why or "")
+        if name == "change_type":
+            _cells, why = self._selected_value_cells()
+            return (why is None, why or "")
+        return None
+
+    def _insert_child(self) -> Any:
+        from jsonreshape.gui import editors
+
+        tgt, why = self.edit_target()
+        if tgt is None or tgt.kind != "value" or not tgt.container:
+            self._status(why or t("gui.table.edit.no_container"))
+            return None
+        _edit, why = edit_controller(self.session)
+        if why is not None:
+            self._status(why)
+            return None
+        data = self._row(tgt.record)
+        cd = self._cell_data(data, tgt.col_id) if data is not None else None
+        is_object = cd is not None and cd.cell.role == "object"
+
+        def make(pe: _PendingEdit) -> Any:
+            def accept(result: Any) -> None:
+                if self._dead:
+                    return
+                if pe.target is None:
+                    self._status(t("gui.table.edit.gone"))
+                    return
+                edit, why = edit_controller(self.session)
+                if edit is None or why is not None:
+                    self._status(why or edit_unavailable_text(edit))
+                    return
+                edit.insert(self._make_ref(pe.target.record, pe.target.path), None, result.value, key=result.key)
+
+            def parent() -> tuple[int, tuple] | None:      # the object the new member goes into (review3 L1)
+                return None if pe.target is None else (pe.target.record, tuple(pe.target.path))
+
+            dlg = editors.InsertDialog(self, title=self._dialog_title(tgt), positions=("child",), position="child",
+                                       key_needed=is_object, on_accept=accept, taken=_RowMemberKeys(self, parent),
+                                       key_check=self._key_check(parent))
+            dlg.open()
+            return dlg
+
+        return self._open_pending(tgt, make)
+
+    def _selected_value_cells(self) -> tuple[list[tuple[int, list[tuple]]], str | None]:
+        """``(view row, [relative paths])`` of the selected cells in concrete columns (``$``
+        too; the nodes are looked up later), or ``([], why)``."""
+        spans, col_idx, ranges = self._selection_cells()
+        if not spans or not col_idx:
+            return [], t("gui.table.edit.no_cell")
+        cols = self.grid.columns()
+        targets = []
+        wild = False
+        for ci in col_idx:
+            spec = self._specs.get(cols[ci].id) or column_spec(cols[ci].id)
+            if spec.kind != "value" or spec.pattern is None:
+                continue
+            if not spec.pattern.is_concrete:
+                wild = True
+                continue
+            targets.append((ci, spec))
+        if not targets:
+            return [], t("gui.table.delete.wildcard") if wild else t("gui.table.delete.nothing")
+        n_rows = sum(r1 - r0 + 1 for r0, r1 in spans)
+        if n_rows * len(targets) > EDIT_SELECTION_MAX:
+            return [], t("gui.table.delete.too_many", count=format_count(n_rows * len(targets)),
+                         limit=format_count(EDIT_SELECTION_MAX))
+        full_rect = all(any(r0 <= rr0 and rr1 <= r1 and c0 <= min(col_idx) and max(col_idx) <= c1
+                            for r0, r1, c0, c1 in ranges) for rr0, rr1 in spans)
+        cells: list[tuple[int, list[tuple]]] = []
+        for r0, r1 in spans:
+            for row in range(r0, r1 + 1):
+                paths = [spec.prefix() for ci, spec in targets
+                         if full_rect or any(a <= row <= b and c0 <= ci <= c1 for a, b, c0, c1 in ranges)]
+                if paths:
+                    cells.append((row, paths))
+        return cells, None
+
+    # -- deleting fields -----------------------------------------------------------------
+    def delete_cells(self) -> Any:
+        """Del: delete the fields of the selected cells (concrete column paths; ``$`` cells:
+        the records). The nodes are looked up in a silent task (rows not loaded too) and
+        deleted in ONE step. Returns the task (``None``: nothing to delete / refused)."""
+        _edit, why = edit_controller(self.session)
+        if why is not None:
+            self._status(why)
+            return None
+        cells, why = self._selected_value_cells()
+        if why is not None:
+            self._status(why)
+            return None
+        if self._is_single():
+            cells = [(row, [p for p in paths if p]) for row, paths in cells]
+            cells = [(row, paths) for row, paths in cells if paths]
+            if not cells:
+                self._status(t("gui.table.records.single"))
+                return None
+        return self._collect_and_run(cells, ("delete",), wild=self._selection_has_wildcards())
+
+    def _selection_has_wildcards(self) -> bool:
+        _spans, col_idx, _ranges = self._selection_cells()
+        cols = self.grid.columns()
+        for ci in col_idx:
+            spec = self._specs.get(cols[ci].id) or column_spec(cols[ci].id)
+            if spec.kind == "value" and spec.pattern is not None and not spec.pattern.is_concrete:
+                return True
+        return False
+
+    def _delete_block(self, col: int, *, selection: bool = False) -> str | None:
+        """Why Del does nothing in column ``col`` (``selection``: in the selected columns), or
+        ``None``."""
+        _edit, why = edit_controller(self.session)
+        if why is not None:
+            return why
+        if selection:
+            _cells, why = self._selected_value_cells()
+            return why
+        cols = self.grid.columns()
+        if not 0 <= col < len(cols):
+            return t("gui.table.edit.no_cell")
+        spec = self._specs.get(cols[col].id) or column_spec(cols[col].id)
+        if spec.kind != "value" or spec.pattern is None:
+            return t("gui.table.delete.nothing")
+        if not spec.pattern.is_concrete:
+            return t("gui.table.delete.wildcard")
+        return None
+
+    def _collect_and_run(self, cells: list[tuple[int, list[tuple]]], command: tuple, *, wild: bool = False) -> Any:
+        """Look up the nodes ``cells`` name (view row -> relative paths) in one pinned state
+        (silent task; missing ones are skipped), then run ``command`` (``(name, *args)`` of the
+        edit controller) on them -- when the data did not change meanwhile."""
+        rs = self.session.view_recordset()
+        if rs is None:
+            return None
+        session = self.session
+        single = self._is_single()
+        gen = self._data_gen
+        self._edit_serial += 1
+        serial = self._edit_serial
+        doc = task_doc(session)              # the state of the view positions in ``rs`` (review CL-9)
+
+        def work(ctx: Any) -> list:
+            if doc is None:
+                raise UserInputError("gui.table.edit.not_ready")
+            refs: list[Any] = []
+            seen: set = set()
+            for k, (row, paths) in enumerate(cells):
+                if k & 63 == 0:
+                    ctx.cancel.check()
+                rec = int(rs[row])
+                for path in paths:
+                    found = resolve_in(doc, NodeRef(None if single else rec, tuple(path)), ctx.cancel)
+                    if found is None:
+                        continue
+                    key = (found.record, found.ipath)
+                    if key not in seen:
+                        seen.add(key)
+                        refs.append(found)
+            # a whole record (a "$" cell) covers the nodes of the same record selected beside it
+            whole = {r.record for r in refs if not r.path and r.record is not None}
+            return [r for r in refs if not r.path or r.record not in whole]
+
+        def done(refs: list) -> None:
+            if self._dead or serial != self._edit_serial:
+                return
+            if gen != self._data_gen:
+                self._status(t("gui.table.edit.changed"))
+                return
+            if not refs:
+                self._status(t("gui.table.delete.wildcard") if wild else t("gui.table.delete.missing"))
+                return
+            edit, why = edit_controller(self.session)
+            if edit is None or why is not None:
+                self._status(why or edit_unavailable_text(edit))
+                return
+            getattr(edit, command[0])(refs, *command[1:])
+            if wild:
+                self._status(t("gui.table.delete.wildcard"))
+
+        def failed(exc: BaseException) -> None:
+            if self._dead or isinstance(exc, Cancelled):
+                return
+            if isinstance(exc, JsonReshapeError):
+                self._status(exc.message)
+            else:
+                report_task_error(self.session, exc, self, purpose="view")
+
+        return session.app.tasks.run(work, title=t("gui.table.edit.collect"), kind="value", owner=self,
+                                     silent=True, on_done=done, on_error=failed)
+
+    # -- records -------------------------------------------------------------------------
+    def _selected_row_spans(self) -> list[tuple[int, int]]:
+        """Merged row ranges of the selection (the current row when nothing is selected)."""
+        spans, _cols, _ranges = self._selection_cells()
+        if not spans:
+            row = self.grid.current()[0]
+            return [(row, row)] if row >= 0 else []
+        return spans
+
+    def _new_record_shown(self, cs: Any) -> None:
+        """After this view inserted / duplicated / pasted records: a filtered or sorted view does
+        not get the new records (they have no place in it until it is computed again) -- say so."""
+        if self._dead or cs is None or bool(getattr(self.session, "view_is_base", True)):
+            return
+        sel = getattr(cs, "select", None)
+        rec = sel[0] if sel is not None and len(sel) else None
+        if rec is None:
+            return
+
+        def found(pos: int | None) -> None:
+            if pos is None and not self._dead:
+                self._status(t("gui.table.records.not_in_view"), 8000)
+
+        self.session.position_of(int(rec), found)
+
+    def bulk_selection(self) -> Any:
+        """The "selected records" scope of the bulk dialog: the records of the selected rows (the
+        current row without a selection), resolved lazily in the preview task
+        (:class:`~jsonreshape.gui.bulkdialog.SelectionScope`); ``None`` without rows."""
+        from jsonreshape.gui.bulkdialog import SelectionScope
+
+        spans = self._selected_row_spans()
+        return SelectionScope.for_view_rows(self.session, spans) if spans else None
+
+    def record_block(self) -> str | None:
+        """Why record commands (insert / duplicate / delete / move records) do not apply now,
+        or ``None``."""
+        if self.session.doc is None:
+            return t("gui.table.edit.no_cell")
+        if self._is_single():
+            return t("gui.table.records.single")
+        _edit, why = edit_controller(self.session)
+        return why
+
+    def _record_positions(self, spans: list[tuple[int, int]], on_ready: Any) -> Any:
+        """The record positions of the view rows ``spans`` -> ``on_ready(positions, count)``: a
+        sorted list for up to :data:`EDIT_SELECTION_MAX` rows, a range / lazy iterable of the
+        rows in the base view, else a :class:`~jsonreshape.recordset.RecordSet` collected in a
+        task (``gen`` = the controller's ``applied_gen``)."""
+        rs = self.session.view_recordset()
+        if rs is None or not spans:
+            return None
+        n = sum(r1 - r0 + 1 for r0, r1 in spans)
+        base = bool(getattr(self.session, "view_is_base", False))
+        if n <= EDIT_SELECTION_MAX:
+            recs: set[int] = set()
+            for r0, r1 in spans:
+                recs.update(range(r0, r1 + 1) if base else map(int, rs[r0:r1 + 1]))
+            return on_ready(sorted(recs), len(recs))
+        if base:
+            # the base view: rows are record positions (the edit worker reads them in chunks)
+            positions: Any = range(spans[0][0], spans[0][1] + 1) if len(spans) == 1 else \
+                chain.from_iterable(range(a, b + 1) for a, b in spans)
+            return on_ready(positions, n)
+        gen = self._data_gen
+        self._edit_serial += 1
+        serial = self._edit_serial
+        edit = getattr(self.session, "edit", None)
+        set_gen = getattr(edit, "applied_gen", None)
+
+        def work(ctx: Any) -> Any:
+            from jsonreshape.recordset import RecordSetBuilder
+
+            builder = RecordSetBuilder("manual", gen=set_gen)
+            try:
+                done_rows = 0
+                ctx.progress.set_total(n)
+                for r0, r1 in spans:
+                    pos = r0
+                    while pos <= r1:
+                        ctx.cancel.check()
+                        stop = min(r1 + 1, pos + 65536)
+                        builder.extend(rs[pos:stop])
+                        done_rows += stop - pos
+                        ctx.progress.update(done_rows)
+                        pos = stop
+                return builder.finish()
+            except BaseException:
+                builder.abort()
+                raise
+
+        def done(result: Any) -> None:
+            if self._dead or serial != self._edit_serial or gen != self._data_gen:
+                result.close()
+                if not self._dead and serial == self._edit_serial:
+                    self._status(t("gui.table.edit.changed"))
+                return
+            on_ready(result, len(result))
+
+        def failed(exc: BaseException) -> None:
+            if not self._dead and not isinstance(exc, Cancelled):
+                report_task_error(self.session, exc, self, purpose="view")
+
+        return self.session.app.tasks.run(work, title=t("gui.table.records.collect", count=format_count(n)),
+                                          kind="value", owner=self, on_done=done, on_error=failed,
+                                          silent=n <= 100_000, unit="rows")
+
+    def delete_records(self) -> Any:
+        """Delete the records of the selected rows (asks first above
+        :data:`DELETE_CONFIRM_RECORDS`)."""
+        why = self.record_block()
+        if why is not None:
+            self._status(why)
+            return None
+        spans = self._selected_row_spans()
+        if not spans:
+            return None
+
+        def ready(positions: Any, count: int) -> None:
+            def go(ok: bool = True) -> None:
+                if not ok or self._dead:
+                    return
+                edit, why = edit_controller(self.session)
+                if edit is None or why is not None:
+                    self._status(why or edit_unavailable_text(edit))
+                    return
+                if isinstance(positions, list):
+                    edit.delete([self._make_ref(p, ()) for p in positions])
+                else:
+                    edit.delete_records(positions)
+
+            if count > DELETE_CONFIRM_RECORDS:
+                ask(self, t("gui.table.records.delete_confirm", count=format_count(count)), go)
+            else:
+                go()
+
+        return self._record_positions(spans, ready)
+
+    def duplicate_records(self) -> Any:
+        """Ctrl+D: a copy right after each record of the selected rows."""
+        why = self.record_block()
+        if why is not None:
+            self._status(why)
+            return None
+        spans = self._selected_row_spans()
+        if not spans:
+            return None
+
+        def ready(positions: Any, count: int) -> None:
+            edit, why = edit_controller(self.session)
+            if edit is None or why is not None:
+                self._status(why or edit_unavailable_text(edit))
+                return
+            if isinstance(positions, list):
+                edit.duplicate([self._make_ref(p, ()) for p in positions], on_done=self._new_record_shown)
+            else:
+                edit.duplicate_records(positions, on_done=self._new_record_shown)
+
+        return self._record_positions(spans, ready)
+
+    def insert_record(self, *, before: bool = False) -> Any:
+        """Insert: a new record after (``before``: before) the current row's record -- at the
+        start of an empty document; :class:`~jsonreshape.gui.editors.InsertDialog` asks its
+        type and value (and the key in member-record documents)."""
+        from jsonreshape.gui import editors
+
+        why = self.record_block()
+        if why is not None:
+            self._status(why)
+            return None
+        row = self.grid.current()[0]
+        rec = self._record_of(row) if row >= 0 else None
+        if rec is None and self.session.view_len() > 0:
+            self._status(t("gui.table.edit.no_cell"))
+            return None
+        # the record the new one goes next to: remapped while the dialog is open (an edit applied
+        # meanwhile moves it), the index is taken when OK is pressed
+        anchor = None if rec is None else _EditTarget(row, max(0, self.grid.current()[1]), int(rec), "", "value", ())
+        kind = self._column_type(ROOT_COLUMN) or "object"
+        if kind not in editors.INSERT_TYPES:
+            kind = "object"
+
+        def make(pe: _PendingEdit) -> Any:
+            def accept(result: Any) -> None:
+                if self._dead:
+                    return
+                if anchor is not None and pe.target is None:
+                    self._status(t("gui.table.edit.gone"))
+                    return
+                edit, why = edit_controller(self.session)
+                if edit is None or why is not None:
+                    self._status(why or edit_unavailable_text(edit))
+                    return
+                index = 0 if pe.target is None else int(pe.target.record) + (0 if before else 1)
+                edit.insert(None, index, result.value, key=result.key, on_done=self._new_record_shown)
+
+            position = "before" if before else "after"
+            keys: dict[str, Any] = {}
+            if self._member_records():     # the new record's key: unique among the records (review3 L1)
+                keys = {"taken": _WindowKeys(self), "key_check": self._key_check(lambda: _RECORD_KEYS)}
+            dlg = editors.InsertDialog(self, title=t("gui.table.records.insert_title"), positions=(position,),
+                                       position=position, key_needed=self._member_records(), value_type=kind,
+                                       on_accept=accept, **keys)
+            dlg.open()
+            return dlg
+
+        return self._open_pending(anchor, make)
 
     # ------------------------------------------------------------------ columns
     def _refresh_specs(self) -> None:
@@ -3002,6 +4381,7 @@ class TableView(ViewBase):
         loader = self._loader
         if rs is None or doc is None:
             return None
+        doc = _pin(doc)      # the state whose positions the view holds now
 
         def work(ctx: Any) -> list[list[str]]:
             ctx.progress.set_total(n_rows)
@@ -3039,13 +4419,22 @@ class TableView(ViewBase):
     # ------------------------------------------------------------------ menus
     def cell_menu(self, row: int, col: int) -> QMenu:
         """The context menu of a cell: copy cell / copy selection (TSV) / headers option,
-        then the shared node menu of the cell's node (``actions.node_menu``)."""
+        then the shared node menu of the cell's node (``actions.node_menu``, with its edit
+        group for this view and, as the view's own item, "Tanlangan ikkitasini taqqoslash")
+        and, after the edit group, "delete the records" of the selected rows."""
         from jsonreshape.gui import actions
 
         ref = self._ref_at(row, col, require_loaded=False)
         if ref is None:
             return self.table_menu()
-        menu = actions.node_menu(self, self.session, ref, view=self)
+        compare = QAction(t("gui.compare.menu.selected"), self)
+        compare.setObjectName("compare_selected")
+        compare.triggered.connect(lambda _checked=False: self.compare_selected())
+        if self.compare_refs() is None:
+            compare.setEnabled(False)
+            compare.setToolTip(t("gui.compare.menu.selected.need_two"))
+        menu = actions.node_menu(self, self.session, ref, view=self, extra=[compare])
+        compare.setParent(menu)          # deleted with the menu
         first = menu.actions()[0] if menu.actions() else None
         mine: list[QAction] = []
         a = QAction(t("gui.table.menu.copy_cell"), menu)
@@ -3062,7 +4451,29 @@ class TableView(ViewBase):
         sep = QAction(menu)
         sep.setSeparator(True)
         menu.insertAction(first, sep)
+        records = self._records_action(menu)
+        acts = menu.actions()
+        anchor = next((k for k, x in enumerate(acts) if x.objectName() == "edit_paste"), None)
+        if anchor is not None and anchor + 1 < len(acts):
+            menu.insertAction(acts[anchor + 1], records)
+        else:
+            menu.addAction(records)
+        menu.setToolTipsVisible(True)
         return menu
+
+    def _records_action(self, parent: QObject) -> QAction:
+        """"Delete the record(s)" of the selected rows (disabled with the reason)."""
+        a = QAction(t("gui.table.menu.delete_records"), parent)
+        a.setObjectName("table_delete_records")
+        n = sum(r1 - r0 + 1 for r0, r1 in self._selected_row_spans())
+        if n > 1:
+            a.setText(t("gui.table.menu.delete_records_n", count=format_count(n)))
+        why = self.record_block()
+        if why is not None:
+            a.setEnabled(False)
+            a.setToolTip(why)
+        a.triggered.connect(lambda _checked=False: self.delete_records())
+        return a
 
     def _copy_headers_action(self, parent: QObject) -> QAction:
         a = QAction(t("gui.table.menu.copy_headers"), parent)
@@ -3119,6 +4530,12 @@ class TableView(ViewBase):
             a.setObjectName("table_sort_clear")
             a.triggered.connect(lambda _checked=False: self._set_column_sort(col.id, None))
             a.setEnabled(bool(self.session.sort_keys) and block is None)
+            a = menu.addAction(t("gui.statspanel.action.node"))
+            a.setObjectName("table_stats")
+            a.triggered.connect(lambda _checked=False, p=col.id: self.show_column_stats(p))
+            why = self._stats_block(spec)
+            a.setEnabled(why is None)
+            a.setToolTip(why or t("gui.statspanel.action.node.tip"))
             menu.addSeparator()
             a = menu.addAction(t("gui.table.menu.hide"))
             a.setObjectName("table_hide_column")
@@ -3141,6 +4558,87 @@ class TableView(ViewBase):
         sub.setEnabled(bool(hidden))
         self._add_table_items(menu)
         return menu
+
+    @staticmethod
+    def _stats_block(spec: ColumnSpec) -> str | None:
+        """Why "Statistika" does not apply to a column (localized), ``None`` when it does."""
+        if spec.kind == "index":
+            return t("gui.table.menu.stats.index")
+        if spec.error is not None:
+            return spec.error
+        return None
+
+    def show_column_stats(self, path: str) -> bool:
+        """The header menu's "Statistika": the window's statistics dock for the column's field
+        (duck-typed ``self.window().show_stats(field)``; ``$index`` and invalid paths: nothing).
+        True when it was asked for."""
+        spec = self._specs.get(path) or column_spec(path)
+        if self._stats_block(spec) is not None:
+            return False
+        fn = getattr(self.window(), "show_stats", None)
+        if fn is None:
+            return False
+        from jsonreshape.gui.statspanel import field_for_path
+
+        fn(field_for_path(spec.text))
+        return True
+
+    def _on_link(self, _row: Any, _col: int, url: str) -> None:
+        """Ctrl+click on the link of a smart value: asked first, opened only after yes."""
+        if not self._dead:
+            open_url(self, url)
+
+    def _selected_cells(self, limit: int = 2) -> list[tuple[int, int]] | None:
+        """The distinct selected cells ``(row, column index)`` of visible columns (the current
+        cell when nothing is selected); ``None`` as soon as there are more than ``limit``."""
+        cols = self.grid.columns()
+        ranges = list(self.grid.selected_ranges())
+        if not ranges:
+            row, col = self.grid.current()
+            ranges = [(row, row, col, col)] if row >= 0 and col >= 0 else []
+        seen: list[tuple[int, int]] = []
+        for r0, r1, c0, c1 in ranges:
+            if c1 < 0:
+                c0, c1 = 0, len(cols) - 1
+            visible = [c for c in range(max(0, c0), min(c1, len(cols) - 1) + 1) if cols[c].visible]
+            if not visible:
+                continue
+            for row in range(r0, r1 + 1):
+                for col in visible:
+                    if (row, col) not in seen:
+                        seen.append((row, col))
+                        if len(seen) > limit:
+                            return None
+        return seen
+
+    def compare_refs(self) -> list[NodeRef] | None:
+        """The NodeRefs of "Tanlangan ikkitasini taqqoslash": the nodes of exactly two selected
+        cells (:meth:`_ref_at` of loaded rows), else ``None``."""
+        if self._dead or getattr(self.session, "doc", None) is None:
+            return None
+        cells = self._selected_cells(2)
+        if cells is None or len(cells) != 2:
+            return None
+        refs: list[NodeRef] = []
+        for row, col in cells:
+            ref = self._ref_at(row, col, require_loaded=True)
+            if ref is None:
+                return None
+            refs.append(ref)
+        return refs
+
+    def compare_selected(self) -> Any:
+        """Compare the nodes of the two selected cells in a compare window
+        (:func:`jsonreshape.gui.comparewindow.compare_selected`); a status message for another
+        count. Returns the window (``None``: not started)."""
+        refs = self.compare_refs()
+        if refs is None:
+            self._status(t("gui.compare.menu.selected.need_two"))
+            return None
+        from jsonreshape.gui import comparewindow
+
+        window = self.window()
+        return comparewindow.compare_selected(window, self.session, refs, reveal=getattr(window, "show_node", None))
 
     def _popup(self, menu: QMenu, gpos: QPoint) -> None:
         self._last_menu = menu
@@ -3192,6 +4690,29 @@ class TableView(ViewBase):
         mods = event.modifiers()
         if event.key() == Qt.Key.Key_Down and mods == Qt.KeyboardModifier.AltModifier:
             self.focus_quick_filter()
+            return True
+        # editing keys (§12.9: handled here, never as window shortcuts). Enter without modifiers
+        # is left to the grid: its ``activated`` edits a scalar and reveals a container.
+        key = event.key()
+        plain = mods & ~Qt.KeyboardModifier.KeypadModifier
+        no_mods = plain == Qt.KeyboardModifier.NoModifier
+        if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and plain == Qt.KeyboardModifier.ShiftModifier:
+            self.edit_cell(as_json=True)
+            return True
+        if key == Qt.Key.Key_F2 and no_mods:
+            self.rename_key()              # F2 renames (AGENT_PROMPT §11); Enter edits the value
+            return True
+        if key == Qt.Key.Key_Delete and no_mods:
+            self.delete_cells()
+            return True
+        if key == Qt.Key.Key_Insert and no_mods:
+            self.insert_record()
+            return True
+        if key == Qt.Key.Key_D and plain == Qt.KeyboardModifier.ControlModifier:
+            self.duplicate_records()
+            return True
+        if event.matches(QKeySequence.StandardKey.Paste):
+            self.paste_json()
             return True
         # the rest is reached only without the main window (its window actions take these keys first)
         if event.matches(QKeySequence.StandardKey.Copy):
@@ -3474,6 +4995,14 @@ class TableView(ViewBase):
             except (RuntimeError, TypeError):
                 pass
             self._settings_signal = None
+        for name, slot in (("data_changed", self._on_data_changed), ("index_finished", self._on_index_finished)):
+            signal = getattr(self.session, name, None)
+            if signal is not None:
+                try:
+                    signal.disconnect(slot)
+                except (RuntimeError, TypeError):
+                    pass
+        self._cancel_edits()
         if self._loader is not None:
             self._loader.close()
         super().shutdown()

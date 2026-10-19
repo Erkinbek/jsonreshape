@@ -642,9 +642,19 @@ def test_keyboard_navigation(qtbot, opened, views, tmp_path: Path, monkeypatch) 
     assert not view.flat.is_expanded((0,))
     qtbot.keyClick(grid, Qt.Key.Key_Plus)
     assert view.flat.is_expanded((0,))
-    qtbot.keyClick(grid, Qt.Key.Key_Return)              # Enter toggles
-    assert not view.flat.is_expanded((0,))
+    # stage 3 (§12.9): Enter edits -- a container opens the JSON editor -- and a double click
+    # toggles a container (this test pinned "Enter toggles" in stage 2)
+    qtbot.waitUntil(lambda: s.edit is not None and s.edit.available, timeout=TIMEOUT)
+    dialogs: list = []
+    monkeypatch.setattr(TreeView, "_json_dialog", lambda self, ref, info: dialogs.append(ref))
     qtbot.keyClick(grid, Qt.Key.Key_Return)
+    assert dialogs == [NodeRef(0, (), ())] and view.flat.is_expanded((0,))
+    from PySide6.QtTest import QTest
+    QTest.mouseDClick(grid.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+                      grid.cell_rect(0, 1).center())
+    assert not view.flat.is_expanded((0,))
+    QTest.mouseDClick(grid.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+                      grid.cell_rect(0, 1).center())
     assert view.flat.is_expanded((0,))
     shown: list = []
     monkeypatch.setattr(actions, "show_full_value", lambda parent, session, ref: shown.append(ref))

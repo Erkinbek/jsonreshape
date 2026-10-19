@@ -180,3 +180,50 @@ class ExportError(JsonReshapeError):
 
 class IndexBuildError(JsonReshapeError):
     key = "error.index_build"
+
+
+class EditError(JsonReshapeError):
+    """An edit cannot be carried out (stage-3 edit layer, docs/ARCHITECTURE.md §12).
+
+    Key-first like every other error: ``EditError("edits.error.key_exists", key="id")``.
+    Position parameters given as keyword params are also exposed as attributes (``None``
+    when not given): ``char_offset`` (code points of the input text, so editors can convert
+    it to their own positions), ``line`` / ``column`` (1-based) and ``offset`` (bytes).
+    """
+
+    key = "edits.error.generic"
+
+    def __init__(self, key: str | None = None, /, **params: Any) -> None:
+        super().__init__(key, **params)
+        self.char_offset: int | None = params.get("char_offset")
+        self.line: int | None = params.get("line")
+        self.column: int | None = params.get("column")
+        self.offset: int | None = params.get("offset")
+
+
+class ConversionError(EditError):
+    """A value cannot be converted to another JSON type (``editops.convert_value``).
+
+    The ``source`` / ``target`` params may be JSON type ids (``"string"``, ``"number"``,
+    ``"bool"``, ``"null"``, ``"object"``, ``"array"``): they are shown with their localized
+    names (``edits.type.<id>``) in the current UI language.
+    """
+
+    key = "edits.error.convert"
+
+    def _shown_params(self) -> dict[str, Any]:
+        params = dict(self.params)
+        for name in ("source", "target"):
+            value = params.get(name)
+            if isinstance(value, str) and has(f"edits.type.{value}"):
+                params[name] = t(f"edits.type.{value}")
+        return params
+
+    @property
+    def message(self) -> str:
+        return t(self.key, **self._shown_params())
+
+    @property
+    def hint(self) -> str | None:
+        hint_key = self.key + ".hint"
+        return t(hint_key, **self._shown_params()) if has(hint_key) else None

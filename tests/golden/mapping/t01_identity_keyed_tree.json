@@ -1,0 +1,27 @@
+{
+ "name": "t01_identity_keyed_tree",
+ "description": "AGENT_PROMPT §14 test 1 (identity): keyed tree child1 / child1.2",
+ "case": {"name": "t01_identity_keyed_tree", "data": {"child1": {"child1.2": {"id": 112}}, "child2": {"id": 2}}},
+ "output": {"child1": {"child1.2": {"id": 112}}, "child2": {"id": 2}},
+ "log": [],
+ "tree": {"key": "", "kind": "object", "src": [], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "child1", "kind": "object", "src": ["child1"], "types": ["object"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+   {"key": "child1.2", "kind": "object", "src": ["child1", "child1.2"], "types": ["object"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "id", "kind": "value", "src": ["child1", "child1.2", "id"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["112"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+   ]}
+  ]},
+  {"key": "child2", "kind": "object", "src": ["child2"], "types": ["object"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+   {"key": "id", "kind": "value", "src": ["child2", "id"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [],
+ "shape": [
+  "(root) object <- (ildiz)",
+  "  \"child1\" object <- child1",
+  "    \"child1.2\" object <- child1.child1.2",
+  "      \"id\" value <- child1.child1.2.id",
+  "  \"child2\" object <- child2",
+  "    \"id\" value <- child2.id"
+ ],
+ "preview": [{"child1": {"child1.2": {"id": 112}}, "child2": {"id": 2}}]
+}

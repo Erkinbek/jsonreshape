@@ -16,15 +16,43 @@
   log");
 * :class:`FullValueDialog` -- the "full value" window of a node (lazy, capped at 16 MiB;
   lines longer than :data:`FULL_LINE_CHARS` characters are shown shortened, copy copies the
-  full text);
+  full text) with the smart value of the node (below);
 * small helpers: :func:`set_clipboard_text`, :func:`format_count`, :func:`format_size`,
   :class:`ElidedLabel`, :func:`confirm` (modal, for explicit user actions), :func:`ask`
   (the same question without a nested event loop: safe inside task callbacks),
-  :func:`busy_cursor`, :func:`mono_font`.
+  :func:`busy_cursor`, :func:`mono_font`, :func:`open_url` (a link of a smart value, opened only
+  after "Brauzerda ochilsinmi?" was answered with yes).
 
 The GUI thread never reads node values here: everything that touches the data file runs
 in ``session.app.tasks`` (silent tasks owned by the view / dialog, so closing it detaches
 them).
+
+Edited documents (docs/ARCHITECTURE.md §12.3, §12.9): the node readers
+(:func:`run_value_task`, :func:`load_full_text`) take the node from ONE pinned state of the
+session's document and read a node's text with ``doc.node_chunks(node)`` -- the effective
+text of edited nodes (their spans are edit offsets) and of composite nodes (the root of an
+edited array, the wrapper of an edited wrapped document), never one byte range from the
+first child to the last. The state is pinned **when the value is asked for**, in the GUI
+thread (:func:`task_doc` in :func:`run_value_task` and :meth:`FullValueDialog._start`; review
+CL-9): the ref was taken from that state, so a ChangeSet applied before the worker starts
+never makes the task read another state than its ref belongs to. :func:`task_node` without a
+``doc`` still pins in the worker (callers without a request-time state).
+:func:`edited_span` tells whether a span lies in the edit layer (no file offset to show).
+
+Smart values (docs/ARCHITECTURE.md §14.0, §14.7, §14.9): the full-value window's value task
+also runs :func:`jsonreshape.smartvalues.detect` on the loaded text (:func:`smart_preview`;
+a cut string only counts as an image) and, for a base64 image, decodes it
+(:func:`jsonreshape.smartvalues.image_bytes`, at most :data:`THUMB_MAX_BYTES`; detection itself
+decodes at most the first 64 KiB) and makes a thumbnail with ``QImageReader`` at the target
+size (:data:`THUMB_SIZE`; images above :data:`THUMB_MAX_PIXELS` get none) -- never in the GUI
+thread. The window shows the smart value above the text: the tooltip text (Tashkent time with
+the Uzbek weekday, the colour, the image size), a colour swatch, the thumbnail, or the link
+(underlined in the theme's link colour; a click or "Brauzerda ochish…" asks first).
+:func:`open_url` hands only ``http(s)://`` and ``mailto:`` URLs to
+``QDesktopServices.openUrl``, and only after the user said yes (the program itself sends
+nothing; §11.0 as amended by §14.0). The question and the opener can be replaced
+(:data:`url_asker`, :data:`url_opener`) and the default opener refuses on the ``offscreen`` /
+``minimal`` platforms, so tests never open anything.
 """
 
 from __future__ import annotations
@@ -40,8 +68,19 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Iterator
 
 import shiboken6
-from PySide6.QtCore import QEvent, QSize, Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QColor, QDesktopServices, QFont, QFontDatabase, QGuiApplication, QPalette
+from PySide6.QtCore import QBuffer, QByteArray, QEvent, QIODevice, QSize, Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import (
+    QColor,
+    QDesktopServices,
+    QFont,
+    QFontDatabase,
+    QGuiApplication,
+    QImage,
+    QImageReader,
+    QPainter,
+    QPalette,
+    QPixmap,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -59,11 +98,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from jsonreshape import codec
+from jsonreshape import codec, smartvalues
 from jsonreshape.errors import Cancelled, JsonReshapeError, JsonSyntaxError, TooLargeError, UserInputError
 from jsonreshape.gui import copyfmt
 from jsonreshape.i18n import get_language, t
-from jsonreshape.tasks import CancelToken, format_bytes
+from jsonreshape.overlay import is_edit_offset
+from jsonreshape.tasks import CancelToken, check, format_bytes
 
 log = logging.getLogger(__name__)
 
@@ -72,6 +112,10 @@ __all__ = [
     "FULL_LINE_CHARS",
     "FULL_TEXT_CAP",
     "MAX_ERROR_DIALOGS",
+    "OPEN_SCHEMES",
+    "THUMB_MAX_BYTES",
+    "THUMB_MAX_PIXELS",
+    "THUMB_SIZE",
     "ElidedLabel",
     "ErrorDialog",
     "ErrorNotice",
@@ -92,12 +136,25 @@ __all__ = [
     "mono_font",
     "open_local_path",
     "open_log_folder",
+    "open_url",
+    "openable_url",
+    "pretty_prefix",
+    "smart_preview",
+    "swatch_pixmap",
     "count_hidden_error",
+    "edit_controller",
+    "edit_unavailable_text",
+    "edited_span",
+    "node_text_chunks",
+    "remap_node_ref",
     "report_task_error",
+    "resolve_in",
     "reset_error_limit",
     "run_value_task",
     "set_clipboard_text",
     "show_error",
+    "task_doc",
+    "task_node",
 ]
 
 #: Text shown by :class:`FullValueDialog` at most (characters of a string / bytes of JSON).
@@ -109,6 +166,12 @@ FULL_LINE_CHARS = 10_000
 MAX_ERROR_DIALOGS = 3
 ERROR_DIALOG_PERIOD_S = 10.0
 _READ_CHUNK = 1 << 20   # the Reformatter is fed at most 1 MiB at a time
+#: Smart values: link schemes handed to the system (after a yes), thumbnails of base64 images.
+OPEN_SCHEMES = ("http", "https", "mailto")
+THUMB_SIZE = 192                      # a thumbnail fits into this square (pixels)
+THUMB_MAX_BYTES = 16 * 1024 * 1024    # an image decodes at most this many bytes for its thumbnail
+THUMB_MAX_PIXELS = 24_000_000         # bigger images (width x height) get no thumbnail (decoding memory)
+_URL_SHOWN_CHARS = 300                # a link is shown at most this long in a question / label
 
 
 # ==================================================================================
@@ -251,6 +314,101 @@ def open_log_folder() -> bool:
     return open_local_path(folder)
 
 
+#: Replaces the question of :func:`open_url` (tests / automation): ``fn(parent, url, callback)``
+#: must call ``callback(bool)`` once (default: :func:`ask`, which honours :data:`confirm_handler`).
+url_asker: Callable[[QWidget | None, str, Callable[[bool], Any]], Any] | None = None
+#: Replaces the opener of a confirmed link (tests / automation): ``fn(url) -> bool`` (default:
+#: ``QDesktopServices.openUrl``; refused on the ``offscreen`` / ``minimal`` platforms).
+url_opener: Callable[[str], bool] | None = None
+_HEADLESS_PLATFORMS = ("offscreen", "minimal")
+
+
+def openable_url(url: str) -> bool:
+    """``url`` is an ``http://`` / ``https://`` URL with a host or a ``mailto:`` URL with an
+    address -- the only links the program hands to the system (after the user said yes)."""
+    text = str(url or "")
+    if not text or any(ch.isspace() or ord(ch) < 32 for ch in text):
+        return False
+    qurl = QUrl(text)
+    if not qurl.isValid():
+        return False
+    scheme = qurl.scheme().lower()
+    if scheme in ("http", "https"):
+        return bool(qurl.host())
+    return scheme == "mailto" and "@" in qurl.path()
+
+
+def _shown_url(url: str) -> str:
+    text = copyfmt.escape_surrogates(str(url))
+    return text if len(text) <= _URL_SHOWN_CHARS else text[:_URL_SHOWN_CHARS - 1] + copyfmt.ELLIPSIS
+
+
+def _system_open(url: str) -> bool:
+    """Hand a confirmed link to the system (browser / mail program); never on a headless platform."""
+    platform = (QGuiApplication.platformName() or "").lower()
+    if platform in _HEADLESS_PLATFORMS:
+        log.info("not opening a link on the %s platform: %s", platform, url[:200])
+        return False
+    return bool(QDesktopServices.openUrl(QUrl(url)))
+
+
+def open_url(parent: QWidget | None, url: str, *, on_done: Callable[[bool], Any] | None = None) -> bool:
+    """Open the link of a smart value (Ctrl+click in the tree / table, the full-value window):
+    ask "Brauzerda ochilsinmi?" (non-blocking, :func:`ask`; :data:`url_asker` replaces it) and
+    only after "yes" hand the URL to the system (:data:`url_opener`, default
+    ``QDesktopServices.openUrl``). Only ``http(s)://`` and ``mailto:`` URLs (:func:`openable_url`)
+    are ever opened -- anything else is refused at once, nothing is asked; the program itself
+    sends nothing (docs/ARCHITECTURE.md §14.0). ``on_done(opened)`` runs after the answer.
+    Returns False when the URL was refused."""
+    url = str(url or "")
+    if not openable_url(url):
+        log.info("refused to open a link: %r", url[:200])
+        return False
+    mail = url.lower().startswith("mailto:")
+    question = t("gui.smart.open.mail" if mail else "gui.smart.open.question", url=_shown_url(url))
+
+    def answered(yes: bool) -> None:
+        opened = False
+        if yes and openable_url(url):
+            opener = url_opener if url_opener is not None else _system_open
+            try:
+                opened = bool(opener(url))
+            except Exception:  # noqa: BLE001 - a broken handler must not break the GUI
+                log.exception("opening a link failed")
+        if on_done is not None:
+            on_done(opened)
+
+    asker = url_asker
+    if asker is not None:
+        asker(parent, url, answered)
+    else:
+        ask(parent, question, answered, title=t("gui.smart.open.title"))
+    return True
+
+
+def swatch_pixmap(rgba: tuple, size: int, border: QColor | None = None) -> QPixmap:
+    """A ``size`` square pixmap of the colour ``rgba`` (a checkerboard behind a translucent
+    colour, a thin border) -- the full-value window's colour swatch."""
+    pm = QPixmap(max(1, int(size)), max(1, int(size)))
+    pm.fill(QColor(255, 255, 255))
+    p = QPainter(pm)
+    try:
+        r, g, b = (max(0, min(255, int(v))) for v in rgba[:3])
+        a = max(0, min(255, int(rgba[3]))) if len(rgba) > 3 else 255
+        if a < 255:
+            step = max(2, size // 4)
+            for yy in range(0, size, step):
+                for xx in range(0, size, step):
+                    if (xx // step + yy // step) & 1:
+                        p.fillRect(xx, yy, step, step, QColor(204, 204, 204))
+        p.fillRect(0, 0, size, size, QColor(r, g, b, a))
+        p.setPen(border if border is not None else QColor(128, 128, 128))
+        p.drawRect(0, 0, size - 1, size - 1)
+    finally:
+        p.end()
+    return pm
+
+
 class ElidedLabel(QLabel):
     """A one-line label that elides its text to the available width (``…``); the full
     text is the tooltip while elided."""
@@ -296,6 +454,131 @@ class ElidedLabel(QLabel):
 
 
 # ==================================================================================
+# reading nodes (worker threads)
+# ==================================================================================
+_NODE_DOC_PARAM: dict[type, bool] = {}
+
+
+def _node_takes_doc(session: Any) -> bool:
+    """``session.node`` accepts ``doc=`` (a :class:`DocSession`; simple fakes do not)."""
+    kind = type(session)
+    known = _NODE_DOC_PARAM.get(kind)
+    if known is None:
+        import inspect
+
+        try:
+            known = "doc" in inspect.signature(session.node).parameters
+        except (AttributeError, TypeError, ValueError):
+            known = False
+        _NODE_DOC_PARAM[kind] = known
+    return known
+
+
+def task_doc(session: Any) -> Any:
+    """A pinned view of the session's document (``doc.pinned()``: one overlay state, so an edit
+    applied while a task runs is never mixed into what it reads), or ``None`` while the index
+    is incomplete (the live document then grows and the session waits for records) or when
+    the session has no document. Any thread."""
+    doc = getattr(session, "doc", None)
+    if doc is None or not getattr(doc, "index_complete", False):
+        return None
+    pin = getattr(doc, "pinned", None)
+    if pin is None:
+        return None
+    try:
+        return pin()
+    except (ValueError, TypeError, JsonReshapeError):   # closed meanwhile: the live call reports it
+        return None
+
+
+def task_node(session: Any, ref: Any, cancel: CancelToken | None = None, *, doc: Any = None) -> Any:
+    """The :class:`~jsonreshape.reader.Node` of ``ref`` read from ``doc`` (default:
+    :func:`task_doc`, one pinned state of the session's document). Worker threads only."""
+    if doc is None:
+        doc = task_doc(session)
+    if doc is not None and _node_takes_doc(session):
+        return session.node(ref, cancel, doc=doc)
+    return session.node(ref, cancel)
+
+
+def resolve_in(doc: Any, ref: Any, cancel: CancelToken | None = None) -> Any:
+    """``ref`` resolved in ``doc`` (a document with a complete index, usually a pinned view):
+    the path normalized (array indices as ``int``) and the child indices filled in (the LAST
+    member of a duplicate key, like :meth:`DocSession.resolve`); ``None`` when the node does
+    not exist. Worker threads only."""
+    try:
+        cur = doc.root() if ref.record is None else doc.record_node(int(ref.record))
+    except (IndexError, KeyError):
+        return None
+    path: list[Any] = []
+    ipath: list[int] = []
+    for seg in ref.path:
+        if cancel is not None:
+            cancel.check()
+        idx = cur.find_child_index(seg, cancel=cancel)
+        if idx is None:
+            return None
+        cur = cur.child(idx)
+        path.append(cur.key if cur.key is not None else seg)
+        ipath.append(int(idx))
+    return type(ref)(ref.record, tuple(path), tuple(ipath))
+
+
+def node_text_chunks(node: Any, cancel: CancelToken | None = None, *, chunk: int = 1 << 20) -> Iterator[bytes]:
+    """The effective JSON text of ``node`` in pieces (``doc.node_chunks``: edited nodes from the
+    edit layer, composite nodes -- the records' container and its ancestors, the virtual root of
+    a JSON Lines document -- built from the effective records). Worker threads only."""
+    return node.doc.node_chunks(node, chunk=chunk, cancel=cancel)
+
+
+def edited_span(start: Any) -> bool:
+    """The span starting at ``start`` lies in the edit layer (an edited or new node: no byte
+    offset of the data file to show or to jump to)."""
+    try:
+        return start is not None and is_edit_offset(int(start))
+    except (TypeError, ValueError):
+        return False
+
+
+def edit_unavailable_text(edit: Any) -> str:
+    """Why the edit controller ``edit`` (``session.edit``; ``None``: no controller) cannot
+    edit now: :func:`jsonreshape.gui.actions.edit_reason_text` (the controller's own reason
+    text, else the text of its ``reason`` code) -- the same words as the node / Edit menus."""
+    if edit is None:
+        return t("gui.widgets.edit.unavailable")
+    try:
+        from jsonreshape.gui.actions import edit_reason_text
+    except ImportError:          # pragma: no cover - part of the package
+        return t("gui.widgets.edit.unavailable")
+    return edit_reason_text(edit)
+
+
+def remap_node_ref(session: Any, ref: Any, cs: Any) -> Any:
+    """``ref`` (a NodeRef of the state before the ChangeSet ``cs``) after it:
+    :func:`jsonreshape.gui.editing.remap_ref` (record remap, then the record's NodeChanges;
+    single documents handled); ``None`` when the node was deleted -- or after a reset
+    (positions of the old state mean nothing any more)."""
+    if ref is None or getattr(cs, "reset", False):
+        return None
+    from jsonreshape.gui.editing import remap_ref
+
+    doc = getattr(session, "doc", None)
+    return remap_ref(ref, cs, single=getattr(doc, "kind", None) == "single")
+
+
+def edit_controller(session: Any) -> tuple[Any, str | None]:
+    """``(controller, None)`` when ``session`` can be edited now, else ``(controller or None,
+    localized reason)`` -- for enabling edit commands (a busy controller counts as available:
+    it refuses a second command itself with a status message)."""
+    edit = getattr(session, "edit", None)
+    if edit is None or getattr(session, "doc", None) is None:
+        return edit, edit_unavailable_text(None)
+    if not getattr(edit, "available", False):
+        return edit, edit_unavailable_text(edit)
+    return edit, None
+
+
+# ==================================================================================
 # copy machinery (shared with actions.py)
 # ==================================================================================
 def report_task_error(session: Any, exc: BaseException, parent: QWidget | None = None, *,
@@ -320,16 +603,23 @@ def report_task_error(session: Any, exc: BaseException, parent: QWidget | None =
 def run_value_task(session: Any, ref: Any, compute: Callable[[Any, CancelToken], Any],
                    on_result: Callable[[Any], Any], *, owner: Any = None, parent: QWidget | None = None,
                    title: str | None = None, purpose: str = "copy",
-                   check: Callable[[Any], None] | None = None) -> Any:
-    """Load the value of ``ref`` in a silent task (``session.node(ref).value()``), run
+                   check: Callable[[Any], None] | None = None, doc: Any = None) -> Any:
+    """Load the value of ``ref`` in a silent task (``session.node(ref).value()`` of one pinned
+    state, :func:`task_node`: edited and composite nodes give their effective value), run
     ``compute(value, cancel)`` there too, then call ``on_result(result)`` in the GUI
     thread. ``check(node)`` (worker thread) may raise before the value is read. Errors
-    are reported with :func:`report_task_error`. Returns the task."""
+    are reported with :func:`report_task_error`. Returns the task.
+
+    The state is pinned NOW (GUI thread; ``doc``: a state pinned by the caller when it took
+    ``ref``), not when the worker starts: ``ref`` belongs to the state shown at this moment
+    (review CL-9)."""
+    pinned = doc if doc is not None else task_doc(session)
+    node_check = check
 
     def work(ctx: Any) -> Any:
-        node = session.node(ref, ctx.cancel)
-        if check is not None:
-            check(node)
+        node = task_node(session, ref, ctx.cancel, doc=pinned)
+        if node_check is not None:
+            node_check(node)
         value = node.value()
         ctx.cancel.check()
         return compute(value, ctx.cancel)
@@ -904,6 +1194,9 @@ class FullText:
     size: int            # bytes of the node in the file
     display: str | None = None   # ``text`` with long lines shortened (None: same as ``text``)
     cut_lines: int = 0           # lines shortened in ``display``
+    smart: Any = None            # SmartValue of the value (smart_preview) or None
+    thumbnail: Any = None        # QImage: the thumbnail of a base64 image (smart_preview) or None
+    thumb_note: str | None = None    # why an image has no thumbnail (localized) or None
 
 
 #: Paragraph (block) separators of QTextDocument: a line between them is laid out as a whole.
@@ -939,24 +1232,25 @@ def _string_prefix(node: Any, cap: int, cancel: CancelToken | None) -> tuple[str
 
 
 def _pretty_prefix(node: Any, indent: int | str | None, cap: int, cancel: CancelToken | None) -> tuple[bytes, bool]:
-    """Pretty JSON of the node's raw bytes (``core.Reformatter``: tokens unchanged), read
-    in 1 MiB pieces and stopped once ``cap`` bytes of output exist. ``(text, complete)``."""
+    """Pretty JSON of the node's effective text (:func:`node_text_chunks`, read in 1 MiB
+    pieces through ``core.Reformatter``: tokens unchanged), stopped once ``cap`` bytes of
+    output exist. ``(text, complete)``."""
     from jsonreshape.core import Reformatter
 
     fmt = Reformatter(indent=indent)
     out = bytearray()
-    pos, end = node.start, node.end
-    with node.doc.open_data() as f:
-        f.seek(pos)
-        while pos < end and len(out) <= cap:
+    complete = True
+    chunks = node_text_chunks(node, cancel, chunk=_READ_CHUNK)
+    try:
+        for piece in chunks:
             if cancel is not None:
                 cancel.check()
-            chunk = f.read(min(_READ_CHUNK, end - pos))
-            if not chunk:
+            out += fmt.feed(piece)
+            if len(out) > cap:
+                complete = False
                 break
-            pos += len(chunk)
-            out += fmt.feed(chunk)
-    complete = pos >= end
+    finally:
+        chunks.close()
     if complete:
         out += fmt.finish()
     if len(out) > cap:
@@ -964,14 +1258,23 @@ def _pretty_prefix(node: Any, indent: int | str | None, cap: int, cancel: Cancel
     return bytes(out), complete
 
 
+def pretty_prefix(node: Any, indent: int | str | None, cap: int,
+                  cancel: CancelToken | None = None) -> tuple[bytes, bool]:
+    """Pretty JSON (exact tokens) of ``node``'s effective text, at most ``cap`` bytes:
+    ``(text, complete)``. Worker threads only."""
+    return _pretty_prefix(node, indent, cap, cancel)
+
+
 def load_full_text(session: Any, ref: Any, cancel: CancelToken | None = None, *,
                    indent: int | str | None = 2, cap: int = FULL_TEXT_CAP,
-                   max_line: int = FULL_LINE_CHARS) -> FullText:
+                   max_line: int = FULL_LINE_CHARS, doc: Any = None) -> FullText:
     """The text of the "full value" window (worker thread): a string node's decoded text,
-    any other node as pretty JSON of its exact source tokens; at most ``cap`` characters
-    (strings) / bytes (JSON). ``display`` has the lines longer than ``max_line``
-    characters shortened (see :func:`shorten_long_lines`)."""
-    node = session.node(ref, cancel)
+    any other node as pretty JSON of its exact source tokens (the effective text of edited
+    and composite nodes: :func:`node_text_chunks`); at most ``cap`` characters (strings) /
+    bytes (JSON). ``display`` has the lines longer than ``max_line`` characters shortened
+    (see :func:`shorten_long_lines`). ``doc``: the state pinned when the value was asked for
+    (default: pinned here, :func:`task_node`)."""
+    node = task_node(session, ref, cancel, doc=doc)
     kind = node.kind
     size = node.size
     if kind == "string":
@@ -983,11 +1286,12 @@ def load_full_text(session: Any, ref: Any, cancel: CancelToken | None = None, *,
         truncated = not complete or len(text) > cap
         shown = copyfmt.escape_surrogates(text[:cap])
     else:
-        if getattr(node, "is_virtual", False):
-            # the synthetic root of jsonl/stream documents has no bytes of its own
+        if getattr(node, "is_virtual", False) and not hasattr(getattr(node, "doc", None), "node_chunks"):
+            # (a node without a document behind it: its parsed value)
             data = codec.dumps(node.value(), indent=indent)
             complete = len(data) <= cap
         else:
+            # the synthetic root of jsonl/stream documents streams as a JSON array of the records
             data, complete = _pretty_prefix(node, indent, cap, cancel)
         shown = data[:cap].decode("utf-8", errors="ignore")
         truncated = not complete
@@ -997,9 +1301,113 @@ def load_full_text(session: Any, ref: Any, cancel: CancelToken | None = None, *,
     return FullText(shown, kind, truncated, size, display=None if cut == 0 else display, cut_lines=cut)
 
 
+_QT_IMAGE_FORMATS = {"PNG": b"png", "JPEG": b"jpeg", "GIF": b"gif", "WEBP": b"webp"}
+
+
+def _decode_thumbnail(data: bytes, fmt: str, size: int) -> QImage | None:
+    """A thumbnail (at most ``size`` x ``size``) of image bytes of the format ``fmt`` (worker
+    thread): ``QImageReader`` with that format only (never sniffed into another), the size read
+    from the header first (no image above :data:`THUMB_MAX_PIXELS` is decoded), decoded at the
+    target size where the format supports it."""
+    qt_format = _QT_IMAGE_FORMATS.get(fmt)
+    if qt_format is None:
+        return None
+    buf = QBuffer()
+    buf.setData(QByteArray(data))
+    if not buf.open(QIODevice.OpenModeFlag.ReadOnly):
+        return None
+    try:
+        reader = QImageReader(buf, QByteArray(qt_format))
+        reader.setDecideFormatFromContent(False)
+        reader.setAutoTransform(True)
+        full = reader.size()
+        if not full.isValid() or full.width() * full.height() > THUMB_MAX_PIXELS:
+            return None
+        if full.width() > size or full.height() > size:
+            reader.setScaledSize(full.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio))
+        image = reader.read()
+        return None if image.isNull() else image
+    finally:
+        buf.close()
+
+
+def smart_preview(full: FullText, cancel: CancelToken | None = None, *, size: int = THUMB_SIZE) -> FullText:
+    """Fill ``full.smart`` -- :func:`jsonreshape.smartvalues.detect` of the loaded text (a string
+    cut at the window's limit only counts as an image) -- and for a base64 image
+    ``full.thumbnail`` (a ``QImage`` of at most ``size`` pixels) or ``full.thumb_note`` (why there
+    is none). Worker threads (the full-value window's value task); returns ``full``."""
+    kind = full.kind
+    text = full.text
+    sv: Any = None
+    if kind == "string" and text:
+        sv = smartvalues.detect(text, "string")
+        if sv is not None and full.truncated and sv.kind != "image":
+            sv = None                   # the beginning of a longer value: not that link / date / colour
+    elif kind == "number" and text:
+        sv = smartvalues.detect(text.strip(), "number")
+    full.smart = sv
+    if sv is None or sv.kind != "image" or sv.image is None:
+        return full
+    info = sv.image
+    if full.truncated:
+        full.thumb_note = t("gui.smart.thumb.truncated")
+        return full
+    if info.width and info.height and info.width * info.height > THUMB_MAX_PIXELS:
+        full.thumb_note = t("gui.smart.thumb.too_large", width=format_count(info.width),
+                            height=format_count(info.height))
+        return full
+    check(cancel)
+    data = smartvalues.image_bytes(text, THUMB_MAX_BYTES)
+    check(cancel)
+    image = _decode_thumbnail(data, info.format, size) if data is not None else None
+    if image is None:
+        full.thumb_note = t("gui.smart.thumb.failed")
+    else:
+        full.thumbnail = image
+    return full
+
+
+class _LinkLabel(QLabel):
+    """The link of a smart value in the full-value window: underlined in the theme's link colour,
+    a pointing hand; a left click (Ctrl or not) emits :attr:`activated` (the window asks before
+    opening anything)."""
+
+    activated = Signal()
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setTextFormat(Qt.TextFormat.PlainText)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        font = QFont(self.font())
+        font.setUnderline(True)
+        self.setFont(font)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.apply_colors()
+
+    def apply_colors(self) -> None:
+        try:
+            from jsonreshape.gui import theme
+
+            color = QColor(theme.color("link"))
+        except Exception:  # noqa: BLE001 - no theme: the palette's link colour
+            color = QGuiApplication.palette().color(QPalette.ColorRole.Link)
+        pal = self.palette()
+        pal.setColor(QPalette.ColorRole.WindowText, color)
+        self.setPalette(pal)
+
+    def mousePressEvent(self, event: Any) -> None:  # noqa: N802 (Qt name)
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.activated.emit()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+
 class FullValueDialog(QDialog):
     """The "to'liq ko'rish" window of a node (non-modal). Loads lazily in a silent task
-    owned by the dialog; :attr:`loaded` fires when the text (or an error) is shown."""
+    owned by the dialog; :attr:`loaded` fires when the text (or an error) is shown. The
+    document state is pinned when the window is made (review CL-9); the smart value of the
+    node (module docstring) is shown above the text."""
 
     loaded = Signal()
 
@@ -1031,6 +1439,7 @@ class FullValueDialog(QDialog):
         self.notice_label.setWordWrap(True)
         self.notice_label.setVisible(False)
         layout.addWidget(self.notice_label)
+        self._build_smart(layout)
 
         self.editor = QPlainTextEdit(self)
         self.editor.setReadOnly(True)
@@ -1056,14 +1465,68 @@ class FullValueDialog(QDialog):
         layout.addLayout(bottom)
         self.set_wrap(False)
         self.resize(760, 520)
+        try:
+            from jsonreshape.gui import theme
+
+            theme.notifier().theme_changed.connect(self._on_theme_changed)
+        except Exception:  # noqa: BLE001
+            log.debug("theme notifier unavailable", exc_info=True)
         self._start()
+
+    def _build_smart(self, layout: QVBoxLayout) -> None:
+        """The strip showing the smart value (hidden until one was found)."""
+        frame = QFrame(self)
+        frame.setObjectName("fullValueSmart")
+        frame.setFrameShape(QFrame.Shape.StyledPanel)
+        row = QHBoxLayout(frame)
+        row.setContentsMargins(6, 4, 6, 4)
+        row.setSpacing(8)
+        self.swatch_label = QLabel(frame)
+        self.swatch_label.setObjectName("fullValueSwatch")
+        self.swatch_label.setVisible(False)
+        row.addWidget(self.swatch_label, 0, Qt.AlignmentFlag.AlignTop)
+        self.thumb_label = QLabel(frame)
+        self.thumb_label.setObjectName("fullValueThumbnail")
+        self.thumb_label.setVisible(False)
+        row.addWidget(self.thumb_label, 0, Qt.AlignmentFlag.AlignTop)
+        texts = QVBoxLayout()
+        texts.setSpacing(2)
+        self.smart_label = QLabel(frame)
+        self.smart_label.setObjectName("fullValueSmartText")
+        self.smart_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.smart_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.smart_label.setWordWrap(True)
+        texts.addWidget(self.smart_label)
+        self.link_label = _LinkLabel(frame)
+        self.link_label.setObjectName("fullValueLink")
+        self.link_label.setVisible(False)
+        self.link_label.activated.connect(self.open_link)
+        texts.addWidget(self.link_label)
+        row.addLayout(texts, 1)
+        self.open_button = QPushButton(frame)
+        self.open_button.setObjectName("fullValueOpenLink")
+        self.open_button.setAutoDefault(False)
+        self.open_button.setVisible(False)
+        self.open_button.clicked.connect(self.open_link)
+        row.addWidget(self.open_button, 0, Qt.AlignmentFlag.AlignTop)
+        frame.setVisible(False)
+        self.smart_frame = frame
+        layout.addWidget(frame)
 
     # -- loading -----------------------------------------------------------------------
     def _start(self) -> None:
         session, ref, indent, cap, max_line = self.session, self.ref, self.indent, self.cap, self.max_line
+        pinned = task_doc(session)       # the state the window was asked for (review CL-9)
 
         def work(ctx: Any) -> FullText:
-            return load_full_text(session, ref, ctx.cancel, indent=indent, cap=cap, max_line=max_line)
+            full = load_full_text(session, ref, ctx.cancel, indent=indent, cap=cap, max_line=max_line, doc=pinned)
+            try:
+                smart_preview(full, ctx.cancel)
+            except Cancelled:
+                raise
+            except Exception:  # noqa: BLE001 - the text is shown without its smart value
+                log.debug("full value: smart value failed", exc_info=True)
+            return full
 
         self._task = session.app.tasks.run(work, title=t("gui.widgets.task.load_value"), kind="value", owner=self,
                                            on_done=self._on_loaded, on_error=self._on_failed, silent=True)
@@ -1074,6 +1537,7 @@ class FullValueDialog(QDialog):
         self.editor.setPlainText(result.display if result.display is not None else result.text)
         self.info_label.setText(t("gui.widgets.full.info", path=copyfmt.escape_surrogates(self.path_text),
                                   size=format_size(result.size)))
+        self._show_smart(result)
         notices = []
         if result.truncated:
             shown = len(result.text.encode("utf-8", errors="surrogatepass"))
@@ -1100,6 +1564,60 @@ class FullValueDialog(QDialog):
         self.notice_label.setText(copyfmt.escape_surrogates(text))
         self.notice_label.setVisible(True)
 
+    def _show_smart(self, result: FullText) -> None:
+        """The smart value strip: the tooltip text, a swatch, the thumbnail or the link."""
+        sv = result.smart
+        if sv is None:
+            self.smart_frame.setVisible(False)
+            return
+        link = sv.url if sv.kind in ("url", "email") and sv.url else None
+        if link is not None:     # the URL itself is the clickable link below the caption
+            lines = [t("gui.smart.link.email" if sv.kind == "email" else "gui.smart.link.url")]
+        elif sv.kind == "image":  # (its tooltip's hint points to this very window)
+            lines = [sv.tooltip.split("\n", 1)[0]]
+        else:
+            lines = [sv.tooltip]
+        if result.thumb_note:
+            lines.append(result.thumb_note)
+        self.smart_label.setText(copyfmt.escape_surrogates("\n".join(lines)))
+        self.smart_label.setVisible(True)
+        if sv.kind == "color" and sv.rgba is not None:
+            size = max(16, self.fontMetrics().height() + 8)
+            self.swatch_label.setPixmap(swatch_pixmap(sv.rgba, size, self.palette().color(QPalette.ColorRole.Mid)))
+            self.swatch_label.setToolTip(sv.hex or "")
+            self.swatch_label.setVisible(True)
+        if result.thumbnail is not None:
+            self.thumb_label.setPixmap(QPixmap.fromImage(result.thumbnail))
+            info = sv.image
+            if info is not None and info.width and info.height:
+                self.thumb_label.setToolTip(t("smartvalues.image", format=info.format, width=info.width,
+                                              height=info.height))
+            self.thumb_label.setVisible(True)
+        if link is not None:
+            mail = sv.kind == "email"
+            self.link_label.setText(_shown_url(link))
+            self.link_label.setToolTip(t("gui.smart.open.link_tip"))
+            self.link_label.setVisible(True)
+            self.open_button.setText(t("gui.smart.open.mail_button" if mail else "gui.smart.open.button"))
+            self.open_button.setToolTip(t("gui.smart.open.link_tip"))
+            self.open_button.setVisible(True)
+        self.smart_frame.setVisible(True)
+
+    def smart_value(self) -> Any:
+        """The smart value of the loaded node (``None``: none, or not loaded yet)."""
+        return self.result.smart if self.result is not None else None
+
+    def open_link(self) -> bool:
+        """The link of the smart value: asks first, opens only after yes (:func:`open_url`)."""
+        sv = self.smart_value()
+        if sv is None or not sv.url or sv.kind not in ("url", "email"):
+            return False
+        return open_url(self, sv.url)
+
+    def _on_theme_changed(self) -> None:
+        if shiboken6.isValid(self):
+            self.link_label.apply_colors()
+
     # -- user actions ------------------------------------------------------------------
     def text(self) -> str:
         """The text shown (empty until loaded)."""
@@ -1124,4 +1642,10 @@ class FullValueDialog(QDialog):
             self.session.app.tasks.detach(self)
         except Exception:
             log.debug("detach failed", exc_info=True)
+        try:
+            from jsonreshape.gui import theme
+
+            theme.notifier().theme_changed.disconnect(self._on_theme_changed)
+        except (RuntimeError, TypeError, ImportError):
+            pass
         super().done(result)

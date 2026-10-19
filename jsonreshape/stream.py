@@ -4,7 +4,9 @@ Records larger than ``Settings.large_node_bytes`` are never loaded whole
 (:meth:`jsonreshape.reader.Document.record_bytes` refuses them and
 :meth:`~jsonreshape.reader.Document.iter_blocks` yields them as ``huge`` blocks). The
 functions here parse such a record incrementally with ``ijson.basic_parse``
-(``yajl2_c`` backend, ``use_float=False``) over a range reader on a shared-read handle:
+(``yajl2_c`` backend, ``use_float=False``) over a range reader on ``doc.open_data()`` (the
+document's virtual address space: the data file, or the edit layer for an edited record --
+docs/ARCHITECTURE.md §12.3):
 
 * :func:`iter_events` -- the raw ijson events of a span;
 * :func:`stream_values` -- the values of several :class:`~jsonreshape.paths.PathPattern`
@@ -24,8 +26,31 @@ the 64-bit range stay ``int``, larger ones become ``JsonInt``; ``Decimal`` value
 through ``codec.loads(str(d))`` (``JsonFloat`` or ``float``; equal values -- the raw
 text of exponents may be normalized, e.g. ``1e400`` -> ``1E+400``). ijson limitations
 (documented deviations from ``codec.loads``): ``-0`` arrives as ``0``; a lone surrogate
-escape such as ``\\ud800`` arrives as ``"?"``; a string value always arrives whole (one
-ijson event), so a huge *string* is held in memory once while it is examined.
+escape -- high (``\\ud800``) or low (``\\udc00``) -- arrives as ``"?"``; a string value
+always arrives whole (one ijson event), so a huge *string* is held in memory once while it
+is examined. A number whose exponent is beyond what ``Decimal`` can hold (about ``1e10**18``,
+e.g. ``1e99999999999999999999``) makes the record unreadable (``stream.error.parse``).
+
+Tokens yajl2_c mishandles
+-------------------------
+ijson's ``yajl2_c`` backend builds a Python ``int`` for every integer token. For a token of
+more digits than Python converts (``sys.get_int_max_str_digits()``, 4300 by default) that
+conversion fails, but the backend still emits a ``("number", NULL)`` event with the error left
+pending: reading that event's value dereferences NULL and kills the process (a Windows access
+violation; review R5A-X1); other consumers get a ``SystemError``. A lone low surrogate escape
+makes it raise ``UnicodeDecodeError`` (cleanly). So the bytes are never fed as they are when
+they could hold such a token: every chunk is checked for a digit run longer than
+:data:`SAFE_INT_DIGITS` (640: no ``int(str)`` limit can be lower) -- ~2 % of the parse time.
+When one is ahead (or the backend raised ``UnicodeDecodeError``), the record is parsed again
+from its start in *careful mode* and the events already delivered are skipped: a lexical
+filter (:class:`_CarefulFilter`; it tracks strings and escapes across chunks) gives an integer
+token longer than :data:`SAFE_INT_DIGITS` digits the exponent ``e0`` (the backend then builds an
+exact ``Decimal``, and ``codec.loads(str(d))`` is what ``codec.loads`` gives the original token)
+and turns a lone low surrogate escape into ``\\u003f`` (``"?"``, like yajl2_c's lone high ones);
+digit runs inside strings are left alone. The token structure never changes, so the events of
+both passes correspond one to one. :func:`exact_events` is an exact pure-Python parser of a
+whole JSON text (``codec.loads`` semantics, no recursion) and :func:`needs_exact` tells whether
+a text holds anything yajl2_c mishandles (the reader's head analysis uses both).
 
 Bounded memory
 --------------
@@ -73,8 +98,10 @@ semantics would need the whole object in memory).
 
 from __future__ import annotations
 
+import json
 import logging
 import re
+import sys
 from decimal import Decimal
 from typing import Any, BinaryIO, Iterable, Iterator
 
@@ -90,11 +117,14 @@ log = logging.getLogger(__name__)
 
 __all__ = [
     "CAPTURE_MIN_BYTES",
+    "SAFE_INT_DIGITS",
     "CaptureLimitExceeded",
     "DuplicateKeys",
     "StreamProbe",
     "capture_budget",
+    "exact_events",
     "iter_events",
+    "needs_exact",
     "stream_probe",
     "stream_text_prefix",
     "stream_values",
@@ -121,6 +151,23 @@ _COST_LITERAL = 8
 
 
 CAPTURE_MIN_BYTES = 1 << 20  # floor of capture_budget(): tiny settings would otherwise skip every huge record
+
+#: an integer token of at most this many digits is converted by every ``int(str)`` limit
+#: (``sys.set_int_max_str_digits`` refuses values below it); longer digit runs are never fed to
+#: yajl2_c as they are (module docstring, "Tokens yajl2_c mishandles")
+SAFE_INT_DIGITS = int(sys.int_info.str_digits_check_threshold)
+_DIGITS = b"0123456789"
+_DIGIT_MAP = bytes(0 if 0x30 <= b <= 0x39 else 1 for b in range(256))   # digits -> 0, other bytes -> 1
+_LONG_RUN = bytes(SAFE_INT_DIGITS + 1)                                     # that many digits, translated
+_HIGH_ESCAPE = re.compile(rb"\\u[dD][89abAB][0-9a-fA-F]{2}")
+_LOW_ESCAPE = re.compile(rb"\\u[dD][c-fC-F][0-9a-fA-F]{2}")
+_PARTIAL_ESCAPE = re.compile(rb"(?:u[0-9a-fA-F]{0,3})?")    # what may follow an escape's backslash at a chunk end
+_QUESTION_ESCAPE = b"\\u003f"
+# needs_exact(): surrogate escapes, plain pairs (a high one followed by a low one) and the doubtful
+# contexts of a pair (a backslash before it: maybe an escaped backslash; a high one before it)
+_SURROGATE_ESCAPE = re.compile(rb"\\u[dD][89a-fA-F][0-9a-fA-F]{2}")
+_SURROGATE_PAIR = re.compile(rb"\\u[dD][89abAB][0-9a-fA-F]{2}\\u[dD][c-fC-F][0-9a-fA-F]{2}")
+_SURROGATE_DOUBT = re.compile(rb"\\\\u[dD][89a-fA-F]|\\u[dD][89abAB][0-9a-fA-F]{2}\\u[dD][89abAB]")
 
 
 def capture_budget(settings: Any) -> int:
@@ -173,11 +220,16 @@ class _RangeReader:
 
     def __init__(self, f: BinaryIO, start: int, end: int, prefix: bytes = b"", suffix: bytes = b"") -> None:
         self._f = f
+        self._args = (start, end, prefix, suffix)
         self._pos = start
         self._end = end
         self._prefix = prefix
         self._suffix = suffix
         f.seek(start)
+
+    def again(self) -> _RangeReader:
+        """A reader of the same bytes from their start (careful mode's second pass)."""
+        return _RangeReader(self._f, *self._args)
 
     def read(self, n: int = -1) -> bytes:
         if n is None or n < 0:
@@ -210,12 +262,197 @@ _OUTSIDE_STRING = re.compile(rb"[ \t\r\n,:]*+[0-9+\-.eE]*+")
 _SEPARATORS = frozenset(b" \t\r\n,:")
 
 
-def _parse(reader: _RangeReader) -> Iterator[tuple[str, Any]]:
-    """``ijson.basic_parse`` events (``use_float=False``) of everything ``reader``
-    returns, fed in adaptive chunks (module docstring, "Read size"). ijson errors are
-    raised as they are; the events of a chunk that fails are dropped."""
+class _Careful(Exception):
+    """Internal: a digit run too long to hand to yajl2_c as it is lies ahead (module
+    docstring, "Tokens yajl2_c mishandles")."""
+
+
+def _digit_run(data: bytes, carry: int) -> int:
+    """Normal mode's check of one chunk: the length of the digit run at its end (``carry`` =
+    the run at the end of the data sent before it); :class:`_Careful` when the chunk holds or
+    continues a run of more than :data:`SAFE_INT_DIGITS` digits (in a string or not)."""
+    n = len(data)
+    if not n:
+        return carry
+    lead = n - len(data.lstrip(_DIGITS)) if 0x30 <= data[0] <= 0x39 else 0
+    if lead == n:
+        carry += n
+        if carry > SAFE_INT_DIGITS:
+            raise _Careful()
+        return carry
+    if carry + lead > SAFE_INT_DIGITS or data.translate(_DIGIT_MAP).find(_LONG_RUN) >= 0:
+        raise _Careful()
+    return n - len(data.rstrip(_DIGITS)) if 0x30 <= data[-1] <= 0x39 else 0
+
+
+class _CarefulFilter:
+    """Careful mode's rewrite of the bytes fed to yajl2_c (module docstring, "Tokens yajl2_c
+    mishandles"): an integer token of more than :data:`SAFE_INT_DIGITS` digits gets the
+    exponent ``e0``; a lone low surrogate escape (one no high escape right before it takes --
+    yajl2_c pairs a high escape with whatever ``\\u`` escape follows) becomes ``\\u003f``.
+
+    The state describes the end of the data returned so far: inside a string or not (the
+    parity of the quotes that no odd run of backslashes escapes -- exact for valid JSON, and
+    yajl2_c stops at the first invalid byte before anything behind it matters), the run of
+    backslashes there, an integer token still open there (its digits so far), whether an
+    unpaired high escape ends there, and its last two bytes. A partial ``\\u`` escape at the
+    end of a chunk is held back and sent with the next one."""
+
+    __slots__ = ("bs", "held", "high", "in_str", "prev", "run")
+
+    def __init__(self) -> None:
+        self.in_str = False
+        self.bs = 0
+        self.run = 0
+        self.high = False
+        self.prev = b""
+        self.held = b""
+
+    # -- lexical questions about the chunk ``c`` (state: its start) ---------------------
+    def _escape_start(self, c: bytes, i: int) -> bool:
+        """The backslash ``c[i]`` starts an escape (an even run of backslashes before it)."""
+        j = i
+        while j and c[j - 1] == 0x5C:
+            j -= 1
+        run = i - j + (self.bs if j == 0 else 0)
+        return not run & 1
+
+    def _escaped_quotes(self, c: bytes, end: int) -> int:
+        """Quotes in ``c[:end]`` after an odd run of backslashes: ``N1 - N2 + N3 - ...`` where
+        ``Nk`` counts the quotes after at least ``k`` backslashes (C-speed counts)."""
+        total = 0
+        if c.find(b"\\", 0, end) >= 0:
+            pat = b'\\"'
+            sign = 1
+            while True:
+                k = c.count(pat, 0, end)
+                if not k:
+                    break
+                total += sign * k
+                sign = -sign
+                pat = b"\\" + pat
+        if self.bs & 1:
+            # the backslashes at the start of c continue an odd run: the first quote after
+            # them changes sides
+            j = 0
+            while j < end and c[j] == 0x5C:
+                j += 1
+            if j < end and c[j] == 0x22:
+                total += -1 if j & 1 else 1
+        return total
+
+    def _in_string(self, c: bytes, i: int) -> bool:
+        q = c.count(b'"', 0, i)
+        if q:
+            q -= self._escaped_quotes(c, i)
+        return self.in_str ^ bool(q & 1)
+
+    def _integer_part(self, c: bytes, s: int) -> bool:
+        """The digit run starting at ``c[s]`` (outside strings) is a number's integer part
+        (not its fraction or exponent)."""
+        ctx = (self.prev + c[max(0, s - 2):s])[-2:]
+        if not ctx:
+            return True
+        if ctx[-1] == 0x2D:   # "-": the number's sign, or its exponent's
+            return len(ctx) < 2 or ctx[-2] not in b"eE"
+        return ctx[-1] not in b".eE+"
+
+    def _unconsumed_high(self, c: bytes, q: int) -> bool:
+        """The escape ending at ``c[q]`` is a high surrogate escape that takes the ``\\u``
+        escape after it (it was not taken itself by a high escape right before it)."""
+        k = 0
+        while q >= 6 and _HIGH_ESCAPE.match(c, q - 6, q) is not None and self._escape_start(c, q - 6):
+            k += 1
+            q -= 6
+        base = self.high if q == 0 else False   # an unpaired high escape right before the first one
+        if not k:
+            return base
+        # along a chain of high escapes, every other one is taken by the one before it
+        return base if (k - 1) & 1 else not base
+
+    def feed(self, chunk: bytes, final: bool = False) -> bytes:
+        """The bytes to send for ``chunk`` (``final``: nothing follows -- flush)."""
+        c = self.held + chunk if self.held else chunk
+        self.held = b""
+        if not final and c:
+            i = c.rfind(b"\\", max(0, len(c) - 5))
+            if i >= 0 and _PARTIAL_ESCAPE.fullmatch(c, i + 1) is not None and self._escape_start(c, i):
+                c, self.held = c[:i], c[i:]
+        n = len(c)
+        edits: list[tuple[int, int, bytes]] = []
+        start = 0
+        if self.prev[-1:].isdigit():
+            # c's leading digits continue the digit run the data before ends with: the open
+            # integer token (``run``), or a run that is not one (a fraction, an exponent, digits
+            # in a string) -- never a run of their own
+            lead = n - len(c.lstrip(_DIGITS))
+            if self.run:
+                if lead == n:
+                    self.run += n   # the open integer token goes on (no quote, no escape in c)
+                else:
+                    if self.run + lead > SAFE_INT_DIGITS and c[lead] not in b".eE":
+                        edits.append((lead, lead, b"e0"))
+                    self.run = 0
+            start = lead
+        if start < n:
+            t = c.translate(_DIGIT_MAP)
+            i = t.find(_LONG_RUN, start)
+            while i >= 0:
+                e = t.find(b"\x01", i)
+                if e < 0:
+                    break           # the run reaches the end: below, with the next chunk
+                if c[e] not in b".eE" and self._integer_part(c, i) and not self._in_string(c, i):
+                    edits.append((e, e, b"e0"))
+                i = t.find(_LONG_RUN, e)
+            if c.find(b"\\u", start) >= 0:
+                for m in _LOW_ESCAPE.finditer(c, start):
+                    p = m.start()
+                    if self._escape_start(c, p) and not self._unconsumed_high(c, p):
+                        edits.append((p, p + 6, _QUESTION_ESCAPE))
+            q = c.count(b'"')
+            if q:
+                q -= self._escaped_quotes(c, n)
+            end_in_str = self.in_str ^ bool(q & 1)
+            tail = n - len(c.rstrip(_DIGITS)) if 0x30 <= c[-1] <= 0x39 else 0
+            if tail and not end_in_str and self._integer_part(c, n - tail):
+                self.run = tail     # an integer token may go on in the next chunk
+            high = self._unconsumed_high(c, n)
+            bs_tail = n - len(c.rstrip(b"\\")) if c[-1] == 0x5C else 0
+            self.bs = self.bs + n if bs_tail == n else bs_tail
+            self.in_str = end_in_str
+            self.high = high
+            self.prev = (self.prev + c[-2:])[-2:]
+        elif n:
+            self.high = False
+            self.prev = (self.prev + c[-2:])[-2:]
+        if edits:
+            edits.sort()
+            parts = []
+            last = 0
+            for a, b, rep in edits:
+                parts.append(c[last:a])
+                parts.append(rep)
+                last = b
+            parts.append(c[last:])
+            c = b"".join(parts)
+        if final and self.run:
+            if self.run > SAFE_INT_DIGITS:
+                c += b"e0"
+            self.run = 0
+        return c
+
+
+def _batches(reader: _RangeReader, careful: bool, cancel: CancelToken | None) -> Iterator[list[tuple[str, Any]]]:
+    """The ``ijson.basic_parse`` events (``use_float=False``) of everything ``reader``
+    returns, one list per chunk fed (valid until the next one is requested), in adaptive
+    chunks (module docstring, "Read size"). Normal mode raises :class:`_Careful` before it
+    would feed a digit run longer than :data:`SAFE_INT_DIGITS`; careful mode feeds the chunks
+    through :class:`_CarefulFilter` (module docstring, "Tokens yajl2_c mishandles"). ijson
+    errors are raised as they are; the events of a chunk that fails are dropped."""
     events = ijson.sendable_list()
     coro = ijson.basic_parse_coro(events, use_float=False)
+    filt = _CarefulFilter() if careful else None
+    digits = 0                       # normal mode: the digit run at the end of the data sent so far
     size = BUF_SIZE
     open_kind: str | None = None     # the last chunk without events ends in a "string" / "number"
     escaped = 0                      # "string": backslashes at the end of the data sent so far
@@ -237,9 +474,16 @@ def _parse(reader: _RangeReader) -> Iterator[tuple[str, Any]]:
                 chunk = chunk[:m.start() + 1]
         n = len(chunk)
         left = left[n:] if len(left) > n else None
-        coro.send(chunk)
+        check(cancel)
+        data = bytes(chunk)
+        if filt is None:
+            digits = _digit_run(data, digits)
+        else:
+            data = filt.feed(data)
+        if data:   # an empty send would end the input
+            coro.send(data)
         if events:
-            yield from events
+            yield events
             del events[:]
             size = BUF_SIZE
             open_kind = None
@@ -261,8 +505,42 @@ def _parse(reader: _RangeReader) -> Iterator[tuple[str, Any]]:
                 k += 1
             escaped = escaped + k if k == n else k
         size = min(size * 2, BUF_MAX)
+    if filt is not None:
+        data = filt.feed(b"", final=True)
+        if data:
+            coro.send(data)
     coro.close()  # end of input: the last number, or IncompleteJSONError
-    yield from events
+    if events:
+        yield events
+
+
+def _parse(reader: _RangeReader, cancel: CancelToken | None = None) -> Iterator[tuple[str, Any]]:
+    """``ijson.basic_parse`` events (``use_float=False``) of everything ``reader`` returns,
+    never feeding yajl2_c a token it mishandles: when normal mode meets such a token, the
+    bytes are parsed again from the start (``reader.again()``) in careful mode and the events
+    already delivered are skipped (module docstring, "Tokens yajl2_c mishandles"). ``cancel``
+    is checked once per chunk."""
+    delivered = 0
+    try:
+        for batch in _batches(reader, False, cancel):
+            yield from batch
+            delivered += len(batch)
+        return
+    except _Careful:
+        why = "a digit run longer than %d digits" % SAFE_INT_DIGITS
+    except UnicodeDecodeError:
+        why = "a lone low surrogate escape"
+    log.debug("stream: %s; parsing again in careful mode (%d events delivered)", why, delivered)
+    skip = delivered
+    for batch in _batches(reader.again(), True, cancel):
+        if skip >= len(batch):
+            skip -= len(batch)
+            continue
+        if skip:
+            yield from batch[skip:]
+            skip = 0
+        else:
+            yield from batch
 
 
 def _number(v: Any) -> Any:
@@ -284,25 +562,50 @@ def _span(span: Any) -> tuple[int, int]:
     return start, end
 
 
-def iter_events(doc: Any, span: tuple[int, int], member: bool = False) -> Iterator[tuple[str, Any]]:
+def _open(doc: Any) -> Any:
+    """A reader of ``doc``'s virtual address space (``doc.open_data()``: the data file checked
+    against the version opened, and the edit layer of an edited document -- docs/ARCHITECTURE.md
+    §12.3); a document-like object without ``open_data`` is read from ``doc.data_path``."""
+    open_data = getattr(doc, "open_data", None)
+    if open_data is not None:
+        return open_data()
+    return open_shared(doc.data_path, "rb")
+
+
+def iter_events(doc: Any, span: tuple[int, int], member: bool = False, *,
+                cancel: CancelToken | None = None) -> Iterator[tuple[str, Any]]:
     """Raw ``ijson.basic_parse`` events of ``doc``'s data in ``span`` (numbers as ``int``
-    / ``Decimal``). With ``member=True`` the span is parsed as ``{`` + span + ``}`` (the
-    events then start with ``start_map``, ``map_key``). Invalid JSON raises
-    ``JsonReshapeError("stream.error.parse")``."""
+    / ``Decimal``; an integer token longer than :data:`SAFE_INT_DIGITS` digits arrives as an
+    exact ``Decimal`` with exponent 0 -- module docstring, "Tokens yajl2_c mishandles"). With
+    ``member=True`` the span is parsed as ``{`` + span + ``}`` (the events then start with
+    ``start_map``, ``map_key``). Invalid JSON -- and a number beyond ``Decimal``'s exponent
+    range -- raises ``JsonReshapeError("stream.error.parse")``. The span may be an edit offset
+    (an edited record): it is read through ``doc.open_data()``. ``cancel`` is checked once per
+    chunk read (64 KiB and more)."""
     start, end = _span(span)
-    with open_shared(doc.data_path, "rb") as f:
+    with _open(doc) as f:
         reader = _RangeReader(f, start, end, b"{" if member else b"", b"}" if member else b"")
         try:
-            yield from _parse(reader)
-        except (ijson.JSONError, ValueError, SystemError) as exc:
-            # SystemError/ValueError: an integer longer than Python's int-from-string limit
+            yield from _parse(reader, cancel)
+        except (ijson.JSONError, ValueError, SystemError, ArithmeticError) as exc:
+            # ArithmeticError: decimal.InvalidOperation of a token beyond Decimal's exponent range
             raise JsonReshapeError("stream.error.parse", detail=str(exc).splitlines()[0] if str(exc) else "") \
                 from exc
 
 
-def _value_events(doc: Any, span: tuple[int, int], member: bool) -> Iterator[tuple[str, Any]]:
+def _record_events(doc: Any, span: tuple[int, int], member: bool,
+                   cancel: CancelToken | None) -> Iterator[tuple[str, Any]]:
+    """:func:`_value_events`, with ``cancel=`` only when there is a token: the three-argument
+    call of the internal hook stays what it was (tests of other modules replace the hook)."""
+    if cancel is None:
+        return _value_events(doc, span, member)
+    return _value_events(doc, span, member, cancel=cancel)
+
+
+def _value_events(doc: Any, span: tuple[int, int], member: bool, *,
+                  cancel: CancelToken | None = None) -> Iterator[tuple[str, Any]]:
     """Events of the record *value* (the member wrapper removed)."""
-    events = iter_events(doc, span, member)
+    events = iter_events(doc, span, member, cancel=cancel)
     if not member:
         yield from events
         return
@@ -335,6 +638,153 @@ def _event_cost(event: str, value: Any) -> int:
     if event == "boolean" or event == "null":
         return _COST_LITERAL
     return 0
+
+
+# ----------------------------------------------------------------------------------
+# whole texts: what yajl2_c mishandles, and the exact pure-Python parser
+# ----------------------------------------------------------------------------------
+def needs_exact(data: bytes | bytearray | memoryview) -> bool:
+    """True when ijson's yajl2_c backend would mishandle the JSON text ``data`` (module
+    docstring, "Tokens yajl2_c mishandles"): it holds a digit run longer than
+    :data:`SAFE_INT_DIGITS` (perhaps an integer it cannot convert -- that crashes the process),
+    or a surrogate escape that is not part of a plain pair (yajl2_c reads a lone high one as
+    ``"?"`` and fails on a lone low one). Digit runs and escapes inside strings count too (the
+    check does not tokenize). A few C-speed scans: ~1 ms per MiB."""
+    buf = data if isinstance(data, bytes) else bytes(data)
+    if buf.translate(_DIGIT_MAP).find(_LONG_RUN) >= 0:
+        return True
+    if buf.find(b"\\u") < 0:
+        return False
+    n = len(_SURROGATE_ESCAPE.findall(buf))
+    if not n:
+        return False
+    return n != 2 * len(_SURROGATE_PAIR.findall(buf)) or _SURROGATE_DOUBT.search(buf) is not None
+
+
+_EX_WS = re.compile(r"[ \t\n\r]*")
+_EX_NUMBER = re.compile(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][-+]?[0-9]+)?")
+_EX_NUMBER_NEXT = frozenset(".eE+-0123456789")   # a complete number token is never followed by these
+_EX_LITERALS = (("true", "boolean", True), ("false", "boolean", False), ("null", "null", None))
+_scanstring = json.decoder.scanstring
+
+
+def _exact_number(tok: str) -> Any:
+    """``codec.loads(tok)`` for one number token; a token it refuses (only possible when the
+    int-digit limit was lowered below ``codec``'s assumption) keeps its text as a ``JsonFloat``."""
+    try:
+        return codec.loads(tok)
+    except (JsonReshapeError, ValueError):
+        return codec.JsonFloat(tok)
+
+
+def exact_events(data: bytes | bytearray | memoryview | str, *, convert: bool = True) -> Iterator[tuple[str, Any]]:
+    """``ijson.basic_parse``-style events of the JSON text ``data``, decoded exactly like
+    :func:`jsonreshape.codec.loads` -- keys and strings keep lone surrogates, numbers are what
+    ``codec.loads`` gives the token (``convert=False``: the token's text) -- by a pure-Python
+    parser: no ijson (module docstring, "Tokens yajl2_c mishandles"), no recursion (any depth),
+    ~5-10 MB/s. Invalid or truncated JSON yields the events up to the problem, then raises
+    ``ijson.IncompleteJSONError`` (a number cut by the end of the text counts as complete, as
+    with ijson); bytes are UTF-8 and the events end at the first byte that is not."""
+    if isinstance(data, str):
+        text = data
+    else:
+        raw = bytes(data)
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            text = raw[:exc.start].decode("utf-8")
+    n = len(text)
+    ws = _EX_WS.match
+    stack: list[bool] = []            # True: an object
+    pos = ws(text, 0).end()
+    state = 0                         # 0 a value, 1 a value or "]", 2 a key, 3 a key or "}", 4 after a value
+
+    def fail(what: str) -> ijson.IncompleteJSONError:
+        return ijson.IncompleteJSONError(f"{what} at character {pos}")
+
+    while True:
+        if state == 4:
+            if not stack:
+                if pos < n:
+                    raise fail("trailing data")
+                return
+            if pos >= n:
+                raise fail("premature end")
+            ch = text[pos]
+            if ch == ",":
+                state = 2 if stack[-1] else 0
+            elif ch == ("}" if stack[-1] else "]"):
+                yield ("end_map" if stack.pop() else "end_array"), None
+            else:
+                raise fail("unexpected character")
+            pos = ws(text, pos + 1).end()
+            continue
+        if pos >= n:
+            raise fail("premature end")
+        ch = text[pos]
+        if state >= 2:
+            if ch == '"':
+                try:
+                    key, pos = _scanstring(text, pos + 1, True)
+                except ValueError:
+                    raise fail("bad string") from None
+                yield "map_key", key
+                pos = ws(text, pos).end()
+                if pos >= n or text[pos] != ":":
+                    raise fail("colon expected")
+                pos = ws(text, pos + 1).end()
+                state = 0
+                continue
+            if ch == "}" and state == 3:
+                stack.pop()
+                yield "end_map", None
+                pos = ws(text, pos + 1).end()
+                state = 4
+                continue
+            raise fail("key expected")
+        if ch == "{":
+            yield "start_map", None
+            stack.append(True)
+            state = 3
+            pos = ws(text, pos + 1).end()
+            continue
+        if ch == "[":
+            yield "start_array", None
+            stack.append(False)
+            state = 1
+            pos = ws(text, pos + 1).end()
+            continue
+        if ch == "]" and state == 1:
+            stack.pop()
+            yield "end_array", None
+            state = 4
+            pos = ws(text, pos + 1).end()
+            continue
+        state = 4
+        if ch == '"':
+            try:
+                s, end = _scanstring(text, pos + 1, True)
+            except ValueError:
+                raise fail("bad string") from None
+            yield "string", s
+            pos = ws(text, end).end()
+            continue
+        m = _EX_NUMBER.match(text, pos)
+        if m is not None:
+            end = m.end()
+            if end < n and text[end] in _EX_NUMBER_NEXT:
+                raise fail("bad number")
+            tok = m.group()
+            yield "number", (_exact_number(tok) if convert else tok)
+            pos = ws(text, end).end()
+            continue
+        for word, event, value in _EX_LITERALS:
+            if text.startswith(word, pos):
+                yield event, value
+                pos = ws(text, pos + len(word)).end()
+                break
+        else:
+            raise fail("value expected")
 
 
 # ----------------------------------------------------------------------------------
@@ -458,7 +908,7 @@ def _scan(doc: Any, span: tuple[int, int], pats: list[PathPattern], member: bool
     rng = range(npat)
     n_events = 0
     add = budget.add
-    for event, value in _value_events(doc, span, member):
+    for event, value in _record_events(doc, span, member, cancel):
         n_events += 1
         if n_events & (CHECK_EVENTS - 1) == 0:
             check(cancel)
@@ -658,7 +1108,7 @@ def _values_exact(doc: Any, span: tuple[int, int], pats: list[PathPattern], memb
         return [k for k in range(npat) if matchers[k].n in states[k]]
 
     n_events = 0
-    for event, value in _value_events(doc, span, member):
+    for event, value in _record_events(doc, span, member, cancel):
         n_events += 1
         if n_events & (CHECK_EVENTS - 1) == 0:
             check(cancel)
@@ -789,7 +1239,7 @@ def stream_text_prefix(doc: Any, span: tuple[int, int], pattern: PathPattern | s
     stack: list[list[Any]] = []   # [is_map, state|None, key, count]
     root = matcher.initial()
     n_events = 0
-    events = _value_events(doc, span, member)
+    events = _record_events(doc, span, member, cancel)
     try:
         for event, value in events:
             n_events += 1
@@ -876,12 +1326,13 @@ def _compact_prefix(first_event: str, events: Iterator[tuple[str, Any]], limit: 
     return bytes(out), True
 
 
-def stream_walk(doc: Any, span: tuple[int, int], member: bool = False) -> Iterator[tuple[tuple, str, Any]]:
+def stream_walk(doc: Any, span: tuple[int, int], member: bool = False, *,
+                cancel: CancelToken | None = None) -> Iterator[tuple[tuple, str, Any]]:
     """Every object key and scalar of the record in document order: ``(path, "key",
     key)`` (``path`` = the member's path, i.e. ending with the key) and ``(path,
     "value", scalar)``. Paths are relative to the record value."""
     stack: list[list[Any]] = []   # [is_map, path, key, count]
-    for event, value in _value_events(doc, span, member):
+    for event, value in _record_events(doc, span, member, cancel):
         if event == "map_key":
             top = stack[-1]
             top[2] = value

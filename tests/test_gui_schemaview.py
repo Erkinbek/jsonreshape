@@ -292,7 +292,8 @@ def test_actions_on_jsonl(qtbot, app, opened, tmp_path: Path, lang_uz) -> None:
     menu = view.build_menu()
     names = [a.objectName() for a in menu.actions() if a.objectName()]
     assert names == ["schema_add_column", "schema_filter_exists", "schema_filter_missing", "schema_filter_builder",
-                     "schema_sort_asc", "schema_sort_desc", "schema_copy_path"]
+                     "schema_sort_asc", "schema_sort_desc", "schema_stats", "schema_dupes", "schema_copy_path",
+                     "schema_mapping"]
     assert app.errors == []
 
 

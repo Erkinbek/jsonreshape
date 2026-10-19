@@ -1,0 +1,136 @@
+{
+ "name": "x_flatten_reinfer_foreign_collisions",
+ "description": "targeted reference case (batch5)",
+ "case": {
+  "name": "x_flatten_reinfer_foreign_collisions",
+  "records": [
+   {
+    "id": 1,
+    "items": [{"i": 1}],
+    "kids": [
+     {
+      "n": "a",
+      "_depth": "data",
+      "kids": [{"n": "a1", "x": 1, "kids": [{"n": "a11", "kids": null}]}, "prim", {"n": "a2", "kids": "notarray"}]
+     },
+     {"n": "b", "kids": []}
+    ]
+   }
+  ],
+  "ops": [
+   {"op": "rename", "node": "[].kids[].n", "name": "NAME"},
+   {"op": "move", "node": "[].id", "target": "[].kids[]", "zone": "inside"},
+   {"op": "group", "node": "[].kids[]", "name": "g"},
+   {"op": "move", "node": "[].kids[].kids[].x", "target": "[].kids[].g", "zone": "inside"},
+   {"op": "flatten", "node": "[].kids"}
+  ]
+ },
+ "output": [
+  {
+   "items": [{"i": 1}],
+   "kids": [
+    {"_depth_2": 1, "n": "a", "_depth": "data", "id": 1, "g": {"x": [1]}},
+    {"_depth_2": 2, "n": "a1", "x": 1, "id": 1, "g": {"x": []}},
+    {"_depth_2": 3, "n": "a11", "id": 1, "g": {"x": []}},
+    "prim",
+    {"_depth_2": 2, "n": "a2", "id": 1, "g": {"x": []}},
+    {"_depth_2": 1, "n": "b", "id": 1, "g": {"x": []}}
+   ]
+  }
+ ],
+ "log": [
+  {"i": 0, "op": "rename", "applied": true, "changed": true, "undo": 1, "msg": ""},
+  {"i": 1, "op": "move", "applied": true, "changed": true, "undo": 2, "msg": ""},
+  {
+   "i": 2,
+   "op": "group",
+   "applied": true,
+   "changed": true,
+   "undo": 4,
+   "msg": "",
+   "result": {"ref": [0, "kids", 0, "g"], "key": "g"}
+  },
+  {"i": 3, "op": "move", "applied": true, "changed": true, "undo": 5, "msg": ""},
+  {
+   "i": 4,
+   "op": "flatten",
+   "applied": true,
+   "changed": true,
+   "undo": 6,
+   "msg": "«kids» ichidagi barcha darajalar bitta massivga yig'ildi: 6 ta element"
+  }
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "items", "kind": "array", "src": [null, "items"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "items", null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+     {"key": "i", "kind": "value", "src": [null, "items", null, "i"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+    ]}
+   ]},
+   {"key": "kids", "kind": "array", "src": [null, "kids"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "kids", null], "types": ["object"], "count": 6, "pcount": null, "samples": [], "synthetic": false, "rec_key": "kids", "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+     {"key": "_depth_2", "kind": "value", "src": null, "types": ["number"], "count": 0, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": "depth", "ctx": [null, "kids", null], "open": false, "is_elem": false, "is_root": false, "children": []},
+     {"key": "n", "kind": "value", "src": [null, "kids", null, "n"], "types": ["string"], "count": 5, "pcount": 5, "samples": ["\"a\"", "\"a1\"", "\"a11\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []},
+     {"key": "_depth", "kind": "value", "src": [null, "kids", null, "_depth"], "types": ["string"], "count": 1, "pcount": 5, "samples": ["\"data\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []},
+     {"key": "x", "kind": "value", "src": [null, "kids", null, "x"], "types": ["number"], "count": 1, "pcount": 5, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []},
+     {"key": "id", "kind": "value", "src": [null, "id"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+     {"key": "g", "kind": "object", "src": null, "types": ["object"], "count": 0, "pcount": null, "samples": [], "synthetic": true, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+      {"key": "x", "kind": "value", "src": [null, "kids", null, "kids", null, "x"], "types": ["number"], "count": 1, "pcount": 2, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []}
+     ]}
+    ]}
+   ]}
+  ]}
+ ]},
+ "badges": [
+  {"ref": [0, "kids", 0], "badges": ["rekursiv · kids"]},
+  {"ref": [0, "kids", 0, "_depth_2"], "badges": ["daraja raqami"]},
+  {"ref": [0, "kids", 0, "id"], "badges": ["ko'chirildi", "har elementga takrorlanadi"]},
+  {"ref": [0, "kids", 0, "g"], "badges": ["yangi guruh"]},
+  {"ref": [0, "kids", 0, "g", "x"], "badges": ["ko'chirildi", "ro'yxatga yig'iladi"]}
+ ],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"items\" array <- [].items",
+  "      [] object <- [].items[]",
+  "        \"i\" value <- [].items[].i",
+  "    \"kids\" array <- [].kids",
+  "      [] object [recKey=kids] <- [].kids[]",
+  "        \"_depth_2\" value [computed=depth ctx=[].kids[]]",
+  "        \"n\" value <- [].kids[].n",
+  "        \"_depth\" value <- [].kids[]._depth",
+  "        \"x\" value <- [].kids[].x",
+  "        \"id\" value <- [].id",
+  "        \"g\" object [synthetic]",
+  "          \"x\" value <- [].kids[].kids[].x"
+ ],
+ "preview": [
+  {
+   "items": [{"i": 1}],
+   "kids": [
+    {"_depth_2": 1, "n": "a", "_depth": "data", "id": 1, "g": {"x": [1]}},
+    {"_depth_2": 2, "n": "a1", "x": 1, "id": 1, "g": {"x": []}},
+    {"_depth_2": 3, "n": "a11", "id": 1, "g": {"x": []}},
+    "prim",
+    {"_depth_2": 2, "n": "a2", "id": 1, "g": {"x": []}},
+    {"_depth_2": 1, "n": "b", "id": 1, "g": {"x": []}}
+   ]
+  }
+ ],
+ "perRecord": [
+  [
+   {
+    "items": [{"i": 1}],
+    "kids": [
+     {"_depth_2": 1, "n": "a", "_depth": "data", "id": 1, "g": {"x": [1]}},
+     {"_depth_2": 2, "n": "a1", "x": 1, "id": 1, "g": {"x": []}},
+     {"_depth_2": 3, "n": "a11", "id": 1, "g": {"x": []}},
+     "prim",
+     {"_depth_2": 2, "n": "a2", "id": 1, "g": {"x": []}},
+     {"_depth_2": 1, "n": "b", "id": 1, "g": {"x": []}}
+    ]
+   }
+  ]
+ ],
+ "perRecordConcatEqualsOutput": true
+}

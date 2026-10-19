@@ -1,0 +1,28 @@
+{
+ "name": "t01_identity_special_keys",
+ "description": "AGENT_PROMPT §14 test 1 (identity): __proto__, constructor and the empty key are ordinary keys",
+ "case": {"name": "t01_identity_special_keys", "records": [{"__proto__": {"x": 1}, "": 2, "constructor": 3}]},
+ "output": [{"__proto__": {"x": 1}, "": 2, "constructor": 3}],
+ "log": [],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "__proto__", "kind": "object", "src": [null, "__proto__"], "types": ["object"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "x", "kind": "value", "src": [null, "__proto__", "x"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+   ]},
+   {"key": "", "kind": "value", "src": [null, ""], "types": ["number"], "count": 1, "pcount": 1, "samples": ["2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "constructor", "kind": "value", "src": [null, "constructor"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["3"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"__proto__\" object <- [].__proto__",
+  "      \"x\" value <- [].__proto__.x",
+  "    \"\" value <- [].",
+  "    \"constructor\" value <- [].constructor"
+ ],
+ "preview": [{"__proto__": {"x": 1}, "": 2, "constructor": 3}],
+ "perRecord": [[{"__proto__": {"x": 1}, "": 2, "constructor": 3}]],
+ "perRecordConcatEqualsOutput": true
+}

@@ -1,0 +1,15 @@
+{
+ "name": "t01_identity_value_4",
+ "description": "AGENT_PROMPT §14 test 1 (identity): single value []",
+ "case": {"name": "t01_identity_value_4", "data": []},
+ "output": [],
+ "log": [],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "value", "src": [null], "types": [], "count": 0, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []}
+ ]},
+ "badges": [],
+ "shape": ["(root) array <- (ildiz)", "  [] value <- []"],
+ "preview": [],
+ "perRecord": [],
+ "perRecordConcatEqualsOutput": true
+}

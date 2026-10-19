@@ -31,6 +31,24 @@
 * :func:`atomic_write` / :func:`atomic_path` write a new file under a temporary name in
   the target directory and atomically replace the target only on success.
 * :func:`read_range` reads an exact byte range.
+* Replacing a file that is still open (Save, docs/ARCHITECTURE.md §12.7):
+  :func:`replace_posix` renames a file over another one with POSIX semantics (Windows:
+  ``SetFileInformationByHandle(FileRenameInfoEx, REPLACE_IF_EXISTS | POSIX_SEMANTICS)``,
+  long paths supported): atomic, and it works while this program (or another one that
+  shares delete access, as :func:`open_shared` does) still has the target open or mapped --
+  those handles keep reading the old bytes. A file system or Windows version without
+  POSIX-semantics renames (FAT/exFAT, some network shares, Windows 10 before 1709) raises
+  :class:`ReplaceUnsupported` so the caller can fall back to two plain renames.
+  :func:`hard_link` (``os.link`` with long paths) returns ``False`` where hard links are
+  impossible (FAT/exFAT, some shares, the link limit, access denied by a share) instead of
+  raising. Helpers for the save sequence: :func:`create_temp` (a new temp file next to a
+  target), :func:`replace_file` (``os.replace`` with retries and localized errors),
+  :func:`remove_quiet`, :func:`is_read_only`, :func:`clear_read_only`.
+* Several outputs at once (docs/ARCHITECTURE.md §14.4: split parts, XLSX part files):
+  :func:`commit_files` moves staged files to their final names all or nothing (existing targets
+  are renamed aside first and put back on any failure; read-only targets are refused);
+  :func:`move_replace` is :func:`replace_posix` with the plain-rename fallback and retries;
+  :func:`free_space` tells the free bytes of the disk of a (future) path.
 
 OS errors are turned into localized :class:`~jsonreshape.errors.JsonReshapeError`
 instances (``error.file_not_found``, ``error.permission``, ``fileio.error.in_use`` for a
@@ -62,13 +80,15 @@ import json
 import logging
 import os
 import secrets
+import shutil
+import stat
 import sys
 import threading
 import time
 import zlib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import IO, Any, BinaryIO, Iterable, Iterator, Union
+from typing import IO, Any, BinaryIO, Callable, Iterable, Iterator, Sequence, Union
 
 from .appdirs import work_dir
 from .errors import FileChangedError, FileFormatError, JsonReshapeError, UserInputError
@@ -80,6 +100,7 @@ log = logging.getLogger(__name__)
 StrPath = Union[str, "os.PathLike[str]"]
 
 __all__ = [
+    "ASIDE_SUFFIX",
     "CHUNK_BYTES",
     "HEAD_HASH_BYTES",
     "LONG_PATH_THRESHOLD",
@@ -89,16 +110,24 @@ __all__ = [
     "CacheEntry",
     "FileIdentity",
     "PreparedFile",
+    "ReplaceUnsupported",
     "Sniff",
     "appended_bytes",
     "atomic_path",
     "atomic_write",
+    "clear_read_only",
+    "commit_files",
+    "create_temp",
     "encoding_label",
     "evict_entries",
     "file_identity",
+    "free_space",
     "grown_from",
+    "hard_link",
+    "is_read_only",
     "long_path",
     "make_dirs",
+    "move_replace",
     "normalize_path",
     "open_shared",
     "os_error",
@@ -108,7 +137,12 @@ __all__ = [
     "prune_prepared",
     "read_range",
     "remove_cache_entry",
+    "remove_quiet",
+    "replace_file",
+    "replace_posix",
+    "same_file",
     "sample_ranges",
+    "scan_prepared_entries",
     "shared_opener",
     "sniff",
 ]
@@ -152,9 +186,28 @@ if _WINDOWS:
     _CloseHandle = _kernel32.CloseHandle
     _CloseHandle.argtypes = (wintypes.HANDLE,)
     _CloseHandle.restype = wintypes.BOOL
+    _SetFileInformationByHandle = _kernel32.SetFileInformationByHandle
+    _SetFileInformationByHandle.argtypes = (wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD)
+    _SetFileInformationByHandle.restype = wintypes.BOOL
+
+    class _FileRenameInfo(ctypes.Structure):
+        """FILE_RENAME_INFO (the Ex form: ``Flags`` instead of ``ReplaceIfExists``); the name
+        is written into a larger buffer at ``FileName``'s offset."""
+
+        _fields_ = (
+            ("Flags", wintypes.DWORD),
+            ("RootDirectory", wintypes.HANDLE),
+            ("FileNameLength", wintypes.DWORD),
+            ("FileName", wintypes.WCHAR * 1),
+        )
 
     _GENERIC_READ = 0x80000000
     _GENERIC_WRITE = 0x40000000
+    _DELETE = 0x00010000
+    _SYNCHRONIZE = 0x00100000
+    _FILE_RENAME_INFO_EX = 22         # FILE_INFO_BY_HANDLE_CLASS FileRenameInfoEx (Windows 10 1709+)
+    _FILE_RENAME_FLAG_REPLACE_IF_EXISTS = 0x1
+    _FILE_RENAME_FLAG_POSIX_SEMANTICS = 0x2
     _FILE_SHARE_ALL = 0x1 | 0x2 | 0x4  # READ | WRITE | DELETE
     _CREATE_NEW = 1
     _CREATE_ALWAYS = 2
@@ -224,7 +277,10 @@ def _strip_long_prefix(s: str) -> str:
 
 
 def _utf16_len(s: str) -> int:
-    return len(s) + sum(1 for ch in s if ord(ch) > 0xFFFF)
+    """UTF-16 code units of ``s``: 2 for an astral character, 1 for any other (a lone surrogate too).
+    One C-level encode (fix round L1: the per-character generator cost ~75 M ``ord`` calls in a cache
+    eviction of 20 000 entries)."""
+    return len(s.encode("utf-16-le", "surrogatepass")) >> 1
 
 
 def long_path(p: StrPath | bytes) -> str:
@@ -242,7 +298,8 @@ def long_path(p: StrPath | bytes) -> str:
     full = os.path.abspath(s)  # GetFullPathNameW: normalizes '/', '.', '..'
     if full.startswith(("\\\\?\\", "\\\\.\\")):
         return full
-    if _utf16_len(full) < LONG_PATH_THRESHOLD:
+    n = len(full)              # n <= UTF-16 units <= 2n: most paths are decided without counting
+    if n < LONG_PATH_THRESHOLD and (2 * n < LONG_PATH_THRESHOLD or _utf16_len(full) < LONG_PATH_THRESHOLD):
         return s
     if full.startswith("\\\\"):
         return "\\\\?\\UNC\\" + full[2:]
@@ -628,12 +685,19 @@ _BOMS = (
 def sniff(head: bytes) -> Sniff:
     """Detect gzip, a BOM, or BOM-less UTF-16/UTF-32 from the first bytes of a file.
 
-    BOM-less detection relies on JSON text starting with an ASCII character (whitespace,
-    a structural character, a quote, a digit, ``-`` or a literal), so its first code unit
-    shows a characteristic NUL pattern (RFC 4627 §3): ``xx 00 00 00`` UTF-32 LE,
-    ``00 00 00 xx`` UTF-32 BE, ``xx 00`` UTF-16 LE (e.g. ``[`` NUL ``{`` NUL), ``00 xx``
-    UTF-16 BE. A valid UTF-8 JSON text never contains NUL bytes, so this cannot misfire
-    on valid UTF-8 input. Anything else is UTF-8.
+    BOM-less detection relies on JSON text starting with ASCII characters (whitespace,
+    a structural character, a quote, a digit, ``-`` or a literal), so its first code units
+    show a characteristic NUL pattern (RFC 4627 §3): ``xx 00 00 00`` UTF-32 LE,
+    ``00 00 00 xx`` UTF-32 BE, ``xx 00 yy 00`` UTF-16 LE (e.g. ``[`` NUL ``{`` NUL),
+    ``00 xx 00 yy`` UTF-16 BE. A valid UTF-8 JSON text never contains NUL bytes, so this
+    cannot misfire on valid UTF-8 input. Anything else is UTF-8.
+
+    UTF-16 needs the pattern in the first TWO code units when the head has them (fix round R5,
+    R5F-8: a UTF-8 file whose first byte is a stray NUL -- ``00 7b 22 61`` -- was read as UTF-16
+    BE and could not even be repaired; now it is UTF-8 and the reader / the repair report the
+    NUL byte). The second character of a JSON text is ASCII as well -- except right after a
+    leading quote: a root string (RFC 8259) may continue with any character (``"Ўз...``), so
+    there the first code unit decides, as for a head of two or three bytes.
     """
     head = bytes(head[:4])
     if head[:2] == _GZIP_MAGIC:
@@ -650,9 +714,13 @@ def sniff(head: bytes) -> Sniff:
     if len(head) >= 2:
         b0, b1 = head[0], head[1]
         if b0 and not b1:
-            return Sniff("utf-16-le", 0, False)
-        if not b0 and b1:
-            return Sniff("utf-16-be", 0, False)
+            # the second code unit "yy 00" (b3 is beyond a 3-byte head: the first unit decides)
+            if b0 == 0x22 or len(head) < 4 or (head[2] and not head[3]):
+                return Sniff("utf-16-le", 0, False)
+        elif not b0 and b1:
+            # the second code unit "00 yy" (a 3-byte head shows its first byte only)
+            if b1 == 0x22 or len(head) < 3 or (not head[2] and (len(head) < 4 or head[3])):
+                return Sniff("utf-16-be", 0, False)
     return Sniff("utf-8", 0, False)
 
 
@@ -815,6 +883,352 @@ def atomic_path(path: StrPath) -> Iterator[Path]:
 
 
 # ----------------------------------------------------------------------------------
+# replacing open files (Save, docs/ARCHITECTURE.md §12.7)
+# ----------------------------------------------------------------------------------
+class ReplaceUnsupported(OSError):
+    """:func:`replace_posix` cannot work here: the file system (FAT/exFAT, some network shares)
+    or the Windows version (before Windows 10 1709) has no POSIX-semantics rename. ``winerror``
+    holds the Windows error. The caller falls back to plain renames."""
+
+
+# SetFileInformationByHandle(FileRenameInfoEx) errors meaning "not supported here":
+# ERROR_INVALID_FUNCTION, ERROR_NOT_SUPPORTED, ERROR_INVALID_PARAMETER (unknown class / flag),
+# ERROR_CALL_NOT_IMPLEMENTED
+_RENAME_UNSUPPORTED_WINERRORS = frozenset({1, 50, 87, 120})
+# os.link errors meaning "no hard link here" (the save then renames the original to .bak):
+# the same as above, ERROR_TOO_MANY_LINKS and ERROR_ACCESS_DENIED (some SMB servers refuse
+# hard links that way; a real permission problem shows up again in the fallback rename)
+_LINK_UNSUPPORTED_WINERRORS = frozenset({1, 5, 50, 87, 120, 1142})
+_LINK_UNSUPPORTED_ERRNOS = frozenset(
+    e for e in (getattr(_errno, name, None) for name in ("EPERM", "EACCES", "ENOTSUP", "EOPNOTSUPP", "EMLINK",
+                                                          "EXDEV", "ENOSYS")) if e is not None)
+
+
+def create_temp(target: StrPath, suffix: str = ".tmp") -> tuple[int, Path]:
+    """Create a new, empty temporary file ``.<name[:48]>.<8 hex digits><suffix>`` in the folder of
+    ``target`` (``O_EXCL``, not inherited); returns ``(file descriptor, path)``. OS errors are
+    raised as localized errors naming ``target`` (:func:`os_error`)."""
+    return _create_temp(_abspath(target), suffix)
+
+
+def remove_quiet(p: StrPath) -> bool:
+    """Remove the file ``p``; ``True`` when it is gone (also when it never existed), ``False`` when
+    it could not be removed (logged, never raised)."""
+    try:
+        os.remove(long_path(p))
+    except FileNotFoundError:
+        return True
+    except OSError:
+        log.warning("could not remove %s", p, exc_info=True)
+        return False
+    return True
+
+
+def replace_file(src: StrPath, dst: StrPath, *, timeout: float = 1.0) -> None:
+    """``os.replace(src, dst)`` with long paths, retried for ``timeout`` seconds on Windows while
+    another program (an antivirus scanner, an indexer) holds a file for a moment; localized errors
+    (a folder in the way, a read-only target, a target kept open: ``fileio.error.replace``)."""
+    _replace(_abspath(src), _abspath(dst), timeout=timeout)
+
+
+def is_read_only(p: StrPath) -> bool:
+    """The file ``p`` is protected against changes: the Windows read-only attribute; elsewhere no
+    write permission bit. ``False`` when it cannot be examined (missing file)."""
+    if _WINDOWS:
+        return _is_read_only(p)
+    try:  # pragma: no cover - POSIX only
+        return not os.stat(long_path(p)).st_mode & (stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH)
+    except (OSError, ValueError):  # pragma: no cover
+        return False
+
+
+def clear_read_only(p: StrPath) -> None:
+    """Windows: remove the read-only attribute of ``p`` (other attributes are kept); a no-op
+    elsewhere and for writable files. ``OSError`` passes."""
+    if not _WINDOWS:  # pragma: no cover - POSIX renames and deletes ignore the file's own mode
+        return
+    target = long_path(p)
+    mode = os.stat(target).st_mode
+    if not mode & stat.S_IWRITE:
+        os.chmod(target, mode | stat.S_IWRITE)
+
+
+def hard_link(src: StrPath, dst: StrPath) -> bool:
+    """Create the hard link ``dst`` of the file ``src`` (``os.link`` with long paths): an instant
+    copy that keeps the current content when ``src`` is later replaced by a rename. Returns
+    ``False`` (nothing created) where hard links are impossible: FAT/exFAT, some network shares,
+    the per-file link limit, a share that answers "access denied". Other errors (``dst`` exists,
+    a missing ``src``, a full disk) raise :class:`OSError`."""
+    try:
+        os.link(long_path(src), long_path(dst))
+    except FileExistsError:
+        raise
+    except OSError as exc:
+        winerror = getattr(exc, "winerror", None)
+        if winerror in _LINK_UNSUPPORTED_WINERRORS or (winerror is None and exc.errno in _LINK_UNSUPPORTED_ERRNOS):
+            log.info("no hard link %s -> %s (%s); the caller falls back", src, dst, exc)
+            return False
+        raise
+    return True
+
+
+def replace_posix(src: StrPath, dst: StrPath) -> None:
+    """Rename the file ``src`` over ``dst`` atomically with POSIX semantics.
+
+    Windows: ``src`` is opened with ``DELETE`` access and renamed by
+    ``SetFileInformationByHandle(FileRenameInfoEx, FILE_RENAME_FLAG_REPLACE_IF_EXISTS |
+    FILE_RENAME_FLAG_POSIX_SEMANTICS)`` (long paths supported): unlike ``MoveFileEx`` /
+    :func:`os.replace` it also replaces a ``dst`` that this program still has open or memory-mapped
+    (handles opened with delete sharing, like :func:`open_shared`'s; they keep reading the old
+    bytes). A ``dst`` that another program holds without delete sharing -> ``OSError`` winerror 32
+    (sharing violation); a read-only ``dst`` or a folder -> winerror 5 (access denied); both
+    files must be on the same volume. A file system or Windows version without POSIX-semantics
+    renames raises :class:`ReplaceUnsupported` (nothing changed). Elsewhere :func:`os.replace`
+    (``rename(2)`` already has these semantics). Raw :class:`OSError` s are raised (callers
+    localize them with :func:`os_error`)."""
+    if not _WINDOWS:  # pragma: no cover - POSIX
+        os.replace(long_path(src), long_path(dst))
+        return
+    source = long_path(os.path.abspath(_strip_long_prefix(_fspath_str(src))))
+    target = long_path(os.path.abspath(_strip_long_prefix(_fspath_str(dst))))
+    handle = _CreateFileW(source, _DELETE | _SYNCHRONIZE, _FILE_SHARE_ALL, None, _OPEN_EXISTING,
+                          _FILE_ATTRIBUTE_NORMAL, None)
+    if handle is None or handle == _INVALID_HANDLE_VALUE:
+        err = ctypes.get_last_error()
+        raise OSError(None, ctypes.FormatError(err), _display(src), err)
+    try:
+        name = target.encode("utf-16-le", "surrogatepass")
+        offset = _FileRenameInfo.FileName.offset
+        size = max(ctypes.sizeof(_FileRenameInfo), offset + len(name) + 2)
+        buf = ctypes.create_string_buffer(size)
+        info = _FileRenameInfo.from_buffer(buf)
+        info.Flags = _FILE_RENAME_FLAG_REPLACE_IF_EXISTS | _FILE_RENAME_FLAG_POSIX_SEMANTICS
+        info.RootDirectory = None
+        info.FileNameLength = len(name)
+        ctypes.memmove(ctypes.addressof(buf) + offset, name, len(name))
+        if not _SetFileInformationByHandle(handle, _FILE_RENAME_INFO_EX, buf, size):
+            err = ctypes.get_last_error()
+            if err in _RENAME_UNSUPPORTED_WINERRORS:
+                raise ReplaceUnsupported(None, ctypes.FormatError(err), _display(dst), err)
+            raise OSError(None, ctypes.FormatError(err), _display(dst), err)
+    finally:
+        _CloseHandle(handle)
+
+
+# ----------------------------------------------------------------------------------
+# several files at once (split parts, XLSX part files: docs/ARCHITECTURE.md §14.4)
+# ----------------------------------------------------------------------------------
+ASIDE_SUFFIX = ".jrold"            # commit_files(): an existing target while the new files are placed
+
+
+def free_space(path: StrPath) -> int | None:
+    """Free bytes on the disk of ``path`` (of its nearest existing ancestor when ``path`` does
+    not exist yet); ``None`` when it cannot be told (logged at debug level)."""
+    p = _abspath(path)
+    for _ in range(128):
+        try:
+            return int(shutil.disk_usage(long_path(p)).free)
+        except FileNotFoundError:
+            parent = p.parent
+            if parent == p:
+                return None
+            p = parent
+        except (OSError, ValueError):
+            log.debug("free space of %s unknown", p, exc_info=True)
+            return None
+    return None  # pragma: no cover - a path deeper than 128 missing levels
+
+
+def move_replace(src: StrPath, dst: StrPath, *, timeout: float = 1.0) -> None:
+    """Rename the file ``src`` over ``dst`` atomically: :func:`replace_posix` (which also replaces
+    a ``dst`` this program still has open), falling back to :func:`os.replace` where POSIX-semantics
+    renames do not exist (:class:`ReplaceUnsupported`). On Windows a ``PermissionError`` is retried
+    for ``timeout`` seconds (antivirus scanners and indexers hold new files for a moment). Raises
+    the raw :class:`OSError` (callers localize it, e.g. with :func:`os_error`)."""
+    deadline = time.monotonic() + timeout
+    delay = 0.01
+    posix = True
+    while True:
+        try:
+            if posix:
+                try:
+                    replace_posix(src, dst)
+                    return
+                except ReplaceUnsupported:
+                    posix = False
+            os.replace(long_path(src), long_path(dst))
+            return
+        except PermissionError:
+            if not _WINDOWS or time.monotonic() >= deadline:
+                raise
+            time.sleep(delay)
+            delay = min(delay * 2, 0.2)
+
+
+ASIDE_SWEEP_AGE = 600.0           # commit_files(): older aside copies of a committed name are removed (seconds)
+_ASIDE_PREFIX = 48                # aside names keep this many characters of the file name
+_ASIDE_PATTERN = r"\.(.+)\.[0-9a-f]{8}\.jrold\Z"     # ".<name>.<8 hex>.jrold" (ASIDE_SUFFIX)
+
+
+def _aside_name(target: Path) -> Path:
+    """A name ``.<name[:48]>.<8 hex>.jrold`` next to ``target`` that does not exist now."""
+    while True:
+        p = target.with_name(f".{target.name[:_ASIDE_PREFIX]}.{secrets.token_hex(4)}{ASIDE_SUFFIX}")
+        if not os.path.lexists(long_path(p)):
+            return p
+
+
+def _sweep_asides(finals: Sequence[Path], keep: set[str]) -> None:
+    """Remove old aside copies (``.<name>.<8 hex>.jrold``) of the file names ``finals`` that a failed undo or a
+    crash between the two rename phases of an earlier :func:`commit_files` left (fix round R5, R5F-5): only
+    copies whose last change (the rename that made them: :func:`change_time`, never the modification time a
+    rename keeps) is older than :data:`ASIDE_SWEEP_AGE` -- younger ones may belong to a commit running right
+    now --, never one in ``keep`` (normalized paths: this commit's own leftovers), never a copy of a name of
+    48 or more characters (its prefix is shared with other names). A copy that cannot be removed (another
+    program has it open) stays. Best effort: errors are logged, never raised."""
+    import re
+
+    wanted: dict[str, set[str]] = {}
+    for final in finals:
+        if len(final.name) < _ASIDE_PREFIX:
+            wanted.setdefault(str(final.parent), set()).add(os.path.normcase(final.name))
+    now = time.time()
+    for folder, names in wanted.items():
+        try:
+            listed = os.listdir(long_path(folder))
+        except OSError:
+            continue
+        for entry in listed:
+            if not (entry.startswith(".") and entry.endswith(ASIDE_SUFFIX)):
+                continue
+            m = re.match(_ASIDE_PATTERN, entry)
+            if m is None or os.path.normcase(m.group(1)) not in names:
+                continue
+            p = Path(folder) / entry
+            if normalize_path(p) in keep:
+                continue
+            try:
+                st = os.lstat(long_path(p))
+            except OSError:
+                continue
+            if not stat.S_ISREG(st.st_mode):
+                continue
+            changed = change_time(p)
+            if changed is None or now - max(st.st_mtime, changed) < ASIDE_SWEEP_AGE:
+                continue
+            try:
+                os.remove(long_path(p))
+            except FileNotFoundError:
+                continue
+            except OSError:
+                log.info("an old copy %s is in use; kept", p)
+                continue
+            log.info("removed the old copy %s of an earlier replacement", p)
+
+
+def _error_text(exc: BaseException) -> str:
+    text = getattr(exc, "message", None) if isinstance(exc, JsonReshapeError) else None
+    return str(text or exc or type(exc).__name__)
+
+
+def commit_files(staged: Sequence[StrPath], finals: Sequence[StrPath], *,
+                 move: Callable[[Path, Path], None] | None = None,
+                 error: Callable[[OSError, Path], BaseException] | None = None,
+                 remove: Sequence[StrPath] = ()) -> list[Path]:
+    """Move every file ``staged[i]`` to ``finals[i]``, all or nothing.
+
+    1. Checks first (nothing is moved when one fails): the finals are distinct and none is a
+       folder (``fileio.error.is_directory``) or an existing read-only file
+       (``fileio.error.read_only``: a protected file is never replaced).
+    2. Every existing final is renamed aside (``.<name>.<hex>.jrold`` in its folder) -- this works
+       while this program still reads it (shared handles), but not while another program holds it
+       without delete sharing (Excel): that fails before any new file is in place.
+    3. The staged files are renamed to the finals.
+    4. Success: the aside copies are removed (a copy that cannot be removed is returned).
+    5. Then older aside copies of the finals' names that an earlier commit left behind (an undo that
+       failed, a crash between 2 and 3) are removed: only copies renamed more than
+       :data:`ASIDE_SWEEP_AGE` seconds ago and not held open, never for names of 48 and more
+       characters (they share the copies' name prefix with other files).
+
+    ``remove`` (fix round R5, R5F-9): existing files to delete in the same commit -- the stale parts
+    of an earlier split (``filetools.SplitOptions.remove_stale``). They are checked like the finals
+    (no folder, no read-only file; a missing one is skipped), renamed aside in step 2 with the
+    replaced finals (so any failure puts them back as well) and deleted with those copies in step 4.
+
+    Any error or :class:`~jsonreshape.errors.Cancelled` in 2-3 undoes what was done (the new files
+    placed are removed, the aside copies renamed back) and is raised: the finals are then exactly
+    as before; the staged files are left to the caller. When renaming a copy back fails too (fix
+    round R5, R5F-5: an antivirus scanner holding the file), ``JsonReshapeError(
+    "fileio.error.restore_failed")`` is raised instead: it names every file that could not be put
+    back and the copy that holds its old content, and tells the original error (also its
+    ``__cause__``); such copies are never removed by this function within
+    :data:`ASIDE_SWEEP_AGE`. ``move(src, dst)`` renames one file (default :func:`move_replace`; the
+    undo always uses :func:`move_replace`); ``error(exc, path)`` turns its :class:`OSError` into the
+    exception raised (default :func:`os_error` with ``writing=True``). Returns the aside copies that
+    could not be removed (logged)."""
+    src_paths = [_abspath(p) for p in staged]
+    dst_paths = [_abspath(p) for p in finals]
+    rm_paths = [_abspath(p) for p in remove]
+    if len(src_paths) != len(dst_paths):
+        raise ValueError("commit_files: staged and finals differ in length")
+    norm = [normalize_path(p) for p in dst_paths]
+    if len(set(norm)) != len(norm):
+        raise ValueError("commit_files: a final name is given twice")
+    src_norm = {normalize_path(p) for p in src_paths}
+    if set(norm) & src_norm:
+        raise ValueError("commit_files: a staged file is also a final")
+    rm_norm = [normalize_path(p) for p in rm_paths]
+    if len(set(rm_norm)) != len(rm_norm) or set(rm_norm) & (set(norm) | src_norm):
+        raise ValueError("commit_files: a file to remove is given twice, staged or a final")
+    do_move = move if move is not None else move_replace
+    to_error = error if error is not None else (lambda exc, path: os_error(exc, path, writing=True))
+    for final in dst_paths + rm_paths:
+        if _isdir(final):
+            raise UserInputError("fileio.error.is_directory", path=_display(final))
+        if os.path.lexists(long_path(final)) and is_read_only(final):
+            raise UserInputError("fileio.error.read_only", path=_display(final))
+    aside: list[tuple[Path, Path]] = []
+    placed: list[Path] = []
+    removed = 0
+    try:
+        for k, final in enumerate(dst_paths + rm_paths):
+            if os.path.lexists(long_path(final)):
+                old = _aside_name(final)
+                try:
+                    do_move(final, old)
+                except OSError as exc:
+                    raise to_error(exc, final) from exc
+                aside.append((final, old))
+                removed += k >= len(dst_paths)
+        for src, final in zip(src_paths, dst_paths):
+            try:
+                do_move(src, final)
+            except OSError as exc:
+                raise to_error(exc, final) from exc
+            placed.append(final)
+    except BaseException as exc:
+        for final in reversed(placed):
+            remove_quiet(final)
+        failed: list[tuple[Path, Path]] = []
+        for final, old in reversed(aside):
+            try:
+                move_replace(old, final)
+            except OSError:
+                log.error("could not restore %s from %s", final, old, exc_info=True)
+                failed.append((final, old))
+        if failed and isinstance(exc, Exception):
+            files = "; ".join(f"{_display(final)} \N{LEFTWARDS ARROW} {_display(old)}"
+                              for final, old in reversed(failed))
+            raise JsonReshapeError("fileio.error.restore_failed", files=files, reason=_error_text(exc)) from exc
+        raise
+    leftovers = [old for _final, old in aside if not remove_quiet(old)]
+    log.info("committed %d files (%d replaced, %d removed)%s", len(dst_paths), len(aside) - removed, removed,
+             f"; old copies left: {', '.join(map(str, leftovers))}" if leftovers else "")
+    _sweep_asides(dst_paths + rm_paths, {normalize_path(p) for p in leftovers})
+    return leftovers
+
+
+# ----------------------------------------------------------------------------------
 # data file preparation (gzip / UTF-16 -> UTF-8)
 # ----------------------------------------------------------------------------------
 @dataclass(frozen=True)
@@ -829,7 +1243,8 @@ class PreparedFile:
     * ``bom_len``: offset of the first JSON byte in ``data_path`` (3 for a UTF-8 BOM in an
       uncompressed source, else 0 -- prepared files never contain a BOM).
     * ``identity``: :class:`FileIdentity` of the source file.
-    * ``warnings``: i18n keys (e.g. ``fileio.warning.gzip_truncated``).
+    * ``warnings``: i18n keys (e.g. ``fileio.warning.gzip_truncated``,
+      ``fileio.warning.utf16_truncated``).
     * ``source_bom``: prepared copies only: length of the byte-order mark that the
       (decompressed) source content starts with and the copy leaves out (2 for UTF-16, 3
       for UTF-8); maps offsets in the copy back to the source (the reader's error offsets).
@@ -1049,11 +1464,6 @@ def release_prepared(path: StrPath) -> None:
             _IN_USE.pop(norm, None)
 
 
-def _prepared_in_use(norm: str) -> bool:
-    with _IN_USE_LOCK:
-        return norm in _IN_USE
-
-
 def _report(progress: Progress | None, done: int) -> None:
     if progress is not None:
         progress.update(done)
@@ -1089,8 +1499,12 @@ def prepare_data_file(
     offset in the decoded stream); a corrupt gzip stream -> ``fileio.error.gzip``. A
     *truncated* gzip stream (or non-gzip data after the last member) is not an error: what
     could be decompressed is kept and a warning key is added, so the reader can still open
-    the records before the cut (AGENT_PROMPT §14 test 13). The whole copy is written
-    before this returns (see "Known limitations" in the module docstring).
+    the records before the cut (AGENT_PROMPT §14 test 13). Likewise a UTF-16 content that
+    ends inside a character (cut at an odd byte, or between the two halves of a surrogate
+    pair): the incomplete tail (1-3 bytes) is left out with ``fileio.warning.utf16_truncated``,
+    so the reader reports a truncated document and :mod:`jsonreshape.repair` can work on it
+    (fix round L1). The whole copy is written before this returns (see "Known limitations" in
+    the module docstring).
     """
     check(cancel)
     src = _abspath(path)
@@ -1195,10 +1609,17 @@ def _build_prepared(
                     pending = len(decoder.buffer)
                     try:
                         out.write(decoder.decode(b"", final=True).encode("utf-8"))
-                    except UnicodeDecodeError:
-                        offset = inner.bom_len + fed - pending
-                        raise FileFormatError("fileio.error.decode", path=_display(src),
-                                              encoding=encoding_label(encoding), offset=offset) from None
+                    except UnicodeDecodeError as exc:
+                        if exc.end < len(exc.object):  # (defensive: only an incomplete end gets here)
+                            offset = inner.bom_len + fed - pending + exc.start
+                            raise FileFormatError("fileio.error.decode", path=_display(src),
+                                                  encoding=encoding_label(encoding), offset=offset) from None
+                        # the file ends inside a character -- cut at an odd byte or between the halves of a
+                        # surrogate pair: the incomplete tail (1-3 bytes) is left out, like the cut end of a
+                        # gzip stream, so the reader reports a truncated document and repair can work on it
+                        warnings.append("fileio.warning.utf16_truncated")
+                        log.warning("%s ends inside a %s character; its last %d bytes are left out", src,
+                                    encoding_label(encoding), pending)
             except zlib.error as exc:
                 raise FileFormatError("fileio.error.gzip", path=_display(src), detail=str(exc)) from None
             if reader.truncated:
@@ -1271,41 +1692,12 @@ def prepared_cache_entries(directory: StrPath | None = None, *, keep: Iterable[S
                            min_age: float = PREPARED_MIN_AGE) -> list[CacheEntry]:
     """The prepared copies in ``directory`` (default :func:`prepared_dir`) as
     :class:`CacheEntry` items. A copy is "used" when it is built or reused (its ``.meta``
-    mtime). Housekeeping on the way: leftover ``.part`` files older than a day and data
-    files without metadata older than ``min_age`` are removed."""
-    pdir = Path(directory) if directory is not None else prepared_dir()
-    now = time.time()
-    keep_norm = {normalize_path(k) for k in keep}
-    try:
-        names = os.listdir(long_path(pdir))
-    except OSError:
-        return []
-    name_set = set(names)
-    entries: list[CacheEntry] = []
-    for name in names:
-        p = pdir / name
-        try:
-            st = os.stat(long_path(p))
-        except OSError:
-            continue
-        if name.endswith(".part"):
-            if now - st.st_mtime > _PART_MAX_AGE:
-                _remove_quiet(p)
-            continue
-        if name.endswith(".meta"):
-            data = p.with_suffix(".json")
-            try:
-                size = os.stat(long_path(data)).st_size
-            except OSError:
-                size = 0
-            norm = normalize_path(data)
-            protected = now - st.st_mtime < min_age or norm in keep_norm or _prepared_in_use(norm)
-            entries.append(CacheEntry(st.st_mtime, size, (data, p), protected))
-        elif name.endswith(".json") and name[: -len(".json")] + ".meta" not in name_set:
-            norm = normalize_path(p)
-            if now - st.st_mtime > min_age and norm not in keep_norm and not _prepared_in_use(norm):
-                _remove_quiet(p)
-    return entries
+    mtime); copies in ``keep``, used within ``min_age`` seconds or read by an open document of
+    this process are protected. Housekeeping on the way: leftover ``.part`` files older than a
+    day and data files without metadata older than ``min_age`` are removed. The work is
+    :func:`scan_prepared_entries` (one directory listing, no per-entry path work; fix round L1:
+    the two scans were the same rule written twice)."""
+    return scan_prepared_entries(directory, keep=keep, min_age=min_age)
 
 
 def remove_cache_entry(entry: CacheEntry) -> bool:
@@ -1371,3 +1763,256 @@ def prune_prepared(
     removed as well.
     """
     return evict_entries(prepared_cache_entries(directory, keep=keep, min_age=min_age), limit_bytes)
+
+
+# ----------------------------------------------------------------------------------
+# attributes, change times and file ids (an in-place save keeps the file's attributes; save journals
+# decide by file ids; leftovers are aged by their change time -- docs/ARCHITECTURE.md §12.7)
+# ----------------------------------------------------------------------------------
+#: File systems whose file ids (``os.stat`` ``st_ino``) survive renames: NTFS and ReFS. FAT / exFAT ids are
+#: derived from directory entries; other file systems are not trusted.
+STABLE_ID_FILE_SYSTEMS = frozenset({"NTFS", "REFS"})
+
+if _WINDOWS:
+    _k32 = ctypes.WinDLL("kernel32", use_last_error=True)       # own instance: own argtypes
+    _SetFileAttributesW = _k32.SetFileAttributesW
+    _SetFileAttributesW.argtypes = (wintypes.LPCWSTR, wintypes.DWORD)
+    _SetFileAttributesW.restype = wintypes.BOOL
+    _DeviceIoControl = _k32.DeviceIoControl
+    _DeviceIoControl.argtypes = (wintypes.HANDLE, wintypes.DWORD, wintypes.LPVOID, wintypes.DWORD, wintypes.LPVOID,
+                                 wintypes.DWORD, ctypes.POINTER(wintypes.DWORD), wintypes.LPVOID)
+    _DeviceIoControl.restype = wintypes.BOOL
+    _GetFileInformationByHandleEx = _k32.GetFileInformationByHandleEx
+    _GetFileInformationByHandleEx.argtypes = (wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD)
+    _GetFileInformationByHandleEx.restype = wintypes.BOOL
+    _GetVolumeInformationByHandleW = _k32.GetVolumeInformationByHandleW
+    _GetVolumeInformationByHandleW.argtypes = (wintypes.HANDLE, wintypes.LPWSTR, wintypes.DWORD,
+                                               ctypes.POINTER(wintypes.DWORD), ctypes.POINTER(wintypes.DWORD),
+                                               ctypes.POINTER(wintypes.DWORD), wintypes.LPWSTR, wintypes.DWORD)
+    _GetVolumeInformationByHandleW.restype = wintypes.BOOL
+    try:
+        _EncryptFileW = ctypes.WinDLL("advapi32", use_last_error=True).EncryptFileW
+        _EncryptFileW.argtypes = (wintypes.LPCWSTR,)
+        _EncryptFileW.restype = wintypes.BOOL
+    except (OSError, AttributeError):  # pragma: no cover - every Windows has it
+        _EncryptFileW = None
+
+    class _FileBasicInfo(ctypes.Structure):
+        """FILE_BASIC_INFO (times as FILETIME counts of 100 ns since 1601)."""
+
+        _fields_ = (
+            ("CreationTime", ctypes.c_longlong),
+            ("LastAccessTime", ctypes.c_longlong),
+            ("LastWriteTime", ctypes.c_longlong),
+            ("ChangeTime", ctypes.c_longlong),
+            ("FileAttributes", wintypes.DWORD),
+        )
+
+    _FILE_READ_ATTRIBUTES = 0x80
+    _FILE_FLAG_BACKUP_SEMANTICS = 0x02000000     # also opens folders
+    _FILE_BASIC_INFO_CLASS = 0                   # FILE_INFO_BY_HANDLE_CLASS FileBasicInfo
+    _FSCTL_SET_COMPRESSION = 0x9C040
+    _COMPRESSION_FORMAT_DEFAULT = 1
+    _FILETIME_EPOCH = 116444736000000000          # 1970-01-01 as a FILETIME
+
+    def _handle(p: StrPath, access: int, flags: int = _FILE_FLAG_BACKUP_SEMANTICS) -> Any:
+        """A CreateFileW handle of the existing ``p`` with full sharing, or None (logged at debug level)."""
+        handle = _CreateFileW(long_path(_abspath(p)), access, _FILE_SHARE_ALL, None, _OPEN_EXISTING, flags, None)
+        if handle is None or handle == _INVALID_HANDLE_VALUE:
+            log.debug("cannot open %s (Windows error %s)", p, ctypes.get_last_error())
+            return None
+        return handle
+
+
+def file_attributes(p: StrPath) -> int | None:
+    """Windows: the ``FILE_ATTRIBUTE_*`` bits of ``p`` (``os.stat().st_file_attributes``); ``None`` elsewhere
+    or when they cannot be read. Never raises."""
+    if not _WINDOWS:  # pragma: no cover - POSIX
+        return None
+    try:
+        return int(getattr(os.stat(long_path(p)), "st_file_attributes", 0))
+    except (OSError, ValueError):
+        return None
+
+
+def set_file_attributes(p: StrPath, attributes: int) -> bool:
+    """Windows: ``SetFileAttributesW(p, attributes)`` (the bits it takes: read-only, hidden, system,
+    archive, temporary, offline, not-content-indexed; 0 means normal). True when set; False elsewhere or on
+    failure (logged). Never raises; the modification time is not changed."""
+    if not _WINDOWS:  # pragma: no cover - POSIX
+        return False
+    try:
+        if _SetFileAttributesW(long_path(_abspath(p)), int(attributes) or _FILE_ATTRIBUTE_NORMAL):
+            return True
+        log.warning("cannot set the attributes of %s (Windows error %s)", p, ctypes.get_last_error())
+    except (OSError, ValueError, ctypes.ArgumentError):
+        log.warning("cannot set the attributes of %s", p, exc_info=True)
+    return False
+
+
+def set_compressed(p: StrPath) -> bool:
+    """Windows: NTFS compression of the file ``p`` (``FSCTL_SET_COMPRESSION``, the default format; quick on
+    an empty file -- data written afterwards is stored compressed). True when done; False when the file
+    system cannot compress, on failure (logged) and elsewhere. Never raises."""
+    if not _WINDOWS:  # pragma: no cover - POSIX
+        return False
+    try:
+        handle = _handle(p, _GENERIC_READ | _GENERIC_WRITE, _FILE_ATTRIBUTE_NORMAL)
+        if handle is None:
+            return False
+        try:
+            fmt = ctypes.c_ushort(_COMPRESSION_FORMAT_DEFAULT)
+            returned = wintypes.DWORD(0)
+            if _DeviceIoControl(handle, _FSCTL_SET_COMPRESSION, ctypes.byref(fmt), ctypes.sizeof(fmt), None, 0,
+                                ctypes.byref(returned), None):
+                return True
+            log.warning("cannot compress %s (Windows error %s)", p, ctypes.get_last_error())
+        finally:
+            _CloseHandle(handle)
+    except (OSError, ValueError, ctypes.ArgumentError):
+        log.warning("cannot compress %s", p, exc_info=True)
+    return False
+
+
+def encrypt_file(p: StrPath) -> bool:
+    """Windows: EFS encryption of the CLOSED file ``p`` (``EncryptFileW``). True when done; False when EFS
+    is not available (Windows Home, FAT, a network share), on failure (logged) and elsewhere. Never raises."""
+    if not _WINDOWS or _EncryptFileW is None:  # pragma: no cover - POSIX
+        return False
+    try:
+        if _EncryptFileW(long_path(_abspath(p))):
+            return True
+        log.warning("cannot encrypt %s (Windows error %s)", p, ctypes.get_last_error())
+    except (OSError, ValueError, ctypes.ArgumentError):
+        log.warning("cannot encrypt %s", p, exc_info=True)
+    return False
+
+
+def set_read_only(p: StrPath) -> None:
+    """Windows: give ``p`` the read-only attribute (the counterpart of :func:`clear_read_only`; other
+    attributes are kept); a no-op elsewhere. ``OSError`` passes."""
+    if not _WINDOWS:  # pragma: no cover - POSIX renames keep the file's own mode
+        return
+    target = long_path(p)
+    mode = os.stat(target).st_mode
+    if mode & stat.S_IWRITE:
+        os.chmod(target, mode & ~stat.S_IWRITE)
+
+
+def change_time(p: StrPath) -> float | None:
+    """When the file ``p`` last changed in any way -- its content, its attributes or its NAME -- in seconds
+    since the epoch: Windows ``FILE_BASIC_INFO.ChangeTime`` (a rename keeps the modification time but updates
+    this one), elsewhere ``st_ctime``. ``None`` when the file system keeps no such time (FAT) or it cannot be
+    read. Never raises."""
+    if not _WINDOWS:  # pragma: no cover - POSIX
+        try:
+            return float(os.stat(long_path(p)).st_ctime)
+        except (OSError, ValueError):
+            return None
+    try:
+        handle = _handle(p, _FILE_READ_ATTRIBUTES)
+        if handle is None:
+            return None
+        try:
+            info = _FileBasicInfo()
+            if not _GetFileInformationByHandleEx(handle, _FILE_BASIC_INFO_CLASS, ctypes.byref(info),
+                                                 ctypes.sizeof(info)):
+                return None
+        finally:
+            _CloseHandle(handle)
+    except (OSError, ValueError, ctypes.ArgumentError):
+        return None
+    if info.ChangeTime <= 0:
+        return None
+    return (info.ChangeTime - _FILETIME_EPOCH) / 1e7
+
+
+def stable_file_ids(p: StrPath) -> bool:
+    """The file system of ``p`` keeps a file's id (``os.stat`` ``st_dev``/``st_ino``) across renames: Windows
+    NTFS and ReFS (:data:`STABLE_ID_FILE_SYSTEMS`, ``GetVolumeInformationByHandleW``); elsewhere True (inode
+    numbers). False when it cannot be told. Never raises."""
+    if not _WINDOWS:  # pragma: no cover - POSIX
+        return True
+    try:
+        handle = _handle(p, _FILE_READ_ATTRIBUTES)
+        if handle is None:
+            return False
+        try:
+            name = ctypes.create_unicode_buffer(64)
+            if not _GetVolumeInformationByHandleW(handle, None, 0, None, None, None, name, len(name)):
+                return False
+        finally:
+            _CloseHandle(handle)
+    except (OSError, ValueError, ctypes.ArgumentError):
+        return False
+    return name.value.upper() in STABLE_ID_FILE_SYSTEMS
+
+
+# ----------------------------------------------------------------------------------
+# fix round R5 (stage 5): one same-file rule for the writers of results; a cheap cache scan
+# ----------------------------------------------------------------------------------
+def same_file(a: StrPath, b: StrPath) -> bool:
+    """``a`` and ``b`` name the same file: equal :func:`normalize_path` forms (also when neither exists), or --
+    both existing -- one file under two names (``os.path.samefile``: another spelling, a hard link, a junction
+    or ``subst`` drive, an 8.3 name). The rule of ``writer._check_target``, for the result writers that are not
+    exports (``repair.RepairReport.write``, ``diff.write_diff``). Never raises."""
+    try:
+        if normalize_path(a) == normalize_path(b):
+            return True
+    except (OSError, TypeError, ValueError):
+        pass
+    try:
+        return os.path.samefile(long_path(a), long_path(b))
+    except (OSError, TypeError, ValueError):
+        return False
+
+
+def scan_prepared_entries(directory: StrPath | None = None, *, keep: Iterable[StrPath] = (),
+                          min_age: float = PREPARED_MIN_AGE) -> list[CacheEntry]:
+    """The prepared copies of :func:`prepared_cache_entries` (which delegates here since fix round L1) for the
+    eviction that follows every index build (fix round R5: a cache of 20 000 files made indexing a 5 KB file
+    take ~0.6 s): the entries, protections and housekeeping (``.part`` files older than a day and data files
+    without metadata older than ``min_age`` are removed) from ONE ``os.scandir`` listing -- sizes and times
+    come with the listing (Windows: no ``stat`` call per file) and no path is made long or normalized per
+    entry (no per-character work per entry)."""
+    pdir = Path(directory) if directory is not None else prepared_dir()
+    now = time.time()
+    try:
+        with os.scandir(long_path(pdir)) as it:
+            listed = {e.name: e for e in it}
+    except OSError:
+        return []
+    base = normalize_path(pdir)
+    keep_names: set[str] = set()
+    for k in keep:
+        head, tail = os.path.split(normalize_path(k))
+        if head == base:
+            keep_names.add(tail)
+    with _IN_USE_LOCK:
+        for norm in _IN_USE:
+            head, tail = os.path.split(norm)
+            if head == base:
+                keep_names.add(tail)          # read by an open document of this process
+    entries: list[CacheEntry] = []
+    for name, entry in listed.items():
+        try:
+            st = entry.stat()
+        except OSError:
+            continue
+        if name.endswith(".part"):
+            if now - st.st_mtime > _PART_MAX_AGE:
+                _remove_quiet(pdir / name)
+            continue
+        if name.endswith(".meta"):
+            data_name = name[:-len(".meta")] + ".json"
+            data = listed.get(data_name)
+            try:
+                size = data.stat().st_size if data is not None else 0
+            except OSError:
+                size = 0
+            protected = now - st.st_mtime < min_age or os.path.normcase(data_name) in keep_names
+            entries.append(CacheEntry(st.st_mtime, size, (pdir / data_name, pdir / name), protected))
+        elif name.endswith(".json") and name[:-len(".json")] + ".meta" not in listed:
+            if now - st.st_mtime > min_age and os.path.normcase(name) not in keep_names:
+                _remove_quiet(pdir / name)
+    return entries

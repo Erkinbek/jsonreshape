@@ -1,0 +1,94 @@
+{
+ "name": "x_unwrap_delete_rules",
+ "description": "targeted reference case (batch3)",
+ "case": {
+  "name": "x_unwrap_delete_rules",
+  "records": [{"a": 1, "arr": [1], "obj": {"k": 1}, "objs": [{"k": 1}]}],
+  "ops": [
+   {"op": "unwrap", "node": "[].arr"},
+   {"op": "unwrap", "node": "[].a"},
+   {"op": "unwrap", "node": "[]"},
+   {"op": "unwrap", "node": "[].objs[]"},
+   {"op": "delete", "node": "[].objs[]"},
+   {"op": "delete", "node": ""},
+   {"op": "group", "node": "[]", "name": "g"},
+   {"op": "move", "node": "[].a", "target": "[].g", "zone": "inside"},
+   {"op": "unwrap", "node": "[].g"},
+   {"op": "merge", "node": "[].arr", "target": "[].objs"},
+   {"op": "delete", "node": "[].objs[0]"},
+   {"op": "delete", "node": "[].objs[0]"},
+   {"op": "delete", "node": "[].obj"}
+  ]
+ },
+ "output": [{"objs": [1], "a": 1}],
+ "log": [
+  {"i": 0, "op": "unwrap", "applied": false, "changed": false, "undo": 0, "msg": null},
+  {"i": 1, "op": "unwrap", "applied": false, "changed": false, "undo": 0, "msg": null},
+  {"i": 2, "op": "unwrap", "applied": false, "changed": false, "undo": 0, "msg": null},
+  {"i": 3, "op": "unwrap", "applied": false, "changed": false, "undo": 0, "msg": null},
+  {"i": 4, "op": "delete", "applied": false, "changed": false, "undo": 0, "msg": null},
+  {"i": 5, "op": "delete", "applied": false, "changed": false, "undo": 0, "msg": null},
+  {
+   "i": 6,
+   "op": "group",
+   "applied": true,
+   "changed": true,
+   "undo": 2,
+   "msg": "",
+   "result": {"ref": [0, "g"], "key": "g"}
+  },
+  {"i": 7, "op": "move", "applied": true, "changed": true, "undo": 3, "msg": ""},
+  {
+   "i": 8,
+   "op": "unwrap",
+   "applied": true,
+   "changed": true,
+   "undo": 4,
+   "msg": "«g» ichidagi 1 ta maydon bir pog'ona yuqoriga chiqdi"
+  },
+  {
+   "i": 9,
+   "op": "merge",
+   "applied": true,
+   "changed": true,
+   "undo": 5,
+   "msg": "«arr» elementlari «objs» massiviga qo'shildi"
+  },
+  {
+   "i": 10,
+   "op": "delete",
+   "applied": true,
+   "changed": true,
+   "undo": 6,
+   "msg": "«element» natijadan olib tashlandi"
+  },
+  {"i": 11, "op": "delete", "applied": false, "changed": false, "undo": 6, "msg": null},
+  {
+   "i": 12,
+   "op": "delete",
+   "applied": true,
+   "changed": true,
+   "undo": 7,
+   "msg": "«obj» natijadan olib tashlandi"
+  }
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "objs", "kind": "array", "src": [null, "objs"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "value", "src": [null, "arr", null], "types": ["number"], "count": 1, "pcount": null, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []}
+   ]},
+   {"key": "a", "kind": "value", "src": [null, "a"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [{"ref": [0, "objs", 0], "badges": ["manba: [].arr"]}],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"objs\" array <- [].objs",
+  "      [] value <- [].arr[]",
+  "    \"a\" value <- [].a"
+ ],
+ "preview": [{"objs": [1], "a": 1}],
+ "perRecord": [[{"objs": [1], "a": 1}]],
+ "perRecordConcatEqualsOutput": true
+}

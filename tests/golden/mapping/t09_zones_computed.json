@@ -1,0 +1,180 @@
+{
+ "name": "t09_zones_computed",
+ "description": "AGENT_PROMPT §14 test 9 (drag & drop rules): the computed _depth row",
+ "case": {
+  "name": "t09_zones_computed",
+  "records": [
+   {
+    "name": "p1",
+    "children": [
+     {
+      "name": "child1",
+      "children": [
+       {
+        "name": "child1.2",
+        "children": [{"name": "child1.2.1", "children": []}, {"name": "child1.2.3", "children": []}]
+       }
+      ]
+     },
+     {"name": "child2", "children": []}
+    ]
+   }
+  ],
+  "ops": [
+   {"op": "flatten", "node": "[].children"},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].name", "frac": 0.0},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].children[]", "frac": 0.0},
+   {"op": "zone", "node": "[].name", "target": "[].children[]._depth", "frac": 0.0},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].children", "frac": 0.0},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].name", "frac": 0.27},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].children[]", "frac": 0.27},
+   {"op": "zone", "node": "[].name", "target": "[].children[]._depth", "frac": 0.27},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].children", "frac": 0.27},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].name", "frac": 0.2799},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].children[]", "frac": 0.2799},
+   {"op": "zone", "node": "[].name", "target": "[].children[]._depth", "frac": 0.2799},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].children", "frac": 0.2799},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].name", "frac": 0.28},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].children[]", "frac": 0.28},
+   {"op": "zone", "node": "[].name", "target": "[].children[]._depth", "frac": 0.28},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].children", "frac": 0.28},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].name", "frac": 0.4999},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].children[]", "frac": 0.4999},
+   {"op": "zone", "node": "[].name", "target": "[].children[]._depth", "frac": 0.4999},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].children", "frac": 0.4999},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].name", "frac": 0.5},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].children[]", "frac": 0.5},
+   {"op": "zone", "node": "[].name", "target": "[].children[]._depth", "frac": 0.5},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].children", "frac": 0.5},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].name", "frac": 0.72},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].children[]", "frac": 0.72},
+   {"op": "zone", "node": "[].name", "target": "[].children[]._depth", "frac": 0.72},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].children", "frac": 0.72},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].name", "frac": 0.7201},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].children[]", "frac": 0.7201},
+   {"op": "zone", "node": "[].name", "target": "[].children[]._depth", "frac": 0.7201},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].children", "frac": 0.7201},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].name", "frac": 0.73},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].children[]", "frac": 0.73},
+   {"op": "zone", "node": "[].name", "target": "[].children[]._depth", "frac": 0.73},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].children", "frac": 0.73},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].name", "frac": 1.0},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].children[]", "frac": 1.0},
+   {"op": "zone", "node": "[].name", "target": "[].children[]._depth", "frac": 1.0},
+   {"op": "zone", "node": "[].children[]._depth", "target": "[].children", "frac": 1.0}
+  ]
+ },
+ "output": [
+  {
+   "name": "p1",
+   "children": [
+    {"_depth": 1, "name": "child1"},
+    {"_depth": 2, "name": "child1.2"},
+    {"_depth": 3, "name": "child1.2.1"},
+    {"_depth": 3, "name": "child1.2.3"},
+    {"_depth": 1, "name": "child2"}
+   ]
+  }
+ ],
+ "log": [
+  {
+   "i": 0,
+   "op": "flatten",
+   "applied": true,
+   "changed": true,
+   "undo": 1,
+   "msg": "«children» ichidagi barcha darajalar bitta massivga yig'ildi: 5 ta element"
+  },
+  {"i": 1, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "before"},
+  {"i": 2, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "inside"},
+  {"i": 3, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "before"},
+  {"i": 4, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "before"},
+  {"i": 5, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "before"},
+  {"i": 6, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "inside"},
+  {"i": 7, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "before"},
+  {"i": 8, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "before"},
+  {"i": 9, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "before"},
+  {"i": 10, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "inside"},
+  {"i": 11, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "before"},
+  {"i": 12, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "before"},
+  {"i": 13, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "before"},
+  {"i": 14, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "inside"},
+  {"i": 15, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "before"},
+  {"i": 16, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "before"},
+  {"i": 17, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "before"},
+  {"i": 18, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "inside"},
+  {"i": 19, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "before"},
+  {"i": 20, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "before"},
+  {"i": 21, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "after"},
+  {"i": 22, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "inside"},
+  {"i": 23, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "after"},
+  {"i": 24, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "after"},
+  {"i": 25, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "after"},
+  {"i": 26, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "inside"},
+  {"i": 27, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "after"},
+  {"i": 28, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "after"},
+  {"i": 29, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "after"},
+  {"i": 30, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "inside"},
+  {"i": 31, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "after"},
+  {"i": 32, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "after"},
+  {"i": 33, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "after"},
+  {"i": 34, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "inside"},
+  {"i": 35, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "after"},
+  {"i": 36, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "after"},
+  {"i": 37, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "after"},
+  {"i": 38, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "inside"},
+  {"i": 39, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "after"},
+  {"i": 40, "op": "zone", "applied": false, "changed": false, "undo": 1, "msg": null, "result": "after"}
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "name", "kind": "value", "src": [null, "name"], "types": ["string"], "count": 1, "pcount": 1, "samples": ["\"p1\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "children", "kind": "array", "src": [null, "children"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "children", null], "types": ["object"], "count": 5, "pcount": null, "samples": [], "synthetic": false, "rec_key": "children", "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+     {"key": "_depth", "kind": "value", "src": null, "types": ["number"], "count": 0, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": "depth", "ctx": [null, "children", null], "open": false, "is_elem": false, "is_root": false, "children": []},
+     {"key": "name", "kind": "value", "src": [null, "children", null, "name"], "types": ["string"], "count": 5, "pcount": 5, "samples": ["\"child1\"", "\"child1.2\"", "\"child1.2.1\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []}
+    ]}
+   ]}
+  ]}
+ ]},
+ "badges": [
+  {"ref": [0, "children", 0], "badges": ["rekursiv · children"]},
+  {"ref": [0, "children", 0, "_depth"], "badges": ["daraja raqami"]}
+ ],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"name\" value <- [].name",
+  "    \"children\" array <- [].children",
+  "      [] object [recKey=children] <- [].children[]",
+  "        \"_depth\" value [computed=depth ctx=[].children[]]",
+  "        \"name\" value <- [].children[].name"
+ ],
+ "preview": [
+  {
+   "name": "p1",
+   "children": [
+    {"_depth": 1, "name": "child1"},
+    {"_depth": 2, "name": "child1.2"},
+    {"_depth": 3, "name": "child1.2.1"},
+    {"_depth": 3, "name": "child1.2.3"},
+    {"_depth": 1, "name": "child2"}
+   ]
+  }
+ ],
+ "perRecord": [
+  [
+   {
+    "name": "p1",
+    "children": [
+     {"_depth": 1, "name": "child1"},
+     {"_depth": 2, "name": "child1.2"},
+     {"_depth": 3, "name": "child1.2.1"},
+     {"_depth": 3, "name": "child1.2.3"},
+     {"_depth": 1, "name": "child2"}
+    ]
+   }
+  ]
+ ],
+ "perRecordConcatEqualsOutput": true
+}

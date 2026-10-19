@@ -210,6 +210,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Gzip arxividan keyin ortiqcha ma'lumot bor; u e'tiborga olinmadi.",
         "en": "There is extra data after the gzip archive; it was ignored.",
     },
+    "fileio.warning.utf16_truncated": {
+        "uz": "UTF-16 fayl belgining o'rtasida tugaydi (kesilgan): oxiridagi chala baytlar tashlab yuborildi.",
+        "en": "The UTF-16 file ends in the middle of a character (it is cut off): the incomplete bytes at its end "
+              "were left out.",
+    },
     "fileio.progress.decompress": {"uz": "Arxiv ochilmoqda…", "en": "Decompressing…"},
     "fileio.progress.transcode": {"uz": "UTF-16 dan UTF-8 ga o'girilmoqda…", "en": "Converting UTF-16 to UTF-8…"},
     "fileio.error.in_use": {
@@ -259,6 +264,18 @@ MESSAGES: dict[str, dict[str, str]] = {
               "(Sozlamalar: kesh papkasi).",
         "en": "The cache folder cannot be used ({path}: {detail}). {fallback} is used instead (Settings: cache folder).",
     },
+    "fileio.error.restore_failed": {
+        "uz": "Fayllarni almashtirib bo'lmadi, ba'zi eski fayllarni esa joyiga qaytarib ham bo'lmadi (fayl ← uning "
+              "eski mazmuni saqlangan nusxa): {files}. Har bir nusxani o'z fayli nomiga qayta nomlang. Sabab: {reason}",
+        "en": "The files could not be replaced, and some old files could not be put back either (file ← the copy "
+              "that holds its old content): {files}. Rename each copy back to its file name. Cause: {reason}",
+    },
+    "fileio.error.restore_failed.hint": {
+        "uz": "Nusxalar yashirin bo'lishi mumkin: ularning nomi nuqta bilan boshlanib, .jrold bilan tugaydi. Faylni "
+              "ushlab turgan dastur (masalan, antivirus) ishini tugatgach qayta nomlang.",
+        "en": "The copies may be hidden: their names start with a dot and end with .jrold. Rename them once the "
+              "program holding the files (for example an antivirus scanner) has finished.",
+    },
     # ---- settings ----
     "settings.invalid": {
         "uz": "Sozlama noto'g'ri: «{label}» = {value}. Kutilgan qiymat: {expected}.",
@@ -285,6 +302,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "1–16 belgidan iborat matn, qator tashlashsiz",
         "en": "1 to 16 characters without line breaks",
     },
+    "settings.expected.edits_location": {
+        "uz": "appdata (dastur papkasida) yoki beside (fayl yonida)",
+        "en": "appdata (in the app folder) or beside (next to the file)",
+    },
     "settings.field.sample_size": {"uz": "Namuna hajmi (yozuvlar soni)", "en": "Sample size (records)"},
     "settings.field.cache_dir": {"uz": "Kesh papkasi", "en": "Cache folder"},
     "settings.field.cache_limit_bytes": {"uz": "Kesh hajmi chegarasi", "en": "Cache size limit"},
@@ -310,6 +331,16 @@ MESSAGES: dict[str, dict[str, str]] = {
     "settings.field.xlsx_max_rows": {
         "uz": "Bitta Excel varag'idagi eng ko'p qatorlar soni",
         "en": "Maximum rows per Excel sheet",
+    },
+    "settings.field.edits_location": {"uz": "Saqlanmagan o'zgarishlar joyi", "en": "Where unsaved changes are kept"},
+    "settings.field.backup_on_save": {
+        "uz": "Saqlashda .bak zaxira nusxasini qoldirish",
+        "en": "Keep a .bak copy when saving",
+    },
+    "settings.field.undo_limit": {"uz": "Ortga qaytarish (undo) qadamlari", "en": "Undo steps"},
+    "settings.field.diff_align_max_bytes": {
+        "uz": "Kalitsiz to'liq taqqoslanadigan fayl hajmi chegarasi",
+        "en": "Largest file compared in full without a key",
     },
     # ---- env ----
     "env.report.title": {"uz": "Dastur muhiti", "en": "Program environment"},
@@ -556,6 +587,497 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Ifodadagi maydon nomlari va ular kutgan qiymat turlarini tekshiring. Asl xabar: {detail}",
         "en": "Check the field names in the expression and the value types it expects. Original message: {detail}",
     },
+    # ---- dupes ----
+    "dupes.desc": {"uz": "Takroriy yozuvlar: {key}", "en": "Duplicate records: {key}"},
+    "dupes.progress.scan": {
+        "uz": "Takroriy qiymatlar qidirilmoqda: {name}",
+        "en": "Looking for duplicate values in {name}",
+    },
+    "dupes.progress.merge": {
+        "uz": "Bir xil qiymatlar guruhlanmoqda: {name}",
+        "en": "Grouping equal values of {name}",
+    },
+    "dupes.error.key": {
+        "uz": "Takrorlarni qaysi maydon bo'yicha qidirish kerakligini ko'rsating (yozuv ichidagi yo'l yoki $key), "
+              "berilgan: {value}",
+        "en": "Give the field to look for duplicates by (a path inside the record, or $key), got: {value}",
+    },
+    "dupes.error.key.hint": {
+        "uz": "Misollar: id, email, contact.phone, $ (butun yozuv), $key (kalitli hujjatda yozuvning kaliti).",
+        "en": "Examples: id, email, contact.phone, $ (the whole record), $key (the record key in a keyed document).",
+    },
+    "dupes.error.wildcard": {
+        "uz": "Takrorlarni qidirish maydoni aniq yo'l bo'lishi kerak: unda '*', '[*]' yoki '..' ishlatib bo'lmaydi: "
+              "{key}",
+        "en": "The field to look for duplicates by must be an exact path; '*', '[*]' and '..' cannot be used in it: "
+              "{key}",
+    },
+    "dupes.error.keep": {
+        "uz": "Har bir takroriy guruhda qaysi yozuv qolishi {choices} bo'lishi kerak, berilgan: {value}",
+        "en": "The record to keep in each group of duplicates must be {choices}, got: {value}",
+    },
+    "dupes.keep.choices2": {
+        "uz": "'first' (birinchisi) yoki 'last' (oxirgisi)",
+        "en": "'first' or 'last'",
+    },
+    "dupes.keep.choices3": {
+        "uz": "'first' (birinchisi), 'last' (oxirgisi) yoki 'none' (hech biri: guruhning hamma yozuvlari "
+              "belgilanadi)",
+        "en": "'first', 'last' or 'none' (none: every record of the group is marked)",
+    },
+    "dupes.error.top": {
+        "uz": "Eng katta guruhlar soni 0 dan {max} gacha butun son bo'lishi kerak, berilgan: {value}",
+        "en": "The number of largest groups must be a whole number from 0 to {max}, got: {value}",
+    },
+    "dupes.error.examples": {
+        "uz": "Ko'rsatiladigan misol guruhlar soni 0 dan {max} gacha butun son bo'lishi kerak, berilgan: {value}",
+        "en": "The number of example groups must be a whole number from 0 to {max}, got: {value}",
+    },
+    "dupes.progress.scan_many": {
+        "uz": "{count} ta fayldagi takroriy qiymatlar qidirilmoqda",
+        "en": "Looking for duplicate values in {count} files",
+    },
+    "dupes.progress.merge_many": {
+        "uz": "{count} ta faylning bir xil qiymatlari guruhlanmoqda",
+        "en": "Grouping equal values of {count} files",
+    },
+    "dupes.warn.input_no_record_keys": {
+        "uz": "{name}: bu faylda yozuvlarning kaliti yo'q ($key faqat kalitli hujjatlarda ishlaydi). {count} ta "
+              "yozuv kalitsiz hisoblandi.",
+        "en": "{name}: the records of this file have no keys ($key works only in keyed documents). {count} records "
+              "were counted as having no key.",
+    },
+    "dupes.warn.input_no_record_keys.one": {
+        "uz": "{name}: bu faylda yozuvlarning kaliti yo'q ($key faqat kalitli hujjatlarda ishlaydi). {count} ta "
+              "yozuv kalitsiz hisoblandi.",
+        "en": "{name}: the records of this file have no keys ($key works only in keyed documents). {count} record "
+              "was counted as having no key.",
+    },
+    "dupes.warn.input_too_large": {
+        "uz": "{name}: {count} ta yozuvning (birinchisi #{record}) kalit qiymati xotirada solishtirish uchun juda "
+              "katta ({size} dan oshadi): bu yozuvlar takror deb belgilanmadi.",
+        "en": "{name}: the key value of {count} records (the first is #{record}) is too large to compare in memory "
+              "(over {size}): these records were not marked as duplicates.",
+    },
+    "dupes.warn.input_too_large.one": {
+        "uz": "{name}: {count} ta yozuvning (#{record}) kalit qiymati xotirada solishtirish uchun juda katta "
+              "({size} dan oshadi): bu yozuv takror deb belgilanmadi.",
+        "en": "{name}: the key value of {count} record (#{record}) is too large to compare in memory "
+              "(over {size}): this record was not marked as a duplicate.",
+    },
+    "dupes.warn.input_unreadable": {
+        "uz": "{name}: {count} ta yozuvning (birinchisi #{record}) kalit qiymatini o'qib bo'lmadi (tafsilotlar "
+              "log faylida): bu yozuvlar takror deb belgilanmadi.",
+        "en": "{name}: the key value of {count} records (the first is #{record}) could not be read (details are "
+              "in the log file): these records were not marked as duplicates.",
+    },
+    "dupes.warn.input_unreadable.one": {
+        "uz": "{name}: {count} ta yozuvning (#{record}) kalit qiymatini o'qib bo'lmadi (tafsilotlar log "
+              "faylida): bu yozuv takror deb belgilanmadi.",
+        "en": "{name}: the key value of {count} record (#{record}) could not be read (details are in the log "
+              "file): this record was not marked as a duplicate.",
+    },
+    "dupes.error.memory_limit": {
+        "uz": "Takrorlarni qidirish uchun xotira chegarasi musbat butun son (baytlarda) bo'lishi kerak, "
+              "berilgan: {value}",
+        "en": "The memory limit for finding duplicates must be a positive whole number of bytes, got: {value}",
+    },
+    "dupes.warn.too_large": {
+        "uz": "{count} ta yozuvning (birinchisi #{record}) kalit qiymati xotirada solishtirish uchun juda katta "
+              "({size} dan oshadi): bu yozuvlar takror deb belgilanmadi.",
+        "en": "The key value of {count} records (the first is #{record}) is too large to compare in memory "
+              "(over {size}): these records were not marked as duplicates.",
+    },
+    "dupes.warn.too_large.one": {
+        "uz": "{count} ta yozuvning (#{record}) kalit qiymati xotirada solishtirish uchun juda katta "
+              "({size} dan oshadi): bu yozuv takror deb belgilanmadi.",
+        "en": "The key value of {count} record (#{record}) is too large to compare in memory "
+              "(over {size}): this record was not marked as a duplicate.",
+    },
+    "dupes.warn.unreadable": {
+        "uz": "{count} ta yozuvning (birinchisi #{record}) kalit qiymatini o'qib bo'lmadi (tafsilotlar log "
+              "faylida): bu yozuvlar takror deb belgilanmadi.",
+        "en": "The key value of {count} records (the first is #{record}) could not be read (details are in "
+              "the log file): these records were not marked as duplicates.",
+    },
+    "dupes.warn.unreadable.one": {
+        "uz": "{count} ta yozuvning (#{record}) kalit qiymatini o'qib bo'lmadi (tafsilotlar log faylida): "
+              "bu yozuv takror deb belgilanmadi.",
+        "en": "The key value of {count} record (#{record}) could not be read (details are in the log file): "
+              "this record was not marked as a duplicate.",
+    },
+    "dupes.warn.key_absent": {
+        "uz": "{key} maydoni birorta ham yozuvda topilmadi ({count} ta yozuv tekshirildi). Maydon nomi to'g'ri "
+              "yozilganini tekshiring.",
+        "en": "The field {key} was not found in any of the {count} records checked. Check the spelling of the "
+              "field name.",
+    },
+    "dupes.warn.key_absent.one": {
+        "uz": "{key} maydoni birorta ham yozuvda topilmadi ({count} ta yozuv tekshirildi). Maydon nomi to'g'ri "
+              "yozilganini tekshiring.",
+        "en": "The field {key} was not found in the {count} record checked. Check the spelling of the field name.",
+    },
+    "dupes.warn.no_record_keys": {
+        "uz": "Bu hujjatda yozuvlarning kaliti yo'q: $key faqat yozuvlari obyekt a'zolari bo'lgan (kalitli) "
+              "hujjatlarda ishlaydi. {count} ta yozuv kalitsiz hisoblandi.",
+        "en": "The records of this document have no keys: $key works only in documents whose records are object "
+              "members (keyed documents). {count} records were counted as having no key.",
+    },
+    "dupes.warn.no_record_keys.one": {
+        "uz": "Bu hujjatda yozuvlarning kaliti yo'q: $key faqat yozuvlari obyekt a'zolari bo'lgan (kalitli) "
+              "hujjatlarda ishlaydi. {count} ta yozuv kalitsiz hisoblandi.",
+        "en": "The records of this document have no keys: $key works only in documents whose records are object "
+              "members (keyed documents). {count} record was counted as having no key.",
+    },
+    # ---- diff ----
+    # structural diff (diff.py): values, nodes, files
+    "diff.value.omitted": {
+        "uz": "[{kind}, {size}: ko'rsatish uchun juda katta]",
+        "en": "[{kind}, {size}: too large to show]",
+    },
+    "diff.error.mode": {
+        "uz": "Taqqoslash usuli noma'lum: {value}. Mumkin bo'lganlari: auto, key, align, position, document.",
+        "en": "Unknown comparison mode: {value}. Possible: auto, key, align, position, document.",
+    },
+    "diff.error.array_match": {
+        "uz": "Massiv elementlarini moslash usuli 'auto', 'index', 'key' yoki 'unordered' (tartibsiz) bo'lishi "
+              "kerak, berilgan: {value}",
+        "en": "The array matching must be 'auto', 'index', 'key' or 'unordered', got: {value}",
+    },
+    "diff.error.numbers": {
+        "uz": "Sonlar 'value' (qiymati bo'yicha) yoki 'text' (yozilishi bo'yicha) solishtirilishi kerak, "
+              "berilgan: {value}",
+        "en": "Numbers must be compared by 'value' or by 'text', got: {value}",
+    },
+    "diff.error.max_changes": {
+        "uz": "Bitta yozuv uchun saqlanadigan o'zgarishlar soni 0 yoki musbat butun son bo'lishi kerak, "
+              "berilgan: {value}",
+        "en": "The number of changes kept per record must be 0 or a positive whole number, got: {value}",
+    },
+    "diff.error.max_details": {
+        "uz": "Batafsil ko'rsatiladigan yozuvlar soni 0 yoki musbat butun son bo'lishi kerak, berilgan: {value}",
+        "en": "The number of records shown in detail must be 0 or a positive whole number, got: {value}",
+    },
+    "diff.error.memory_limit": {
+        "uz": "Taqqoslash uchun xotira chegarasi musbat butun son (baytlarda) bo'lishi kerak, berilgan: {value}",
+        "en": "The memory limit for the comparison must be a positive whole number of bytes, got: {value}",
+    },
+    "diff.error.array_key": {
+        "uz": "Massiv kaliti noto'g'ri: {value}. Ko'rinishi: MAYDON yoki YO'L=MAYDON (masalan id yoki orders=oid).",
+        "en": "Invalid array key: {value}. Form: FIELD or PATH=FIELD (for example id or orders=oid).",
+    },
+    "diff.error.array_key_wildcard": {
+        "uz": "Massiv elementlarini moslash maydoni aniq yo'l bo'lishi kerak ('*', '[*]' va '..' ishlatib "
+              "bo'lmaydi): {value}",
+        "en": "The field matching array elements must be an exact path ('*', '[*]' and '..' cannot be used): "
+              "{value}",
+    },
+    "diff.error.array_key_missing": {
+        "uz": "Massiv elementlarini kalit bo'yicha moslash uchun kalit maydonini ko'rsating (masalan id).",
+        "en": "Give the key field to match array elements by (for example id).",
+    },
+    "diff.error.key_mode": {
+        "uz": "Kalit (--key) faqat kalit bo'yicha taqqoslashda ishlatiladi; tanlangan usul: {mode}.",
+        "en": "A key (--key) is used only when comparing by key; the mode chosen is {mode}.",
+    },
+    "diff.error.key_required": {
+        "uz": "Kalit bo'yicha taqqoslash uchun kalitni ko'rsating (masalan --key id).",
+        "en": "Give the key to compare by (for example --key id).",
+    },
+    "diff.error.too_big_no_key": {
+        "uz": "Fayllar kalitsiz to'liq taqqoslash uchun juda katta ({size}; chegara {limit}).",
+        "en": "The files are too large to compare in full without a key ({size}; the limit is {limit}).",
+    },
+    "diff.error.too_big_no_key.hint": {
+        "uz": "Yozuvlarni kalit bo'yicha (--key id) yoki tartib raqami bo'yicha (--by-position) taqqoslang. "
+              "Chegarani sozlamalarda o'zgartirish mumkin.",
+        "en": "Compare the records by a key (--key id) or by position (--by-position). The limit can be "
+              "changed in the settings.",
+    },
+    "diff.error.too_many_keys": {
+        "uz": "Obyektda a'zolar juda ko'p ({count}; chegara {max}): uni bu usulda taqqoslab bo'lmaydi.",
+        "en": "The object has too many members ({count}; the limit is {max}) to be compared this way.",
+    },
+    "diff.error.too_many_keys.hint": {
+        "uz": "Bunday ma'lumotni kalit bo'yicha taqqoslang (masalan --key $key).",
+        "en": "Compare such data by key (for example --key $key).",
+    },
+    "diff.error.format": {
+        "uz": "Farqlar fayli formati noma'lum: {value}. Mumkin bo'lganlari: json, jsonl, csv.",
+        "en": "Unknown format for the differences file: {value}. Possible: json, jsonl, csv.",
+    },
+    "diff.progress.scan": {"uz": "Taqqoslanmoqda: {a} va {b}", "en": "Comparing {a} and {b}"},
+    "diff.progress.match": {
+        "uz": "Yozuvlar juftlanmoqda: {a} va {b}",
+        "en": "Matching the records of {a} and {b}",
+    },
+    "diff.progress.compare": {
+        "uz": "Farqlar aniqlanmoqda: {a} va {b}",
+        "en": "Finding the differences of {a} and {b}",
+    },
+    "diff.warn.partial": {
+        "uz": "{name}: faylda JSON xatosi bor, faqat xatogacha bo'lgan {count} ta yozuv taqqoslandi.",
+        "en": "{name}: the file has a JSON error; only the {count} records before it were compared.",
+    },
+    "diff.warn.partial.one": {
+        "uz": "{name}: faylda JSON xatosi bor, faqat xatogacha bo'lgan {count} ta yozuv taqqoslandi.",
+        "en": "{name}: the file has a JSON error; only the {count} record before it was compared.",
+    },
+    "diff.warn.broken_lines": {
+        "uz": "{name}: {count} ta buzuq qator taqqoslanmadi.",
+        "en": "{name}: {count} broken lines were not compared.",
+    },
+    "diff.warn.broken_lines.one": {
+        "uz": "{name}: {count} ta buzuq qator taqqoslanmadi.",
+        "en": "{name}: {count} broken line was not compared.",
+    },
+    "diff.warn.wrapper_too_large": {
+        "uz": "Yozuvlar atrofidagi qism (o'rovchi) juda katta ({size}): u taqqoslanmadi.",
+        "en": "The part around the records (the wrapper) is too large ({size}): it was not compared.",
+    },
+    "diff.warn.wrapper_one_side": {
+        "uz": "{name}: yozuvlar atrofidagi qism (o'rovchi) taqqoslanmadi, chunki ikkinchi faylda u yo'q.",
+        "en": "{name}: the part around the records (the wrapper) was not compared: the other file has none.",
+    },
+    "diff.warn.duplicate_keys": {
+        "uz": "{name}: {key} ning {count} ta qiymati bir nechta yozuvda uchraydi; bunday yozuvlar tartib "
+              "bo'yicha juftlandi (birinchisi birinchisi bilan, ikkinchisi ikkinchisi bilan).",
+        "en": "{name}: {count} values of {key} occur in more than one record; such records were paired in "
+              "order (the first with the first, the second with the second).",
+    },
+    "diff.warn.duplicate_keys.one": {
+        "uz": "{name}: {key} ning {count} ta qiymati bir nechta yozuvda uchraydi; bunday yozuvlar tartib "
+              "bo'yicha juftlandi (birinchisi birinchisi bilan, ikkinchisi ikkinchisi bilan).",
+        "en": "{name}: {count} value of {key} occurs in more than one record; these records were paired in "
+              "order (the first with the first, the second with the second).",
+    },
+    "diff.warn.no_record_keys": {
+        "uz": "{name}: bu faylda yozuvlarning kaliti yo'q ($key faqat kalitli hujjatlarda ishlaydi): {count} ta "
+              "yozuv taqqoslanmadi.",
+        "en": "{name}: the records of this file have no keys ($key works only in keyed documents): {count} "
+              "records were not compared.",
+    },
+    "diff.warn.no_record_keys.one": {
+        "uz": "{name}: bu faylda yozuvlarning kaliti yo'q ($key faqat kalitli hujjatlarda ishlaydi): {count} ta "
+              "yozuv taqqoslanmadi.",
+        "en": "{name}: the records of this file have no keys ($key works only in keyed documents): {count} "
+              "record was not compared.",
+    },
+    "diff.warn.missing_keys": {
+        "uz": "{name}: {count} ta yozuvda {key} maydoni yo'q: ular taqqoslanmadi.",
+        "en": "{name}: {count} records have no field {key}: they were not compared.",
+    },
+    "diff.warn.missing_keys.one": {
+        "uz": "{name}: {count} ta yozuvda {key} maydoni yo'q: u taqqoslanmadi.",
+        "en": "{name}: {count} record has no field {key}: it was not compared.",
+    },
+    "diff.warn.key_too_large": {
+        "uz": "{name}: {count} ta yozuvning (birinchisi #{record}) kalit qiymati xotirada solishtirish uchun "
+              "juda katta ({size} dan oshadi): ular taqqoslanmadi.",
+        "en": "{name}: the key value of {count} records (the first is #{record}) is too large to compare in "
+              "memory (over {size}): they were not compared.",
+    },
+    "diff.warn.key_too_large.one": {
+        "uz": "{name}: {count} ta yozuvning (#{record}) kalit qiymati xotirada solishtirish uchun juda katta "
+              "({size} dan oshadi): u taqqoslanmadi.",
+        "en": "{name}: the key value of {count} record (#{record}) is too large to compare in memory "
+              "(over {size}): it was not compared.",
+    },
+    "diff.warn.key_unreadable": {
+        "uz": "{name}: {count} ta yozuvning (birinchisi #{record}) kalit qiymatini o'qib bo'lmadi (tafsilotlar "
+              "log faylida): ular taqqoslanmadi.",
+        "en": "{name}: the key value of {count} records (the first is #{record}) could not be read (details are "
+              "in the log file): they were not compared.",
+    },
+    "diff.warn.key_unreadable.one": {
+        "uz": "{name}: {count} ta yozuvning (#{record}) kalit qiymatini o'qib bo'lmadi (tafsilotlar log "
+              "faylida): u taqqoslanmadi.",
+        "en": "{name}: the key value of {count} record (#{record}) could not be read (details are in the log "
+              "file): it was not compared.",
+    },
+    # ---- bulk ----
+    # bulk operations (bulk.py): parameter checks, errors of a preview, problem reasons, examples, labels
+    "bulk.error.kind": {"uz": "Noma'lum ommaviy amal: «{kind}».", "en": "Unknown bulk operation: \"{kind}\"."},
+    "bulk.error.params": {
+        "uz": "Ommaviy amal parametrlari noto'g'ri berilgan.",
+        "en": "The parameters of the bulk operation are not valid.",
+    },
+    "bulk.error.unknown_param": {
+        "uz": "Bu amalda «{param}» degan parametr yo'q.",
+        "en": "This operation has no parameter \"{param}\".",
+    },
+    "bulk.error.missing_param": {
+        "uz": "«{param}» parametri ko'rsatilmagan.",
+        "en": "The parameter \"{param}\" is missing.",
+    },
+    "bulk.error.param_type": {
+        "uz": "«{param}» parametri noto'g'ri: {expected} bo'lishi kerak.",
+        "en": "The parameter \"{param}\" is not valid: {expected} is expected.",
+    },
+    "bulk.expect.text": {"uz": "matn", "en": "text"},
+    "bulk.expect.bool": {"uz": "true yoki false", "en": "true or false"},
+    "bulk.expect.path": {"uz": "yo'l (matn)", "en": "a path (text)"},
+    "bulk.error.find_empty": {"uz": "Qidiriladigan matn bo'sh.", "en": "The text to find is empty."},
+    "bulk.error.mode": {
+        "uz": "Qidirish usuli noto'g'ri: «{value}» (text yoki regex bo'lishi kerak).",
+        "en": "Invalid search mode \"{value}\" (it must be text or regex).",
+    },
+    "bulk.error.replacement": {
+        "uz": "O'rniga qo'yiladigan matn noto'g'ri: {detail}.",
+        "en": "The replacement text is not valid: {detail}.",
+    },
+    "bulk.error.replacement.hint": {
+        "uz": "Regex rejimida \\1 yoki \\g<nom> topilgan guruhni qo'yadi; teskari chiziqning o'zi uchun \\\\ "
+              "deb yozing.",
+        "en": "In regex mode \\1 or \\g<name> inserts a matched group; write \\\\ for a backslash itself.",
+    },
+    "bulk.error.same_key": {
+        "uz": "Yangi kalit eskisi bilan bir xil.",
+        "en": "The new key is the same as the old one.",
+    },
+    "bulk.error.path_required": {"uz": "Yo'l ko'rsatilmagan.", "en": "No path was given."},
+    "bulk.error.path_required.hint": {
+        "uz": "Masalan: name, contact.city, orders[*].sum yoki ..id (istalgan chuqurlikda).",
+        "en": "For example: name, contact.city, orders[*].sum or ..id (at any depth).",
+    },
+    "bulk.error.path_root": {
+        "uz": "Bu amal uchun yozuvning o'zini emas, uning ichidagi maydon yo'lini ko'rsating.",
+        "en": "Give the path of a field inside the records, not the record itself.",
+    },
+    "bulk.error.value": {
+        "uz": "Qiymat JSON sifatida noto'g'ri ({line}-qator, {column}-ustun): {reason}.",
+        "en": "The value is not valid JSON (line {line}, column {column}): {reason}.",
+    },
+    "bulk.error.value.hint": {
+        "uz": "Matnni qo'shtirnoq ichida yozing, masalan \"Toshkent\". Son, true, false, null, massiv yoki obyekt "
+              "ham bo'lishi mumkin.",
+        "en": "Write text in double quotes, for example \"Tashkent\". A number, true, false, null, an array or an "
+              "object is also possible.",
+    },
+    "bulk.error.set_mode": {
+        "uz": "Qiymat berish rejimi noto'g'ri: «{value}» (always, if_missing yoki if_exists bo'lishi kerak).",
+        "en": "Invalid mode \"{value}\" (it must be always, if_missing or if_exists).",
+    },
+    "bulk.error.clean_nothing": {
+        "uz": "Tozalash turi tanlanmagan: chetdagi bo'sh joylarni olib tashlashni yoki ketma-ket bo'sh joylarni "
+              "bittaga yig'ishni yoqing.",
+        "en": "Nothing to clean: turn on trimming or collapsing runs of spaces.",
+    },
+    "bulk.error.type": {
+        "uz": "Noma'lum tur: «{value}» (string, number, bool, null, object yoki array bo'lishi kerak).",
+        "en": "Unknown type \"{value}\" (it must be string, number, bool, null, object or array).",
+    },
+    "bulk.error.partial": {
+        "uz": "Faylda JSON xatosi bor: uni faqat ko'rish mumkin, ommaviy amalni bajarib bo'lmaydi.",
+        "en": "The file has a JSON error: it can only be viewed, bulk operations are not possible.",
+    },
+    "bulk.error.stale_scope": {
+        "uz": "Tanlangan yozuvlar ro'yxati eskirgan: ma'lumot u tuzilgandan keyin o'zgardi.",
+        "en": "The selected records are out of date: the data changed after they were selected.",
+    },
+    "bulk.error.stale_scope.hint": {
+        "uz": "Yozuvlarni qaytadan tanlang (filtr, saralash yoki qidiruvni yangilang) va amalni yana ko'rib chiqing.",
+        "en": "Select the records again (refresh the filter, sort or search) and preview the operation again.",
+    },
+    "bulk.error.disk_space": {
+        "uz": "Diskda joy yetarli emas: ommaviy amal uchun taxminan {need} kerak, bo'sh joy esa {free} ({path}).",
+        "en": "Not enough disk space: the bulk operation needs about {need}, but only {free} is free ({path}).",
+    },
+    "bulk.error.disk_space.hint": {
+        "uz": "Diskda joy bo'shating yoki kamroq yozuvni tanlang. Natija saqlanmagan o'zgarishlar papkasiga "
+              "yoziladi.",
+        "en": "Free some disk space or select fewer records. The result is written to the folder of unsaved "
+              "changes.",
+    },
+    "bulk.error.nothing": {
+        "uz": "Hech narsa o'zgarmaydi: qo'llash uchun o'zgarish yo'q.",
+        "en": "Nothing would change: there is nothing to apply.",
+    },
+    "bulk.error.discarded": {
+        "uz": "Bu oldindan ko'rish bekor qilingan, uni qo'llab bo'lmaydi.",
+        "en": "This preview was discarded and cannot be applied.",
+    },
+    "bulk.error.discarded.hint": {"uz": "Amalni qaytadan ko'rib chiqing.", "en": "Preview the operation again."},
+    # problem reasons (BulkPreview.problems[i].after)
+    "bulk.problem.duplicate_keys": {
+        "uz": "yozuvda takrorlangan kalitlar bor, u o'zgartirilmaydi",
+        "en": "the record has duplicate keys, so it is not changed",
+    },
+    "bulk.problem.key_exists": {
+        "uz": "obyektda «{key}» kaliti allaqachon bor",
+        "en": "the object already has the key \"{key}\"",
+    },
+    "bulk.problem.not_object": {"uz": "{path} obyekt emas", "en": "{path} is not an object"},
+    "bulk.problem.not_array": {"uz": "{path} massiv emas", "en": "{path} is not an array"},
+    "bulk.problem.no_element": {
+        "uz": "{path} massivida {index}-o'rinda element yo'q",
+        "en": "the array {path} has no element at position {index}",
+    },
+    "bulk.problem.missing_array": {
+        "uz": "{path} yo'q: massiv elementini yaratib bo'lmaydi",
+        "en": "{path} does not exist: array elements cannot be created",
+    },
+    "bulk.problem.unreadable": {
+        "uz": "yozuvni xotirada o'qib bo'lmadi (juda chuqur joylashgan)",
+        "en": "the record could not be read in memory (it is nested too deeply)",
+    },
+    # example texts
+    "bulk.example.deleted": {"uz": "(o'chiriladi)", "en": "(deleted)"},
+    "bulk.example.missing": {"uz": "(yo'q)", "en": "(missing)"},
+    "bulk.example.huge": {"uz": "(juda katta yozuv)", "en": "(very large record)"},
+    "bulk.warn.huge": {
+        "uz": "{count} ta yozuv {limit} dan katta, ular o'zgartirilmaydi (birinchisi: #{record}).",
+        "en": "{count} records are larger than {limit} and are not changed (the first: #{record}).",
+    },
+    "bulk.progress.scan": {
+        "uz": "Ommaviy amal oldindan ko'rilmoqda: {name}",
+        "en": "Previewing the bulk operation: {name}",
+    },
+    "bulk.progress.layer": {"uz": "Natija yozilmoqda: {name}", "en": "Writing the result: {name}"},
+    "bulk.progress.keys": {
+        "uz": "O'chiriladigan yozuvlar o'qilmoqda: {name}",
+        "en": "Reading the records to delete: {name}",
+    },
+    # operation names and one-line descriptions (BulkSpec.label)
+    "bulk.kind.replace": {"uz": "Topish va almashtirish", "en": "Find and replace"},
+    "bulk.kind.rename_key": {"uz": "Kalitni qayta nomlash", "en": "Rename key"},
+    "bulk.kind.delete_field": {"uz": "Maydonni o'chirish", "en": "Delete field"},
+    "bulk.kind.set_field": {"uz": "Maydonga qiymat berish", "en": "Set field"},
+    "bulk.kind.clean_strings": {"uz": "Matnlarni tozalash", "en": "Clean strings"},
+    "bulk.kind.convert_type": {"uz": "Turni o'zgartirish", "en": "Convert type"},
+    "bulk.kind.dedupe": {"uz": "Takrorlarni o'chirish", "en": "Remove duplicates"},
+    "bulk.label.replace": {
+        "uz": "Topish va almashtirish: «{find}» → «{replacement}»{options}{where}",
+        "en": "Find and replace: \"{find}\" → \"{replacement}\"{options}{where}",
+    },
+    "bulk.label.rename_key": {
+        "uz": "Kalitni qayta nomlash: «{old}» → «{new}»{where}",
+        "en": "Rename key: \"{old}\" → \"{new}\"{where}",
+    },
+    "bulk.label.delete_field": {"uz": "Maydonni o'chirish: {path}", "en": "Delete field: {path}"},
+    "bulk.label.set_field": {
+        "uz": "Maydonga qiymat berish: {path} = {value} ({mode})",
+        "en": "Set field: {path} = {value} ({mode})",
+    },
+    "bulk.label.clean_strings": {"uz": "Matnlarni tozalash: {what}{where}", "en": "Clean strings: {what}{where}"},
+    "bulk.label.convert_type": {"uz": "Turni o'zgartirish: {path} → {type}", "en": "Convert type: {path} → {type}"},
+    "bulk.label.dedupe": {
+        "uz": "Takrorlarni o'chirish ({key} bo'yicha, {keep})",
+        "en": "Remove duplicates (by {key}, {keep})",
+    },
+    "bulk.label.where": {"uz": " ({path} ichida)", "en": " (in {path})"},
+    "bulk.label.options": {"uz": " ({options})", "en": " ({options})"},
+    "bulk.label.regex": {"uz": "regex", "en": "regex"},
+    "bulk.label.case": {"uz": "katta-kichik harf farqlanadi", "en": "case-sensitive"},
+    "bulk.label.whole_word": {"uz": "butun so'z", "en": "whole word"},
+    "bulk.label.trim": {"uz": "chetdagi bo'sh joylar", "en": "trim"},
+    "bulk.label.collapse": {"uz": "ketma-ket bo'sh joylar", "en": "collapse spaces"},
+    "bulk.label.mode.always": {"uz": "har doim", "en": "always"},
+    "bulk.label.mode.if_missing": {"uz": "faqat maydon yo'q bo'lsa", "en": "only where it is missing"},
+    "bulk.label.mode.if_exists": {"uz": "faqat maydon bor bo'lsa", "en": "only where it exists"},
+    "bulk.label.keep.first": {"uz": "birinchisi qoladi", "en": "keeping the first"},
+    "bulk.label.keep.last": {"uz": "oxirgisi qoladi", "en": "keeping the last"},
+    "bulk.label.record_key": {"uz": "yozuv kaliti", "en": "the record key"},
     # ---- sortkeys ----
     "sortkeys.err.path_type": {
         "uz": "Tartiblash maydoni matn ko'rinishida yozilishi kerak, berilgan: {value}",
@@ -1030,6 +1552,661 @@ MESSAGES: dict[str, dict[str, str]] = {
     "schema.type.null": {"uz": "null", "en": "null"},
     "schema.no_records": {"uz": "Tahlil qilingan yozuvlar yo'q.", "en": "No records were analysed."},
     "schema.no_fields": {"uz": "Yozuvlarda maydonlar yo'q.", "en": "The records have no fields."},
+    # ---- stats ----
+    # per-field statistics (stats.py): progress, argument errors, warnings, the CLI text block
+    "stats.progress": {"uz": "Maydon statistikasi hisoblanmoqda: {name}", "en": "Computing field statistics: {name}"},
+    "stats.progress.finish": {"uz": "Statistika yakunlanmoqda: {name}", "en": "Finishing the statistics: {name}"},
+    "stats.error.fields": {
+        "uz": "Statistika uchun maydonlar ro'yxatini bering, berilgan: {value}",
+        "en": "Give a list of fields for the statistics, got: {value}",
+    },
+    "stats.error.no_fields": {
+        "uz": "Statistika uchun kamida bitta maydonni ko'rsating.",
+        "en": "Give at least one field for the statistics.",
+    },
+    "stats.error.no_fields.hint": {
+        "uz": "Misollar: contact.address.city, orders[*].sum, ..name, $ (butun yozuv), $key (kalitli hujjatda "
+              "yozuvning kaliti).",
+        "en": "Examples: contact.address.city, orders[*].sum, ..name, $ (the whole record), $key (the record key in "
+              "a keyed document).",
+    },
+    "stats.error.field": {
+        "uz": "Maydon yo'li bo'sh bo'lmagan matn bo'lishi kerak, berilgan: {value}",
+        "en": "A field must be a path given as text that is not empty, got: {value}",
+    },
+    "stats.error.top": {
+        "uz": "Eng ko'p uchragan qiymatlar soni 0 dan {max} gacha butun son bo'lishi kerak, berilgan: {value}",
+        "en": "The number of most frequent values must be a whole number from 0 to {max}, got: {value}",
+    },
+    "stats.error.sample": {
+        "uz": "Namuna hajmi musbat butun son bo'lishi kerak, berilgan: {value}",
+        "en": "The sample size must be a positive whole number, got: {value}",
+    },
+    "stats.error.memory_limit": {
+        "uz": "Statistika uchun xotira chegarasi musbat butun son (baytlarda) bo'lishi kerak, berilgan: {value}",
+        "en": "The memory limit for the statistics must be a positive whole number of bytes, got: {value}",
+    },
+    "stats.warn.no_record_keys": {
+        "uz": "Bu hujjatda yozuvlarning kaliti yo'q: $key faqat yozuvlari obyekt a'zolari bo'lgan (kalitli) "
+              "hujjatlarda ishlaydi. {count} ta yozuv kalitsiz hisoblandi.",
+        "en": "The records of this document have no keys: $key works only in documents whose records are object "
+              "members (keyed documents). {count} records were counted as having no key.",
+    },
+    "stats.warn.no_record_keys.one": {
+        "uz": "Bu hujjatda yozuvlarning kaliti yo'q: $key faqat yozuvlari obyekt a'zolari bo'lgan (kalitli) "
+              "hujjatlarda ishlaydi. {count} ta yozuv kalitsiz hisoblandi.",
+        "en": "The records of this document have no keys: $key works only in documents whose records are object "
+              "members (keyed documents). {count} record was counted as having no key.",
+    },
+    "stats.warn.field_absent": {
+        "uz": "{field} maydoni birorta ham yozuvda topilmadi ({count} ta yozuv tekshirildi). Maydon nomi to'g'ri "
+              "yozilganini tekshiring.",
+        "en": "The field {field} was not found in any of the {count} records checked. Check the spelling of the "
+              "field name.",
+    },
+    "stats.warn.field_absent.one": {
+        "uz": "{field} maydoni birorta ham yozuvda topilmadi ({count} ta yozuv tekshirildi). Maydon nomi to'g'ri "
+              "yozilganini tekshiring.",
+        "en": "The field {field} was not found in the {count} record checked. Check the spelling of the field name.",
+    },
+    "stats.warn.too_large": {
+        "uz": "{count} ta yozuvdagi (birinchisi #{record}) qiymatlar xotirada hisoblash uchun juda katta ({size} "
+              "dan oshadi): bu yozuvlar statistikaga kirmadi.",
+        "en": "The values in {count} records (the first is #{record}) are too large to count in memory (over "
+              "{size}): these records are not in the statistics.",
+    },
+    "stats.warn.too_large.one": {
+        "uz": "{count} ta yozuvdagi (#{record}) qiymatlar xotirada hisoblash uchun juda katta ({size} dan oshadi): "
+              "bu yozuv statistikaga kirmadi.",
+        "en": "The values in {count} record (#{record}) are too large to count in memory (over {size}): this "
+              "record is not in the statistics.",
+    },
+    "stats.warn.unreadable": {
+        "uz": "{count} ta yozuvning (birinchisi #{record}) qiymatlarini o'qib bo'lmadi (tafsilotlar log faylida): "
+              "bu yozuvlar statistikaga kirmadi.",
+        "en": "The values of {count} records (the first is #{record}) could not be read (details are in the log "
+              "file): these records are not in the statistics.",
+    },
+    "stats.warn.unreadable.one": {
+        "uz": "{count} ta yozuvning (#{record}) qiymatlarini o'qib bo'lmadi (tafsilotlar log faylida): bu yozuv "
+              "statistikaga kirmadi.",
+        "en": "The values of {count} record (#{record}) could not be read (details are in the log file): this "
+              "record is not in the statistics.",
+    },
+    "stats.warn.uncounted": {
+        "uz": "{count} ta obyekt yoki massiv qiymati (birinchisi #{record} yozuvda) solishtirish uchun juda katta "
+              "({size} dan oshadi): ular turlar va uzunliklarda hisoblandi, lekin noyob qiymatlar va eng ko'p "
+              "uchraganlar ro'yxatiga kirmadi.",
+        "en": "{count} object or array values (the first in record #{record}) are too large to compare (over "
+              "{size}): they are counted in the types and lengths, but not in the distinct values and the most "
+              "frequent values.",
+    },
+    "stats.warn.uncounted.one": {
+        "uz": "{count} ta obyekt yoki massiv qiymati (#{record} yozuvda) solishtirish uchun juda katta ({size} dan "
+              "oshadi): u turlar va uzunliklarda hisoblandi, lekin noyob qiymatlar va eng ko'p uchraganlar "
+              "ro'yxatiga kirmadi.",
+        "en": "{count} object or array value (in record #{record}) is too large to compare (over {size}): it is "
+              "counted in the types and lengths, but not in the distinct values and the most frequent values.",
+    },
+    "stats.warn.approximate": {
+        "uz": "Noyob qiymatlar juda ko'p, shuning uchun ular taxminiy hisoblandi: noyob qiymatlar soni "
+              "HyperLogLog bilan (±{rse} %), eng ko'p uchraganlarning har birining haqiqiy soni ko'rsatilganidan "
+              "{bound} tagacha ko'p bo'lishi mumkin. Aniq natija uchun \"Aniq hisoblash\" (--exact) ni tanlang.",
+        "en": "There are too many distinct values, so they were counted approximately: the number of distinct "
+              "values with HyperLogLog (±{rse} %), and the true count of each most frequent value may be up to "
+              "{bound} higher than shown. Choose \"Exact count\" (--exact) for exact results.",
+    },
+    "stats.warn.sum_approximate": {
+        "uz": "Sonlar yig'indisini aniq hisoblash uchun {digits} dan ortiq raqam kerak bo'lardi (juda katta va "
+              "juda kichik sonlar aralash): yig'indi va o'rtacha 50 ta muhim raqam bilan taxminiy berildi.",
+        "en": "The exact sum of the numbers would need more than {digits} digits (very large and very small "
+              "numbers mixed): the sum and the mean are given approximately, with 50 significant digits.",
+    },
+    "stats.warn.sum_skipped": {
+        "uz": "{count} ta son yig'indi va o'rtachaga qo'shilmadi: ularning darajasi aniq qo'shish uchun juda "
+              "katta (masalan, 1e99999999999999999999). Yig'indi va o'rtacha qolgan sonlar bo'yicha hisoblandi.",
+        "en": "{count} numbers were left out of the sum and the mean: their exponent is too large to add them "
+              "exactly (e.g. 1e99999999999999999999). The sum and the mean are over the other numbers.",
+    },
+    "stats.warn.sum_skipped.one": {
+        "uz": "{count} ta son yig'indi va o'rtachaga qo'shilmadi: uning darajasi aniq qo'shish uchun juda katta "
+              "(masalan, 1e99999999999999999999). Yig'indi va o'rtacha qolgan sonlar bo'yicha hisoblandi.",
+        "en": "{count} number was left out of the sum and the mean: its exponent is too large to add it exactly "
+              "(e.g. 1e99999999999999999999). The sum and the mean are over the other numbers.",
+    },
+    "stats.text.field": {
+        "uz": "Maydon: {field}    {records} ta yozuv · {seconds} s",
+        "en": "Field: {field}    {records} records · {seconds} s",
+    },
+    "stats.text.field.one": {
+        "uz": "Maydon: {field}    {records} ta yozuv · {seconds} s",
+        "en": "Field: {field}    {records} record · {seconds} s",
+    },
+    "stats.text.context": {
+        "uz": "Kontekst: {context} ({count} ta element)",
+        "en": "Context: {context} ({count} elements)",
+    },
+    "stats.text.context.one": {
+        "uz": "Kontekst: {context} ({count} ta element)",
+        "en": "Context: {context} ({count} element)",
+    },
+    "stats.text.presence": {
+        "uz": "Mavjud: {present} ({present_pct})    null: {nulls} ({nulls_pct})    yo'q: {missing} ({missing_pct})",
+        "en": "Present: {present} ({present_pct})    null: {nulls} ({nulls_pct})    missing: {missing} "
+              "({missing_pct})",
+    },
+    "stats.text.types": {"uz": "Turlar: {types}", "en": "Types: {types}"},
+    "stats.text.distinct_exact": {"uz": "Noyob qiymatlar: {count} (aniq)", "en": "Distinct values: {count} (exact)"},
+    "stats.text.distinct_approx": {
+        "uz": "Noyob qiymatlar: ≈ {count} (HyperLogLog, ±{rse} %)",
+        "en": "Distinct values: ≈ {count} (HyperLogLog, ±{rse} %)",
+    },
+    "stats.text.numbers": {
+        "uz": "Sonlar: {count} ta (butun: {integers}) · min {min} · max {max} · o'rtacha {mean} · yig'indi {sum}",
+        "en": "Numbers: {count} (integers: {integers}) · min {min} · max {max} · mean {mean} · sum {sum}",
+    },
+    "stats.text.strings": {
+        "uz": "Satr uzunligi: {min}–{max} (bo'sh satrlar: {empty})",
+        "en": "String length: {min}–{max} (empty strings: {empty})",
+    },
+    "stats.text.arrays": {"uz": "Massiv uzunligi: {min}–{max}", "en": "Array length: {min}–{max}"},
+    "stats.text.objects": {"uz": "Obyekt kalitlari soni: {min}–{max}", "en": "Object keys: {min}–{max}"},
+    "stats.text.top_exact": {
+        "uz": "Eng ko'p uchragan {count} ta qiymat:",
+        "en": "The {count} most frequent values:",
+    },
+    "stats.text.top_exact.one": {
+        "uz": "Eng ko'p uchragan qiymat:",
+        "en": "The most frequent value:",
+    },
+    "stats.text.top_approx": {
+        "uz": "Eng ko'p uchragan {count} ta qiymat (taxminiy: har birining haqiqiy soni {bound} tagacha ko'p "
+              "bo'lishi mumkin):",
+        "en": "The {count} most frequent values (approximate: each true count may be up to {bound} higher):",
+    },
+    "stats.text.top_approx.one": {
+        "uz": "Eng ko'p uchragan qiymat (taxminiy: haqiqiy soni {bound} tagacha ko'p bo'lishi mumkin):",
+        "en": "The most frequent value (approximate: the true count may be up to {bound} higher):",
+    },
+    "stats.text.records": {"uz": "({count} ta yozuvda)", "en": "(in {count} records)"},
+    "stats.text.records.one": {"uz": "({count} ta yozuvda)", "en": "(in {count} record)"},
+    # ---- smartvalues ----
+    # smart values (smartvalues.py): tooltips of times, links, colours and images
+    "smartvalues.unix_s": {"uz": "Unix vaqti (soniyalarda)", "en": "Unix time (seconds)"},
+    "smartvalues.unix_ms": {"uz": "Unix vaqti (millisoniyalarda)", "en": "Unix time (milliseconds)"},
+    "smartvalues.datetime": {"uz": "Sana va vaqt (ISO 8601)", "en": "Date and time (ISO 8601)"},
+    "smartvalues.date": {"uz": "Sana (ISO 8601)", "en": "Date (ISO 8601)"},
+    "smartvalues.tashkent": {
+        "uz": "Toshkent vaqti: {date} {time}, {weekday} (UTC+05:00)",
+        "en": "Tashkent time: {date} {time}, {weekday} (UTC+05:00)",
+    },
+    "smartvalues.utc": {"uz": "UTC: {date} {time}", "en": "UTC: {date} {time}"},
+    "smartvalues.naive": {
+        "uz": "{date} {time}, {weekday} (vaqt mintaqasi ko'rsatilmagan)",
+        "en": "{date} {time}, {weekday} (no time zone given)",
+    },
+    "smartvalues.date_line": {"uz": "{date}, {weekday}", "en": "{date}, {weekday}"},
+    "smartvalues.old_offset": {
+        "uz": "{year} yilgacha Toshkentda boshqa vaqt qoidalari amal qilgan: vaqt UTC+05:00 bo'yicha ko'rsatildi.",
+        "en": "Before {year} Tashkent used other time rules: the time is shown for UTC+05:00.",
+    },
+    "smartvalues.weekday.0": {"uz": "dushanba", "en": "Monday"},
+    "smartvalues.weekday.1": {"uz": "seshanba", "en": "Tuesday"},
+    "smartvalues.weekday.2": {"uz": "chorshanba", "en": "Wednesday"},
+    "smartvalues.weekday.3": {"uz": "payshanba", "en": "Thursday"},
+    "smartvalues.weekday.4": {"uz": "juma", "en": "Friday"},
+    "smartvalues.weekday.5": {"uz": "shanba", "en": "Saturday"},
+    "smartvalues.weekday.6": {"uz": "yakshanba", "en": "Sunday"},
+    "smartvalues.url": {
+        "uz": "Havola: {url}\nCtrl+bosish: brauzerda ochish (avval so'raladi; dasturning o'zi hech narsa "
+              "yubormaydi)",
+        "en": "Link: {url}\nCtrl+click: open it in the browser (you are asked first; the program itself sends "
+              "nothing)",
+    },
+    "smartvalues.email": {
+        "uz": "E-pochta manzili: {address}\nCtrl+bosish: pochta dasturida ochish (avval so'raladi)",
+        "en": "E-mail address: {address}\nCtrl+click: open it in the mail program (you are asked first)",
+    },
+    "smartvalues.color": {"uz": "Rang: {hex} (R {r}, G {g}, B {b})", "en": "Colour: {hex} (R {r}, G {g}, B {b})"},
+    "smartvalues.color_alpha": {
+        "uz": "Rang: {hex} (R {r}, G {g}, B {b}, ko'rinish darajasi {alpha} %)",
+        "en": "Colour: {hex} (R {r}, G {g}, B {b}, opacity {alpha} %)",
+    },
+    "smartvalues.image": {
+        "uz": "Rasm: {format}, {width}×{height} piksel",
+        "en": "Image: {format}, {width}×{height} pixels",
+    },
+    "smartvalues.image_unknown_size": {"uz": "Rasm: {format}", "en": "Image: {format}"},
+    "smartvalues.image_hint": {
+        "uz": "To'liq qiymat oynasida rasmning kichik nusxasi ko'rinadi.",
+        "en": "The full-value window shows a small copy of the image.",
+    },
+    # ---- jschema ----
+    "jschema.type.object": {"uz": "obyekt", "en": "object"},
+    "jschema.type.array": {"uz": "massiv", "en": "array"},
+    "jschema.type.string": {"uz": "satr", "en": "string"},
+    "jschema.type.number": {"uz": "son", "en": "number"},
+    "jschema.type.integer": {"uz": "butun son", "en": "integer"},
+    "jschema.type.boolean": {"uz": "mantiqiy qiymat", "en": "boolean"},
+    "jschema.type.null": {"uz": "null", "en": "null"},
+    "jschema.error.generic": {"uz": "Qiymat schemaga mos emas.", "en": "The value does not match the schema."},
+    "jschema.error.false": {
+        "uz": "Bu joyda hech qanday qiymatga ruxsat yo'q (schemada false).",
+        "en": "No value is allowed here (the schema is false).",
+    },
+    "jschema.error.type": {
+        "uz": "Turi noto'g'ri: {expected} kutilgan, {actual} berilgan.",
+        "en": "Wrong type: expected {expected}, got {actual}.",
+    },
+    "jschema.error.enum": {
+        "uz": "Qiymat ruxsat etilganlar ro'yxatida yo'q: {value}. Ruxsat etilgan qiymatlar: {allowed}.",
+        "en": "The value is not in the allowed list: {value}. Allowed values: {allowed}.",
+    },
+    "jschema.error.const": {
+        "uz": "Qiymat aynan {expected} bo'lishi kerak, berilgan: {value}.",
+        "en": "The value must be exactly {expected}, got: {value}.",
+    },
+    "jschema.error.multipleOf": {
+        "uz": "Son {divisor} soniga karrali bo'lishi kerak, berilgan: {value}.",
+        "en": "The number must be a multiple of {divisor}, got: {value}.",
+    },
+    "jschema.error.minimum": {
+        "uz": "Son juda kichik: {value}. Eng kichik ruxsat etilgan qiymat: {limit}.",
+        "en": "The number is too small: {value}. The minimum is {limit}.",
+    },
+    "jschema.error.maximum": {
+        "uz": "Son juda katta: {value}. Eng katta ruxsat etilgan qiymat: {limit}.",
+        "en": "The number is too large: {value}. The maximum is {limit}.",
+    },
+    "jschema.error.exclusiveMinimum": {
+        "uz": "Son {limit} sonidan katta bo'lishi kerak, berilgan: {value}.",
+        "en": "The number must be greater than {limit}, got: {value}.",
+    },
+    "jschema.error.exclusiveMaximum": {
+        "uz": "Son {limit} sonidan kichik bo'lishi kerak, berilgan: {value}.",
+        "en": "The number must be less than {limit}, got: {value}.",
+    },
+    "jschema.error.minLength": {
+        "uz": "Satr juda qisqa: {length} ta belgi, kamida {limit} ta belgi kerak.",
+        "en": "The string is too short: {length} characters, at least {limit} required.",
+    },
+    "jschema.error.maxLength": {
+        "uz": "Satr juda uzun: {length} ta belgi, ko'pi bilan {limit} ta belgi bo'lishi mumkin.",
+        "en": "The string is too long: {length} characters, at most {limit} allowed.",
+    },
+    "jschema.error.pattern": {
+        "uz": "Satr andozaga mos kelmaydi: {pattern}.",
+        "en": "The string does not match the pattern {pattern}.",
+    },
+    "jschema.error.format": {
+        "uz": "Satr {format} formatiga mos emas.",
+        "en": "The string is not a valid {format}.",
+    },
+    "jschema.error.minItems": {
+        "uz": "Massivda {count} ta element bor, kamida {limit} ta kerak.",
+        "en": "The array has {count} items, at least {limit} required.",
+    },
+    "jschema.error.maxItems": {
+        "uz": "Massivda {count} ta element bor, ko'pi bilan {limit} ta bo'lishi mumkin.",
+        "en": "The array has {count} items, at most {limit} allowed.",
+    },
+    "jschema.error.uniqueItems": {
+        "uz": "Massiv elementlari takrorlanmasligi kerak: {first} va {second} elementlar bir xil.",
+        "en": "The array items must be unique: items {first} and {second} are equal.",
+    },
+    "jschema.error.prefixItems": {
+        "uz": "Massivning {index} elementiga ruxsat yo'q (schemada false).",
+        "en": "Item {index} is not allowed (the schema is false).",
+    },
+    "jschema.error.items": {
+        "uz": "Ortiqcha element {index}: massivda ko'pi bilan {limit} ta element bo'lishi mumkin.",
+        "en": "Extra item {index}: the array may have at most {limit} items.",
+    },
+    "jschema.error.contains": {
+        "uz": "Massivda shartga mos elementlar soni {count} ta, kamida {limit} ta kerak.",
+        "en": "{count} items match the condition, at least {limit} required.",
+    },
+    "jschema.error.maxContains": {
+        "uz": "Massivda shartga mos elementlar soni {count} ta, ko'pi bilan {limit} ta bo'lishi mumkin.",
+        "en": "{count} items match the condition, at most {limit} allowed.",
+    },
+    "jschema.error.minProperties": {
+        "uz": "Obyektda {count} ta maydon bor, kamida {limit} ta kerak.",
+        "en": "The object has {count} properties, at least {limit} required.",
+    },
+    "jschema.error.maxProperties": {
+        "uz": "Obyektda {count} ta maydon bor, ko'pi bilan {limit} ta bo'lishi mumkin.",
+        "en": "The object has {count} properties, at most {limit} allowed.",
+    },
+    "jschema.error.required": {
+        "uz": "Majburiy maydon yo'q: {property}.",
+        "en": "A required property is missing: {property}.",
+    },
+    "jschema.error.dependentRequired": {
+        "uz": "{property} maydoni bor, shuning uchun {required} maydoni ham bo'lishi kerak.",
+        "en": "Property {property} is present, so {required} is required too.",
+    },
+    "jschema.error.dependentSchemas": {
+        "uz": "{property} maydoni bor, bu holda schema obyektga ruxsat bermaydi (false).",
+        "en": "Property {property} is present, and then the schema allows no object (false).",
+    },
+    "jschema.error.properties": {
+        "uz": "Bu maydonga ruxsat yo'q: {property} (schemada false).",
+        "en": "Property {property} is not allowed (the schema is false).",
+    },
+    "jschema.error.patternProperties": {
+        "uz": "Bu maydonga ruxsat yo'q: {property} (nomi {pattern} andozasiga mos keladi).",
+        "en": "Property {property} is not allowed (its name matches {pattern}).",
+    },
+    "jschema.error.additionalProperties": {
+        "uz": "Ortiqcha maydon: {property}. Schema bunday maydonga ruxsat bermaydi.",
+        "en": "Unexpected property: {property}. The schema does not allow it.",
+    },
+    "jschema.error.unevaluatedProperties": {
+        "uz": "Ortiqcha maydon: {property}. Schemaning hech bir qismi unga ruxsat bermaydi.",
+        "en": "Unexpected property: {property}. No part of the schema allows it.",
+    },
+    "jschema.error.unevaluatedItems": {
+        "uz": "Ortiqcha element {index}: schemaning hech bir qismi unga ruxsat bermaydi.",
+        "en": "Unexpected item {index}: no part of the schema allows it.",
+    },
+    "jschema.error.propertyNames": {
+        "uz": "Maydon nomi qoidaga mos emas: {property}.",
+        "en": "The property name is not allowed: {property}.",
+    },
+    "jschema.error.not": {
+        "uz": "Qiymat taqiqlangan shartga mos keladi (not).",
+        "en": "The value matches a forbidden condition (not).",
+    },
+    "jschema.error.anyOf": {
+        "uz": "Qiymat {count} ta variantning birortasiga ham mos kelmaydi.",
+        "en": "The value matches none of the {count} alternatives.",
+    },
+    "jschema.error.oneOf": {
+        "uz": "Qiymat aniq bitta variantga mos kelishi kerak, lekin {matched} ta variantga mos keladi.",
+        "en": "The value must match exactly one alternative, but it matches {matched}.",
+    },
+    "jschema.error.document.false": {
+        "uz": "Schema bu hujjatning yozuvlariga ruxsat bermaydi (false).",
+        "en": "The schema does not allow the records of this document (false).",
+    },
+    "jschema.error.document.type": {
+        "uz": "Hujjat turi schemaga mos emas: {expected} kutilgan, yozuvlar esa {actual} ko'rinishida.",
+        "en": "The document type does not match the schema: expected {expected}, the records form an {actual}.",
+    },
+    "jschema.error.document.minItems": {
+        "uz": "Hujjatda {count} ta yozuv bor, kamida {limit} ta kerak.",
+        "en": "The document has {count} records, at least {limit} required.",
+    },
+    "jschema.error.document.maxItems": {
+        "uz": "Hujjatda {count} ta yozuv bor, ko'pi bilan {limit} ta bo'lishi mumkin.",
+        "en": "The document has {count} records, at most {limit} allowed.",
+    },
+    "jschema.error.document.contains": {
+        "uz": "Shartga mos yozuvlar soni {count} ta, kamida {limit} ta kerak.",
+        "en": "{count} records match the condition, at least {limit} required.",
+    },
+    "jschema.error.document.maxContains": {
+        "uz": "Shartga mos yozuvlar soni {count} ta, ko'pi bilan {limit} ta bo'lishi mumkin.",
+        "en": "{count} records match the condition, at most {limit} allowed.",
+    },
+    "jschema.error.document.minProperties": {
+        "uz": "Hujjatda {count} ta turli kalit bor, kamida {limit} ta kerak.",
+        "en": "The document has {count} distinct keys, at least {limit} required.",
+    },
+    "jschema.error.document.maxProperties": {
+        "uz": "Hujjatda {count} ta turli kalit bor, ko'pi bilan {limit} ta bo'lishi mumkin.",
+        "en": "The document has {count} distinct keys, at most {limit} allowed.",
+    },
+    "jschema.error.document.required": {
+        "uz": "Majburiy kalitli yozuv yo'q: {property}.",
+        "en": "A record with a required key is missing: {property}.",
+    },
+    "jschema.error.document.dependentRequired": {
+        "uz": "{property} kalitli yozuv bor, shuning uchun {required} kalitli yozuv ham bo'lishi kerak.",
+        "en": "A record with key {property} exists, so a record with key {required} is required too.",
+    },
+    "jschema.error.document.uniqueItems": {
+        "uz": "Bu yozuv avvalgi yozuvlardan biri bilan aynan bir xil (yozuvlar takrorlanmasligi kerak).",
+        "en": "This record is equal to an earlier record (the records must be unique).",
+    },
+    "jschema.error.document.uniqueItems.first": {
+        "uz": "Bu yozuv {first} yozuv bilan aynan bir xil (yozuvlar takrorlanmasligi kerak).",
+        "en": "This record is equal to record {first} (the records must be unique).",
+    },
+    "jschema.error.schema.keyword": {
+        "uz": "Schemadagi {keyword} qiymati noto'g'ri ({location}): {expected} bo'lishi kerak.",
+        "en": "The schema's {keyword} value is invalid ({location}): it must be {expected}.",
+    },
+    "jschema.error.schema.keyword.hint": {
+        "uz": "Schema faylini tuzatib, qaytadan urinib ko'ring.",
+        "en": "Fix the schema file and try again.",
+    },
+    "jschema.error.schema.dialect": {
+        "uz": "Faqat JSON Schema draft 2020-12 qo'llab-quvvatlanadi, schemada esa $schema = {value} ({location}).",
+        "en": "Only JSON Schema draft 2020-12 is supported, but the schema says $schema = {value} ({location}).",
+    },
+    "jschema.error.schema.dialect.hint": {
+        "uz": "Schema 2020-12 qoidalariga mos bo'lsa, $schema qiymatini "
+              "https://json-schema.org/draft/2020-12/schema qiling yoki uni olib tashlang.",
+        "en": "If the schema follows the 2020-12 rules, set $schema to "
+              "https://json-schema.org/draft/2020-12/schema or remove it.",
+    },
+    "jschema.error.schema.id": {
+        "uz": "$id qiymatida # belgisidan keyin hech narsa bo'lmasligi kerak: {value} ({location}).",
+        "en": "$id must not have a fragment after #: {value} ({location}).",
+    },
+    "jschema.error.schema.dynamic": {
+        "uz": "{keyword} qo'llab-quvvatlanmaydi ({location}).",
+        "en": "{keyword} is not supported ({location}).",
+    },
+    "jschema.error.schema.dynamic.hint": {
+        "uz": "Uning o'rniga oddiy $ref ishlating.",
+        "en": "Use a plain $ref instead.",
+    },
+    "jschema.error.schema.vocabulary": {
+        "uz": "Schema noma'lum lug'atni (vocabulary) talab qiladi: {vocabulary}.",
+        "en": "The schema requires an unknown vocabulary: {vocabulary}.",
+    },
+    "jschema.error.schema.remote_ref": {
+        "uz": "Tashqi havola qo'llab-quvvatlanmaydi: $ref = {ref} ({location}). Dastur internetdan yoki "
+              "boshqa fayllardan hech narsa yuklamaydi.",
+        "en": "External references are not supported: $ref = {ref} ({location}). The program never "
+              "downloads or reads other schemas.",
+    },
+    "jschema.error.schema.remote_ref.hint": {
+        "uz": "Havola qilingan schemani shu faylning $defs bo'limiga ko'chiring va $ref ni #/$defs/... "
+              "ko'rinishida yozing.",
+        "en": "Copy the referenced schema into this file's $defs and write the $ref as #/$defs/...",
+    },
+    "jschema.error.schema.unresolved_ref": {
+        "uz": "$ref ko'rsatgan joy schemada topilmadi: {ref} ({location}).",
+        "en": "The $ref target was not found in the schema: {ref} ({location}).",
+    },
+    "jschema.error.schema.not_schema": {
+        "uz": "Bu joyda schema (obyekt yoki true/false) bo'lishi kerak ({location}).",
+        "en": "A schema (an object or true/false) is expected here ({location}).",
+    },
+    "jschema.error.schema.regex": {
+        "uz": "Muntazam ifoda noto'g'ri yoki qo'llab-quvvatlanmaydi: {pattern} ({location}): {detail}.",
+        "en": "The regular expression is invalid or not supported: {pattern} ({location}): {detail}.",
+    },
+    "jschema.error.schema.ref_cycle": {
+        "uz": "Schemada cheksiz $ref aylanasi bor: tekshirish hech qachon tugamaydi ({location}).",
+        "en": "The schema has an endless $ref cycle: validation would never finish ({location}).",
+    },
+    "jschema.error.schema.json": {
+        "uz": "Schema JSON sifatida o'qilmadi: {detail}.",
+        "en": "The schema is not valid JSON: {detail}.",
+    },
+    "jschema.error.schema_file": {
+        "uz": "Schema faylini o'qib bo'lmadi: {path}: {detail}.",
+        "en": "The schema file could not be read: {path}: {detail}.",
+    },
+    "jschema.detail.too_big": {
+        "uz": "fayl juda katta (chegara {limit})",
+        "en": "the file is too large (limit {limit})",
+    },
+    "jschema.expected.uri": {"uz": "URI matni", "en": "a URI string"},
+    "jschema.expected.object": {"uz": "obyekt", "en": "an object"},
+    "jschema.expected.anchor": {
+        "uz": "harf yoki _ bilan boshlanadigan nom (harflar, raqamlar, - . _)",
+        "en": "a name that starts with a letter or _ (letters, digits, - . _)",
+    },
+    "jschema.expected.regex": {"uz": "muntazam ifoda (satr)", "en": "a regular expression (string)"},
+    "jschema.expected.count": {"uz": "manfiy bo'lmagan butun son", "en": "a non-negative integer"},
+    "jschema.expected.number": {"uz": "son", "en": "a number"},
+    "jschema.expected.positive": {"uz": "noldan katta son", "en": "a number greater than zero"},
+    "jschema.expected.schema": {"uz": "schema (obyekt yoki true/false)", "en": "a schema (an object or true/false)"},
+    "jschema.expected.schema_list": {"uz": "schemalarning bo'sh bo'lmagan massivi", "en": "a non-empty array of schemas"},
+    "jschema.expected.schema_map": {"uz": "qiymatlari schema bo'lgan obyekt", "en": "an object whose values are schemas"},
+    "jschema.expected.string_list": {"uz": "takrorlanmaydigan satrlar massivi", "en": "an array of unique strings"},
+    "jschema.expected.string_list_map": {
+        "uz": "qiymatlari takrorlanmaydigan satrlar massivi bo'lgan obyekt",
+        "en": "an object whose values are arrays of unique strings",
+    },
+    "jschema.expected.type": {
+        "uz": "tur nomi yoki takrorlanmaydigan tur nomlari massivi (object, array, string, number, integer, "
+              "boolean, null)",
+        "en": "a type name or an array of unique type names (object, array, string, number, integer, boolean, null)",
+    },
+    "jschema.expected.array": {"uz": "massiv", "en": "an array"},
+    "jschema.expected.string": {"uz": "satr", "en": "a string"},
+    "jschema.expected.boolean": {"uz": "true yoki false", "en": "true or false"},
+    "jschema.error.scope": {
+        "uz": "Tekshirish doirasi noto'g'ri: {value}. Mumkin qiymatlar: auto, record, document.",
+        "en": "Invalid validation scope: {value}. Possible values: auto, record, document.",
+    },
+    "jschema.error.limit": {
+        "uz": "{name} qiymati noto'g'ri: {value}. Butun son kerak.",
+        "en": "Invalid {name}: {value}. A whole number is required.",
+    },
+    "jschema.error.wrapper_too_large": {
+        "uz": "Hujjatning yozuvlar atrofidagi qismi juda katta (chegara {limit}), uni hujjat darajasida "
+              "tekshirib bo'lmaydi.",
+        "en": "The part of the document around the records is too large (limit {limit}) to be checked "
+              "at the document level.",
+    },
+    "jschema.error.wrapper_too_large.hint": {
+        "uz": "Yozuvlarni alohida tekshiring (doira: record).",
+        "en": "Validate the records one by one (scope: record).",
+    },
+    "jschema.error.wrapper_missing": {
+        "uz": "Hujjatning yozuvlar atrofidagi qismi to'liq emas, uni hujjat darajasida tekshirib bo'lmaydi.",
+        "en": "The part of the document around the records is incomplete, so it cannot be checked at the "
+              "document level.",
+    },
+    "jschema.error.wrapper_missing.hint": {
+        "uz": "Yozuvlarni alohida tekshiring (doira: record) yoki faylni avval ta'mirlang.",
+        "en": "Validate the records one by one (scope: record) or repair the file first.",
+    },
+    "jschema.error.document_too_large": {
+        "uz": "Schemaning hujjat darajasidagi {keyword} shartini yozuvma-yozuv tekshirib bo'lmaydi, hujjat esa "
+              "butunligicha tekshirish uchun juda katta ({size}; chegara {limit}).",
+        "en": "The schema's document-level {keyword} cannot be checked record by record, and the document is "
+              "too large to be checked as a whole ({size}; limit {limit}).",
+    },
+    "jschema.error.document_too_large.hint": {
+        "uz": "Yozuvlarni alohida tekshiring (doira: record) yoki schemani soddalashtiring.",
+        "en": "Validate the records one by one (scope: record) or simplify the schema.",
+    },
+    "jschema.error.document_unreadable": {
+        "uz": "Hujjatni butunligicha tekshirib bo'lmadi: {count} ta yozuvni o'qib bo'lmadi.",
+        "en": "The document could not be checked as a whole: {count} records could not be read.",
+    },
+    "jschema.error.document_too_deep": {
+        "uz": "Hujjat juda chuqur ichma-ich tuzilgan, uni butunligicha tekshirib bo'lmadi.",
+        "en": "The document is nested too deeply to be checked as a whole.",
+    },
+    "jschema.warn.partial": {
+        "uz": "Faylda JSON xatosi bor: faqat xatogacha bo'lgan yozuvlar tekshirildi.",
+        "en": "The file has a JSON error: only the records before it were checked.",
+    },
+    "jschema.warn.broken_lines": {
+        "uz": "{count} ta buzilgan qator JSON emas va tekshirilmadi.",
+        "en": "{count} broken lines are not JSON and were not checked.",
+    },
+    "jschema.warn.broken_lines.one": {
+        "uz": "{count} ta buzilgan qator JSON emas va tekshirilmadi.",
+        "en": "{count} broken line is not JSON and was not checked.",
+    },
+    "jschema.warn.aggregates_skipped": {
+        "uz": "Hujjat darajasidagi shartlar (yozuvlar soni, takrorlanish, majburiy kalitlar) faqat barcha "
+              "yozuvlar tekshirilganda tekshiriladi.",
+        "en": "Document-level conditions (record count, duplicates, required keys) are checked only when all "
+              "records are checked.",
+    },
+    "jschema.warn.whole_document": {
+        "uz": "Schemadagi {keyword} sharti tufayli hujjat butunligicha (barcha yozuvlar) tekshirildi.",
+        "en": "Because of the schema's {keyword}, the document was checked as a whole (all records).",
+    },
+    "jschema.warn.too_large": {
+        "uz": "{count} ta yozuv juda katta (chegara {size}) va tekshirilmadi; birinchisi: {record}.",
+        "en": "{count} records are too large (limit {size}) and were not checked; the first one: {record}.",
+    },
+    "jschema.warn.too_large.one": {
+        "uz": "{count} ta yozuv juda katta (chegara {size}) va tekshirilmadi: {record}.",
+        "en": "{count} record is too large (limit {size}) and was not checked: {record}.",
+    },
+    "jschema.warn.unreadable": {
+        "uz": "{count} ta yozuvni o'qib bo'lmadi va ular tekshirilmadi; birinchisi: {record}.",
+        "en": "{count} records could not be read and were not checked; the first one: {record}.",
+    },
+    "jschema.warn.unreadable.one": {
+        "uz": "{count} ta yozuvni o'qib bo'lmadi va u tekshirilmadi: {record}.",
+        "en": "{count} record could not be read and was not checked: {record}.",
+    },
+    "jschema.warn.too_deep": {
+        "uz": "{count} ta yozuv juda chuqur ichma-ich tuzilgan va tekshirilmadi; birinchisi: {record}.",
+        "en": "{count} records are nested too deeply and were not checked; the first one: {record}.",
+    },
+    "jschema.warn.too_deep.one": {
+        "uz": "{count} ta yozuv juda chuqur ichma-ich tuzilgan va tekshirilmadi: {record}.",
+        "en": "{count} record is nested too deeply and was not checked: {record}.",
+    },
+    "jschema.warn.per_record": {
+        "uz": "{count} ta yozuvda xatolar ko'p: har bir yozuv uchun faqat dastlabki {limit} tasi ko'rsatildi.",
+        "en": "{count} records have many issues: only the first {limit} per record are listed.",
+    },
+    "jschema.warn.per_record.one": {
+        "uz": "{count} ta yozuvda xatolar ko'p: faqat dastlabki {limit} tasi ko'rsatildi.",
+        "en": "{count} record has many issues: only the first {limit} are listed.",
+    },
+    "jschema.warn.issues_truncated": {
+        "uz": "Faqat dastlabki {shown} ta xato saqlandi (jami {count} ta).",
+        "en": "Only the first {shown} issues were kept (of {count}).",
+    },
+    "jschema.warn.whole_dropped": {
+        "uz": "Hujjat butunligicha tekshirilganda ko'pi bilan {kept} ta xato saqlanadi: yana {count} ta xato "
+              "topildi, lekin ro'yxatga va xatolar soniga kirmadi. Noto'g'ri yozuvlar soni to'liq.",
+        "en": "A whole-document check keeps at most {kept} issues: {count} more issues were found but are not "
+              "listed or counted. The number of invalid records is complete.",
+    },
+    "jschema.warn.duplicates_skipped": {
+        "uz": "{count} ta yozuvni takrorlanishga tekshirib bo'lmadi (juda katta yoki o'qilmaydi).",
+        "en": "{count} records could not be checked for duplicates (too large or unreadable).",
+    },
+    "jschema.warn.duplicates_skipped.one": {
+        "uz": "{count} ta yozuvni takrorlanishga tekshirib bo'lmadi (juda katta yoki o'qilmaydi).",
+        "en": "{count} record could not be checked for duplicates (too large or unreadable).",
+    },
+    "jschema.progress.validate": {"uz": "Schema bo'yicha tekshirilmoqda: {name}", "en": "Validating: {name}"},
+    "jschema.progress.duplicates": {
+        "uz": "Takroriy yozuvlar qidirilmoqda: {name}",
+        "en": "Looking for duplicate records: {name}",
+    },
+    "jschema.desc.invalid": {
+        "uz": "Schemaga mos kelmagan yozuvlar ({name})",
+        "en": "Records that do not match the schema ({name})",
+    },
+    "jschema.gen.description.full": {
+        "uz": "{records} ta yozuvning barchasi tahlil qilinib yaratildi ({date}).",
+        "en": "Generated from all {records} records ({date}).",
+    },
+    "jschema.gen.description.sample": {
+        "uz": "{total} ta yozuvdan {records} tasi (namuna) tahlil qilinib yaratildi ({date}).",
+        "en": "Generated from a sample of {records} of {total} records ({date}).",
+    },
     # ---- writer ----
     "writer.invalid_option": {
         "uz": "Eksport sozlamasi noto'g'ri: {name} = {value}. Kutilgan qiymat: {expected}.",
@@ -1349,6 +2526,1634 @@ MESSAGES: dict[str, dict[str, str]] = {
     "writer.progress.columns": {"uz": "Ustunlar aniqlanmoqda…", "en": "Finding the columns…"},
     "writer.progress.export": {"uz": "Eksport qilinmoqda: {name}", "en": "Exporting {name}"},
     "writer.progress.finish": {"uz": "Fayl yakunlanmoqda: {name}", "en": "Finishing {name}"},
+    # stage 5 (docs/ARCHITECTURE.md §14.4): wrapper notice, gzip outputs, merge (export_many), one node
+    "writer.note.wrapper_not_written": {
+        "uz": "Yozuvlar atrofidagi qism ({path} konteyneridan tashqaridagi maydonlar) {fmt} faylga yozilmadi: unda "
+              "faqat yozuvlar bor. Bu qismni faqat JSON eksporti saqlaydi.",
+        "en": "The part around the records (the fields outside the container {path}) was not written to the {fmt} "
+              "file: it holds the records only. Only a JSON export keeps that part.",
+    },
+    "writer.error.gzip_format": {
+        "uz": "{fmt} faylini gzip bilan siqib bo'lmaydi: {path}",
+        "en": "A {fmt} file cannot be gzip-compressed: {path}",
+    },
+    "writer.error.gzip_format.hint": {
+        "uz": "Fayl nomi oxiridagi .gz ni olib tashlang: gzip faqat JSON, JSON Lines va CSV fayllar uchun.",
+        "en": "Remove the .gz at the end of the file name: gzip is available for JSON, JSON Lines and CSV files only.",
+    },
+    "writer.expected.table_fmt": {"uz": "csv yoki xlsx", "en": "csv or xlsx"},
+    "writer.expected.as_keyed_many": {
+        "uz": "false — bir nechta fayl birlashtirilganda kalitli obyekt tiklanmaydi",
+        "en": "false — a keyed object is not rebuilt when several files are merged",
+    },
+    "writer.error.many_format": {
+        "uz": "Bir nechta faylni faqat JSON yoki JSON Lines faylga birlashtirish mumkin ({fmt} emas).",
+        "en": "Several files can be merged into a JSON or JSON Lines file only (not {fmt}).",
+    },
+    "writer.error.many_format.hint": {
+        "uz": "Avval JSON Lines faylga birlashtiring, keyin natijani kerakli formatga o'giring.",
+        "en": "Merge into a JSON Lines file first, then convert the result to the format you need.",
+    },
+    "writer.error.no_inputs": {
+        "uz": "Birlashtirish uchun birorta ham fayl berilmadi.",
+        "en": "No input files were given to merge.",
+    },
+    "writer.warn.members_as_objects": {
+        "uz": "{count} ta kirish faylining yozuvlari «kalit: qiymat» juftlari edi. Natija massiv bo'lgani uchun "
+              "ular {{\"kalit\": qiymat}} ko'rinishidagi obyektlar sifatida yozildi.",
+        "en": "The records of {count} inputs were \"key: value\" members. Since the result is an array, they were "
+              "written as objects of the form {{\"key\": value}}.",
+    },
+    "writer.warn.members_as_objects.one": {
+        "uz": "{count} ta kirish faylining yozuvlari «kalit: qiymat» juftlari edi. Natija massiv bo'lgani uchun "
+              "ular {{\"kalit\": qiymat}} ko'rinishidagi obyektlar sifatida yozildi.",
+        "en": "The records of {count} input were \"key: value\" members. Since the result is an array, they were "
+              "written as objects of the form {{\"key\": value}}.",
+    },
+    "writer.warn.wrappers_dropped": {
+        "uz": "{count} ta kirish faylida yozuvlar atrofidagi qism (o'ram) natijaga kirmadi: {names}. Faqat "
+              "birinchi faylning o'rami saqlanadi — uning yozuvlar konteyneri natija bilan bir xil turda bo'lsa.",
+        "en": "The part around the records (the wrapper) of {count} inputs was not written: {names}. Only the "
+              "first input's wrapper is kept — when its record container is of the same kind as the result.",
+    },
+    "writer.warn.wrappers_dropped.one": {
+        "uz": "{count} ta kirish faylida yozuvlar atrofidagi qism (o'ram) natijaga kirmadi: {names}. Faqat "
+              "birinchi faylning o'rami saqlanadi — uning yozuvlar konteyneri natija bilan bir xil turda bo'lsa.",
+        "en": "The part around the records (the wrapper) of {count} input was not written: {names}. Only the "
+              "first input's wrapper is kept — when its record container is of the same kind as the result.",
+    },
+    "writer.warn.merge_duplicate_keys": {
+        "uz": "{count} ta yozuvning kaliti oldingi yozuvdagi kalit bilan bir xil (birinchisi: natijadagi #{index}, "
+              "kalit {key}): birlashtirilgan obyektda takroriy kalitlar bor. Ular o'zgarishsiz yozildi. Har bir "
+              "kalitdan bittasini qoldirish uchun $key bo'yicha dublikatlarni olib tashlab birlashtiring.{note}",
+        "en": "{count} records repeat the key of an earlier record (the first: #{index} of the result, key {key}): "
+              "the merged object has repeated keys. They were written unchanged. To keep one record per key, merge "
+              "with the duplicates by $key removed.{note}",
+    },
+    "writer.warn.merge_duplicate_keys.one": {
+        "uz": "{count} ta yozuvning kaliti oldingi yozuvdagi kalit bilan bir xil (natijadagi #{index}, kalit {key}): "
+              "birlashtirilgan obyektda takroriy kalit bor. U o'zgarishsiz yozildi. Har bir kalitdan bittasini "
+              "qoldirish uchun $key bo'yicha dublikatlarni olib tashlab birlashtiring.{note}",
+        "en": "{count} record repeats the key of an earlier record (#{index} of the result, key {key}): the merged "
+              "object has a repeated key. It was written unchanged. To keep one record per key, merge with the "
+              "duplicates by $key removed.{note}",
+    },
+    "writer.error.node_format": {
+        "uz": "Bitta tugunni faqat JSON yoki JSON Lines faylga yozish mumkin ({fmt} emas).",
+        "en": "A single node can be written to a JSON or JSON Lines file only (not {fmt}).",
+    },
+    "writer.error.node_format.hint": {
+        "uz": "Tugunni JSON Lines faylga yozing, keyin natijani kerakli formatga o'giring.",
+        "en": "Write the node to a JSON Lines file, then convert the result to the format you need.",
+    },
+    "writer.error.node_truncated": {
+        "uz": "Tugunning baytlarini o'qib bo'lmadi: fayl qisqarib qolgan.",
+        "en": "The bytes of the node could not be read: the file got shorter.",
+    },
+    "writer.error.node_truncated.hint": {
+        "uz": "Faylni qayta oching va yana urinib ko'ring.",
+        "en": "Open the file again and try again.",
+    },
+    "writer.progress.node": {"uz": "Tugun yozilmoqda: {name}", "en": "Writing the node: {name}"},
+    # ---- filetools ----
+    # split / merge / extract / --select (filetools.py, docs/ARCHITECTURE.md §14.4)
+    "filetools.error.option": {
+        "uz": "Fayl amali sozlamasi noto'g'ri: {name} = {value}",
+        "en": "Invalid file tool option: {name} = {value}",
+    },
+    "filetools.error.split_mode": {
+        "uz": "Faylni qanday bo'lishni bitta usulda ko'rsating: qismlar soni, qism hajmi yoki har qismdagi "
+              "yozuvlar soni.",
+        "en": "Say how to split the file in exactly one way: the number of parts, the size of a part or the "
+              "records per part.",
+    },
+    "filetools.error.split_mode.hint": {
+        "uz": "Masalan: --parts 10, --size 500MB yoki --records 100000.",
+        "en": "For example: --parts 10, --size 500MB or --records 100000.",
+    },
+    "filetools.error.partial": {
+        "uz": "Faylni bo'lib bo'lmaydi: unda JSON xatosi bor ({line}-qator, {column}-ustun) va faqat xatogacha "
+              "bo'lgan yozuvlar ochilgan.",
+        "en": "The file cannot be split: it has a JSON error (line {line}, column {column}) and only the records "
+              "before the error are open.",
+    },
+    "filetools.error.partial.hint": {
+        "uz": "Avval faylni ta'mirlang (jsonreshape repair), keyin ta'mirlangan faylni bo'ling.",
+        "en": "Repair the file first (jsonreshape repair), then split the repaired file.",
+    },
+    "filetools.error.single": {
+        "uz": "Fayl bitta JSON qiymatidan iborat: uni yozuvlarga bo'lib bo'lmaydi.",
+        "en": "The file is a single JSON value: it cannot be split into records.",
+    },
+    "filetools.error.single.hint": {
+        "uz": "Ichidagi massivni yozuvlar sifatida ochish uchun uning yo'lini ko'rsating (--record-path, "
+              "masalan data).",
+        "en": "Give the path of the array inside it to open its elements as records (--record-path, for example "
+              "data).",
+    },
+    "filetools.error.no_records": {
+        "uz": "Faylda bo'linadigan yozuv yo'q.",
+        "en": "The file has no records to split.",
+    },
+    "filetools.error.too_many_parts": {
+        "uz": "{parts} ta qismga bo'lib bo'lmaydi: faylda bor-yo'g'i {count} ta yozuv bor.",
+        "en": "The file cannot be split into {parts} parts: it has only {count} records.",
+    },
+    "filetools.error.too_many_parts.hint": {
+        "uz": "Qismlar sonini yozuvlar sonidan oshirmang.",
+        "en": "Choose at most as many parts as there are records.",
+    },
+    "filetools.error.too_many_files": {
+        "uz": "Bu bo'lish {parts} ta fayl hosil qilardi; ko'pi bilan {max} ta fayl mumkin.",
+        "en": "This split would create {parts} files; at most {max} files are allowed.",
+    },
+    "filetools.error.too_many_files.hint": {
+        "uz": "Kattaroq qism hajmini yoki har qismga ko'proq yozuv tanlang.",
+        "en": "Choose a larger part size or more records per part.",
+    },
+    "filetools.error.broken_lines": {
+        "uz": "Faylda {count} ta buzuq qator bor: ular qismlarga yozilmaydi.",
+        "en": "The file has {count} broken lines: they would not be written to the parts.",
+    },
+    "filetools.error.broken_lines.hint": {
+        "uz": "Buzuq qatorlarsiz bo'lishga rozi bo'lsangiz, --drop-broken bilan qayta ishga tushiring (yoki avval "
+              "faylni ta'mirlang).",
+        "en": "Run it again with --drop-broken to split without the broken lines (or repair the file first).",
+    },
+    "filetools.error.no_dir": {"uz": "Bunday papka yo'q: {path}", "en": "The folder does not exist: {path}"},
+    "filetools.error.name_pattern": {
+        "uz": "Qism fayllar nomi andozasi noto'g'ri: {pattern}",
+        "en": "Invalid name pattern for the part files: {pattern}",
+    },
+    "filetools.error.name_pattern.hint": {
+        "uz": "Andozada {{n}} (qism raqami) bo'lishi shart; {{stem}} (fayl nomi) va {{ext}} (kengaytma) ham "
+              "ishlatilishi mumkin, papka ko'rsatilmaydi. Masalan: {{stem}}_qism{{n}}{{ext}}",
+        "en": "The pattern must contain {{n}} (the part number); {{stem}} (the file name) and {{ext}} (the "
+              "extension) may be used too, no folder. For example: {{stem}}_part{{n}}{{ext}}",
+    },
+    "filetools.error.disk_space": {
+        "uz": "Diskda joy yetmaydi: qismlar uchun taxminan {need} kerak, bo'sh joy {free} ({path}).",
+        "en": "Not enough disk space: the parts need about {need}, {free} is free ({path}).",
+    },
+    "filetools.error.disk_space.hint": {
+        "uz": "Diskda joy bo'shating yoki qismlarni boshqa diskdagi papkaga yozing.",
+        "en": "Free up disk space or write the parts to a folder on another drive.",
+    },
+    "filetools.error.part_open_edited": {
+        "uz": "Bu faylda dasturda saqlanmagan o'zgarishlar bor (ochiq oynada tahrirlanmoqda yoki tiklash uchun "
+              "saqlab qo'yilgan): {path}. Uni hozir almashtirib ham, o'chirib ham bo'lmaydi.",
+        "en": "This file has unsaved changes in this program (it is being edited in a tab, or the changes are "
+              "kept to be restored): {path}. It cannot be replaced or removed now.",
+    },
+    "filetools.error.part_open_edited.hint": {
+        "uz": "Avval o'sha fayldagi o'zgarishlarni saqlang yoki bekor qiling (uni jsonreshape'da oching) yoki "
+              "natijani boshqa papkaga yoki boshqa nomlar bilan yozing.",
+        "en": "First save or discard the changes of that file (open it in jsonreshape), or write the result to "
+              "another folder or under other names.",
+    },
+    "filetools.error.merge_format": {
+        "uz": "Fayllarni faqat JSON yoki JSON Lines faylga birlashtirish mumkin ({fmt} emas).",
+        "en": "Files can be merged into a JSON or JSON Lines file only (not {fmt}).",
+    },
+    "filetools.error.merge_format.hint": {
+        "uz": "Avval .jsonl faylga birlashtiring, keyin natijani kerakli formatga o'giring (jsonreshape convert).",
+        "en": "Merge into a .jsonl file first, then convert the result (jsonreshape convert).",
+    },
+    "filetools.error.partial_input": {
+        "uz": "Birlashtiriladigan faylda JSON xatosi bor ({line}-qator, {column}-ustun): {path}",
+        "en": "A file to merge has a JSON error (line {line}, column {column}): {path}",
+    },
+    "filetools.error.partial_input.hint": {
+        "uz": "Faylni ta'mirlang (jsonreshape repair) yoki xatogacha bo'lgan yozuvlarni birlashtirishga ruxsat "
+              "bering (--allow-partial).",
+        "en": "Repair the file (jsonreshape repair) or allow merging the records before the error "
+              "(--allow-partial).",
+    },
+    "filetools.error.dedupe_unavailable": {
+        "uz": "Bir nechta fayldagi dublikatlarni qidirib bo'lmaydi: dasturning bu qismi o'rnatilmagan.",
+        "en": "Duplicates across several files cannot be searched: this part of the program is not installed.",
+    },
+    "filetools.error.extract_args": {
+        "uz": "Yo'l (--path) yoki tugun (--node) dan faqat bittasini ko'rsating.",
+        "en": "Give either a path (--path) or a node (--node), not both.",
+    },
+    "filetools.error.extract_format": {
+        "uz": "Tugun yoki yo'l bo'yicha yig'ilgan qiymatlarni faqat JSON yoki JSON Lines faylga yozish mumkin "
+              "({fmt} emas).",
+        "en": "A node or the values gathered by a path can be written to a JSON or JSON Lines file only "
+              "(not {fmt}).",
+    },
+    "filetools.error.extract_format.hint": {
+        "uz": "Avval .jsonl faylga ajrating, keyin natijani kerakli formatga o'giring (jsonreshape convert).",
+        "en": "Extract into a .jsonl file first, then convert the result (jsonreshape convert).",
+    },
+    "filetools.error.select_syntax": {
+        "uz": "Yozuvlar tanlovi noto'g'ri yozilgan: «{item}» ({spec}).",
+        "en": "Invalid record selection: \"{item}\" ({spec}).",
+    },
+    "filetools.error.select_syntax.hint": {
+        "uz": "Yozuv raqamlari 0 dan boshlanadi. Misollar: 5 (bitta yozuv), 10:20 (10 dan 19 gacha), 100: "
+              "(100 dan oxirigacha), :50 (birinchi 50 ta), 1,5,10:20 (vergul bilan ro'yxat).",
+        "en": "Record numbers start at 0. Examples: 5 (one record), 10:20 (10 to 19), 100: (from 100 to the end), "
+              ":50 (the first 50), 1,5,10:20 (a comma-separated list).",
+    },
+    "filetools.error.select_range": {
+        "uz": "Tanlovdagi «{item}» faylda yo'q: faylda {count} ta yozuv bor (#0 dan #{last} gacha).",
+        "en": "\"{item}\" of the selection is not in the file: it has {count} records (#0 to #{last}).",
+    },
+    "filetools.error.select_empty": {
+        "uz": "Tanlovdagi «{item}» oralig'ida birorta ham yozuv yo'q (boshi oxiridan kichik bo'lishi kerak).",
+        "en": "The range \"{item}\" of the selection holds no record (its start must be below its end).",
+    },
+    "filetools.warn.oversized": {
+        "uz": "{count} ta yozuvning o'zi {size} dan katta: har biri alohida qismga yozildi (birinchisi: "
+              "#{first} yozuv).",
+        "en": "{count} records are larger than {size} by themselves: each was written to a part of its own "
+              "(the first: record #{first}).",
+    },
+    "filetools.warn.oversized.one": {
+        "uz": "{count} ta yozuvning o'zi {size} dan katta: u alohida qismga yozildi (#{first} yozuv).",
+        "en": "{count} record is larger than {size} by itself: it was written to a part of its own "
+              "(record #{first}).",
+    },
+    "filetools.warn.stale_parts": {
+        "uz": "Diqqat: papkada shu nom andozasiga mos, lekin bu natijaga kirmaydigan fayllar bor (masalan, oldingi "
+              "bo'lishdan qolgan qismlar); ular o'zgartirilmadi ({count} ta): {names}. Ularni yangi qismlar bilan "
+              "birga birlashtirmang yoki import qilmang: yozuvlar ikki marta hisoblanadi. Kerak bo'lmasa, ularni "
+              "o'chiring.",
+        "en": "Attention: the folder has files matching the name pattern that are not part of this result (for "
+              "example parts of an earlier split); they were left unchanged ({count}): {names}. Do not merge or "
+              "import them together with the new parts: their records would be counted twice. Delete them if "
+              "they are not needed.",
+    },
+    "filetools.warn.stale_removed": {
+        "uz": "Oldingi bo'lishdan qolgan eski qismlar o'chirildi ({count} ta): {names}",
+        "en": "The old parts of an earlier split were removed ({count}): {names}",
+    },
+    "filetools.warn.leftover": {
+        "uz": "Almashtirilgan eski qism faylning nusxasini o'chirib bo'lmadi: {path}",
+        "en": "The copy of a replaced old part file could not be removed: {path}",
+    },
+    "filetools.warn.broken_dropped": {
+        "uz": "{count} ta buzuq qator qismlarga yozilmadi.",
+        "en": "{count} broken lines were not written to the parts.",
+    },
+    "filetools.warn.broken_dropped.one": {
+        "uz": "{count} ta buzuq qator qismlarga yozilmadi.",
+        "en": "{count} broken line was not written to the parts.",
+    },
+    "filetools.warn.brace_list": {
+        "uz": "Qismlar JSON massivi sifatida yozildi: {{ {{...}}, {{...}} }} ko'rinishi standart JSON emas.",
+        "en": "The parts were written as JSON arrays: the form {{ {{...}}, {{...}} }} is not standard JSON.",
+    },
+    "filetools.warn.extract_too_large": {
+        "uz": "{count} ta katta yozuvdagi qiymatlar xotiraga sig'madi ({limit} chegarasi) va yozilmadi "
+              "(birinchisi: #{first} yozuv).",
+        "en": "The values of {count} large records did not fit the memory budget ({limit}) and were not written "
+              "(the first: record #{first}).",
+    },
+    "filetools.warn.extract_too_large.one": {
+        "uz": "{count} ta katta yozuvdagi qiymatlar xotiraga sig'madi ({limit} chegarasi) va yozilmadi "
+              "(#{first} yozuv).",
+        "en": "The values of {count} large record did not fit the memory budget ({limit}) and were not written "
+              "(record #{first}).",
+    },
+    "filetools.progress.part": {"uz": "Qism {k}/{n} · {name}", "en": "Part {k}/{n} · {name}"},
+    "filetools.progress.dedupe": {"uz": "Dublikatlar qidirilmoqda…", "en": "Looking for duplicates…"},
+    "filetools.progress.merge": {"uz": "Birlashtirilmoqda: {name}", "en": "Merging into {name}"},
+    "filetools.progress.extract": {"uz": "Qiymatlar yig'ilmoqda: {name}", "en": "Gathering the values: {name}"},
+    # ---- edits ----
+    # errors of the edit layer (EditError / ConversionError, editops/edits/editstore/saver/bulk/jsonpatch)
+    "edits.error.generic": {"uz": "Tahrirlab bo'lmadi: {detail}", "en": "The edit could not be made: {detail}"},
+    "edits.error.path_not_found": {
+        "uz": "Tahrirlanadigan joy topilmadi: {path}",
+        "en": "The place to edit was not found: {path}",
+    },
+    "edits.error.path_not_found.hint": {
+        "uz": "Ma'lumot o'zgargan bo'lishi mumkin. Tugunni daraxt yoki jadvalda qaytadan tanlang.",
+        "en": "The data may have changed. Select the node again in the tree or the table.",
+    },
+    "edits.error.key_exists": {
+        "uz": "Bu obyektda \"{key}\" kaliti allaqachon bor.",
+        "en": "This object already has the key \"{key}\".",
+    },
+    "edits.error.key_exists.hint": {
+        "uz": "Boshqa nom tanlang: bitta obyektdagi kalitlar takrorlanmasligi kerak.",
+        "en": "Choose another name: the keys of one object must be unique.",
+    },
+    "edits.error.invalid_json": {
+        "uz": "JSON matni noto'g'ri ({line}-qator, {column}-ustun): {reason}.",
+        "en": "The JSON text is not valid (line {line}, column {column}): {reason}.",
+    },
+    "edits.error.invalid_json.hint": {
+        "uz": "Bitta JSON qiymatini kiriting, masalan: 42, \"matn\", true, null, [1, 2] yoki obyekt. "
+              "Matn qo'shtirnoq ichida yoziladi.",
+        "en": "Enter one JSON value, for example: 42, \"text\", true, null, [1, 2] or an object. "
+              "Text goes inside double quotes.",
+    },
+    "edits.error.internal": {
+        "uz": "Ichki xato: tahrir natijasi tekshiruvdan o'tmadi ({detail}). Hech narsa o'zgartirilmadi.",
+        "en": "Internal error: the result of the edit failed validation ({detail}). Nothing was changed.",
+    },
+    "edits.error.internal.hint": {
+        "uz": "Bu dasturdagi xato. Iltimos, log faylini dastur muallifiga yuboring.",
+        "en": "This is a bug in the program. Please send the log file to the developer.",
+    },
+    "edits.error.convert": {
+        "uz": "Turni o'zgartirib bo'lmaydi: {source} turidagi {value} qiymati {target} turiga aylanmaydi.",
+        "en": "The {source} value {value} cannot be converted to {target}.",
+    },
+    "edits.error.convert.hint": {
+        "uz": "Matn songa faqat JSON soni bo'lsa (masalan 12, -3.5, 1e3), mantiqiy qiymatga esa true/false, "
+              "1/0, yes/no yoki ha/yo'q bo'lsa o'zgaradi. Obyekt va massivni songa yoki mantiqiy qiymatga "
+              "o'zgartirib bo'lmaydi.",
+        "en": "Text becomes a number only when it is a JSON number (e.g. 12, -3.5, 1e3), and a boolean only "
+              "when it is true/false, 1/0, yes/no or ha/yo'q. Objects and arrays cannot become numbers or "
+              "booleans.",
+    },
+    "edits.error.huge_record": {
+        "uz": "Bu yozuv juda katta ({size}): {limit} dan katta yozuvlarni tahrirlab bo'lmaydi.",
+        "en": "This record is too large ({size}): records larger than {limit} cannot be edited.",
+    },
+    "edits.error.huge_record.hint": {
+        "uz": "Chegara — Sozlamalardagi «Katta tugun chegarasi (hajm)». Uni oshirsangiz, ko'proq xotira kerak bo'ladi.",
+        "en": "The limit is the \"Large node threshold (size)\" setting. Raising it needs more memory.",
+    },
+    "edits.error.container_locked": {
+        "uz": "Yozuvlar konteyneri ({path}) va unga olib boruvchi yo'lni o'zgartirib, o'chirib yoki "
+              "ko'chirib bo'lmaydi.",
+        "en": "The record container ({path}) and the path leading to it cannot be changed, deleted or moved.",
+    },
+    "edits.error.container_locked.hint": {
+        "uz": "Yozuvlarning o'zini yoki o'rab turgan obyektning boshqa a'zolarini tahrirlang.",
+        "en": "Edit the records themselves, or the other members of the wrapping object.",
+    },
+    "edits.error.single_root": {
+        "uz": "Bu hujjat bitta JSON qiymatidan iborat: yozuv qo'shib, o'chirib, nusxalab yoki ko'chirib "
+              "bo'lmaydi.",
+        "en": "This document is one JSON value: records cannot be added, deleted, duplicated or moved.",
+    },
+    "edits.error.single_root.hint": {
+        "uz": "Ildiz qiymatning ichidagi elementlar va a'zolarni tahrirlang.",
+        "en": "Edit the elements and members inside the root value instead.",
+    },
+    "edits.error.pending": {
+        "uz": "Bu fayl uchun avvalgi saqlanmagan o'zgarishlar topildi.",
+        "en": "Unsaved changes from an earlier session were found for this file.",
+    },
+    "edits.error.pending.hint": {
+        "uz": "Avval ularni tiklang, bekor qiling yoki JSON Patch sifatida saqlang.",
+        "en": "Restore them, discard them or save them as a JSON Patch first.",
+    },
+    "edits.error.stale_refs": {
+        "uz": "Ma'lumot shu orada o'zgardi, buyruq bajarilmadi.",
+        "en": "The data changed in the meantime; the command was not carried out.",
+    },
+    "edits.error.stale_refs.hint": {
+        "uz": "Tugunni qaytadan tanlab, buyruqni yana bajaring.",
+        "en": "Select the node again and repeat the command.",
+    },
+    "edits.error.stale_scope": {
+        "uz": "Yozuvlar ro'yxati eskirgan: ma'lumot u tuzilgandan keyin o'zgardi.",
+        "en": "The record list is out of date: the data changed after it was made.",
+    },
+    "edits.error.stale_scope.hint": {
+        "uz": "Filtr, saralash yoki qidiruvni qaytadan bajaring.",
+        "en": "Run the filter, sort or search again.",
+    },
+    "edits.error.too_many": {
+        "uz": "Bitta buyruq uchun juda ko'p element tanlangan ({count} ta; ko'pi bilan {limit} ta).",
+        "en": "Too many items for one command ({count}; at most {limit}).",
+    },
+    "edits.error.too_many.hint": {
+        "uz": "Ko'p yozuvlarni bir yo'la o'zgartirish uchun «Ommaviy amallar» (Ctrl+H) dan foydalaning.",
+        "en": "Use Bulk operations (Ctrl+H) to change many records at once.",
+    },
+    "edits.error.not_object": {
+        "uz": "{path} obyekt emas, shuning uchun unda kalitli a'zo bo'la olmaydi.",
+        "en": "{path} is not an object, so it cannot have a member with a key.",
+    },
+    "edits.error.move_into_self": {
+        "uz": "Tugunni o'zining ichiga yoki o'z bolalaridan biriga ko'chirib bo'lmaydi.",
+        "en": "A node cannot be moved into itself or into one of its own children.",
+    },
+    "edits.error.closed": {
+        "uz": "Tahrirlash sessiyasi yopilgan: fayl saqlangan yoki yopilgan.",
+        "en": "The editing session is closed: the file was saved or closed.",
+    },
+    "edits.error.closed.hint": {
+        "uz": "Tahrirlashni davom ettirish uchun faylni qayta oching.",
+        "en": "Reopen the file to continue editing.",
+    },
+    "edits.error.dirty": {"uz": "Faylda saqlanmagan o'zgarishlar bor.", "en": "The file has unsaved changes."},
+    "edits.error.dirty.hint": {
+        "uz": "Avval o'zgarishlarni saqlang yoki bekor qiling.",
+        "en": "Save or discard the changes first.",
+    },
+    "edits.error.layer_corrupt": {
+        "uz": "Saqlanmagan o'zgarishlar fayli shikastlangan: uni o'qib bo'lmadi.",
+        "en": "The file of unsaved changes is damaged and cannot be read.",
+    },
+    "edits.error.layer_corrupt.hint": {
+        "uz": "O'zgarishlarni JSON Patch sifatida eksport qilib ko'ring yoki ularni bekor qiling.",
+        "en": "Try to export the changes as a JSON Patch, or discard them.",
+    },
+    "edits.error.locked": {
+        "uz": "Bu fayl boshqa oynada yoki dasturning boshqa nusxasida tahrirlanmoqda.",
+        "en": "This file is being edited in another tab or in another instance of the program.",
+    },
+    "edits.error.locked.hint": {
+        "uz": "Faylni o'sha yerda tahrirlang yoki avval u yerda yoping.",
+        "en": "Edit it there, or close it there first.",
+    },
+    "edits.error.target_changed": {
+        "uz": "Tahrirlanayotgan tugun o'zgargan yoki o'chirilgan.",
+        "en": "The node being edited was changed or deleted.",
+    },
+    "edits.error.target_changed.hint": {"uz": "Tugunni qaytadan tanlang.", "en": "Select the node again."},
+    "edits.error.not_member": {
+        "uz": "Faqat obyekt a'zolarining kaliti bor: massiv elementini yoki ildiz qiymatni qayta nomlab bo'lmaydi.",
+        "en": "Only object members have keys: an array element or the root value cannot be renamed.",
+    },
+    "edits.error.not_container": {
+        "uz": "Bu qiymat massiv yoki obyekt emas: uning ichiga element qo'shib yoki ichidan o'chirib bo'lmaydi.",
+        "en": "This value is not an array or an object: nothing can be added to it or removed from it.",
+    },
+    "edits.error.bad_index": {
+        "uz": "{index}-o'rin mavjud emas (elementlar soni: {count}).",
+        "en": "Position {index} does not exist (number of items: {count}).",
+    },
+    "edits.error.key_required": {
+        "uz": "Obyektga qo'shiladigan a'zo uchun kalit kerak.",
+        "en": "A new member of an object needs a key.",
+    },
+    "edits.error.partial": {
+        "uz": "Faylda JSON xatosi bor: faqat xatogacha bo'lgan yozuvlar ko'rsatilgan, shuning uchun uni tahrirlab "
+              "bo'lmaydi.",
+        "en": "The file has a JSON error: only the records before it are shown, so it cannot be edited.",
+    },
+    "edits.error.partial.hint": {
+        "uz": "Avval faylni tuzating yoki to'g'ri qismini boshqa faylga eksport qiling.",
+        "en": "Repair the file first, or export the valid part to another file.",
+    },
+    "edits.error.not_siblings": {
+        "uz": "Yuqoriga yoki pastga faqat bitta ota tugunning elementlarini birga surish mumkin.",
+        "en": "Only items of the same parent can be moved up or down together.",
+    },
+    "edits.warn.layer_left": {
+        "uz": "Fayl saqlandi, lekin saqlanmagan o'zgarishlar faylini o'chirib bo'lmadi ({detail}). Fayl keyingi "
+              "safar ochilganda u ko'rsatiladi: o'sha yerda uni o'chirib tashlashingiz mumkin.",
+        "en": "The file was saved, but the file of unsaved changes could not be deleted ({detail}). It is shown "
+              "the next time the file is opened: you can delete it there.",
+    },
+    "edits.progress.keys": {"uz": "Yozuv kalitlari indekslanmoqda…", "en": "Indexing the record keys…"},
+    "edits.progress.delete_records": {"uz": "Yozuvlar o'chirilmoqda…", "en": "Deleting records…"},
+    "edits.progress.duplicate_records": {"uz": "Yozuvlar nusxalanmoqda…", "en": "Duplicating records…"},
+    "edits.detail.shape": {"uz": "kutilmagan tuzilma", "en": "unexpected structure"},
+    # check_json reasons that speak of "the text" (the json.* texts speak of a file)
+    "edits.reason.empty": {"uz": "matn bo'sh, JSON qiymati kutilgan", "en": "the text is empty, a JSON value was expected"},
+    "edits.reason.unexpected_eof": {"uz": "matn kutilmaganda tugadi", "en": "the text ended unexpectedly"},
+    "edits.reason.expected_end": {"uz": "matn shu yerda tugashi kerak", "en": "the text should end here"},
+    # undo/redo step labels
+    "edits.step.set_value": {"uz": "Qiymat o'zgartirildi", "en": "Value changed"},
+    "edits.step.rename_key": {"uz": "Kalit qayta nomlandi", "en": "Key renamed"},
+    "edits.step.insert": {"uz": "Element qo'shildi", "en": "Item inserted"},
+    "edits.step.insert_record": {"uz": "Yozuv qo'shildi", "en": "Record inserted"},
+    "edits.step.delete": {"uz": "{count} ta element o'chirildi", "en": "Items deleted: {count}"},
+    "edits.step.delete_records": {"uz": "{count} ta yozuv o'chirildi", "en": "Records deleted: {count}"},
+    "edits.step.duplicate": {"uz": "{count} ta elementning nusxasi yaratildi", "en": "Items duplicated: {count}"},
+    "edits.step.duplicate_records": {"uz": "{count} ta yozuvning nusxasi yaratildi", "en": "Records duplicated: {count}"},
+    "edits.step.move": {"uz": "{count} ta element ko'chirildi", "en": "Items moved: {count}"},
+    "edits.step.move_records": {"uz": "{count} ta yozuv ko'chirildi", "en": "Records moved: {count}"},
+    "edits.step.change_type": {"uz": "{count} ta qiymatning turi o'zgartirildi", "en": "Types changed: {count}"},
+    "edits.step.paste": {"uz": "Nusxa qo'yildi", "en": "Pasted"},
+    "edits.step.patch": {"uz": "JSON Patch qo'llandi ({count} ta amal)", "en": "JSON Patch applied (operations: {count})"},
+    "edits.step.restore": {"uz": "O'zgarishlar tiklandi", "en": "Changes restored"},
+    "edits.step.bulk.replace": {"uz": "Topish va almashtirish ({count} ta qiymat)", "en": "Find and replace (values: {count})"},
+    "edits.step.bulk.rename_key": {"uz": "Kalitni qayta nomlash ({count} ta a'zo)", "en": "Rename key (members: {count})"},
+    "edits.step.bulk.delete_field": {"uz": "Maydonni o'chirish ({count} ta a'zo)", "en": "Delete field (members: {count})"},
+    "edits.step.bulk.set_field": {"uz": "Maydonga qiymat berish ({count} ta yozuv)", "en": "Set field (records: {count})"},
+    "edits.step.bulk.clean_strings": {"uz": "Matnlarni tozalash ({count} ta qiymat)", "en": "Clean strings (values: {count})"},
+    "edits.step.bulk.convert_type": {"uz": "Turni o'zgartirish ({count} ta qiymat)", "en": "Convert type (values: {count})"},
+    "edits.step.bulk.dedupe": {"uz": "Takrorlarni o'chirish ({count} ta yozuv)", "en": "Remove duplicates (records: {count})"},
+    # JSON type names used in messages
+    "edits.type.object": {"uz": "obyekt", "en": "object"},
+    "edits.type.array": {"uz": "massiv", "en": "array"},
+    "edits.type.string": {"uz": "satr", "en": "string"},
+    "edits.type.number": {"uz": "son", "en": "number"},
+    "edits.type.bool": {"uz": "mantiqiy qiymat", "en": "boolean"},
+    "edits.type.null": {"uz": "null", "en": "null"},
+    # ---- editstore ----
+    # the edit layer on disk (editstore.py): errors, recovery reasons, notices
+    "editstore.error.damaged": {
+        "uz": "Saqlanmagan o'zgarishlar fayli shikastlangan: uni {seq}-qadamdan boshlab o'qib bo'lmadi.",
+        "en": "The file of unsaved changes is damaged: it cannot be read from step {seq} on.",
+    },
+    "editstore.error.damaged.hint": {
+        "uz": "Undan oldingi o'zgarishlarni JSON Patch sifatida saqlab olishingiz yoki o'zgarishlarni "
+              "o'chirishingiz mumkin.",
+        "en": "You can save the changes before it as a JSON Patch, or delete the changes.",
+    },
+    "editstore.error.stale": {
+        "uz": "{path} dagi saqlanmagan o'zgarishlar bu faylning eski versiyasiga tegishli: fayl ular "
+              "kiritilgandan keyin o'zgargan.",
+        "en": "The unsaved changes in {path} belong to an older version of this file: the file changed after "
+              "they were made.",
+    },
+    "editstore.error.stale.hint": {
+        "uz": "Ularni JSON Patch sifatida saqlang yoki o'chiring, so'ng faylni qaytadan tahrirlang.",
+        "en": "Save them as a JSON Patch or delete them, then edit the file again.",
+    },
+    "editstore.error.disk_full": {
+        "uz": "Diskda joy qolmadi: o'zgarishni saqlab bo'lmadi ({path}).",
+        "en": "The disk is full: the change could not be stored ({path}).",
+    },
+    "editstore.error.disk_full.hint": {
+        "uz": "Diskda joy bo'shatib, amalni qaytadan bajaring. Avvalgi o'zgarishlar saqlanib qolgan.",
+        "en": "Free some disk space and repeat the action. The earlier changes are kept.",
+    },
+    "editstore.error.write": {
+        "uz": "Saqlanmagan o'zgarishlarni yozib bo'lmadi ({path}): {detail}",
+        "en": "The unsaved changes could not be written ({path}): {detail}",
+    },
+    "editstore.error.format": {
+        "uz": "Saqlanmagan o'zgarishlar dasturning yangiroq versiyasida yozilgan (format {version}): bu versiya "
+              "ularni o'qiy olmaydi.",
+        "en": "The unsaved changes were written by a newer version of the program (format {version}): this "
+              "version cannot read them.",
+    },
+    "editstore.error.format.hint": {
+        "uz": "Ularni yaratgan versiyada oching yoki dasturni yangilang.",
+        "en": "Open them with the version that made them, or update the program.",
+    },
+    "editstore.error.unavailable": {
+        "uz": "Tahrirlab bo'lmaydi: saqlanmagan o'zgarishlar papkasidan foydalanib bo'lmadi ({detail}).",
+        "en": "Editing is not possible: the folder for unsaved changes cannot be used ({detail}).",
+    },
+    "editstore.error.unavailable.hint": {
+        "uz": "Dastur papkasiga yozish mumkinligini tekshiring (JSONRESHAPE_HOME yoki %LOCALAPPDATA%\\jsonreshape).",
+        "en": "Check that the program folder can be written (JSONRESHAPE_HOME or %LOCALAPPDATA%\\jsonreshape).",
+    },
+    "editstore.error.read_only": {
+        "uz": "Bu saqlanmagan o'zgarishlar faqat o'qish uchun ochilgan: ularni o'zgartirib bo'lmaydi.",
+        "en": "These unsaved changes are open for reading only: they cannot be changed.",
+    },
+    "editstore.error.not_indexed": {
+        "uz": "Fayl hali indekslanmoqda: tahrirlash indekslash tugagach mumkin bo'ladi.",
+        "en": "The file is still being indexed: editing becomes possible when indexing finishes.",
+    },
+    "editstore.error.closed": {
+        "uz": "Saqlanmagan o'zgarishlar fayli yopilgan.",
+        "en": "The file of unsaved changes is closed.",
+    },
+    "editstore.error.discarded": {
+        "uz": "Bu o'zgarishlar bekor qilingan: ularga yangi qadam qo'shib bo'lmaydi.",
+        "en": "These changes were discarded: no new step can be added to them.",
+    },
+    "editstore.error.index_busy": {
+        "uz": "Saqlanmagan o'zgarishlar ro'yxati band ({path}).",
+        "en": "The list of unsaved changes is busy ({path}).",
+    },
+    "editstore.warn.beside_fallback": {
+        "uz": "O'zgarishlarni fayl yonida saqlab bo'lmadi ({path}): {detail}. Ular dastur papkasida saqlanadi: "
+              "{fallback}.",
+        "en": "The changes cannot be kept next to the file ({path}): {detail}. They are kept in the program "
+              "folder instead: {fallback}.",
+    },
+    # reasons shown for a damaged pending layer (PendingInfo.damaged)
+    "editstore.damaged.db": {
+        "uz": "ma'lumotlar bazasini o'qib bo'lmadi ({detail})",
+        "en": "the database cannot be read ({detail})",
+    },
+    "editstore.damaged.meta": {
+        "uz": "o'zgarishlar tavsifida \"{key}\" yo'q",
+        "en": "the description of the changes lacks \"{key}\"",
+    },
+    "editstore.damaged.meta_value": {
+        "uz": "o'zgarishlar tavsifi noto'g'ri ({detail})",
+        "en": "the description of the changes is invalid ({detail})",
+    },
+    "editstore.damaged.missing": {
+        "uz": "{name} fayli yo'q yoki qisqarib qolgan",
+        "en": "the file {name} is missing or too short",
+    },
+    "editstore.damaged.steps": {"uz": "ba'zi qadamlar yo'qolgan", "en": "some steps are missing"},
+    # label of a step whose label key is unknown (a layer written by another version)
+    "editstore.step.unknown": {"uz": "O'zgarish", "en": "Change"},
+    # ---- saver ----
+    # Save / Save As in the original kind and encoding (saver.py, docs/ARCHITECTURE.md §12.7)
+    "saver.error.broken_lines": {
+        "uz": "Faylda {count} ta buzuq qator bor. Saqlanganda ular fayldan o'chiriladi.",
+        "en": "The file has {count} broken lines. Saving removes them from the file.",
+    },
+    "saver.error.broken_lines.hint": {
+        "uz": "Buzuq qatorlarsiz saqlashga rozi bo'lsangiz, saqlashni tasdiqlang; aks holda avval ularni tuzating.",
+        "en": "Confirm saving without the broken lines, or fix them first.",
+    },
+    "saver.error.invalid_output": {
+        "uz": "Saqlanadigan fayl yaroqli JSON bo'lmay chiqdi ({detail}). Hech narsa saqlanmadi.",
+        "en": "The file to be saved is not valid JSON ({detail}). Nothing was saved.",
+    },
+    "saver.error.invalid_output.hint": {
+        "uz": "O'zgarishlaringiz saqlanib qoldi. Bu dasturdagi xato: iltimos, log faylini dasturchilarga yuboring.",
+        "en": "Your changes are kept. This is a bug in the program: please send the log file to the developers.",
+    },
+    "saver.error.grown": {
+        "uz": "Saqlash vaqtida faylga yana {bytes} ma'lumot yozildi (fayl hali yozilmoqda). Faylni almashtirish "
+              "qo'shilgan ma'lumotni yo'qotardi, shuning uchun hech narsa saqlanmadi: {path}",
+        "en": "{bytes} of data were added to the file while it was being saved (it is still being written). "
+              "Replacing the file would lose the added data, so nothing was saved: {path}",
+    },
+    "saver.error.grown.hint": {
+        "uz": "O'zgarishlarni «Boshqacha saqlash» bilan boshqa faylga saqlang yoki faylga yozayotgan dastur ishini "
+              "tugatishini kuting.",
+        "en": "Save the changes to another file with Save As, or wait until the program writing to the file has "
+              "finished.",
+    },
+    "saver.error.partial": {
+        "uz": "Faylni saqlab bo'lmaydi: unda JSON xatosi bor ({line}-qator, {column}-ustun) va faqat xatogacha "
+              "bo'lgan yozuvlar ochilgan.",
+        "en": "The file cannot be saved: it has a JSON error (line {line}, column {column}) and only the records "
+              "before the error are open.",
+    },
+    "saver.error.partial.hint": {
+        "uz": "Yozuvlarni eksport qilishingiz yoki avval faylni tuzatishingiz mumkin.",
+        "en": "You can export the records, or repair the file first.",
+    },
+    "saver.error.no_dir": {"uz": "Bunday papka yo'q: {path}", "en": "The folder does not exist: {path}"},
+    "saver.error.target_cache": {
+        "uz": "{path} — dasturning bu fayl uchun ishchi nusxasi. Boshqa nom tanlang.",
+        "en": "{path} is the program's working copy of this file. Choose another name.",
+    },
+    "saver.error.original_moved": {
+        "uz": "Saqlash muvaffaqiyatsiz tugadi va asl faylni joyiga qaytarib bo'lmadi. U hozir shu yerda: {path}",
+        "en": "Saving failed and the original file could not be put back. It is now here: {path}",
+    },
+    "saver.error.original_moved.hint": {
+        "uz": "Faylni qo'lda {source} nomiga qaytaring.",
+        "en": "Rename it back to {source} by hand.",
+    },
+    # details of saver.error.invalid_output
+    "saver.detail.json": {"uz": "{reason}, {offset}-bayt", "en": "{reason}, at byte {offset}"},
+    "saver.detail.count": {"uz": "{expected} ta yozuv o'rniga {found} ta", "en": "{found} records instead of {expected}"},
+    "saver.detail.broken": {"uz": "{line}-qator buzuq: {reason}", "en": "line {line} is broken: {reason}"},
+    "saver.detail.encoding": {
+        "uz": "matnni {encoding} kodirovkasiga o'girib bo'lmadi",
+        "en": "the text cannot be converted to {encoding}",
+    },
+    # SaveReport.warnings
+    "saver.warn.brace_list": {
+        "uz": "Fayl JSON massivi sifatida saqlandi: {example} ko'rinishi standart JSON emas.",
+        "en": "The file was saved as a JSON array: the form {example} is not standard JSON.",
+    },
+    "saver.warn.gzip_trailing": {
+        "uz": "Asl gzip arxividan keyingi ortiqcha ma'lumot saqlanmadi.",
+        "en": "The extra data after the original gzip archive was not saved.",
+    },
+    "saver.warn.gzip_truncated": {
+        "uz": "Asl gzip arxivi kesilgan edi: faylning faqat ochilgan qismi saqlandi.",
+        "en": "The original gzip archive was truncated: only the part that could be decompressed was saved.",
+    },
+    "saver.warn.broken_dropped": {
+        "uz": "{count} ta buzuq qator fayldan o'chirildi.",
+        "en": "{count} broken lines were removed from the file.",
+    },
+    "saver.warn.broken_dropped.one": {
+        "uz": "{count} ta buzuq qator fayldan o'chirildi.",
+        "en": "{count} broken line was removed from the file.",
+    },
+    "saver.warn.compressed": {
+        "uz": "Fayl gzip bilan siqib saqlandi: uning nomi .gz bilan tugaydi.",
+        "en": "The file was saved compressed with gzip: its name ends with .gz.",
+    },
+    "saver.warn.uncompressed": {
+        "uz": "Fayl siqilmasdan saqlandi: uning nomi .gz bilan tugamaydi.",
+        "en": "The file was saved without compression: its name does not end with .gz.",
+    },
+    "saver.warn.leftover": {
+        "uz": "Eski nusxani o'chirib bo'lmadi: {path}",
+        "en": "The old copy could not be removed: {path}",
+    },
+    "saver.warn.compression_lost": {
+        "uz": "Asl fayl NTFS bilan siqilgan edi, yangi faylni siqib bo'lmadi: u siqilmasdan saqlandi.",
+        "en": "The original file was NTFS-compressed; the new file could not be compressed and was saved "
+              "uncompressed.",
+    },
+    "saver.warn.encryption_lost": {
+        "uz": "Asl fayl EFS bilan shifrlangan edi, yangi faylni shifrlab bo'lmadi: u shifrlanmasdan saqlandi.",
+        "en": "The original file was encrypted with EFS; the new file could not be encrypted and was saved "
+              "unencrypted.",
+    },
+    # sweep_leftovers(): leftovers of interrupted saves removed (status bar, SaveReport.warnings)
+    "saver.sweep.removed": {
+        "uz": "To'xtab qolgan saqlashlardan qolgan {count} ta ortiqcha fayl o'chirildi ({size} bo'shatildi).",
+        "en": "Removed {count} leftover files of interrupted saves ({size} freed).",
+    },
+    "saver.sweep.removed.one": {
+        "uz": "To'xtab qolgan saqlashdan qolgan {count} ta ortiqcha fayl o'chirildi ({size} bo'shatildi).",
+        "en": "Removed {count} leftover file of an interrupted save ({size} freed).",
+    },
+    # save_questions(): asked before a save (yes = save, no = do not save)
+    "saver.ask.brace_list": {
+        "uz": "Bu fayl figurali qavslar ichidagi ro'yxat ({example}). U oddiy JSON massivi (kvadrat qavslar "
+              "ichida) sifatida saqlanadi. Davom etilsinmi?",
+        "en": "This file is a list inside curly braces ({example}). It will be saved as a regular JSON array "
+              "(in square brackets). Continue?",
+    },
+    "saver.ask.broken_lines": {
+        "uz": "Faylda {count} ta buzilgan qator bor. Ular saqlangan faylga yozilmaydi. Davom etilsinmi?",
+        "en": "The file has {count} broken lines. They are not written to the saved file. Continue?",
+    },
+    "saver.ask.broken_lines.one": {
+        "uz": "Faylda {count} ta buzilgan qator bor. U saqlangan faylga yozilmaydi. Davom etilsinmi?",
+        "en": "The file has {count} broken line. It is not written to the saved file. Continue?",
+    },
+    "saver.ask.gzip_trailing": {
+        "uz": "{name} faylida gzip arxividan keyin yana ma'lumot bor. U yangi faylga yozilmaydi va zaxira nusxa "
+              "(.bak) saqlanmayotgani uchun butunlay yo'qoladi. Davom etilsinmi?",
+        "en": "{name} has more data after its gzip archive. It is not written to the new file, and since no "
+              "backup (.bak) is kept, it will be lost. Continue?",
+    },
+    "saver.progress.save": {"uz": "{name} saqlanmoqda…", "en": "Saving {name}…"},
+    # roll_journal(): an interrupted save found at the next open (recovery bar)
+    "saver.journal.forward": {
+        "uz": "{path} faylini saqlash oxiriga yetmay to'xtagan edi. Saqlash yakunlandi: faylda saqlangan "
+              "o'zgarishlar bor.",
+        "en": "Saving {path} had stopped before it finished. The save was completed: the file holds the saved "
+              "changes.",
+    },
+    "saver.journal.completed": {
+        "uz": "{path} faylining oxirgi saqlanishi tugagan edi; undan qolgan ortiqcha fayllar o'chirildi.",
+        "en": "The last save of {path} had finished; the files it left behind were removed.",
+    },
+    "saver.journal.back": {
+        "uz": "{path} faylini saqlash oxiriga yetmay to'xtagan edi. Fayl saqlashdan oldingi holatiga qaytarildi, "
+              "saqlanmagan o'zgarishlar esa saqlanib qoldi.",
+        "en": "Saving {path} had stopped before it finished. The file was put back as it was before the save; the "
+              "unsaved changes are kept.",
+    },
+    "saver.journal.conflict": {
+        "uz": "{path} faylining to'xtab qolgan saqlanishini xavfsiz yakunlab ham, bekor qilib ham bo'lmadi: "
+              "fayllardan saqlash qayergacha yetgani aniq bilinmaydi (fayl o'shandan beri o'zgargan bo'lishi "
+              "mumkin). Hech narsa o'zgartirilmadi. Tegishli fayllar: {files}",
+        "en": "The interrupted save of {path} could neither be completed nor undone safely: the files do not show "
+              "how far it got (the file may have changed since). Nothing was changed. Files involved: {files}",
+    },
+    "saver.journal.invalid": {
+        "uz": "To'xtab qolgan saqlash haqidagi yozuv buzilgan, undan foydalanib bo'lmadi.",
+        "en": "The record of an interrupted save is damaged and cannot be used.",
+    },
+    "saver.journal.left": {
+        "uz": "Bu fayllar joyida qoldirildi: {files}",
+        "en": "These files were left in place: {files}",
+    },
+    "saver.journal.none": {
+        "uz": "Yakunlanadigan narsa qolmagan: to'xtab qolgan saqlash allaqachon hal qilingan.",
+        "en": "There is nothing left to finish: the interrupted save was already dealt with.",
+    },
+    "saver.error.layer_gone": {
+        "uz": "Saqlanmagan o'zgarishlar qatlami endi mavjud emas: {path}",
+        "en": "The layer of unsaved changes no longer exists: {path}",
+    },
+    # ---- patch ----
+    # JSON Patch (RFC 6902) import / export (jsonpatch.py); operation numbers are 0-based
+    "patch.error.generic": {"uz": "JSON Patch'ni qo'llab bo'lmadi.", "en": "The JSON Patch could not be applied."},
+    "patch.error.json": {
+        "uz": "JSON Patch fayli to'g'ri JSON emas ({line}-qator, {column}-ustun): {reason}.",
+        "en": "The JSON Patch file is not valid JSON (line {line}, column {column}): {reason}.",
+    },
+    "patch.error.json.hint": {
+        "uz": "JSON Patch (RFC 6902) amallar massividir: har bir amal \"op\" va \"path\" (kerak bo'lsa \"from\" "
+              "yoki \"value\") a'zolari bor obyekt.",
+        "en": "A JSON Patch (RFC 6902) is an array of operations: each one is an object with \"op\" and \"path\" "
+              "members (and \"from\" or \"value\" where needed).",
+    },
+    "patch.error.empty": {"uz": "JSON Patch fayli bo'sh.", "en": "The JSON Patch file is empty."},
+    "patch.error.not_array": {
+        "uz": "JSON Patch amallar massivi bo'lishi kerak (fayl [ belgisi bilan boshlanadi).",
+        "en": "A JSON Patch must be an array of operations (the file starts with [).",
+    },
+    "patch.error.not_array.hint": {
+        "uz": "Har bir amal \"op\" va \"path\" (kerak bo'lsa \"from\" yoki \"value\") a'zolari bor obyekt bo'ladi.",
+        "en": "Each operation is an object with \"op\" and \"path\" members (and \"from\" or \"value\" where needed).",
+    },
+    "patch.error.encoding": {
+        "uz": "JSON Patch faylini o'qib bo'lmadi: kodlash yoki siqish buzilgan ({detail}).",
+        "en": "The JSON Patch file cannot be read: its encoding or compression is damaged ({detail}).",
+    },
+    "patch.error.encoding.hint": {"uz": "Faylni UTF-8 kodlashda saqlang.", "en": "Save the file as UTF-8."},
+    "patch.error.op_not_object": {
+        "uz": "JSON Patch: #{index} amal obyekt emas (har bir amal \"op\" va \"path\" a'zolari bor obyekt bo'ladi).",
+        "en": "JSON Patch: operation #{index} is not an object (every operation is an object with \"op\" and "
+              "\"path\" members).",
+    },
+    "patch.error.member_missing": {
+        "uz": "JSON Patch: #{index} amalda ({op}) \"{member}\" a'zosi yo'q.",
+        "en": "JSON Patch: operation #{index} ({op}) has no \"{member}\" member.",
+    },
+    "patch.error.member_type": {
+        "uz": "JSON Patch: #{index} amaldagi ({op}) \"{member}\" a'zosi matn bo'lishi kerak.",
+        "en": "JSON Patch: the \"{member}\" member of operation #{index} ({op}) must be a string.",
+    },
+    "patch.error.op_unknown": {
+        "uz": "JSON Patch: #{index} amalning turi noma'lum: \"{op}\" (mumkin: add, remove, replace, move, copy, test).",
+        "en": "JSON Patch: operation #{index} has an unknown type \"{op}\" (allowed: add, remove, replace, move, "
+              "copy, test).",
+    },
+    "patch.error.pointer": {
+        "uz": "JSON Patch: #{index} amaldagi ({op}) \"{member}\" to'g'ri JSON Pointer emas: \"{pointer}\" ({detail}).",
+        "en": "JSON Patch: the \"{member}\" of operation #{index} ({op}) is not a valid JSON Pointer: \"{pointer}\" "
+              "({detail}).",
+    },
+    "patch.error.pointer.hint": {
+        "uz": "JSON Pointer \"/\" bilan boshlanadi (butun hujjat uchun bo'sh matn); kalitdagi \"~\" belgisi \"~0\", "
+              "\"/\" belgisi esa \"~1\" deb yoziladi.",
+        "en": "A JSON Pointer starts with \"/\" (an empty string is the whole document); write \"~\" in a key as "
+              "\"~0\" and \"/\" as \"~1\".",
+    },
+    "patch.error.op_duplicate_key": {
+        "uz": "JSON Patch: #{index} amalda \"{key}\" kaliti ikki marta yozilgan; bunday amalning ma'nosi aniq emas.",
+        "en": "JSON Patch: operation #{index} has the key \"{key}\" twice; such an operation has no clear meaning.",
+    },
+    "patch.error.op_unreadable": {
+        "uz": "JSON Patch: #{index} amalni o'qib bo'lmadi: {detail}.",
+        "en": "JSON Patch: operation #{index} cannot be read: {detail}.",
+    },
+    "patch.error.move_into_self": {
+        "uz": "JSON Patch, #{index} amal ({op} \"{path}\"): qiymatni o'zining ichiga ko'chirib bo'lmaydi "
+              "(\"from\": \"{pointer}\").",
+        "en": "JSON Patch, operation #{index} ({op} \"{path}\"): a value cannot be moved into itself "
+              "(\"from\": \"{pointer}\").",
+    },
+    "patch.error.path_not_found": {
+        "uz": "JSON Patch, #{index} amal ({op} \"{path}\"): \"{pointer}\" mavjud emas.",
+        "en": "JSON Patch, operation #{index} ({op} \"{path}\"): \"{pointer}\" does not exist.",
+    },
+    "patch.error.path_not_found.hint": {
+        "uz": "Patch boshqa fayl yoki faylning boshqa versiyasi uchun yozilgan bo'lishi mumkin. Hech narsa "
+              "o'zgartirilmadi.",
+        "en": "The patch may have been written for another file or another version of it. Nothing was changed.",
+    },
+    "patch.error.dash": {
+        "uz": "JSON Patch, #{index} amal ({op} \"{path}\"): \"{pointer}\" dagi \"-\" (massiv oxiri) faqat add "
+              "amalining yo'lida yoki move/copy amalining manzilida, oxirgi qism sifatida ishlatiladi.",
+        "en": "JSON Patch, operation #{index} ({op} \"{path}\"): \"-\" (the end of an array) in \"{pointer}\" is "
+              "allowed only as the last part of an add path or of a move/copy target.",
+    },
+    "patch.error.bad_index": {
+        "uz": "JSON Patch, #{index} amal ({op} \"{path}\"): \"{pointer}\" dagi \"{segment}\" massiv indeksi emas "
+              "(0 yoki boshida nol bo'lmagan butun son bo'lishi kerak).",
+        "en": "JSON Patch, operation #{index} ({op} \"{path}\"): \"{segment}\" in \"{pointer}\" is not an array index "
+              "(0 or a whole number without a leading zero).",
+    },
+    "patch.error.index_range": {
+        "uz": "JSON Patch, #{index} amal ({op} \"{path}\"): \"{pointer}\": {segment}-o'rin yo'q (elementlar soni: "
+              "{count}).",
+        "en": "JSON Patch, operation #{index} ({op} \"{path}\"): \"{pointer}\": position {segment} does not exist "
+              "(number of items: {count}).",
+    },
+    "patch.error.not_container": {
+        "uz": "JSON Patch, #{index} amal ({op} \"{path}\"): \"{pointer}\" massiv yoki obyekt emas, uning ichiga "
+              "qiymat qo'shib bo'lmaydi.",
+        "en": "JSON Patch, operation #{index} ({op} \"{path}\"): \"{pointer}\" is not an array or an object, so "
+              "nothing can be added to it.",
+    },
+    "patch.error.test_failed": {
+        "uz": "JSON Patch, #{index} amal (test \"{path}\"): qiymat kutilganiga teng emas. Patch qo'llanmadi, hech "
+              "narsa o'zgartirilmadi.",
+        "en": "JSON Patch, operation #{index} (test \"{path}\"): the value differs from the expected one. The patch "
+              "was not applied; nothing was changed.",
+    },
+    "patch.error.test_failed.hint": {
+        "uz": "test amali patch qaysi ma'lumot uchun yozilganini tekshiradi: fayl patch kutgan holatda emas.",
+        "en": "A test operation checks the data the patch was written for: the file is not in the state the "
+              "patch expects.",
+    },
+    "patch.error.duplicate_keys": {
+        "uz": "JSON Patch, #{index} amal ({op} \"{path}\"): \"{pointer}\" da \"{key}\" kaliti takrorlangan, "
+              "shuning uchun uni JSON Patch bilan xavfsiz o'zgartirib bo'lmaydi.",
+        "en": "JSON Patch, operation #{index} ({op} \"{path}\"): the key \"{key}\" occurs more than once at "
+              "\"{pointer}\", so it cannot be changed safely with a JSON Patch.",
+    },
+    "patch.error.duplicate_keys.hint": {
+        "uz": "Takrorlangan kalitlarni avval qo'lda tuzating (masalan, daraxtda qayta nomlang).",
+        "en": "Fix the repeated keys by hand first (for example, rename them in the tree).",
+    },
+    "patch.error.unreadable": {
+        "uz": "JSON Patch, #{index} amal ({op} \"{path}\"): \"{pointer}\" dagi yozuvni o'qib bo'lmadi: {detail}.",
+        "en": "JSON Patch, operation #{index} ({op} \"{path}\"): the record at \"{pointer}\" cannot be read: {detail}.",
+    },
+    "patch.error.container_locked": {
+        "uz": "JSON Patch, #{index} amal ({op} \"{path}\"): yozuvlar konteyneri (\"{container}\") va unga olib "
+              "boruvchi yo'lni o'chirib, ko'chirib yoki surib bo'lmaydi.",
+        "en": "JSON Patch, operation #{index} ({op} \"{path}\"): the record container (\"{container}\") and the "
+              "path leading to it cannot be removed, moved or shifted.",
+    },
+    "patch.error.container_locked.hint": {
+        "uz": "Yozuvlarning o'zini yoki o'rab turgan obyektning boshqa a'zolarini o'zgartiring.",
+        "en": "Change the records themselves, or the other members of the wrapping object.",
+    },
+    "patch.error.container_type": {
+        "uz": "JSON Patch, #{index} amal ({op} \"{path}\"): yozuvlar konteyneri (\"{pointer}\") {expected} bo'lib "
+              "qolishi kerak.",
+        "en": "JSON Patch, operation #{index} ({op} \"{path}\"): the record container (\"{pointer}\") must stay an "
+              "{expected}.",
+    },
+    "patch.error.root": {
+        "uz": "JSON Patch, #{index} amal ({op} \"{path}\"): butun hujjatni o'chirib yoki ko'chirib bo'lmaydi.",
+        "en": "JSON Patch, operation #{index} ({op} \"{path}\"): the whole document cannot be removed or moved.",
+    },
+    "patch.error.huge_record": {
+        "uz": "JSON Patch, #{index} amal ({op} \"{path}\"): \"{pointer}\" dagi yozuv juda katta ({size}; chegara "
+              "{limit}).",
+        "en": "JSON Patch, operation #{index} ({op} \"{path}\"): the record at \"{pointer}\" is too large ({size}; "
+              "the limit is {limit}).",
+    },
+    "patch.error.huge_record.hint": {
+        "uz": "Chegara — Sozlamalardagi «Katta tugun chegarasi (hajm)». Uni oshirsangiz, ko'proq xotira kerak bo'ladi.",
+        "en": "The limit is the \"Large node threshold (size)\" setting. Raising it needs more memory.",
+    },
+    "patch.error.huge_unit": {
+        "uz": "JSON Patch qo'llangandan keyin \"{pointer}\" dagi yozuv juda katta bo'lib qoladi ({size}; chegara "
+              "{limit}).",
+        "en": "After the JSON Patch the record at \"{pointer}\" would be too large ({size}; the limit is {limit}).",
+    },
+    "patch.error.too_large": {
+        "uz": "JSON Patch, #{index} amal ({op} \"{path}\"): \"{pointer}\" juda katta, uni nusxalab bo'lmaydi "
+              "({size}; chegara {limit}).",
+        "en": "JSON Patch, operation #{index} ({op} \"{path}\"): \"{pointer}\" is too large to be copied ({size}; "
+              "the limit is {limit}).",
+    },
+    "patch.detail.too_deep": {"uz": "qiymat juda chuqur joylashgan", "en": "the value is nested too deeply"},
+    "patch.warn.copies_unknown": {
+        "uz": "{count} ta nusxalangan yozuv patchga kirmadi: ular faylning eski versiyasidagi yozuvlarning nusxasi.",
+        "en": "{count} copied records are not in the patch: they copy records of an older version of the file.",
+    },
+    "patch.warn.keys_unknown": {
+        "uz": "{count} ta o'chirilgan yozuvning kaliti noma'lum, ular patchda yo'q.",
+        "en": "The keys of {count} deleted records are unknown; they are not in the patch.",
+    },
+    "patch.warn.history_trimmed": {
+        "uz": "Tahrirlar tarixining eng eski qadamlari qisqartirilgan: o'shanda qayta nomlangan yozuvlar patchda "
+              "yangi yozuv sifatida chiqishi mumkin.",
+        "en": "The oldest steps of the edit history were trimmed: records renamed there may appear as new records "
+              "in the patch.",
+    },
+    "patch.warn.wrapper_partial": {
+        "uz": "O'rab turgan obyektdan o'chirilgan a'zolar patchda yo'q (asl fayl o'qilmadi).",
+        "en": "Members deleted from the wrapping object are not in the patch (the original file was not read).",
+    },
+    "patch.warn.damaged": {
+        "uz": "Tahrirlar fayli shikastlangan: faqat dastlabki {steps} ta qadam eksport qilindi ({seq}-qadamdan "
+              "boshlab o'qib bo'lmadi).",
+        "en": "The edit layer is damaged: only the first {steps} steps were exported (step {seq} and later could "
+              "not be read).",
+    },
+    "patch.progress.reading": {"uz": "JSON Patch o'qilmoqda…", "en": "Reading the JSON Patch…"},
+    "patch.progress.keys": {"uz": "Yozuv kalitlari qidirilmoqda…", "en": "Looking up the record keys…"},
+    "patch.progress.applying": {"uz": "JSON Patch qo'llanmoqda…", "en": "Applying the JSON Patch…"},
+    "patch.progress.writing": {"uz": "O'zgarishlar yozilmoqda…", "en": "Writing the changes…"},
+    "patch.progress.export": {"uz": "JSON Patch tayyorlanmoqda…", "en": "Preparing the JSON Patch…"},
+    # ---- repair ----
+    "repair.fix.bom": {"uz": "BOM belgisi olib tashlandi", "en": "byte-order mark (BOM) removed"},
+    "repair.fix.comment": {"uz": "izoh olib tashlandi", "en": "comment removed"},
+    "repair.fix.trailing_comma": {"uz": "ortiqcha (oxirgi) vergul olib tashlandi", "en": "trailing comma removed"},
+    "repair.fix.missing_comma": {"uz": "tushib qolgan vergul qo'shildi", "en": "missing comma added"},
+    "repair.fix.single_quote": {
+        "uz": "bitta tirnoq qo'sh tirnoqqa almashtirildi",
+        "en": "single quotes replaced by double quotes",
+    },
+    "repair.fix.unquoted_key": {"uz": "kalit qo'sh tirnoqqa olindi", "en": "key put in double quotes"},
+    "repair.fix.nan": {"uz": "NaN → {to}", "en": "NaN → {to}"},
+    "repair.fix.infinity": {"uz": "Infinity → {to}", "en": "Infinity → {to}"},
+    "repair.fix.python_literal": {
+        "uz": "True/False/None → true/false/null",
+        "en": "True/False/None → true/false/null",
+    },
+    "repair.fix.undefined": {"uz": "undefined → null", "en": "undefined → null"},
+    "repair.fix.control_char": {
+        "uz": "satr ichidagi boshqaruv belgisi ekranlandi",
+        "en": "control character inside a string escaped",
+    },
+    "repair.fix.invalid_escape": {"uz": "noto'g'ri escape (\\) tuzatildi", "en": "invalid escape (\\) fixed"},
+    "repair.fix.invalid_utf8": {
+        "uz": "noto'g'ri UTF-8 bayt U+FFFD belgisiga almashtirildi",
+        "en": "invalid UTF-8 bytes replaced by U+FFFD",
+    },
+    "repair.fix.brace_list": {
+        "uz": "nostandart obyektlar ro'yxati massivga aylantirildi",
+        "en": "non-standard object list turned into an array",
+    },
+    "repair.fix.concatenated": {
+        "uz": "ketma-ket qiymatlar massivga o'raldi",
+        "en": "values one after another wrapped into an array",
+    },
+    "repair.fix.concatenated_jsonl": {
+        "uz": "ketma-ket qiymatlar JSON Lines qatorlariga ajratildi",
+        "en": "values one after another written as JSON Lines",
+    },
+    "repair.fix.line_split": {
+        "uz": "bir qatordagi bir nechta qiymat alohida qatorlarga ajratildi",
+        "en": "several values on one line split into separate lines",
+    },
+    "repair.fix.truncated": {
+        "uz": "kesilgan fayl oxirgi to'liq yozuvgacha tiklandi",
+        "en": "cut-off file restored up to the last complete record",
+    },
+    "repair.fix.trailing_data": {
+        "uz": "ildiz qiymatdan keyingi ortiqcha ma'lumot olib tashlandi",
+        "en": "extra data after the root value removed",
+    },
+    "repair.fix.line_dropped": {
+        "uz": "tuzatib bo'lmaydigan qator olib tashlandi",
+        "en": "a line that could not be repaired was removed",
+    },
+    "repair.fix.dropped_tail": {
+        "uz": "qisman natija: ta'mirlab bo'lmaydigan yozuvdan boshlab faylning qolgan qismi tashlab yuborildi",
+        "en": "partial result: the rest of the file from the unrepairable record on dropped",
+    },
+    "repair.category.syntax": {"uz": "yozilish (qiymatlar o'zgarmadi)", "en": "syntax (no value changed)"},
+    "repair.category.data": {"uz": "ma'lumot o'zgardi", "en": "data changed"},
+    "repair.category.dropped": {"uz": "ma'lumot tashlab yuborildi", "en": "data dropped"},
+    "repair.problem.at": {
+        "uz": "{reason} ({line}-qator, {column}-ustun, {offset}-bayt)",
+        "en": "{reason} (line {line}, column {column}, byte {offset})",
+    },
+    "repair.problem.unexpected_char": {"uz": "bu yerda kutilmagan belgi", "en": "unexpected character here"},
+    "repair.problem.mismatched_closer": {
+        "uz": "yopuvchi qavs ochilgan qavsga mos kelmaydi",
+        "en": "the closing bracket does not match the open one",
+    },
+    "repair.problem.unquoted_value": {
+        "uz": "qo'sh tirnoqsiz matn qiymati (true, false yoki null emas)",
+        "en": "a text value without quotes (not true, false or null)",
+    },
+    "repair.problem.invalid_number": {
+        "uz": "son noto'g'ri yozilgan (masalan, 01, 1., .5, 0x1F)",
+        "en": "an invalid number (e.g. 01, 1., .5, 0x1F)",
+    },
+    "repair.problem.depth_limit": {"uz": "ichma-ichlik juda chuqur", "en": "nesting is too deep"},
+    "repair.problem.not_utf8": {
+        "uz": "noto'g'ri UTF-8 baytlar juda ko'p ({count} tadan ortiq): fayl UTF-8 emas shekilli "
+              "(masalan, Windows-1251)",
+        "en": "too many invalid UTF-8 bytes (more than {count}): the file is probably not UTF-8 "
+              "(e.g. Windows-1251)",
+    },
+    "repair.problem.nothing_complete": {
+        "uz": "saqlab qolinadigan birorta to'liq qiymat yo'q",
+        "en": "there is no complete value to keep",
+    },
+    "repair.problem.extra_value": {
+        "uz": "ildiz qiymatdan keyin yana qiymat bor (bir nechta qiymat bo'lsa, formatni stream yoki jsonl "
+              "deb bering)",
+        "en": "another value follows the root value (for several values give the format stream or jsonl)",
+    },
+    "repair.problem.disabled": {"uz": "kerakli tuzatish o'chirilgan: {fix}", "en": "a needed fix is turned off: {fix}"},
+    "repair.error.unrepairable": {
+        "uz": "JSON'ni ta'mirlab bo'lmadi: {reason} ({line}-qator, {column}-ustun, {offset}-bayt). "
+              "Hech narsa yozilmadi.",
+        "en": "The JSON cannot be repaired: {reason} (line {line}, column {column}, byte {offset}). "
+              "Nothing was written.",
+    },
+    "repair.error.unrepairable.hint": {
+        "uz": "Muammodan oldingi to'liq yozuvlarni qisman natija sifatida saqlash mumkin.",
+        "en": "The complete records before the problem can be saved as a partial result.",
+    },
+    "repair.error.option": {
+        "uz": "Ta'mirlash parametri noto'g'ri: {name} = {value}",
+        "en": "Invalid repair option: {name} = {value}",
+    },
+    "repair.error.no_target": {"uz": "Natija fayli ko'rsatilmagan.", "en": "No output file was given."},
+    "repair.error.report_target": {
+        "uz": "Hisobot ta'mirlangan faylning o'ziga yozilmaydi: {path}",
+        "en": "The report cannot be written over the repaired file: {path}",
+    },
+    "repair.error.report_target.hint": {
+        "uz": "Hisobot uchun boshqa nom tanlang (masalan, .csv yoki .jsonl kengaytmali).",
+        "en": "Choose another name for the report (for example with a .csv or .jsonl extension).",
+    },
+    "repair.error.output_kind": {
+        "uz": "JSON Lines natija faqat ketma-ket qiymatlar yoki JSON Lines fayl uchun; bu fayl: {kind}. "
+              "Boshqa formatga o'tkazish uchun convert buyrug'idan foydalaning.",
+        "en": "JSON Lines output is only for concatenated values or JSON Lines input; this file is: {kind}. "
+              "Use convert for other conversions.",
+    },
+    "repair.error.invalid_output": {
+        "uz": "Ta'mirlangan natija tekshiruvdan o'tmadi ({detail}). Hech narsa yozilmadi; bu dastur xatosi, "
+              "tafsilotlar logda.",
+        "en": "The repaired output failed the check ({detail}). Nothing was written; this is a program error, "
+              "details are in the log.",
+    },
+    "repair.warn.restarted": {
+        "uz": "Fayl aslida {kind} ekan (ildiz qiymatdan keyin yana qiymatlar bor); ta'mirlash shu tur bo'yicha "
+              "qaytadan bajarildi.",
+        "en": "The file is really {kind} (more values follow the root value); the repair ran again as that "
+              "kind.",
+    },
+    "repair.warn.transcoded": {
+        "uz": "Fayl {encoding} kodlashda edi; natija UTF-8 da yozildi.",
+        "en": "The file was {encoding}; the result is written as UTF-8.",
+    },
+    "repair.warn.uncompressed": {
+        "uz": "Manba gzip bilan siqilgan edi; natija siqilmagan holda yozildi (siqish uchun nomi .gz bilan "
+              "tugashi kerak).",
+        "en": "The source was gzip-compressed; the result is written uncompressed (name it .gz to compress "
+              "it).",
+    },
+    "repair.warn.compressed": {
+        "uz": "Natija gzip bilan siqildi (nomi .gz bilan tugaydi).",
+        "en": "The result is gzip-compressed (its name ends with .gz).",
+    },
+    "repair.warn.record_path_missing": {
+        "uz": "Yozuvlar yo'li topilmadi yoki u massiv/obyekt emas: {path}",
+        "en": "The record path was not found or is not an array/object: {path}",
+    },
+    "repair.progress.repair": {"uz": "Ta'mirlanmoqda: {name}", "en": "Repairing {name}"},
+    "repair.progress.check": {"uz": "Tekshirilmoqda: {name}", "en": "Checking {name}"},
+    "repair.summary.written": {
+        "uz": "Ta'mirlandi: {source} → {target} ({size}, {records} ta yozuv, {seconds})",
+        "en": "Repaired: {source} → {target} ({size}, {records} records, {seconds})",
+    },
+    "repair.summary.checked": {
+        "uz": "Tekshirildi: {source} ({size}, {records} ta yozuv, {seconds})",
+        "en": "Checked: {source} ({size}, {records} records, {seconds})",
+    },
+    "repair.summary.not_written": {
+        "uz": "Ta'mirlab bo'lmadi: {source} (hech narsa yozilmadi)",
+        "en": "Not repaired: {source} (nothing was written)",
+    },
+    "repair.summary.none": {
+        "uz": "Muammo topilmadi; o'zgarishsiz nusxa yozildi.",
+        "en": "No problems found; an unchanged copy was written.",
+    },
+    "repair.summary.none_check": {"uz": "Muammo topilmadi.", "en": "No problems found."},
+    "repair.summary.fix": {
+        "uz": "  {name}: {count} ta (birinchisi {line}-qator, {column}-ustun)",
+        "en": "  {name}: {count} (first at line {line}, column {column})",
+    },
+    "repair.summary.fix_count": {"uz": "  {name}: {count} ta", "en": "  {name}: {count}"},
+    "repair.summary.truncated": {
+        "uz": "  kesilgan joy: {line}-qator, {column}-ustun; saqlangan yozuvlar: {kept}; tashlab yuborildi: "
+              "{dropped}; qo'shildi: {closers}",
+        "en": "  cut at line {line}, column {column}; records kept: {kept}; dropped: {dropped}; appended: "
+              "{closers}",
+    },
+    "repair.summary.problem": {
+        "uz": "Ta'mirlab bo'lmaydigan joy: {reason} ({line}-qator, {column}-ustun)",
+        "en": "Unrepairable: {reason} (line {line}, column {column})",
+    },
+    "repair.summary.partial": {
+        "uz": "Muammodan oldingi {kept} ta yozuvni qisman natija sifatida saqlash mumkin.",
+        "en": "The {kept} records before the problem can be saved as a partial result.",
+    },
+    "repair.summary.partial_written": {
+        "uz": "Qisman natija yozildi: muammodan oldingi {kept} ta yozuv.",
+        "en": "Partial result written: the {kept} records before the problem.",
+    },
+    "repair.summary.data_changed": {
+        "uz": "Ma'lumotni o'zgartirgan yoki tashlab yuborgan tuzatishlar: {items}.",
+        "en": "Fixes that changed or dropped data: {items}.",
+    },
+    "repair.summary.data_item": {"uz": "{name} {count} ta", "en": "{name} {count}"},
+    # ---- mapping ----
+    # toasts of the designer operations (Uzbek = json-tuzilma.html verbatim)
+    "mapping.toast.merged": {
+        "uz": "«{node}» elementlari «{target}» massiviga qo'shildi",
+        "en": "The elements of «{node}» were added to the «{target}» array",
+    },
+    "mapping.toast.merged_root": {
+        "uz": "«{node}» elementlari «ildiz» massiviga qo'shildi",
+        "en": "The elements of «{node}» were added to the root array",
+    },
+    "mapping.toast.moved_renamed": {
+        "uz": "«{old}» nomi band edi, «{new}» deb qo'yildi",
+        "en": "The name «{old}» was taken, so the field was placed as «{new}»",
+    },
+    "mapping.toast.deleted": {
+        "uz": "«{name}» natijadan olib tashlandi",
+        "en": "«{name}» was removed from the result",
+    },
+    "mapping.toast.deleted_elem": {
+        "uz": "«element» natijadan olib tashlandi",
+        "en": "These elements were removed from the result",
+    },
+    "mapping.toast.unwrapped": {
+        "uz": "«{name}» ichidagi {count} ta maydon bir pog'ona yuqoriga chiqdi",
+        "en": "{count} fields of «{name}» moved one level up",
+    },
+    "mapping.toast.unwrapped.one": {
+        "uz": "«{name}» ichidagi {count} ta maydon bir pog'ona yuqoriga chiqdi",
+        "en": "{count} field of «{name}» moved one level up",
+    },
+    "mapping.toast.unwrapped_renamed": {
+        "uz": "«{name}» ichidagi {count} ta maydon bir pog'ona yuqoriga chiqdi, "
+              "{renamed} tasining nomiga raqam qo'shildi",
+        "en": "Fields moved one level up from «{name}»: {count} (renamed with a number: {renamed})",
+    },
+    "mapping.toast.renamed_unique": {
+        "uz": "«{name}» band edi, «{new}» deb nomlandi",
+        "en": "«{name}» was taken, so the field was named «{new}»",
+    },
+    "mapping.toast.flattened": {
+        "uz": "«{key}» ichidagi barcha darajalar bitta massivga yig'ildi: {total} ta element",
+        "en": "All levels of «{key}» were collected into one array: {total} elements",
+    },
+    "mapping.toast.flattened.one": {
+        "uz": "«{key}» ichidagi barcha darajalar bitta massivga yig'ildi: {total} ta element",
+        "en": "All levels of «{key}» were collected into one array: {total} element",
+    },
+    "mapping.toast.undone": {"uz": "Oxirgi o'zgarish bekor qilindi", "en": "The last change was undone"},
+    "mapping.toast.redone": {
+        "uz": "Bekor qilingan o'zgarish qayta bajarildi",
+        "en": "The undone change was made again",
+    },
+    "mapping.toast.reset": {"uz": "Asl tuzilma tiklandi", "en": "The original structure was restored"},
+    # tree rows: labels, type chips, meta, samples, header
+    "mapping.label.each_record": {"uz": "har bir yozuv", "en": "each record"},
+    "mapping.label.each_element": {"uz": "har bir element", "en": "each element"},
+    "mapping.label.each_member": {"uz": "har bir a'zo", "en": "each member"},
+    "mapping.label.root": {"uz": "ildiz", "en": "root"},
+    "mapping.label.root_path": {"uz": "(ildiz)", "en": "(root)"},
+    "mapping.default_group_key": {"uz": "yangi_guruh", "en": "new_group"},
+    "mapping.type.object": {"uz": "obyekt", "en": "object"},
+    "mapping.type.array": {"uz": "massiv", "en": "array"},
+    "mapping.type.string": {"uz": "matn", "en": "text"},
+    "mapping.type.number": {"uz": "son", "en": "number"},
+    "mapping.type.boolean": {"uz": "mantiqiy", "en": "true/false"},
+    "mapping.type.null": {"uz": "null", "en": "null"},
+    "mapping.type.empty": {"uz": "bo'sh", "en": "empty"},
+    "mapping.type.empty.tip": {"uz": "massiv doim bo'sh", "en": "the array is always empty"},
+    "mapping.meta.pct.tip": {
+        "uz": "{count} / {pcount} ta obyektda bor",
+        "en": "present in {count} of {pcount} objects",
+    },
+    "mapping.meta.items": {"uz": "{count} ta", "en": "{count} items"},
+    "mapping.meta.items.one": {"uz": "{count} ta", "en": "{count} item"},
+    "mapping.meta.records": {"uz": "{count} ta yozuv", "en": "{count} records"},
+    "mapping.meta.records.one": {"uz": "{count} ta yozuv", "en": "{count} record"},
+    "mapping.meta.members": {"uz": "{count} ta a'zo", "en": "{count} members"},
+    "mapping.meta.members.one": {"uz": "{count} ta a'zo", "en": "{count} member"},
+    "mapping.stats.fields": {"uz": "{count} maydon", "en": "{count} fields"},
+    "mapping.stats.fields.one": {"uz": "{count} maydon", "en": "{count} field"},
+    "mapping.stats.changes": {"uz": "{count} o'zgarish", "en": "{count} changes"},
+    "mapping.stats.changes.one": {"uz": "{count} o'zgarish", "en": "{count} change"},
+    "mapping.more": {"uz": "yana {count} ta maydonni ko'rsatish", "en": "show {count} more fields"},
+    # badges (order and colours of the prototype)
+    "mapping.badge.group": {"uz": "yangi guruh", "en": "new group"},
+    "mapping.badge.depth": {"uz": "daraja raqami", "en": "level number"},
+    "mapping.badge.depth.tip": {
+        "uz": "Element qaysi darajadan kelgani: 1 = bevosita, 2 = uning ichidagisi…",
+        "en": "The level the element came from: 1 = direct, 2 = one inside it…",
+    },
+    "mapping.badge.recursive": {"uz": "rekursiv · {key}", "en": "recursive · {key}"},
+    "mapping.badge.recursive.tip": {
+        "uz": "«{key}» ichidagi barcha darajalar shu massivga tushadi",
+        "en": "All levels of «{key}» go into this array",
+    },
+    "mapping.badge.source": {"uz": "manba: {path}", "en": "source: {path}"},
+    "mapping.badge.source.tip": {
+        "uz": "Bu elementlar boshqa massivdan qo'shilgan",
+        "en": "These elements were added from another array",
+    },
+    "mapping.badge.moved": {"uz": "ko'chirildi", "en": "moved"},
+    "mapping.badge.moved.tip": {"uz": "Asl joyi: {path}", "en": "Original place: {path}"},
+    "mapping.badge.orig_name": {"uz": "asl nomi: {name}", "en": "original name: {name}"},
+    "mapping.badge.gathered": {"uz": "ro'yxatga yig'iladi", "en": "collected into a list"},
+    "mapping.badge.gathered.tip": {
+        "uz": "Massiv ichidan olingan: har bir elementdagi qiymat bitta ro'yxatga yig'iladi",
+        "en": "Taken from inside an array: the value of every element is collected into one list",
+    },
+    "mapping.badge.broadcast": {"uz": "har elementga takrorlanadi", "en": "repeated in every element"},
+    "mapping.badge.broadcast.tip": {
+        "uz": "Massivdan tashqaridan olingan: har bir elementga bir xil qiymat yoziladi",
+        "en": "Taken from outside the array: the same value is written into every element",
+    },
+    "mapping.badge.opaque": {"uz": "butunicha", "en": "copied whole"},
+    "mapping.badge.opaque.tip": {
+        "uz": "Kalitlari juda ko'p yoki juda chuqur: qiymat o'zgarishsiz ko'chiriladi",
+        "en": "Too many keys or too deep: the value is copied unchanged",
+    },
+    # row actions (tooltips and short labels)
+    "mapping.action.group": {"uz": "Ichiga yangi guruh qo'shish", "en": "Add a new group inside"},
+    "mapping.action.group.label": {"uz": "Yangi guruh", "en": "New group"},
+    "mapping.action.unwrap": {
+        "uz": "Ichidagilarni bir pog'ona yuqoriga chiqarish",
+        "en": "Move the contents one level up",
+    },
+    "mapping.action.unwrap.label": {"uz": "Ichidagilarni chiqarish", "en": "Unwrap"},
+    "mapping.action.flatten": {
+        "uz": "Ichma-ich elementlarni (hamma darajasini) shu massivga tekislash",
+        "en": "Flatten the nested elements (all levels) into this array",
+    },
+    "mapping.action.flatten.label": {"uz": "Rekursiv tekislash", "en": "Flatten recursively"},
+    "mapping.action.rename": {"uz": "Nomini o'zgartirish", "en": "Rename"},
+    "mapping.action.delete": {"uz": "Natijadan olib tashlash", "en": "Remove from the result"},
+    "mapping.action.delete.label": {"uz": "Olib tashlash", "en": "Remove"},
+    # why an operation is not possible (refused operations, disabled actions)
+    "mapping.why.missing": {"uz": "Bu tugun endi tuzilmada yo'q.", "en": "This node is no longer in the structure."},
+    "mapping.why.root": {
+        "uz": "Ildiz qatorini ko'chirib, nomlab yoki o'chirib bo'lmaydi.",
+        "en": "The root row cannot be moved, renamed or removed.",
+    },
+    "mapping.why.elem": {
+        "uz": "«Har bir yozuv / element / a'zo» qatorini ko'chirib, nomini o'zgartirib yoki ichidagilarini chiqarib "
+              "bo'lmaydi.",
+        "en": "An «each record / element / member» row cannot be moved, renamed or unwrapped.",
+    },
+    "mapping.why.last_elem": {
+        "uz": "Massivning yagona element manbasini o'chirib bo'lmaydi; massivning o'zini o'chiring.",
+        "en": "The only element source of an array cannot be removed; remove the array itself.",
+    },
+    "mapping.why.not_object": {
+        "uz": "Bu amal faqat obyekt (guruh) tugunlari uchun.",
+        "en": "This works only on object (group) nodes.",
+    },
+    "mapping.why.into_itself": {
+        "uz": "Tugunni o'zining ustiga yoki o'z ichidagi tugunga ko'chirib bo'lmaydi.",
+        "en": "A node cannot be moved onto itself or into one of its own descendants.",
+    },
+    "mapping.why.array_only": {
+        "uz": "Massiv ustiga faqat massiv tashlanadi.",
+        "en": "Only an array can be dropped onto an array.",
+    },
+    "mapping.why.no_sibling": {
+        "uz": "Ildiz yoki «har bir yozuv / element / a'zo» qatorining oldiga yoki ortiga qo'yib bo'lmaydi.",
+        "en": "Nothing can be placed before or after the root or an «each record / element / member» row.",
+    },
+    "mapping.why.no_zone": {"uz": "Bu yerga tashlab bo'lmaydi.", "en": "It cannot be dropped here."},
+    "mapping.why.first": {"uz": "Bu qator allaqachon birinchi.", "en": "This row is already the first one."},
+    "mapping.why.last": {"uz": "Bu qator allaqachon oxirgi.", "en": "This row is already the last one."},
+    "mapping.why.empty_name": {"uz": "Nom bo'sh bo'lmasligi kerak.", "en": "The name must not be empty."},
+    "mapping.why.same_name": {"uz": "Nom o'zgarmadi.", "en": "The name did not change."},
+    "mapping.why.not_flattenable": {
+        "uz": "Bu massiv elementlarida xuddi shunday ichki massiv yo'q (masalan, children ichida children).",
+        "en": "The elements of this array hold no nested array of the same kind (such as children "
+              "inside children).",
+    },
+    "mapping.why.no_data": {
+        "uz": "Tuzilmani qayta aniqlash uchun yozuvlar berilmagan.",
+        "en": "No records were given to re-infer the structure from.",
+    },
+    "mapping.why.nothing_to_undo": {"uz": "Bekor qilinadigan o'zgarish yo'q.", "en": "There is nothing to undo."},
+    "mapping.why.nothing_to_redo": {"uz": "Qaytariladigan o'zgarish yo'q.", "en": "There is nothing to redo."},
+    "mapping.why.stale": {
+        "uz": "Tuzilma shu orada o'zgardi; amalni qaytadan bajaring.",
+        "en": "The structure changed in the meantime; run the operation again.",
+    },
+    # mapping files and mappings that do not fit the input
+    "mapping.error.invalid": {"uz": "Mapping noto'g'ri: {detail}", "en": "Invalid mapping: {detail}"},
+    "mapping.error.json": {
+        "uz": "Mapping fayli to'g'ri JSON emas: {detail}",
+        "en": "The mapping file is not valid JSON: {detail}",
+    },
+    "mapping.error.file_too_big": {
+        "uz": "Mapping fayli juda katta: {path} ({size} bayt, chegara {limit}).",
+        "en": "The mapping file is too big: {path} ({size} bytes, limit {limit}).",
+    },
+    "mapping.error.file_too_big.hint": {
+        "uz": "Ma'lumot fayli tanlanmaganini tekshiring: mapping fayli tuzilma quruvchida saqlangan .json bo'ladi.",
+        "en": "Check that this is not the data file: a mapping file is the .json saved by the structure builder.",
+    },
+    "mapping.error.not_object": {
+        "uz": "Mapping fayli JSON obyekt bo'lishi kerak (version, input va tree maydonlari bilan).",
+        "en": "A mapping file must be a JSON object (with the fields version, input and tree).",
+    },
+    "mapping.error.version": {
+        "uz": "Mapping fayli versiyasi qo'llab-quvvatlanmaydi: {version} (kutilgan: 1).",
+        "en": "Unsupported mapping file version: {version} (expected 1).",
+    },
+    "mapping.error.input": {
+        "uz": "Mapping faylidagi «input» obyekt bo'lishi kerak.",
+        "en": "«input» in the mapping file must be an object.",
+    },
+    "mapping.error.no_tree": {
+        "uz": "Mapping faylida «tree» (tuzilma daraxti) yo'q.",
+        "en": "The mapping file has no «tree» (structure tree).",
+    },
+    "mapping.error.node": {
+        "uz": "Tuzilma tuguni JSON obyekt bo'lishi kerak ({pointer}).",
+        "en": "A structure node must be a JSON object ({pointer}).",
+    },
+    "mapping.error.kind": {
+        "uz": "Tugun turi noma'lum: {kind} ({pointer}); object, array yoki value bo'lishi kerak.",
+        "en": "Unknown node kind {kind} ({pointer}); it must be object, array or value.",
+    },
+    "mapping.error.field": {
+        "uz": "Tugunning «{field}» maydoni noto'g'ri ({pointer}).",
+        "en": "The «{field}» field of the node is invalid ({pointer}).",
+    },
+    "mapping.error.src": {
+        "uz": "Manba yo'li (src) noto'g'ri ({pointer}): kalitlar ro'yxati bo'lishi kerak, massiv qadami "
+              "uchun null.",
+        "en": "Invalid source path (src) ({pointer}): it must be a list of keys, with null for an array "
+              "step.",
+    },
+    "mapping.error.ctx": {
+        "uz": "ctx noto'g'ri ({pointer}): u faqat hisoblangan tugunda bo'ladi va yo'l ro'yxati bo'lishi kerak.",
+        "en": "Invalid ctx ({pointer}): only computed nodes have it, and it must be a path list.",
+    },
+    "mapping.error.root": {
+        "uz": "Ildiz faqat eng yuqori tugun bo'ladi va u element bo'lmaydi ({pointer}).",
+        "en": "Only the top node is the root, and it is not an element ({pointer}).",
+    },
+    "mapping.error.root_src": {
+        "uz": "Ildiz tugunining manbasi bo'sh ro'yxat bo'lishi kerak ({pointer}).",
+        "en": "The source of the root node must be an empty list ({pointer}).",
+    },
+    "mapping.error.elem_src": {
+        "uz": "Element tugunining manbasi massiv qadami (null) bilan tugashi kerak ({pointer}).",
+        "en": "The source of an element node must end with an array step (null) ({pointer}).",
+    },
+    "mapping.error.field_src": {
+        "uz": "Maydon tugunining manbasi kalit bilan tugashi kerak ({pointer}).",
+        "en": "The source of a field node must end with a key ({pointer}).",
+    },
+    "mapping.error.synthetic_src": {
+        "uz": "Yangi guruh va hisoblangan tugunlarning manbasi null bo'lishi kerak ({pointer}).",
+        "en": "New groups and computed nodes must have the source null ({pointer}).",
+    },
+    "mapping.error.array_children": {
+        "uz": "Massiv tugunida kamida bitta element tuguni bo'lishi va boshqa tugun bo'lmasligi kerak ({pointer}).",
+        "en": "An array node must hold at least one element node and nothing else ({pointer}).",
+    },
+    "mapping.error.elem_outside_array": {
+        "uz": "Element tuguni faqat massiv tuguni ichida bo'ladi ({pointer}).",
+        "en": "An element node can only be inside an array node ({pointer}).",
+    },
+    "mapping.error.value_children": {
+        "uz": "Qiymat tugunining ichida boshqa tugunlar bo'lmaydi ({pointer}).",
+        "en": "A value node cannot hold other nodes ({pointer}).",
+    },
+    "mapping.error.synthetic": {
+        "uz": "Yangi guruh (synthetic) obyekt turidagi oddiy tugun bo'lishi kerak ({pointer}).",
+        "en": "A new group (synthetic) must be an ordinary node of kind object ({pointer}).",
+    },
+    "mapping.error.computed": {
+        "uz": "Hisoblangan tugun noto'g'ri ({pointer}): computed faqat depth, turi value, ctx esa "
+              "element manbasi bo'ladi.",
+        "en": "Invalid computed node ({pointer}): computed can only be depth, the kind value, and ctx "
+              "an element source.",
+    },
+    "mapping.error.rec_key": {
+        "uz": "rec_key faqat obyekt turidagi element tugunida bo'ladi ({pointer}).",
+        "en": "rec_key is allowed only on element nodes of kind object ({pointer}).",
+    },
+    "mapping.error.root_kind": {
+        "uz": "Ildiz turi mos emas ({pointer}): {kind}, yozuvlar hujjati uchun esa massiv ildiz kerak "
+              "({root_kind}).",
+        "en": "The root kind does not fit ({pointer}): {kind}, but a records document needs an array "
+              "root ({root_kind}).",
+    },
+    "mapping.error.root_kind_name": {
+        "uz": "Noma'lum ildiz turi: {kind}; records, value, wrapped yoki keyed bo'lishi kerak.",
+        "en": "Unknown root kind {kind}; it must be records, value, wrapped or keyed.",
+    },
+    "mapping.error.record_path": {
+        "uz": "input.record_path noto'g'ri: kalitlar va indekslar ro'yxati bo'lishi kerak.",
+        "en": "Invalid input.record_path: it must be a list of keys and indexes.",
+    },
+    "mapping.error.known_paths": {
+        "uz": "known_paths noto'g'ri ({pointer}): manba yo'llari ro'yxati bo'lishi kerak.",
+        "en": "Invalid known_paths ({pointer}): it must be a list of source paths.",
+    },
+    "mapping.error.designer": {
+        "uz": "designer qismi noto'g'ri ({pointer}): obyekt bo'lishi kerak.",
+        "en": "Invalid designer section ({pointer}): it must be an object.",
+    },
+    "mapping.warn.truncated": {
+        "uz": "Tuzilma juda katta: 1000 tadan ko'p kalitli, juda chuqur yoki sig'magan qismlar butunicha "
+              "ko'chiriladigan qiymat bo'lib qoldi.",
+        "en": "The structure is very large: parts with more than 1000 keys, very deep parts or parts "
+              "beyond the limit stay values that are copied whole.",
+    },
+    # ---- engine ----
+    # mapping evaluation and the streaming apply (engine.py, docs/ARCHITECTURE.md §13.2-§13.3)
+    "engine.error.indent": {
+        "uz": "Chekinish qiymati noto'g'ri: {value} (2, 4, tab yoki ixcham bo'lishi mumkin).",
+        "en": "Invalid indent: {value} (use 2, 4, tab or compact).",
+    },
+    "engine.error.workers": {
+        "uz": "Jarayonlar soni noto'g'ri: {value} (1 yoki undan katta butun son bo'lishi kerak).",
+        "en": "Invalid number of worker processes: {value} (a whole number of 1 or more).",
+    },
+    "engine.error.huge_record": {
+        "uz": "#{record} yozuv juda katta ({size}, chegara {limit}): uni xotirada qayta qurib bo'lmaydi.",
+        "en": "Record #{record} is too large ({size}, limit {limit}): it cannot be restructured in memory.",
+    },
+    "engine.error.huge_record.hint": {
+        "uz": "Bunday yozuvlarni o'tkazib yuborish uchun --skip-huge ni qo'shing yoki sozlamalarda katta tugun "
+              "chegarasini oshiring.",
+        "en": "Add --skip-huge to skip such records, or raise the large node limit in the settings.",
+    },
+    "engine.error.unreadable": {
+        "uz": "#{record} yozuvni o'qib bo'lmadi: {detail}",
+        "en": "Record #{record} could not be read: {detail}",
+    },
+    "engine.error.kind_mismatch": {
+        "uz": "Bu tuzilma {mapping} uchun tayyorlangan, kiruvchi fayl esa: {input}.",
+        "en": "This mapping was made for {mapping}, but the input is: {input}.",
+    },
+    "engine.error.kind_mismatch.hint": {
+        "uz": "Tuzilmani shu fayldan qayta yarating yoki yozuvlar yo'lini --record-path bilan ko'rsating.",
+        "en": "Build the mapping from this file again, or give the record path with --record-path.",
+    },
+    "engine.error.partial_wrapper": {
+        "uz": "Yozuvlar massivi yopilmagan (fayl oxirigacha to'liq emas): o'rovchi obyektga tuzilmani qo'llab "
+              "bo'lmaydi.",
+        "en": "The record array is never closed (the file is incomplete): the mapping cannot be applied to the "
+              "wrapper.",
+    },
+    "engine.error.member_container": {
+        "uz": "Yozuvlar o'rovchi ichidagi obyektning a'zolari: bunday faylga tuzilmani qo'llab bo'lmaydi.",
+        "en": "The records are members of an object inside the wrapper: a mapping cannot be applied to such a "
+              "file.",
+    },
+    "engine.error.member_container.hint": {
+        "uz": "Massivga olib boradigan yozuvlar yo'lini tanlang.",
+        "en": "Choose a record path that leads to an array.",
+    },
+    "engine.error.too_large": {
+        "uz": "Fayl bitta qiymat sifatida qayta qurish uchun juda katta ({size}, chegara {limit}).",
+        "en": "The document is too large to restructure as one value ({size}, limit {limit}).",
+    },
+    "engine.error.too_large.hint": {
+        "uz": "Yozuvlar yo'lini ko'rsating (--record-path): shunda yozuvlar birma-bir qayta quriladi.",
+        "en": "Give a record path (--record-path) so that the records are restructured one by one.",
+    },
+    "engine.root_kind.records": {"uz": "yozuvlar massivi", "en": "an array of records"},
+    "engine.root_kind.value": {"uz": "bitta qiymat", "en": "a single value"},
+    "engine.root_kind.wrapped": {"uz": "obyekt ichidagi massiv", "en": "an array inside an object"},
+    "engine.root_kind.keyed": {"uz": "kalitli obyekt", "en": "a keyed object"},
+    "engine.progress.index": {"uz": "Indekslanmoqda: {name}", "en": "Indexing {name}"},
+    "engine.progress.apply": {"uz": "Tuzilma qo'llanmoqda: {name}", "en": "Applying the mapping: {name}"},
+    "engine.progress.pass": {
+        "uz": "Tuzilma qo'llanmoqda: {name} ({n}-o'tish)",
+        "en": "Applying the mapping: {name} (pass {n})",
+    },
+    "engine.warn.partial": {
+        "uz": "Manba faylda JSON xatosi bor: faqat xatogacha bo'lgan {count} ta yozuv qayta qurildi.",
+        "en": "The source file has a JSON error: only the {count} records before the error were restructured.",
+    },
+    "engine.warn.partial.one": {
+        "uz": "Manba faylda JSON xatosi bor: faqat xatogacha bo'lgan {count} ta yozuv qayta qurildi.",
+        "en": "The source file has a JSON error: only the {count} record before the error was restructured.",
+    },
+    "engine.warn.broken_lines": {
+        "uz": "Manbadagi {count} ta buzuq qator o'tkazib yuborildi.",
+        "en": "{count} broken lines of the source were skipped.",
+    },
+    "engine.warn.broken_lines.one": {
+        "uz": "Manbadagi {count} ta buzuq qator o'tkazib yuborildi.",
+        "en": "{count} broken line of the source was skipped.",
+    },
+    "engine.warn.not_array": {
+        "uz": "Hech bir yozuvda massiv topilmadi, natija massiv emas: etalon qoidasiga ko'ra birinchi topilgan "
+              "qiymat (yoki null) yozildi.",
+        "en": "No record reached an array, so the result is not an array: by the reference rule the first value "
+              "found (or null) was written.",
+    },
+    "engine.warn.unmapped": {
+        "uz": "{count} ta yozuvda tuzilmada yo'q maydonlar bor edi, ular natijaga yozilmadi. Tuzilmani to'liq "
+              "skanerlash bilan qayta yarating.",
+        "en": "{count} records had fields the mapping does not know; those fields were not written. Build the "
+              "mapping again with a full scan.",
+    },
+    "engine.warn.unmapped.one": {
+        "uz": "{count} ta yozuvda tuzilmada yo'q maydonlar bor edi, ular natijaga yozilmadi. Tuzilmani to'liq "
+              "skanerlash bilan qayta yarating.",
+        "en": "{count} record had fields the mapping does not know; those fields were not written. Build the "
+              "mapping again with a full scan.",
+    },
+    "engine.warn.unmapped_wrapper": {
+        "uz": "O'rovchi obyektda tuzilmada yo'q maydonlar bor edi, ular natijaga yozilmadi.",
+        "en": "The wrapper had fields the mapping does not know; they were not written.",
+    },
+    "engine.warn.skipped_huge": {
+        "uz": "{count} ta juda katta yozuv ({limit} dan katta) o'tkazib yuborildi.",
+        "en": "{count} very large records (over {limit}) were skipped.",
+    },
+    "engine.warn.skipped_huge.one": {
+        "uz": "{count} ta juda katta yozuv ({limit} dan katta) o'tkazib yuborildi.",
+        "en": "{count} very large record (over {limit}) was skipped.",
+    },
+    "engine.warn.passes": {
+        "uz": "Yozuvlar {count} marta o'qildi (birlashtirilgan massivlar uchun alohida o'tishlar).",
+        "en": "The records were read {count} times (separate passes for merged arrays).",
+    },
+    "engine.warn.records_hidden": {
+        "uz": "O'rovchida yozuvlar massivi bilan bir xil nomli keyingi kalit bor: JSON qoidasiga ko'ra keyingisi "
+              "olinadi, shuning uchun yozuvlar natijaga kirmadi.",
+        "en": "The wrapper repeats the key of the record array: by the JSON rules the later value wins, so the "
+              "records are not in the result.",
+    },
+    "engine.warn.record_path": {
+        "uz": "Tuzilma {mapping} dagi yozuvlar uchun tayyorlangan, bu faylning yozuvlari esa {input} da.",
+        "en": "The mapping was made for records at {mapping}, but the records of this file are at {input}.",
+    },
+    "engine.warn.jsonl_wrapper": {
+        "uz": "JSON Lines faqat yozuvlarni saqlaydi: o'rovchi obyektning boshqa maydonlari yozilmadi.",
+        "en": "JSON Lines holds only the records: the other fields of the wrapper were not written.",
+    },
     # ---- cli ----
     # argparse's own phrases (cli.ARGPARSE_MESSAGES maps argparse msgids to these keys)
     "cli.argparse.usage": {"uz": "foydalanish: ", "en": "usage: "},
@@ -1454,15 +4259,23 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "invalid size: {value} (examples: 256MB, 1GB; a number without a unit is in megabytes: 512 = 512MB)",
     },
     "cli.argerr.no_command": {
-        "uz": "buyruq ko'rsatilmagan: inspect, search, filter, sort, convert yoki presets",
-        "en": "no command given: inspect, search, filter, sort, convert or presets",
+        "uz": "buyruq ko'rsatilmagan: inspect, search, filter, sort, convert, patch, apply, flatten, stats, dupes, "
+              "schema, validate, split, merge, extract, repair, diff yoki presets",
+        "en": "no command given: inspect, search, filter, sort, convert, patch, apply, flatten, stats, dupes, "
+              "schema, validate, split, merge, extract, repair, diff or presets",
+    },
+    "cli.argerr.split_size": {
+        "uz": "qism hajmi kamida {minimum} bo'lishi kerak, berilgan: {value}",
+        "en": "the part size must be at least {minimum}, got: {value}",
     },
     # help texts (argument help strings must not contain the percent sign)
     "cli.help.description": {
-        "uz": "Katta JSON fayllar bilan ishlash vositasi: tuzilmani ko'rish, qidirish, filtrlash, tartiblash va\n"
-              "boshqa formatlarga o'tkazish. Fayl hech qachon to'liq xotiraga yuklanmaydi, asl fayl o'zgarmaydi.",
-        "en": "A tool for huge JSON files: inspect the structure, search, filter, sort and convert to other\n"
-              "formats. The file is never loaded into memory as a whole and the original is never modified.",
+        "uz": "Katta JSON fayllar bilan ishlash vositasi: tuzilmani ko'rish, qidirish, filtrlash, tartiblash,\n"
+              "boshqa formatlarga o'tkazish, statistika, dublikatlar, JSON Schema, bo'lish va birlashtirish,\n"
+              "ta'mirlash va solishtirish. Fayl hech qachon to'liq xotiraga yuklanmaydi, asl fayl o'zgarmaydi.",
+        "en": "A tool for huge JSON files: inspect the structure, search, filter, sort, convert to other formats,\n"
+              "statistics, duplicates, JSON Schema, split and merge, repair and compare. The file is never loaded\n"
+              "into memory as a whole and the original is never modified.",
     },
     "cli.help.epilog": {
         "uz": "Misollar:\n"
@@ -1471,13 +4284,18 @@ MESSAGES: dict[str, dict[str, str]] = {
               "  jsonreshape filter data.json natija.json --where \"contact.address.city == 'Toshkent'\"\n"
               "  jsonreshape sort data.json natija.json --by name --by -id\n"
               "  jsonreshape convert data.json natija.csv --columns \"id,name,contact.address.city\"\n"
+              "  jsonreshape stats data.json --field contact.address.city\n"
+              "  jsonreshape split data.json --parts 10\n"
+              "  jsonreshape merge a.json b.json -o hammasi.json --dedupe-by id\n"
+              "  jsonreshape repair buzuq.json tuzatilgan.json\n"
+              "  jsonreshape diff eski.json yangi.json --key id\n"
               "\n"
               "Ifodani (va vergulli ro'yxatni) qo'shtirnoq (\"...\") ichida, undagi matnni bitta tirnoq ('...')\n"
               "ichida yozing: misollar cmd.exe, PowerShell va bash'da bir xil ishlaydi.\n"
               "\n"
               "Chiqish kodlari: 0 - muvaffaqiyatli; 1 - noto'g'ri buyruq, parametr, ifoda yoki yo'l; 2 - kirish\n"
               "faylida JSON xatosi yoki fayl ish paytida o'zgardi; 3 - bekor qilindi (Ctrl+C); 4 - ichki xato\n"
-              "(tafsilotlar log faylida).\n"
+              "(tafsilotlar log faylida); 5 - ma'lumot mos emas (validate xato topdi, diff --exit-code farq topdi).\n"
               "Har bir buyruq haqida batafsil: jsonreshape BUYRUQ --help",
         "en": "Examples:\n"
               "  jsonreshape inspect data.json\n"
@@ -1485,13 +4303,19 @@ MESSAGES: dict[str, dict[str, str]] = {
               "  jsonreshape filter data.json result.json --where \"contact.address.city == 'Toshkent'\"\n"
               "  jsonreshape sort data.json result.json --by name --by -id\n"
               "  jsonreshape convert data.json result.csv --columns \"id,name,contact.address.city\"\n"
+              "  jsonreshape stats data.json --field contact.address.city\n"
+              "  jsonreshape split data.json --parts 10\n"
+              "  jsonreshape merge a.json b.json -o all.json --dedupe-by id\n"
+              "  jsonreshape repair broken.json fixed.json\n"
+              "  jsonreshape diff old.json new.json --key id\n"
               "\n"
               "Put an expression (and a comma list) in double quotes (\"...\") and the texts inside it in single\n"
               "quotes ('...'): the examples then work the same in cmd.exe, PowerShell and bash.\n"
               "\n"
               "Exit codes: 0 - success; 1 - invalid command, option, expression or path; 2 - JSON error in the\n"
               "input file, or the file changed while it was read; 3 - cancelled (Ctrl+C); 4 - internal error\n"
-              "(details in the log file).\n"
+              "(details in the log file); 5 - the data does not match (validate found issues, diff --exit-code\n"
+              "found differences).\n"
               "More about a command: jsonreshape COMMAND --help",
     },
     "cli.help.commands": {"uz": "buyruqlar", "en": "commands"},
@@ -1851,6 +4675,335 @@ MESSAGES: dict[str, dict[str, str]] = {
               "  jsonreshape presets\n"
               "  jsonreshape presets --delete active",
     },
+    # the patch command (JSON Patch, RFC 6902)
+    "cli.cmd.patch.help": {"uz": "JSON Patch (RFC 6902) qo'llash", "en": "apply a JSON Patch (RFC 6902)"},
+    "cli.cmd.patch.description": {
+        "uz": "PATCH faylidagi amallarni (RFC 6902: add, remove, replace, move, copy, test) INPUT ga qo'llaydi va\n"
+              "natijani INPUT bilan bir xil formatda va kodlashda OUTPUT ga yozadi; --in-place INPUT ning o'zini\n"
+              "almashtiradi (avval INPUT.bak zaxira nusxasi qoladi). Biror amal bajarilmasa (masalan, test mos\n"
+              "kelmasa), hech narsa yozilmaydi.",
+        "en": "Applies the operations of the PATCH file (RFC 6902: add, remove, replace, move, copy, test) to INPUT\n"
+              "and writes the result to OUTPUT in the same format and encoding as INPUT; --in-place replaces INPUT\n"
+              "itself (INPUT.bak is kept first). When an operation fails (for example a test that does not match),\n"
+              "nothing is written.",
+    },
+    "cli.cmd.patch.epilog": {
+        "uz": "Misollar:\n"
+              "  jsonreshape patch data.json tuzatish.json natija.json\n"
+              "  jsonreshape patch data.json tuzatish.json --in-place\n"
+              "  jsonreshape patch data.jsonl tuzatish.json --in-place --no-backup\n"
+              "\n"
+              "Yo'llar (JSON Pointer): massiv va JSON Lines fayllarda /12/name - 12-yozuvning name maydoni (yozuvlar\n"
+              "0 dan sanaladi), /- - oxiriga qo'shish; kalitli obyektda /kalit/name; o'ralgan faylda to'liq yo'l,\n"
+              "masalan /data/12/name; bitta qiymatli faylda ildizdan boshlab.",
+        "en": "Examples:\n"
+              "  jsonreshape patch data.json fix.json result.json\n"
+              "  jsonreshape patch data.json fix.json --in-place\n"
+              "  jsonreshape patch data.jsonl fix.json --in-place --no-backup\n"
+              "\n"
+              "Paths (JSON Pointer): in array and JSON Lines files /12/name is the name field of record 12 (records\n"
+              "are counted from 0) and /- appends; in a keyed object /key/name; in a wrapped file the full path,\n"
+              "for example /data/12/name; in a single-value file from the root.",
+    },
+    "cli.help.patch": {
+        "uz": "JSON Patch fayli (RFC 6902; UTF-8, UTF-16 yoki .gz)",
+        "en": "JSON Patch file (RFC 6902; UTF-8, UTF-16 or .gz)",
+    },
+    "cli.help.patch_output": {
+        "uz": "natija fayli (INPUT bilan bir xil format va kodlash; .gz bilan tugasa siqiladi); --in-place bilan "
+              "berilmaydi",
+        "en": "output file (same format and encoding as INPUT; compressed when it ends in .gz); not given with "
+              "--in-place",
+    },
+    "cli.help.in_place": {
+        "uz": "INPUT faylining o'zini almashtirish (atomik; avval INPUT.bak zaxira nusxasi qoladi)",
+        "en": "replace INPUT itself (atomically; INPUT.bak is kept first)",
+    },
+    "cli.help.no_backup": {
+        "uz": "--in-place bilan .bak zaxira nusxasini qoldirmaslik",
+        "en": "with --in-place: do not keep the .bak backup",
+    },
+    "cli.group.patch": {"uz": "patch parametrlari", "en": "patch options"},
+    "cli.stage.patching": {"uz": "Patch qo'llanmoqda", "en": "Applying the patch"},
+    "cli.error.patch_output": {
+        "uz": "Natija faylini (OUTPUT) bering yoki --in-place parametrini ishlating (ikkalasini birga emas).",
+        "en": "Give an OUTPUT file or use --in-place (not both).",
+    },
+    "cli.error.no_backup": {
+        "uz": "--no-backup faqat --in-place bilan ishlatiladi.",
+        "en": "--no-backup is only used together with --in-place.",
+    },
+    "cli.hint.patch_broken_lines": {
+        "uz": "Buzuq qatorlarsiz saqlash uchun --allow-partial parametrini qo'shing.",
+        "en": "Add --allow-partial to save without the broken lines.",
+    },
+    "cli.summary.patch": {
+        "uz": "{ops} ta amal qo'llandi -> {output} ({size}, {seconds})",
+        "en": "{ops} operations applied -> {output} ({size}, {seconds})",
+    },
+    "cli.summary.patch.one": {
+        "uz": "{ops} ta amal qo'llandi -> {output} ({size}, {seconds})",
+        "en": "{ops} operation applied -> {output} ({size}, {seconds})",
+    },
+    "cli.summary.patch_unchanged": {
+        "uz": "Patch hech narsani o'zgartirmadi ({ops} ta amal): {output} o'zgartirilmadi.",
+        "en": "The patch changed nothing ({ops} operations): {output} was not modified.",
+    },
+    "cli.summary.patch_unchanged.one": {
+        "uz": "Patch hech narsani o'zgartirmadi ({ops} ta amal): {output} o'zgartirilmadi.",
+        "en": "The patch changed nothing ({ops} operation): {output} was not modified.",
+    },
+    "cli.summary.backup": {"uz": "Zaxira nusxa: {path}", "en": "Backup: {path}"},
+    # the apply and flatten commands (structure builder / mapping, docs/ARCHITECTURE.md §13.4)
+    "cli.cmd.apply.help": {
+        "uz": "tuzilma (mapping) faylini butun faylga qo'llash",
+        "en": "apply a mapping (structure) file to a whole file",
+    },
+    "cli.cmd.apply.description": {
+        "uz": "Tuzilma quruvchida saqlangan MAPPING faylidagi tuzilmani INPUT ning barcha yozuvlariga qo'llab,\n"
+              "natijani OUTPUT ga JSON yoki JSON Lines sifatida yozadi. Fayl oqim bilan o'qiladi (xotiraga to'liq\n"
+              "yuklanmaydi), sonlar aniq saqlanadi, asl fayl o'zgarmaydi; natija avval vaqtinchalik faylga yoziladi.",
+        "en": "Applies the structure stored in the MAPPING file (saved by the structure builder) to every record\n"
+              "of INPUT and writes the result to OUTPUT as JSON or JSON Lines. The file is streamed (never loaded\n"
+              "into memory as a whole), numbers stay exact and the original is never modified; the result is\n"
+              "written to a temporary file first.",
+    },
+    "cli.cmd.apply.epilog": {
+        "uz": "Misollar:\n"
+              "  jsonreshape apply tuzilma.json data.json natija.json\n"
+              "  jsonreshape apply tuzilma.json data.json natija.jsonl\n"
+              "  jsonreshape apply tuzilma.json data.json natija.json --compact --record-path data\n"
+              "  jsonreshape apply tuzilma.json katta.json natija.json --skip-huge --workers 4\n"
+              "\n"
+              "Obyekt ichidagi massiv fayllarda mapping faylida saqlangan yozuvlar yo'li ishlatiladi; --record-path\n"
+              "uni almashtiradi. Tuzilmada yo'q maydonlar natijaga yozilmaydi: shunday maydonli yozuvlar soni\n"
+              "ogohlantirishda aytiladi (tuzilmani to'liq skanerlash bilan qayta yarating).",
+        "en": "Examples:\n"
+              "  jsonreshape apply mapping.json data.json result.json\n"
+              "  jsonreshape apply mapping.json data.json result.jsonl\n"
+              "  jsonreshape apply mapping.json data.json result.json --compact --record-path data\n"
+              "  jsonreshape apply mapping.json big.json result.json --skip-huge --workers 4\n"
+              "\n"
+              "For an array inside an object, the record path stored in the mapping file is used; --record-path\n"
+              "overrides it. Fields the mapping does not know are not written: a warning tells how many records\n"
+              "had such fields (build the mapping again with a full scan).",
+    },
+    "cli.cmd.flatten.help": {
+        "uz": "ichma-ich ro'yxatni (masalan, children) bitta ro'yxatga tekislash",
+        "en": "flatten a nested list (such as children) into one list",
+    },
+    "cli.cmd.flatten.description": {
+        "uz": "Har bir yozuvdagi ichma-ich KEY massivini (children ichida children ...) barcha darajalari bilan\n"
+              "bitta ro'yxatga tekislaydi: elementlar yuqoridan pastga tartibda, har biri daraja raqami (_depth: 1,\n"
+              "2, 3 ...) bilan va ichidagi KEY maydonisiz chiqadi. Tuzilma namunadan (--sample N) yoki barcha\n"
+              "yozuvlardan (--full-scan) aniqlanadi, keyin butun faylga oqim bilan qo'llanadi. --mode records\n"
+              "yozuvlar ro'yxatining o'zini (yozuvlar va ularning barcha avlodlarini) tekislaydi.",
+        "en": "Flattens the nested KEY array of every record (children inside children ...), all levels, into one\n"
+              "list: the items come in top-down order, each with its level number (_depth: 1, 2, 3 ...) and\n"
+              "without the inner KEY field. The structure is inferred from a sample (--sample N) or from every\n"
+              "record (--full-scan) and then applied to the whole file, streamed. --mode records flattens the list\n"
+              "of records itself (the records and all their descendants).",
+    },
+    "cli.cmd.flatten.epilog": {
+        "uz": "Misollar:\n"
+              "  jsonreshape flatten data.json tekis.json --children-key children\n"
+              "  jsonreshape flatten data.json tekis.json --children-key children --depth-field daraja\n"
+              "  jsonreshape flatten data.json tekis.jsonl --children-key children --mode records\n"
+              "  jsonreshape flatten data.json tekis.json --children-key items --full-scan\n"
+              "\n"
+              "Masalan, child1 ichida child1.2, uning ichida child1.2.1 va child1.2.3, keyin child2 bo'lsa,\n"
+              "natijadagi children ro'yxati: child1, child1.2, child1.2.1, child1.2.3, child2; _depth = 1, 2, 3, 3, 1.",
+        "en": "Examples:\n"
+              "  jsonreshape flatten data.json flat.json --children-key children\n"
+              "  jsonreshape flatten data.json flat.json --children-key children --depth-field level\n"
+              "  jsonreshape flatten data.json flat.jsonl --children-key children --mode records\n"
+              "  jsonreshape flatten data.json flat.json --children-key items --full-scan\n"
+              "\n"
+              "For example, with child1.2 inside child1, child1.2.1 and child1.2.3 inside child1.2, then child2,\n"
+              "the children list of the result is: child1, child1.2, child1.2.1, child1.2.3, child2; _depth = 1, 2,\n"
+              "3, 3, 1.",
+    },
+    "cli.help.mapping": {
+        "uz": "tuzilma quruvchida saqlangan mapping fayli (.json)",
+        "en": "mapping file saved by the structure builder (.json)",
+    },
+    "cli.help.mapping_output": {
+        "uz": "natija fayli: JSON (.json) yoki JSON Lines (.jsonl, .ndjson yoki --jsonl)",
+        "en": "output file: JSON (.json) or JSON Lines (.jsonl, .ndjson or --jsonl)",
+    },
+    "cli.help.mapping_jsonl": {
+        "uz": "JSON Lines formatida yozish: har qatorda natijaning bitta elementi (.jsonl nomli OUTPUT uchun "
+              "avtomatik)",
+        "en": "write JSON Lines: one item of the result per line (automatic for an OUTPUT named .jsonl)",
+    },
+    "cli.help.skip_huge": {
+        "uz": "«Katta tugun chegarasi» sozlamasidan katta yozuvlarni o'tkazib yuborish (soni ogohlantirishda "
+              "aytiladi); standart: xato bilan to'xtash",
+        "en": "skip the records larger than the \"Large node threshold\" setting (counted in a warning); "
+              "default: stop with an error",
+    },
+    "cli.help.workers": {
+        "uz": "parallel ishlaydigan jarayonlar soni (standart: 64 MB dan katta fayllarda avtomatik; 1 - faqat shu "
+              "jarayon)",
+        "en": "number of worker processes (default: automatic for files over 64 MB; 1 = this process only)",
+    },
+    "cli.help.children_key": {
+        "uz": "tekislanadigan ichma-ich massiv kaliti (masalan: children)",
+        "en": "key of the nested array to flatten (e.g. children)",
+    },
+    "cli.help.depth_field": {
+        "uz": "daraja raqami yoziladigan maydon nomi (standart: _depth; ma'lumotda band bo'lsa NAME_2)",
+        "en": "name of the level-number field (default: _depth; NAME_2 when the data already has it)",
+    },
+    "cli.help.flatten_mode": {
+        "uz": "nested (standart) - har bir yozuvning KEY maydonini tekislash; records - yozuvlar ro'yxatining "
+              "o'zini tekislash (yozuvlar va ularning barcha avlodlari bitta ro'yxatda)",
+        "en": "nested (default) - flatten the KEY field of every record; records - flatten the list of records "
+              "itself (the records and all their descendants in one list)",
+    },
+    "cli.help.mapping_sample": {
+        "uz": "tuzilma aniqlanadigan yozuvlar soni: fayl bo'ylab teng taqsimlangan namuna (standart: «Namuna "
+              "hajmi» sozlamasi, odatda 10000)",
+        "en": "number of records the structure is inferred from: a sample spread evenly over the file "
+              "(default: the \"Sample size\" setting, usually 10000)",
+    },
+    "cli.help.full_scan": {
+        "uz": "tuzilmani barcha yozuvlardan aniqlash (sekinroq, lekin namunada uchramaydigan maydonlar ham "
+              "saqlanadi)",
+        "en": "infer the structure from every record (slower, but fields a sample would miss are kept)",
+    },
+    "cli.group.flatten": {"uz": "tekislash parametrlari", "en": "flatten options"},
+    "cli.group.apply": {"uz": "qo'llash parametrlari", "en": "apply options"},
+    "cli.stage.applying": {"uz": "Tuzilma qo'llanmoqda", "en": "Applying the mapping"},
+    "cli.stage.inferring": {"uz": "Tuzilma aniqlanmoqda", "en": "Inferring the structure"},
+    "cli.stage.flattening": {"uz": "Ichki darajalar o'qilmoqda", "en": "Reading the nested levels"},
+    "cli.error.output_is_mapping": {
+        "uz": "Natija fayli mapping faylining o'zi: {path}",
+        "en": "The output file is the mapping file itself: {path}",
+    },
+    "cli.error.output_is_mapping.hint": {
+        "uz": "Natija uchun boshqa fayl nomini bering.",
+        "en": "Give the result another file name.",
+    },
+    "cli.error.mapping_gzip": {
+        "uz": "Tuzilma natijasi siqilmagan JSON bo'lib yoziladi, nom esa .gz bilan tugaydi: {path}",
+        "en": "The result of a mapping is written as uncompressed JSON, but the name ends in .gz: {path}",
+    },
+    "cli.error.mapping_gzip.hint": {
+        "uz": "Natija nomini .json yoki .jsonl bilan tugating.",
+        "en": "End the output name with .json or .jsonl.",
+    },
+    "cli.error.mapping_output_format": {
+        "uz": "Tuzilma natijasi faqat JSON yoki JSON Lines bo'ladi, nom esa {fmt} formatini bildiradi: {path}",
+        "en": "The result of a mapping is JSON or JSON Lines only, but the name means the {fmt} format: {path}",
+    },
+    "cli.error.mapping_output_format.hint": {
+        "uz": "Natijani .json yoki .jsonl faylga yozing, keyin kerak bo'lsa uni jsonreshape convert bilan CSV, "
+              "XLSX yoki SQLite ga o'tkazing.",
+        "en": "Write the result to a .json or .jsonl file, then convert it to CSV, XLSX or SQLite with "
+              "jsonreshape convert if needed.",
+    },
+    "cli.error.mapping_record_path": {
+        "uz": "Mapping faylida saqlangan yozuvlar yo'li bu faylda topilmadi yoki massiv emas: {path}",
+        "en": "The record path stored in the mapping file is not in this file or is not an array: {path}",
+    },
+    "cli.error.depth_field_empty": {
+        "uz": "--depth-field qiymati bo'sh bo'lmasligi kerak.",
+        "en": "--depth-field must not be empty.",
+    },
+    "cli.error.children_key_missing": {
+        "uz": "Yozuvlarda «{key}» maydoni topilmadi.",
+        "en": "The records have no «{key}» field.",
+    },
+    "cli.error.not_recursive": {
+        "uz": "«{key}» bu yerda obyektlarning rekursiv massivi emas: {reason}.",
+        "en": "«{key}» is not a recursive array of objects here: {reason}.",
+    },
+    "cli.error.flatten_records_mode": {
+        "uz": "--mode records bu faylda ishlamaydi: yozuvlar massivda emas ({format}).",
+        "en": "--mode records does not work for this file: its records are not in an array ({format}).",
+    },
+    "cli.error.flatten_records_mode.hint": {
+        "uz": "Har bir yozuv ichidagi massivni tekislash uchun --mode nested dan foydalaning.",
+        "en": "Use --mode nested to flatten the array inside every record.",
+    },
+    "cli.reason.not_array": {
+        "uz": "bu maydon massiv emas (turi: {types})",
+        "en": "the field is not an array (type: {types})",
+    },
+    "cli.reason.items_not_objects": {
+        "uz": "uning elementlari obyekt emas (turi: {types})",
+        "en": "its items are not objects (type: {types})",
+    },
+    "cli.reason.always_empty": {"uz": "bu massiv doim bo'sh", "en": "the array is always empty"},
+    "cli.reason.no_nested": {
+        "uz": "uning elementlari ichida yana «{key}» massivi (obyektlar bilan) yo'q",
+        "en": "its items hold no nested «{key}» array of objects",
+    },
+    "cli.hint.record_arrays": {
+        "uz": "Yozuvlardagi massiv maydonlar: {fields}.",
+        "en": "Array fields of the records: {fields}.",
+    },
+    "cli.hint.record_no_arrays": {"uz": "Yozuvlarda massiv maydon yo'q.", "en": "The records have no array fields."},
+    "cli.hint.records_not_objects": {"uz": "Yozuvlar obyekt emas.", "en": "The records are not objects."},
+    "cli.hint.flatten_sample": {
+        "uz": "Tuzilma {total} ta yozuvdan {count} tasi (namuna) bo'yicha aniqlandi: kerakli darajalar namunaga "
+              "tushmagan bo'lsa, --full-scan bilan qayta urinib ko'ring.",
+        "en": "The structure was inferred from a sample of {count} of {total} records: if the levels you need "
+              "were not in the sample, try again with --full-scan.",
+    },
+    "cli.hint.flatten_sample.one": {
+        "uz": "Tuzilma {total} ta yozuvdan {count} tasi (namuna) bo'yicha aniqlandi: kerakli darajalar namunaga "
+              "tushmagan bo'lsa, --full-scan bilan qayta urinib ko'ring.",
+        "en": "The structure was inferred from a sample of {count} of {total} record: if the levels you need "
+              "were not in the sample, try again with --full-scan.",
+    },
+    "cli.hint.full_scan": {
+        "uz": "Tuzilmani barcha yozuvlardan aniqlash uchun --full-scan ni qo'shing.",
+        "en": "Add --full-scan to infer the structure from every record.",
+    },
+    "cli.hint.mapping_kind": {
+        "uz": "Mapping «{label}» turidagi fayldan tuzilgan: kirish faylini ham shunday o'qing: {option}. Yoki "
+              "tuzilmani shu fayldan qayta yarating.",
+        "en": "The mapping was made from a file of the kind «{label}»: read the input the same way with "
+              "{option}, or build the mapping again from this file.",
+    },
+    "cli.warn.depth_field_taken": {
+        "uz": "«{name}» nomi ma'lumotda band: daraja raqami «{new}» maydoniga yoziladi.",
+        "en": "The name «{name}» is taken in the data: the level number is written to «{new}».",
+    },
+    "cli.warn.flatten_no_records": {
+        "uz": "Faylda yozuv yo'q: tekislanadigan narsa yo'q.",
+        "en": "The file has no records: there is nothing to flatten.",
+    },
+    "cli.flatten.done_full": {
+        "uz": "«{key}» rekursiv tekislandi (daraja raqami: «{field}»); tuzilma barcha yozuvlardan ({count} ta) "
+              "aniqlandi.",
+        "en": "«{key}» was flattened recursively (level number: «{field}»); the structure was inferred from every "
+              "record ({count}).",
+    },
+    "cli.flatten.done_sample": {
+        "uz": "«{key}» rekursiv tekislandi (daraja raqami: «{field}»); tuzilma {total} ta yozuvdan {count} tasi "
+              "(namuna) bo'yicha aniqlandi.",
+        "en": "«{key}» was flattened recursively (level number: «{field}»); the structure was inferred from a "
+              "sample of {count} of {total} records.",
+    },
+    "cli.flatten.done_sample.one": {
+        "uz": "«{key}» rekursiv tekislandi (daraja raqami: «{field}»); tuzilma {total} ta yozuvdan {count} tasi "
+              "(namuna) bo'yicha aniqlandi.",
+        "en": "«{key}» was flattened recursively (level number: «{field}»); the structure was inferred from a "
+              "sample of {count} of {total} record.",
+    },
+    "cli.summary.apply": {
+        "uz": "{records} -> {items} -> {output} ({size}, {seconds}, {rate} MB/s; {passes}, {workers})",
+        "en": "{records} -> {items} -> {output} ({size}, {seconds}, {rate} MB/s; {passes}, {workers})",
+    },
+    "cli.count.items": {"uz": "{count} ta element", "en": "{count} items"},
+    "cli.count.items.one": {"uz": "{count} ta element", "en": "{count} item"},
+    "cli.count.passes": {"uz": "{count} ta o'tish", "en": "{count} passes"},
+    "cli.count.passes.one": {"uz": "{count} ta o'tish", "en": "{count} pass"},
+    "cli.count.workers": {"uz": "{count} ta jarayon", "en": "{count} processes"},
+    "cli.count.workers.one": {"uz": "{count} ta jarayon", "en": "{count} process"},
     # messages
     "cli.version": {"uz": "jsonreshape {version}", "en": "jsonreshape {version}"},
     "cli.warning": {"uz": "Ogohlantirish: {message}", "en": "Warning: {message}"},
@@ -2184,6 +5337,943 @@ MESSAGES: dict[str, dict[str, str]] = {
     "cli.inspect.broken_value": {"uz": "{count} ta", "en": "{count}"},
     "cli.inspect.broken_line": {"uz": "{message}: {preview}", "en": "{message}: {preview}"},
     "cli.inspect.warnings": {"uz": "Ogohlantirishlar", "en": "Warnings"},
+    # stage 5: the tool commands (docs/ARCHITECTURE.md §14.8)
+    "cli.group.select": {"uz": "yozuvlar tanlovi", "en": "record selection"},
+    "cli.help.select": {
+        "uz": "faqat shu yozuvlar (raqamlar 0 dan): 5, 10:20 (10 dan 19 gacha), 100: (oxirigacha), :50 (birinchi 50 "
+              "ta), vergul bilan ro'yxat (\"1,5,10:20\")",
+        "en": "only these records (numbered from 0): 5, 10:20 (10 to 19), 100: (to the end), :50 (the first 50), a "
+              "comma list (\"1,5,10:20\")",
+    },
+    "cli.group.node": {"uz": "bitta tugun", "en": "one node"},
+    "cli.help.node": {
+        "uz": "faqat shu tugunni yozish (JSON yoki JSON Lines): #5.orders, /data/5/orders, data[5].orders",
+        "en": "write this node only (JSON or JSON Lines): #5.orders, /data/5/orders, data[5].orders",
+    },
+    "cli.help.output_opt": {"uz": "natija fayli (OUTPUT o'rniga)", "en": "output file (instead of OUTPUT)"},
+    # stats
+    "cli.cmd.stats.help": {
+        "uz": "maydon statistikasi: mavjudlik, turlar, noyob va eng ko'p uchragan qiymatlar",
+        "en": "field statistics: presence, types, distinct and most frequent values",
+    },
+    "cli.cmd.stats.description": {
+        "uz": "Har bir maydon uchun bitta o'qishda hisoblaydi: mavjud / null / yo'q soni, turlar taqsimoti, noyob\n"
+              "qiymatlar soni (katta faylda taxminiy, xatosi bilan; --exact - aniq), eng ko'p uchragan qiymatlar va\n"
+              "ularning soni, sonlar uchun min / max / o'rtacha / yig'indi (aniq), satrlar uzunligi. --field\n"
+              "berilmasa, tuzilmadagi asosiy maydonlar olinadi.",
+        "en": "Computes in one pass for every field: the present / null / missing counts, the type distribution, the\n"
+              "number of distinct values (approximate with its error on big files; --exact counts exactly), the most\n"
+              "frequent values with their counts, min / max / mean / sum of the numbers (exact) and the string\n"
+              "lengths. Without --field the main fields of the structure are used.",
+    },
+    "cli.cmd.stats.epilog": {
+        "uz": "Misollar:\n"
+              "  jsonreshape stats data.json --field contact.address.city\n"
+              "  jsonreshape stats data.json --field name --field score --top 10\n"
+              "  jsonreshape stats data.json --field \"orders[*].sum\" --exact\n"
+              "  jsonreshape stats data.json --where \"active == true\" --json\n"
+              "  jsonreshape stats data.json --field id --select 0:1000\n"
+              "\n"
+              "Maydon yo'llari: name, contact.address.city, orders[*].sum (massiv ichida), ..name (har qanday\n"
+              "chuqurlikda), $key (kalitli faylda a'zo kaliti; PowerShell va bash'da uni bitta tirnoqqa oling).",
+        "en": "Examples:\n"
+              "  jsonreshape stats data.json --field contact.address.city\n"
+              "  jsonreshape stats data.json --field name --field score --top 10\n"
+              "  jsonreshape stats data.json --field \"orders[*].sum\" --exact\n"
+              "  jsonreshape stats data.json --where \"active == true\" --json\n"
+              "  jsonreshape stats data.json --field id --select 0:1000\n"
+              "\n"
+              "Field paths: name, contact.address.city, orders[*].sum (inside an array), ..name (at any depth),\n"
+              "$key (the member key of a keyed file; put it in single quotes in PowerShell and bash).",
+    },
+    "cli.group.stats": {"uz": "statistika parametrlari", "en": "statistics options"},
+    "cli.help.field": {
+        "uz": "maydon yo'li (bir necha marta berish mumkin): name, contact.address.city, orders[*].sum, ..name, $key; "
+              "berilmasa - asosiy maydonlar",
+        "en": "field path (may be repeated): name, contact.address.city, orders[*].sum, ..name, $key; default: the "
+              "main fields",
+    },
+    "cli.help.stats_top": {
+        "uz": "eng ko'p uchragan nechta qiymat ko'rsatilsin (standart 20; 0 - ko'rsatilmaydi)",
+        "en": "how many of the most frequent values to show (default 20; 0 = none)",
+    },
+    "cli.help.exact": {
+        "uz": "katta fayllarda ham noyob qiymatlar va sonlarni aniq hisoblash (sekinroq, vaqtinchalik fayllar bilan)",
+        "en": "count the distinct values and the top counts exactly on big files too (slower, uses temporary files)",
+    },
+    "cli.help.stats_sample": {
+        "uz": "faqat fayl bo'ylab teng taqsimlangan N ta yozuvni ko'rib chiqish",
+        "en": "look at N records spread evenly over the file only",
+    },
+    "cli.help.stats_memory": {
+        "uz": "aniq sanash uchun xotira, masalan 256MB (standart: «Xotira chegarasi»ning 1/8 qismi); undan oshsa, "
+              "taxminiy hisobga o'tiladi (--exact bilan diskdan foydalaniladi)",
+        "en": "memory for exact counting, e.g. 256MB (default: 1/8 of the \"Memory limit\"); beyond it the counts "
+              "become approximate (with --exact the disk is used)",
+    },
+    "cli.help.stats_json": {
+        "uz": "natijani JSON sifatida chiqarish (aniq sonlar bilan)",
+        "en": "print the result as JSON (exact numbers)",
+    },
+    "cli.stage.stats": {"uz": "Statistika hisoblanmoqda", "en": "Computing statistics"},
+    "cli.stats.default_fields": {
+        "uz": "--field berilmadi: tuzilmadagi {count} ta asosiy maydon olindi.",
+        "en": "No --field given: the {count} main fields of the structure are used.",
+    },
+    "cli.stats.default_fields.one": {
+        "uz": "--field berilmadi: tuzilmadagi {count} ta asosiy maydon olindi.",
+        "en": "No --field given: the {count} main field of the structure is used.",
+    },
+    "cli.summary.stats": {
+        "uz": "Statistika: {fields}, {records} ({seconds})",
+        "en": "Statistics: {fields}, {records} ({seconds})",
+    },
+    "cli.count.fields": {"uz": "{count} ta maydon", "en": "{count} fields"},
+    "cli.count.fields.one": {"uz": "{count} ta maydon", "en": "{count} field"},
+    # dupes
+    "cli.cmd.dupes.help": {
+        "uz": "kalit bo'yicha takroriy yozuvlar: soni va ro'yxati",
+        "en": "duplicate records by a key: how many and which",
+    },
+    "cli.cmd.dupes.description": {
+        "uz": "KEY qiymati bir nechta yozuvda uchraydigan yozuvlarni topadi: guruhlar va takroriy yozuvlar soni,\n"
+              "dastlabki guruhlar (yozuv raqamlari 0 dan) va --top bilan eng katta guruhlar. Sonlar qiymati bo'yicha\n"
+              "solishtiriladi (1 = 1.0), satrlar aynan. -o FAYL takroriy deb belgilangan yozuvlarni faylga yozadi.",
+        "en": "Finds the records whose KEY value occurs in more than one record: the number of groups and of\n"
+              "duplicates, the first groups (record numbers from 0) and, with --top, the largest groups. Numbers\n"
+              "compare by value (1 = 1.0), strings exactly. -o FILE writes the records marked as duplicates to a file.",
+    },
+    "cli.cmd.dupes.epilog": {
+        "uz": "Misollar:\n"
+              "  jsonreshape dupes data.json --key id\n"
+              "  jsonreshape dupes data.json --key contact.phone --top 10\n"
+              "  jsonreshape dupes data.json --key id --keep none -o takroriylar.json\n"
+              "  jsonreshape dupes data.json --key id --keep last -o ortiqcha.jsonl --json\n"
+              "\n"
+              "--keep: first - har guruhning birinchisi takroriy hisoblanmaydi (standart), last - oxirgisi, none -\n"
+              "guruhning barcha yozuvlari takroriy. Butun yozuv bo'yicha: --key $; kalitli faylda a'zo kaliti\n"
+              "bo'yicha: --key $key (PowerShell va bash'da bitta tirnoqda).",
+        "en": "Examples:\n"
+              "  jsonreshape dupes data.json --key id\n"
+              "  jsonreshape dupes data.json --key contact.phone --top 10\n"
+              "  jsonreshape dupes data.json --key id --keep none -o duplicates.json\n"
+              "  jsonreshape dupes data.json --key id --keep last -o extra.jsonl --json\n"
+              "\n"
+              "--keep: first - the first record of each group is not a duplicate (default), last - the last one,\n"
+              "none - every record of a group is a duplicate. By the whole record: --key $; by the member key of a\n"
+              "keyed file: --key $key (in single quotes in PowerShell and bash).",
+    },
+    "cli.group.dupes": {"uz": "dublikat parametrlari", "en": "duplicate options"},
+    "cli.help.dupes_key": {
+        "uz": "kalit: yozuv ichidagi yo'l (id, contact.phone, tags[0]), $ - butun yozuv, $key - kalitli fayldagi a'zo "
+              "kaliti",
+        "en": "key: a path inside the record (id, contact.phone, tags[0]), $ = the whole record, $key = the member key "
+              "of a keyed file",
+    },
+    "cli.help.dupes_keep": {
+        "uz": "takroriy hisoblanmaydigan yozuv: first - har guruhning birinchisi (standart), last - oxirgisi, none - "
+              "hech biri (guruhning barcha yozuvlari takroriy)",
+        "en": "the record that is not a duplicate: first - the first of each group (default), last - the last, none - "
+              "none (every record of a group is a duplicate)",
+    },
+    "cli.help.dupes_examples": {
+        "uz": "ko'rsatiladigan dastlabki guruhlar soni (standart 20)",
+        "en": "number of first groups shown (default 20)",
+    },
+    "cli.help.dupes_top": {
+        "uz": "eng katta N ta guruhni ham ko'rsatish (standart 0 - ko'rsatilmaydi)",
+        "en": "also show the N largest groups (default 0 = none)",
+    },
+    "cli.help.dupes_out": {
+        "uz": "takroriy deb belgilangan yozuvlarni shu faylga yozish (format kengaytmadan yoki --to bilan)",
+        "en": "write the records marked as duplicates to this file (format from the extension or --to)",
+    },
+    "cli.help.dupes_memory": {
+        "uz": "kalitlar uchun xotira, masalan 256MB (standart: «Xotira chegarasi»ning 1/4 qismi; oshsa, diskdan "
+              "foydalaniladi)",
+        "en": "memory for the keys, e.g. 256MB (default: 1/4 of the \"Memory limit\"; beyond it the disk is used)",
+    },
+    "cli.help.dupes_json": {"uz": "natijani JSON sifatida chiqarish", "en": "print the result as JSON"},
+    "cli.stage.dupes": {"uz": "Dublikatlar qidirilmoqda", "en": "Looking for duplicates"},
+    "cli.dupes.key": {"uz": "Kalit: {key}", "en": "Key: {key}"},
+    "cli.dupes.counts": {
+        "uz": "Guruhlar: {groups}; takroriy yozuvlar: {duplicates} ({keep})",
+        "en": "Groups: {groups}; duplicate records: {duplicates} ({keep})",
+    },
+    "cli.dupes.keep.first": {"uz": "har guruhning birinchisidan tashqari", "en": "all but the first of each group"},
+    "cli.dupes.keep.last": {"uz": "har guruhning oxirgisidan tashqari", "en": "all but the last of each group"},
+    "cli.dupes.keep.none": {"uz": "guruhlarning barcha yozuvlari", "en": "every record of each group"},
+    "cli.dupes.records": {
+        "uz": "Kaliti bor: {with_key}; kalitsiz: {missing}; o'qib bo'lmagan: {skipped}; noyob qiymatlar: {distinct}",
+        "en": "With the key: {with_key}; without it: {missing}; unreadable: {skipped}; distinct values: {distinct}",
+    },
+    "cli.dupes.none": {"uz": "Takroriy qiymat yo'q.", "en": "No value occurs more than once."},
+    "cli.dupes.examples": {
+        "uz": "Misollar (dastlabki {count} ta guruh):",
+        "en": "Examples (the first {count} groups):",
+    },
+    "cli.dupes.examples.one": {
+        "uz": "Misollar (dastlabki {count} ta guruh):",
+        "en": "Examples (the first {count} group):",
+    },
+    "cli.dupes.top": {"uz": "Eng katta {count} ta guruh:", "en": "The {count} largest groups:"},
+    "cli.dupes.top.one": {"uz": "Eng katta {count} ta guruh:", "en": "The {count} largest group:"},
+    "cli.dupes.group": {"uz": "{key}  ({records}): {positions}", "en": "{key}  ({records}): {positions}"},
+    "cli.summary.dupes": {"uz": "{records} tekshirildi ({seconds})", "en": "{records} checked ({seconds})"},
+    "cli.summary.dupes_out": {
+        "uz": "{count} ta takroriy yozuv -> {output} ({size})",
+        "en": "{count} duplicate records -> {output} ({size})",
+    },
+    "cli.summary.dupes_out.one": {
+        "uz": "{count} ta takroriy yozuv -> {output} ({size})",
+        "en": "{count} duplicate record -> {output} ({size})",
+    },
+    "cli.warn.output_options_unused": {
+        "uz": "{options}: faqat -o FAYL bilan ishlatiladi, e'tiborga olinmadi.",
+        "en": "{options}: only used with -o FILE, ignored.",
+    },
+    # schema / validate
+    "cli.cmd.schema.help": {
+        "uz": "ma'lumotdan JSON Schema (draft 2020-12) yaratish",
+        "en": "make a JSON Schema (draft 2020-12) from the data",
+    },
+    "cli.cmd.schema.description": {
+        "uz": "Fayl tuzilmasidan JSON Schema (draft 2020-12) yaratadi: maydonlar turi, majburiy kalitlar, massiv\n"
+              "elementlari, misollar. Standart bo'yicha barcha yozuvlar o'qiladi (shunda schema o'z faylini doim\n"
+              "qabul qiladi); --sample N tezroq, lekin namunaga tushmagan holatlarni bilmaydi. --strict qat'iy\n"
+              "cheklovlar qo'shadi (min/max, enum, formatlar, ortiqcha kalitlar taqiqi). OUTPUT berilmasa, schema\n"
+              "ekranga chiqadi.",
+        "en": "Makes a JSON Schema (draft 2020-12) from the structure of the file: field types, required keys, array\n"
+              "items, examples. By default every record is read (so the schema always accepts its own file);\n"
+              "--sample N is faster but does not know what the sample missed. --strict adds strict constraints\n"
+              "(min/max, enum, formats, no extra keys). Without OUTPUT the schema is printed.",
+    },
+    "cli.cmd.schema.epilog": {
+        "uz": "Misollar:\n"
+              "  jsonreshape schema data.json data.schema.json\n"
+              "  jsonreshape schema data.json -o data.schema.json --strict\n"
+              "  jsonreshape schema data.json --record --title Mijozlar\n"
+              "  jsonreshape schema data.json --sample 10000 --compact\n"
+              "\n"
+              "--document (standart): butun fayl uchun schema (massiv, kalitli obyekt yoki tashqi o'rama bilan);\n"
+              "--record: bitta yozuv uchun schema.",
+        "en": "Examples:\n"
+              "  jsonreshape schema data.json data.schema.json\n"
+              "  jsonreshape schema data.json -o data.schema.json --strict\n"
+              "  jsonreshape schema data.json --record --title Customers\n"
+              "  jsonreshape schema data.json --sample 10000 --compact\n"
+              "\n"
+              "--document (default): a schema of the whole file (with its array, keyed object or outer wrapper);\n"
+              "--record: a schema of one record.",
+    },
+    "cli.group.schema": {"uz": "schema parametrlari", "en": "schema options"},
+    "cli.help.schema_output": {
+        "uz": "schema fayli (masalan data.schema.json); berilmasa, ekranga chiqadi",
+        "en": "schema file (e.g. data.schema.json); printed when not given",
+    },
+    "cli.help.schema_sample": {
+        "uz": "faqat N ta yozuvdan namuna olish (tezroq, lekin namunada yo'q holatlarni bilmaydi)",
+        "en": "use a sample of N records only (faster, but misses what the sample does not hold)",
+    },
+    "cli.help.schema_full": {"uz": "barcha yozuvlarni o'qish (standart)", "en": "read every record (the default)"},
+    "cli.help.schema_strict": {
+        "uz": "qat'iy cheklovlar: min/max, uzunliklar, enum, formatlar, ortiqcha kalitlarni taqiqlash",
+        "en": "strict constraints: min/max, lengths, enum, formats, no extra keys",
+    },
+    "cli.help.schema_document": {
+        "uz": "butun fayl uchun schema (standart)",
+        "en": "a schema of the whole file (default)",
+    },
+    "cli.help.schema_record": {"uz": "bitta yozuv uchun schema", "en": "a schema of one record"},
+    "cli.help.schema_title": {
+        "uz": "schema sarlavhasi (standart: fayl nomi)",
+        "en": "schema title (default: the file name)",
+    },
+    "cli.stage.schema_strict": {"uz": "Qat'iy cheklovlar tekshirilmoqda", "en": "Checking the strict constraints"},
+    "cli.warn.schema_sample": {
+        "uz": "Schema {total} ta yozuvdan {count} tasi (namuna) bo'yicha yaratildi: namunaga tushmagan yozuvlar unga "
+              "mos kelmasligi mumkin (barcha yozuvlar uchun --sample'ni olib tashlang).",
+        "en": "The schema was made from a sample of {count} of {total} records: records outside the sample may not "
+              "match it (remove --sample to read every record).",
+    },
+    "cli.warn.schema_sample.one": {
+        "uz": "Schema {total} ta yozuvdan {count} tasi (namuna) bo'yicha yaratildi: namunaga tushmagan yozuvlar unga "
+              "mos kelmasligi mumkin (barcha yozuvlar uchun --sample'ni olib tashlang).",
+        "en": "The schema was made from a sample of {count} of {total} record: records outside the sample may not "
+              "match it (remove --sample to read every record).",
+    },
+    "cli.summary.schema": {
+        "uz": "JSON Schema -> {output}: {fields}, {records} bo'yicha ({seconds})",
+        "en": "JSON Schema -> {output}: {fields} from {records} ({seconds})",
+    },
+    "cli.summary.schema_stdout": {
+        "uz": "JSON Schema: {fields}, {records} bo'yicha ({seconds})",
+        "en": "JSON Schema: {fields} from {records} ({seconds})",
+    },
+    "cli.cmd.validate.help": {
+        "uz": "faylni JSON Schema bo'yicha tekshirish",
+        "en": "check a file against a JSON Schema",
+    },
+    "cli.cmd.validate.description": {
+        "uz": "Yozuvlarni JSON Schema (draft 2020-12) bo'yicha tekshiradi va har bir xatoni yozuv raqami, yo'l va\n"
+              "sabab bilan chiqaradi: #yozuv [kalit] yo'l: xabar (kalit so'z). Sonlar aniq solishtiriladi, regex\n"
+              "ECMA qoidalari bo'yicha; tarmoqdagi schemalar hech qachon o'qilmaydi. Xato topilsa yoki ba'zi\n"
+              "yozuvlarni tekshirib bo'lmasa, chiqish kodi 5.",
+        "en": "Checks the records against a JSON Schema (draft 2020-12) and prints every issue with the record\n"
+              "number, the path and the reason: #record [key] path: message (keyword). Numbers compare exactly,\n"
+              "regular expressions follow the ECMA rules; schemas on the network are never read. Exit code 5 when\n"
+              "an issue is found or some records could not be checked.",
+    },
+    "cli.cmd.validate.epilog": {
+        "uz": "Misollar:\n"
+              "  jsonreshape validate data.json --schema data.schema.json\n"
+              "  jsonreshape validate data.json --schema data.schema.json --formats --max-issues 20\n"
+              "  jsonreshape validate data.json --schema data.schema.json --export xatolar.csv\n"
+              "  jsonreshape validate data.jsonl --schema yozuv.schema.json --scope record --json\n"
+              "\n"
+              "--scope: auto (standart; schema'dagi izoh yoki uning ko'rinishi bo'yicha), record - har bir yozuv\n"
+              "alohida, document - butun fayl. Chiqish kodlari: 0 - mos (har bir yozuv tekshirildi), 5 - xato\n"
+              "topildi yoki ba'zi yozuvlarni tekshirib bo'lmadi (juda katta, o'qib bo'lmaydigan yoki juda chuqur:\n"
+              "ular mosligi ko'rsatilmagan hisoblanadi), 1 - schema yoki parametr xatosi, 2 - faylda JSON xatosi.",
+        "en": "Examples:\n"
+              "  jsonreshape validate data.json --schema data.schema.json\n"
+              "  jsonreshape validate data.json --schema data.schema.json --formats --max-issues 20\n"
+              "  jsonreshape validate data.json --schema data.schema.json --export issues.csv\n"
+              "  jsonreshape validate data.jsonl --schema record.schema.json --scope record --json\n"
+              "\n"
+              "--scope: auto (default; by the note in the schema or by its shape), record - every record on its\n"
+              "own, document - the whole file. Exit codes: 0 - valid (every record checked), 5 - issues found or\n"
+              "some records could not be checked (too large, unreadable or nested too deeply: they are not shown\n"
+              "to match), 1 - a schema or option error, 2 - a JSON error in the file.",
+    },
+    "cli.group.validate": {"uz": "tekshiruv parametrlari", "en": "validation options"},
+    "cli.help.validate_schema": {"uz": "JSON Schema fayli (draft 2020-12)", "en": "JSON Schema file (draft 2020-12)"},
+    "cli.help.validate_scope": {
+        "uz": "schema nimani tasvirlaydi: auto (standart), record - har bir yozuvni, document - butun faylni",
+        "en": "what the schema describes: auto (default), record - every record, document - the whole file",
+    },
+    "cli.help.validate_formats": {
+        "uz": "format kalit so'zini ham tekshirish (date-time, date, time, email, uri, uuid, ipv4, ipv6)",
+        "en": "also check the format keyword (date-time, date, time, email, uri, uuid, ipv4, ipv6)",
+    },
+    "cli.help.max_issues": {
+        "uz": "ekranga chiqariladigan xatolar soni (standart 100; 0 - faqat xulosa)",
+        "en": "number of issues printed (default 100; 0 = the summary only)",
+    },
+    "cli.help.max_per_record": {
+        "uz": "bitta yozuvdan olinadigan xatolar soni (standart 10; 0 - cheklovsiz)",
+        "en": "issues kept per record (default 10; 0 = no limit)",
+    },
+    "cli.help.validate_export": {
+        "uz": "barcha xatolarni faylga yozish: .jsonl, .json yoki .csv",
+        "en": "write every issue to a file: .jsonl, .json or .csv",
+    },
+    "cli.help.validate_json": {"uz": "hisobotni JSON sifatida chiqarish", "en": "print the report as JSON"},
+    "cli.stage.validating": {"uz": "Tekshirilmoqda", "en": "Validating"},
+    "cli.validate.document": {"uz": "(hujjat)", "en": "(document)"},
+    "cli.validate.ok": {
+        "uz": "Schema'ga mos: {records} tekshirildi, xato yo'q ({seconds}).",
+        "en": "Valid: {records} checked, no issues ({seconds}).",
+    },
+    "cli.validate.ok.one": {
+        "uz": "Schema'ga mos: {records} tekshirildi, xato yo'q ({seconds}).",
+        "en": "Valid: {records} checked, no issues ({seconds}).",
+    },
+    "cli.validate.failed": {
+        "uz": "Schema'ga mos emas: {records}dan {invalid} tasida {issues} ({seconds}).",
+        "en": "Not valid: {issues} in {invalid} of {records} ({seconds}).",
+    },
+    "cli.validate.keywords": {"uz": "Kalit so'zlar bo'yicha: {items}", "en": "By keyword: {items}"},
+    "cli.validate.unchecked": {
+        "uz": "Mosligi tasdiqlanmadi: {records} tekshirildi va xato topilmadi, lekin {skipped} tekshirilmadi "
+              "(sababi ogohlantirishda) ({seconds}).",
+        "en": "Not confirmed: {records} checked without issues, but {skipped} could not be checked (see the "
+              "warning for why) ({seconds}).",
+    },
+    "cli.validate.skipped": {
+        "uz": "Bundan tashqari {skipped} tekshirilmadi (sababi ogohlantirishda).",
+        "en": "Besides, {skipped} could not be checked (see the warning for why).",
+    },
+    "cli.validate.more": {
+        "uz": "Faqat dastlabki {shown} ta xato ko'rsatildi (jami {total} ta); ko'proq uchun --max-issues N yoki "
+              "--export FAYL.",
+        "en": "Only the first {shown} issues are shown (of {total}); use --max-issues N or --export FILE for more.",
+    },
+    "cli.validate.more.one": {
+        "uz": "Faqat birinchi xato ko'rsatildi (jami {total} ta); ko'proq uchun --max-issues N yoki --export FAYL.",
+        "en": "Only the first issue is shown (of {total}); use --max-issues N or --export FILE for more.",
+    },
+    "cli.validate.exported": {"uz": "{count} ta xato yozildi: {path}", "en": "{count} issues written to {path}"},
+    "cli.validate.exported.one": {"uz": "{count} ta xato yozildi: {path}", "en": "{count} issue written to {path}"},
+    "cli.count.issues": {"uz": "{count} ta xato", "en": "{count} issues"},
+    "cli.count.issues.one": {"uz": "{count} ta xato", "en": "{count} issue"},
+    "cli.error.output_is_schema": {
+        "uz": "Natija fayli schema faylining o'zi: {path}",
+        "en": "The output file is the schema file itself: {path}",
+    },
+    "cli.error.issues_format": {
+        "uz": "Xatolar fayli nomi {formats} bilan tugashi kerak: {path}",
+        "en": "The issues file must end in {formats}: {path}",
+    },
+    # split / merge / extract
+    "cli.cmd.split.help": {
+        "uz": "faylni qismlarga bo'lish (soni, hajmi yoki yozuvlari bo'yicha)",
+        "en": "split a file into parts (by count, size or records)",
+    },
+    "cli.cmd.split.description": {
+        "uz": "Faylni ketma-ket yozuvlardan iborat qismlarga bo'ladi: --parts N (hajmi teng N ta qism), --size\n"
+              "HAJM (har qism ko'pi bilan shu hajmda) yoki --records N (har qismda N ta yozuv). Qismlar asl fayl\n"
+              "formati, kodlashi, siqilishi va tashqi o'ramasini saqlaydi (--no-wrapper o'ramani tashlaydi; --to\n"
+              "boshqa formatga yozadi). Nomlar: <nom>_<k><kengaytma>, masalan data_01.json. Hamma qism yoziladi\n"
+              "yoki hech biri; bor qism fayllar faqat --force bilan almashtiriladi (dasturda saqlanmagan\n"
+              "o'zgarishlari bor fayl hech qachon). --remove-stale oldingi bo'lishdan qolgan ortiqcha qismlarni\n"
+              "o'chiradi.",
+        "en": "Splits the file into parts of consecutive records: --parts N (N parts of about equal size), --size\n"
+              "SIZE (at most that size each) or --records N (N records each). The parts keep the format, encoding,\n"
+              "compression and outer wrapper of the file (--no-wrapper drops the wrapper; --to writes another\n"
+              "format). Names: <name>_<k><extension>, e.g. data_01.json. Either every part is written or none;\n"
+              "existing part files are replaced only with --force (a file with unsaved changes in this program\n"
+              "never). --remove-stale deletes the extra parts left by an earlier split.",
+    },
+    "cli.cmd.split.epilog": {
+        "uz": "Misollar:\n"
+              "  jsonreshape split data.json --parts 10\n"
+              "  jsonreshape split data.json --size 500MB -o qismlar\n"
+              "  jsonreshape split data.jsonl --records 100000 --name \"{stem}_qism{n}{ext}\"\n"
+              "  jsonreshape split data.json --parts 4 --to jsonl --where \"active == true\"\n"
+              "  jsonreshape split data.json --parts 10 --force\n"
+              "  jsonreshape split data.json --parts 10 --force --remove-stale\n"
+              "\n"
+              "HAJM: 500MB, 2GB (birliksiz son - megabayt; kamida 1MB). JSON xatosi bor faylni avval ta'mirlang\n"
+              "(jsonreshape repair); JSON Lines fayldagi buzuq qatorlar uchun --drop-broken.\n"
+              "--remove-stale faqat oldingi bo'lishning davomi bo'lgan fayllarni o'chiradi (masalan, 12 ta qismdan\n"
+              "keyin 10 ta qism: data_11 va data_12); boshqa mos fayllar faqat ogohlantirishda ko'rsatiladi.",
+        "en": "Examples:\n"
+              "  jsonreshape split data.json --parts 10\n"
+              "  jsonreshape split data.json --size 500MB -o parts\n"
+              "  jsonreshape split data.jsonl --records 100000 --name \"{stem}_part{n}{ext}\"\n"
+              "  jsonreshape split data.json --parts 4 --to jsonl --where \"active == true\"\n"
+              "  jsonreshape split data.json --parts 10 --force\n"
+              "  jsonreshape split data.json --parts 10 --force --remove-stale\n"
+              "\n"
+              "SIZE: 500MB, 2GB (a number without a unit is in megabytes; at least 1MB). Repair a file with a JSON\n"
+              "error first (jsonreshape repair); for broken lines of a JSON Lines file use --drop-broken.\n"
+              "--remove-stale deletes only files that continue an earlier split (e.g. 12 parts, then 10: data_11\n"
+              "and data_12); other matching files are only named in a warning.",
+    },
+    "cli.group.split": {"uz": "bo'lish parametrlari", "en": "split options"},
+    "cli.help.parts": {"uz": "N ta qismga bo'lish (hajmi teng)", "en": "split into N parts (of about equal size)"},
+    "cli.help.records_per_part": {"uz": "har bir qismda N ta yozuv", "en": "N records per part"},
+    "cli.help.part_size": {
+        "uz": "qism hajmi, masalan 500MB yoki 2GB (birliksiz son - megabayt; kamida 1MB)",
+        "en": "part size, e.g. 500MB or 2GB (a number without a unit is in megabytes; at least 1MB)",
+    },
+    "cli.help.balance": {
+        "uz": "--parts uchun: bytes - hajmi teng (standart) yoki records - yozuvlar soni teng",
+        "en": "with --parts: bytes - equal sizes (default) or records - equal numbers of records",
+    },
+    "cli.help.out_dir": {
+        "uz": "qismlar papkasi (standart: kirish fayli papkasi)",
+        "en": "folder of the parts (default: the input's folder)",
+    },
+    "cli.help.part_name": {
+        "uz": "qism nomi andozasi: {stem} - fayl nomi, {n} - qism raqami (majburiy), {ext} - kengaytma (standart: "
+              "{stem}_{n}{ext})",
+        "en": "part name pattern: {stem} - the file name, {n} - the part number (required), {ext} - the extension "
+              "(default: {stem}_{n}{ext})",
+    },
+    "cli.help.force": {
+        "uz": "shu nomdagi qism fayllar bor bo'lsa, ularni almashtirish",
+        "en": "replace part files of these names that already exist",
+    },
+    "cli.help.remove_stale": {
+        "uz": "oldingi bo'lishdan qolgan ortiqcha qismlarni (shu nom andozasidagi, raqamlari davom etadigan fayllar) "
+              "shu bo'lish bilan birga o'chirish",
+        "en": "delete the extra parts left by an earlier split (files of the name pattern whose numbers continue "
+              "this split's) together with this split",
+    },
+    "cli.hint.remove_stale": {
+        "uz": "Oldingi bo'lishdan qolgan qismlarni o'chirish uchun bo'lishni --force --remove-stale bilan qayta "
+              "bajaring (faqat raqamlari shu qismlarnikidan davom etadigan fayllar o'chiriladi).",
+        "en": "To delete the parts left by an earlier split, run the split again with --force --remove-stale (only "
+              "files whose numbers continue those of these parts are removed).",
+    },
+    "cli.split.removed": {
+        "uz": "O'chirildi (oldingi bo'lishdan qolgan qism): {path}",
+        "en": "Removed (a part of an earlier split): {path}",
+    },
+    "cli.help.drop_broken": {
+        "uz": "JSON Lines fayldagi buzuq qatorlarni tashlab bo'lish",
+        "en": "split a JSON Lines file without its broken lines",
+    },
+    "cli.stage.splitting": {"uz": "Bo'linmoqda", "en": "Splitting"},
+    "cli.count.parts": {"uz": "{count} ta qism", "en": "{count} parts"},
+    "cli.count.parts.one": {"uz": "{count} ta qism", "en": "{count} part"},
+    "cli.summary.split": {
+        "uz": "{records} -> {parts} ({folder}; {size}, {seconds})",
+        "en": "{records} -> {parts} ({folder}; {size}, {seconds})",
+    },
+    "cli.error.parts_exist": {
+        "uz": "Qism fayllar allaqachon bor ({count} ta): {names}",
+        "en": "Part files already exist ({count}): {names}",
+    },
+    "cli.hint.force": {
+        "uz": "Ularni almashtirish uchun --force qo'shing yoki boshqa papka (-o) yoki nom andozasini (--name) tanlang.",
+        "en": "Add --force to replace them, or choose another folder (-o) or name pattern (--name).",
+    },
+    "cli.hint.repair_first": {
+        "uz": "Avval faylni ta'mirlang (jsonreshape repair), keyin ta'mirlangan faylni bo'ling.",
+        "en": "Repair the file first (jsonreshape repair), then split the repaired file.",
+    },
+    "cli.error.out_dir_file": {
+        "uz": "-o papka bo'lishi kerak, bu esa fayl: {path}",
+        "en": "-o must be a folder, but this is a file: {path}",
+    },
+    "cli.warn.balance_parts": {
+        "uz": "--balance faqat --parts bilan ishlaydi: e'tiborga olinmadi.",
+        "en": "--balance only works with --parts: ignored.",
+    },
+    "cli.cmd.merge.help": {
+        "uz": "bir nechta faylni bittaga birlashtirish (dublikatlarni tozalash bilan)",
+        "en": "merge several files into one (optionally without duplicates)",
+    },
+    "cli.cmd.merge.description": {
+        "uz": "Fayllar yozuvlarini berilgan tartibda bitta JSON yoki JSON Lines faylga yozadi (-o OUTPUT; format\n"
+              "kengaytmadan yoki --to / --jsonl dan). * va ? bilan berilgan andozalarni dasturning o'zi ochadi\n"
+              "(cmd.exe va PowerShell ochmaydi), mos fayllar tabiiy tartibda olinadi: qism_2, keyin qism_10.\n"
+              "--dedupe-by KEY takroriy yozuvlarni olib tashlaydi (standart: birinchi uchragani qoladi).",
+        "en": "Writes the records of the files, in the order given, into one JSON or JSON Lines file (-o OUTPUT; the\n"
+              "format comes from the extension or --to / --jsonl). Patterns with * and ? are expanded by the program\n"
+              "itself (cmd.exe and PowerShell do not), the matching files in natural order: part_2, then part_10.\n"
+              "--dedupe-by KEY drops duplicate records (by default the first one met stays).",
+    },
+    "cli.cmd.merge.epilog": {
+        "uz": "Misollar:\n"
+              "  jsonreshape merge a.json b.json -o hammasi.json\n"
+              "  jsonreshape merge \"qism_*.json\" -o hammasi.jsonl\n"
+              "  jsonreshape merge a.jsonl b.jsonl -o toza.jsonl --dedupe-by id\n"
+              "  jsonreshape merge a.json b.json -o hammasi.json --dedupe-by id --keep last --indent 4\n"
+              "\n"
+              "Butun yozuv bo'yicha dublikatlar: --dedupe-by $; a'zo kaliti bo'yicha: --dedupe-by $key (PowerShell va\n"
+              "bash'da bitta tirnoqda). Birinchi faylning tashqi o'ramasi saqlanadi (--no-wrapper - tashlanadi).",
+        "en": "Examples:\n"
+              "  jsonreshape merge a.json b.json -o all.json\n"
+              "  jsonreshape merge \"part_*.json\" -o all.jsonl\n"
+              "  jsonreshape merge a.jsonl b.jsonl -o clean.jsonl --dedupe-by id\n"
+              "  jsonreshape merge a.json b.json -o all.json --dedupe-by id --keep last --indent 4\n"
+              "\n"
+              "Duplicates by the whole record: --dedupe-by $; by the member key: --dedupe-by $key (in single quotes\n"
+              "in PowerShell and bash). The outer wrapper of the first file is kept (--no-wrapper drops it).",
+    },
+    "cli.group.merge": {"uz": "birlashtirish parametrlari", "en": "merge options"},
+    "cli.help.merge_inputs": {
+        "uz": "birlashtiriladigan fayllar (andoza ham bo'ladi, masalan \"qism_*.json\")",
+        "en": "files to merge (patterns too, e.g. \"part_*.json\")",
+    },
+    "cli.help.merge_output": {"uz": "natija fayli: .json yoki .jsonl", "en": "output file: .json or .jsonl"},
+    "cli.help.dedupe_by": {
+        "uz": "shu kalit bo'yicha takroriy yozuvlarni olib tashlash: id, contact.phone, $ - butun yozuv, $key - a'zo "
+              "kaliti",
+        "en": "drop duplicate records by this key: id, contact.phone, $ = the whole record, $key = the member key",
+    },
+    "cli.help.merge_keep": {
+        "uz": "--dedupe-by bilan qaysi nusxa qoladi: first - birinchi uchragani (standart), last - oxirgisi",
+        "en": "with --dedupe-by, the copy that stays: first - the first one met (default), last - the last one",
+    },
+    "cli.help.merge_memory": {
+        "uz": "--dedupe-by kalitlari uchun xotira, masalan 256MB (standart: «Xotira chegarasi»ning 1/4 qismi)",
+        "en": "memory for the --dedupe-by keys, e.g. 256MB (default: 1/4 of the \"Memory limit\")",
+    },
+    "cli.help.merge_to": {
+        "uz": "natija formati: json yoki jsonl (standart: OUTPUT kengaytmasidan)",
+        "en": "output format: json or jsonl (default: from the OUTPUT extension)",
+    },
+    "cli.help.merge_no_wrapper": {
+        "uz": "birinchi faylning tashqi o'ramasini yozmaslik (faqat yozuvlar)",
+        "en": "do not write the outer wrapper of the first file (records only)",
+    },
+    "cli.stage.merging": {"uz": "Birlashtirilmoqda", "en": "Merging"},
+    "cli.count.files": {"uz": "{count} ta fayl", "en": "{count} files"},
+    "cli.count.files.one": {"uz": "{count} ta fayl", "en": "{count} file"},
+    "cli.merge.input": {
+        "uz": "  {path}: {written} / {records} ta yozuv",
+        "en": "  {path}: {written} / {records} records",
+    },
+    "cli.merge.input.one": {
+        "uz": "  {path}: {written} / {records} ta yozuv",
+        "en": "  {path}: {written} / {records} record",
+    },
+    "cli.summary.merge": {
+        "uz": "{inputs} -> {output}: {records} ({size}, {seconds})",
+        "en": "{inputs} -> {output}: {records} ({size}, {seconds})",
+    },
+    "cli.summary.merge_dupes": {
+        "uz": "{count} ta takroriy yozuv olib tashlandi ({groups} ta guruh)",
+        "en": "{count} duplicate records dropped ({groups} groups)",
+    },
+    "cli.summary.merge_dupes.one": {
+        "uz": "{count} ta takroriy yozuv olib tashlandi ({groups} ta guruh)",
+        "en": "{count} duplicate record dropped ({groups} groups)",
+    },
+    "cli.error.no_glob_match": {
+        "uz": "Andozaga mos fayl topilmadi: {pattern}",
+        "en": "No file matches the pattern: {pattern}",
+    },
+    "cli.error.no_glob_match.hint": {
+        "uz": "Papka va andozani tekshiring (masalan: \"qism_*.json\").",
+        "en": "Check the folder and the pattern (for example: \"part_*.json\").",
+    },
+    "cli.warn.output_matched": {
+        "uz": "«{pattern}» andozasiga natija fayli {path} ham mos keldi; u kirish fayli sifatida olinmadi.",
+        "en": "The pattern \"{pattern}\" also matches the output file {path}; it is not taken as an input.",
+    },
+    "cli.warn.keep_without_dedupe": {
+        "uz": "--keep faqat --dedupe-by bilan ishlaydi: e'tiborga olinmadi.",
+        "en": "--keep only works with --dedupe-by: ignored.",
+    },
+    "cli.cmd.extract.help": {
+        "uz": "yo'ldagi massiv, tugun yoki qiymatlarni alohida faylga ajratish",
+        "en": "extract the array at a path, a node or values into a file",
+    },
+    "cli.cmd.extract.description": {
+        "uz": "--path YO'L: shu yo'ldagi massiv (yoki obyekt) yozuvlarini tashqi o'ramasiz yozadi (har qanday\n"
+              "formatda, masalan CSV); --node JOY: bitta tugunni (#5.orders, /data/5/orders); --gather ANDOZA: har\n"
+              "bir yozuvdagi mos qiymatlarni bitta ro'yxatga yig'adi (orders[*] - barcha buyurtmalar). Tugun va\n"
+              "yig'ilgan qiymatlar JSON yoki JSON Lines bo'ladi. Qiymatlar baytma-bayt ko'chiriladi: sonlar va matn\n"
+              "o'zgarmaydi.",
+        "en": "--path PATH writes the records of the array (or object) at that path without the outer wrapper (any\n"
+              "format, e.g. CSV); --node LOCATION one node (#5.orders, /data/5/orders); --gather PATTERN collects\n"
+              "the matching values of every record into one list (orders[*] = every order). A node and gathered\n"
+              "values are written as JSON or JSON Lines. Values are copied byte for byte: numbers and text do not\n"
+              "change.",
+    },
+    "cli.cmd.extract.epilog": {
+        "uz": "Misollar:\n"
+              "  jsonreshape extract katta.json elementlar.json --path data.items\n"
+              "  jsonreshape extract katta.json elementlar.csv --path data.items --columns \"id,name\"\n"
+              "  jsonreshape extract data.json buyurtmalar.jsonl --gather \"orders[*]\"\n"
+              "  jsonreshape extract data.json -o tugun.json --node \"#5.orders\"",
+        "en": "Examples:\n"
+              "  jsonreshape extract big.json items.json --path data.items\n"
+              "  jsonreshape extract big.json items.csv --path data.items --columns \"id,name\"\n"
+              "  jsonreshape extract data.json orders.jsonl --gather \"orders[*]\"\n"
+              "  jsonreshape extract data.json -o node.json --node \"#5.orders\"",
+    },
+    "cli.group.extract": {"uz": "ajratish parametrlari", "en": "extract options"},
+    "cli.help.extract_output": {
+        "uz": "natija fayli (format kengaytmadan yoki --to bilan)",
+        "en": "output file (format from the extension or --to)",
+    },
+    "cli.help.extract_path": {
+        "uz": "shu yo'ldagi massiv yozuvlarini tashqi o'ramasiz yozish (masalan data.items; --record-path bilan "
+              "bir xil)",
+        "en": "write the records of the array at this path without the outer wrapper (e.g. data.items; same as "
+              "--record-path)",
+    },
+    "cli.help.gather": {
+        "uz": "har bir yozuvdan shu andozaga mos qiymatlarni yig'ish: orders[*], contact.address, tags[*], **.id",
+        "en": "gather the values matching this pattern from every record: orders[*], contact.address, tags[*], **.id",
+    },
+    "cli.stage.extracting": {"uz": "Ajratilmoqda", "en": "Extracting"},
+    "cli.summary.extract": {
+        "uz": "{values} ta qiymat -> {output} ({size}, {seconds})",
+        "en": "{values} values -> {output} ({size}, {seconds})",
+    },
+    "cli.summary.extract.one": {
+        "uz": "{values} ta qiymat -> {output} ({size}, {seconds})",
+        "en": "{values} value -> {output} ({size}, {seconds})",
+    },
+    "cli.summary.node": {
+        "uz": "{node} -> {output} ({size}, {seconds})",
+        "en": "{node} -> {output} ({size}, {seconds})",
+    },
+    "cli.error.node_combined": {
+        "uz": "--node bitta tugunni yozadi: uni {options} bilan birga ishlatib bo'lmaydi.",
+        "en": "--node writes one node: it cannot be combined with {options}.",
+    },
+    "cli.error.extract_path_twice": {
+        "uz": "--path ({path}) va --record-path ({record_path}) har xil: bittasini bering.",
+        "en": "--path ({path}) and --record-path ({record_path}) differ: give one of them.",
+    },
+    "cli.warn.ignored_mode": {
+        "uz": "{options}: {mode} ({format}) uchun ishlatilmaydi, e'tiborga olinmadi.",
+        "en": "{options}: not used for {mode} ({format}), ignored.",
+    },
+    "cli.error.output_twice": {
+        "uz": "Natija fayli ikki marta berilgan ({first} va -o {second}): bittasini qoldiring.",
+        "en": "The output file is given twice ({first} and -o {second}): keep one.",
+    },
+    "cli.error.output_missing": {
+        "uz": "Natija fayli ko'rsatilmagan: OUTPUT yoki -o FAYL bering.",
+        "en": "No output file: give OUTPUT or -o FILE.",
+    },
+    "cli.error.in_file": {"uz": "Fayl: {path}", "en": "File: {path}"},
+    # repair
+    "cli.cmd.repair.help": {
+        "uz": "buzuq JSON'ni ta'mirlash (hisobot bilan)",
+        "en": "repair broken JSON (with a report)",
+    },
+    "cli.cmd.repair.description": {
+        "uz": "Buzuq JSON yoki JSON Lines faylni to'g'ri JSON qilib OUTPUT ga yozadi va har bir tuzatishni aytadi:\n"
+              "izohlar, oxirgi vergullar, bitta tirnoqlar, tirnoqsiz kalitlar, NaN / Infinity, BOM, jingalak qavs\n"
+              "ichidagi obyektlar ro'yxati, ajratuvchisiz ketma-ket qiymatlar, kesilib qolgan fayl (oxirgi to'liq\n"
+              "yozuvgacha). Asl fayl o'zgarmaydi. Ta'mirlab bo'lmaydigan joyda to'xtaydi va hech narsa yozmaydi\n"
+              "(--allow-partial: undan oldingi yozuvlar yoziladi). --check faqat tekshiradi.",
+        "en": "Writes a broken JSON or JSON Lines file to OUTPUT as valid JSON and reports every fix: comments,\n"
+              "trailing commas, single quotes, unquoted keys, NaN / Infinity, BOM, a list of objects in curly\n"
+              "braces, values one after another, a cut-off file (up to the last complete record). The original is\n"
+              "never modified. It stops at a place it cannot repair and writes nothing (--allow-partial writes the\n"
+              "records before it). --check only checks.",
+    },
+    "cli.cmd.repair.epilog": {
+        "uz": "Misollar:\n"
+              "  jsonreshape repair buzuq.json tuzatilgan.json\n"
+              "  jsonreshape repair buzuq.json --check\n"
+              "  jsonreshape repair buzuq.json -o tuzatilgan.json --report tuzatishlar.csv\n"
+              "  jsonreshape repair buzuq.jsonl tuzatilgan.jsonl --nan string --allow-partial\n"
+              "\n"
+              "Chiqish kodlari: 0 - yozildi (--check: muammo yo'q); 2 - ta'mirlab bo'lmaydi yoki --check muammo\n"
+              "topdi; 1 - noto'g'ri parametr (masalan, OUTPUT kirish faylining o'zi).",
+        "en": "Examples:\n"
+              "  jsonreshape repair broken.json fixed.json\n"
+              "  jsonreshape repair broken.json --check\n"
+              "  jsonreshape repair broken.json -o fixed.json --report fixes.csv\n"
+              "  jsonreshape repair broken.jsonl fixed.jsonl --nan string --allow-partial\n"
+              "\n"
+              "Exit codes: 0 - written (--check: no problems); 2 - cannot be repaired, or --check found problems;\n"
+              "1 - an invalid option (e.g. OUTPUT is the input itself).",
+    },
+    "cli.group.repair": {"uz": "ta'mirlash parametrlari", "en": "repair options"},
+    "cli.help.repair_input": {
+        "uz": "ta'mirlanadigan fayl (.json, .jsonl, .gz; UTF-8 yoki UTF-16)",
+        "en": "file to repair (.json, .jsonl, .gz; UTF-8 or UTF-16)",
+    },
+    "cli.help.repair_output": {
+        "uz": "ta'mirlangan fayl (kirish fayli bo'lishi mumkin emas; .gz bilan tugasa siqiladi)",
+        "en": "repaired file (must not be the input; compressed when it ends in .gz)",
+    },
+    "cli.help.repair_check": {
+        "uz": "faqat tekshirish: hech narsa yozilmaydi (chiqish kodi 0 - muammo yo'q, 2 - muammo bor)",
+        "en": "check only: nothing is written (exit code 0 = no problems, 2 = problems)",
+    },
+    "cli.help.repair_nan": {
+        "uz": "NaN va Infinity o'rniga: null (standart) yoki string (\"NaN\" matni)",
+        "en": "NaN and Infinity become: null (default) or string (the text \"NaN\")",
+    },
+    "cli.help.repair_jsonl": {
+        "uz": "ketma-ket qiymatlarni massiv o'rniga JSON Lines qilib yozish",
+        "en": "write values one after another as JSON Lines instead of an array",
+    },
+    "cli.help.repair_partial": {
+        "uz": "ta'mirlab bo'lmaydigan joy topilsa, undan oldingi to'liq yozuvlarni yozish",
+        "en": "at a place that cannot be repaired, write the complete records before it",
+    },
+    "cli.help.repair_report": {
+        "uz": "har bir tuzatishni faylga yozish: .csv, .json yoki .jsonl",
+        "en": "write every fix to a file: .csv, .json or .jsonl",
+    },
+    "cli.help.repair_json": {"uz": "hisobotni JSON sifatida chiqarish", "en": "print the report as JSON"},
+    "cli.help.repair_format": {
+        "uz": "kirish formati (standart: auto; fayl boshi buzuq bo'lib, aniqlash adashsa, ko'rsating)",
+        "en": "input format (default: auto; give it when a broken start misleads the detection)",
+    },
+    "cli.stage.repairing": {"uz": "Ta'mirlanmoqda", "en": "Repairing"},
+    "cli.stage.checking": {"uz": "Tekshirilmoqda", "en": "Checking"},
+    "cli.error.repair_output": {
+        "uz": "Ta'mirlangan fayl uchun nom bering (OUTPUT yoki -o FAYL) yoki faqat tekshirish uchun --check qo'shing.",
+        "en": "Give a name for the repaired file (OUTPUT or -o FILE), or add --check to only check.",
+    },
+    "cli.error.report_is_output": {
+        "uz": "Hisobot fayli ta'mirlangan faylning o'zi: {path}",
+        "en": "The report file is the repaired file itself: {path}",
+    },
+    "cli.error.report_format": {
+        "uz": "Hisobot fayli nomi {formats} bilan tugashi kerak: {path}",
+        "en": "The report file must end in {formats}: {path}",
+    },
+    "cli.hint.repair_partial": {
+        "uz": "Muammodan oldingi {count} ta to'liq yozuvni saqlash uchun --allow-partial qo'shing yoki shu joyni "
+              "qo'lda tuzating.",
+        "en": "Add --allow-partial to save the {count} complete records before the problem, or fix that place by "
+              "hand.",
+    },
+    "cli.hint.repair_partial.one": {
+        "uz": "Muammodan oldingi {count} ta to'liq yozuvni saqlash uchun --allow-partial qo'shing yoki shu joyni "
+              "qo'lda tuzating.",
+        "en": "Add --allow-partial to save the {count} complete record before the problem, or fix that place by "
+              "hand.",
+    },
+    "cli.hint.repair_report": {
+        "uz": "Har bir tuzatish ro'yxati uchun --report FAYL.csv qo'shing.",
+        "en": "Add --report FILE.csv for the list of every fix.",
+    },
+    "cli.summary.repair_report": {
+        "uz": "Tuzatishlar ro'yxati ({count} ta) yozildi: {path}",
+        "en": "The list of fixes ({count}) was written to {path}",
+    },
+    "cli.summary.repair_report.one": {
+        "uz": "Tuzatishlar ro'yxati ({count} ta) yozildi: {path}",
+        "en": "The list of fixes ({count}) was written to {path}",
+    },
+    "cli.warn.check_output": {
+        "uz": "--check hech narsa yozmaydi: {path} yozilmaydi.",
+        "en": "--check writes nothing: {path} is not written.",
+    },
+    "cli.warn.repair_partial": {
+        "uz": "Fayl to'liq ta'mirlanmadi: {line}-qator, {column}-ustundagi muammodan keyingi ma'lumot natijaga "
+              "yozilmadi.",
+        "en": "The file was not repaired completely: the data after the problem at line {line}, column {column} is "
+              "not in the result.",
+    },
+    # diff
+    "cli.cmd.diff.help": {
+        "uz": "ikki faylni solishtirish (yozuvma-yozuv)",
+        "en": "compare two files (record by record)",
+    },
+    "cli.cmd.diff.description": {
+        "uz": "A va B fayllarni yozuvma-yozuv solishtiradi: ~ o'zgargan, + qo'shilgan (faqat B da), - o'chirilgan\n"
+              "(faqat A da), > joyi o'zgargan element. Sonlar qiymati bo'yicha (1 = 1.0; --numbers text - yozilishi\n"
+              "bo'yicha), obyekt kalitlari tartibi hisobga olinmaydi. --key KEY yozuvlarni kalit bo'yicha juftlaydi\n"
+              "(har qanday hajmda); kalitsiz kichik fayllar (standart 200 MB gacha) mazmun bo'yicha tekislanadi,\n"
+              "kattaroqlari uchun --key yoki --by-position kerak.",
+        "en": "Compares the files A and B record by record: ~ changed, + added (only in B), - removed (only in A),\n"
+              "> an element that moved. Numbers compare by value (1 = 1.0; --numbers text compares their spelling),\n"
+              "the order of object keys does not matter. --key KEY pairs the records by a key (any size); without a\n"
+              "key, smaller files (up to 200 MB by default) are aligned by content, bigger ones need --key or\n"
+              "--by-position.",
+    },
+    "cli.cmd.diff.epilog": {
+        "uz": "Misollar:\n"
+              "  jsonreshape diff eski.json yangi.json\n"
+              "  jsonreshape diff eski.json yangi.json --key id\n"
+              "  jsonreshape diff eski.jsonl yangi.jsonl --key id --array-key tags --limit 20\n"
+              "  jsonreshape diff eski.json yangi.json --ignore-order --exit-code\n"
+              "  jsonreshape diff eski.json yangi.json --key id -o farqlar.csv --summary\n"
+              "\n"
+              "Chiqish kodlari: 0 - solishtirildi; --exit-code bilan 0 - bir xil, 5 - farq bor; 1 - noto'g'ri\n"
+              "parametr; 2 - faylda JSON xatosi.",
+        "en": "Examples:\n"
+              "  jsonreshape diff old.json new.json\n"
+              "  jsonreshape diff old.json new.json --key id\n"
+              "  jsonreshape diff old.jsonl new.jsonl --key id --array-key tags --limit 20\n"
+              "  jsonreshape diff old.json new.json --ignore-order --exit-code\n"
+              "  jsonreshape diff old.json new.json --key id -o differences.csv --summary\n"
+              "\n"
+              "Exit codes: 0 - compared; with --exit-code 0 - identical, 5 - different; 1 - an invalid option; 2 - a\n"
+              "JSON error in a file.",
+    },
+    "cli.group.diff": {"uz": "solishtirish parametrlari", "en": "comparison options"},
+    "cli.help.diff_a": {"uz": "birinchi (eski) fayl", "en": "first (old) file"},
+    "cli.help.diff_b": {"uz": "ikkinchi (yangi) fayl", "en": "second (new) file"},
+    "cli.help.diff_key": {
+        "uz": "yozuvlarni shu kalit bo'yicha juftlash: id, contact.phone, $key (har qanday hajmdagi fayl uchun)",
+        "en": "pair the records by this key: id, contact.phone, $key (for files of any size)",
+    },
+    "cli.help.by_position": {
+        "uz": "yozuvlarni o'rni bo'yicha juftlash (0-yozuv 0-yozuv bilan)",
+        "en": "pair the records by position (record 0 with record 0)",
+    },
+    "cli.help.align": {
+        "uz": "yozuvlarni mazmuni bo'yicha tekislash (kalitsiz kichik fayllar uchun standart)",
+        "en": "align the records by content (the default for smaller files without a key)",
+    },
+    "cli.help.array_key": {
+        "uz": "massiv elementlarini shu maydon bo'yicha juftlash: MAYDON yoki YO'L=MAYDON (masalan id yoki "
+              "orders=oid); bir necha marta berish mumkin",
+        "en": "match array elements by this field: FIELD or PATH=FIELD (e.g. id or orders=oid); may be repeated",
+    },
+    "cli.help.numbers": {
+        "uz": "sonlarni solishtirish: value - qiymati bo'yicha, 1 = 1.0 (standart), exact - value bilan bir xil, text "
+              "- yozilishi bo'yicha",
+        "en": "how numbers compare: value - by value, 1 = 1.0 (default), exact - same as value, text - by spelling",
+    },
+    "cli.help.ignore_order": {
+        "uz": "tartibni hisobga olmaslik: massivlar to'plam sifatida, --key'siz yozuvlar butun qiymati bo'yicha "
+              "juftlanadi",
+        "en": "ignore order: arrays compare as multisets, records without --key are paired by their whole value",
+    },
+    "cli.help.max_changes": {
+        "uz": "bitta yozuvdagi saqlanadigan o'zgarishlar soni (standart 10000; 0 - faqat sanash)",
+        "en": "changes kept per record (default 10000; 0 = count only)",
+    },
+    "cli.help.diff_limit": {
+        "uz": "ekranga chiqariladigan farqli yozuvlar soni (standart 100; 0 - hammasi)",
+        "en": "number of differing records printed (default 100; 0 = all)",
+    },
+    "cli.help.diff_summary": {
+        "uz": "faqat sonlarni chiqarish (yozuvlarsiz)",
+        "en": "print the counts only (no records)",
+    },
+    "cli.help.diff_json": {
+        "uz": "har bir farqli yozuvni JSON Lines qatori sifatida chiqarish, oxirida xulosa",
+        "en": "print every differing record as a JSON Lines line, then the summary",
+    },
+    "cli.help.diff_out": {
+        "uz": "barcha farqlarni faylga yozish: .json, .jsonl yoki .csv",
+        "en": "write every difference to a file: .json, .jsonl or .csv",
+    },
+    "cli.help.exit_code": {
+        "uz": "farq bo'lsa, chiqish kodi 5 (bir xil bo'lsa 0)",
+        "en": "exit code 5 when the files differ (0 when identical)",
+    },
+    "cli.help.diff_memory": {
+        "uz": "--key kalitlari uchun xotira, masalan 256MB (standart: «Xotira chegarasi»ning 1/4 qismi)",
+        "en": "memory for the --key keys, e.g. 256MB (default: 1/4 of the \"Memory limit\")",
+    },
+    "cli.stage.comparing": {"uz": "Solishtirilmoqda", "en": "Comparing"},
+    "cli.diff.wrapper": {"uz": "(tashqi o'rama)", "en": "(wrapper)"},
+    "cli.diff.more_changes": {
+        "uz": "… yana {count} ta o'zgarish (hammasi uchun --max-changes N yoki -o FAYL)",
+        "en": "… {count} more changes (use --max-changes N or -o FILE for all)",
+    },
+    "cli.diff.more_changes.one": {
+        "uz": "… yana {count} ta o'zgarish (hammasi uchun --max-changes N yoki -o FAYL)",
+        "en": "… {count} more change (use --max-changes N or -o FILE for all)",
+    },
+    "cli.diff.identical": {
+        "uz": "Farq yo'q: A va B bir xil ({mode}; yozuvlar: A {a}, B {b}; {seconds}).",
+        "en": "No differences: A and B are the same ({mode}; records: A {a}, B {b}; {seconds}).",
+    },
+    "cli.diff.summary": {
+        "uz": "Farqli yozuvlar: o'zgargan {changed}, o'chirilgan {removed}, qo'shilgan {added}; bir xil {equal} "
+              "({mode}; yozuvlar: A {a}, B {b}; {seconds})",
+        "en": "Differing records: changed {changed}, removed {removed}, added {added}; equal {equal} ({mode}; "
+              "records: A {a}, B {b}; {seconds})",
+    },
+    "cli.diff.wrapper_differs": {"uz": "tashqi o'ramalar farq qiladi", "en": "the wrappers differ"},
+    "cli.diff.moved": {"uz": "{count} ta element joyi o'zgargan", "en": "{count} elements moved"},
+    "cli.diff.moved.one": {"uz": "{count} ta element joyi o'zgargan", "en": "{count} element moved"},
+    "cli.diff.more": {
+        "uz": "Faqat dastlabki {shown} ta farqli yozuv ko'rsatildi (jami {total} ta); hammasi uchun --limit 0 yoki "
+              "-o FAYL.",
+        "en": "Only the first {shown} differing records are shown (of {total}); use --limit 0 or -o FILE for all.",
+    },
+    "cli.diff.more.one": {
+        "uz": "Faqat birinchi farqli yozuv ko'rsatildi (jami {total} ta); hammasi uchun --limit 0 yoki -o FAYL.",
+        "en": "Only the first differing record is shown (of {total}); use --limit 0 or -o FILE for all.",
+    },
+    "cli.diff.written": {
+        "uz": "{count} ta farqli yozuv yozildi: {path}",
+        "en": "{count} differing records written to {path}",
+    },
+    "cli.diff.written.one": {
+        "uz": "{count} ta farqli yozuv yozildi: {path}",
+        "en": "{count} differing record written to {path}",
+    },
+    "cli.diff.mode.key": {"uz": "kalit bo'yicha: {key}", "en": "by key: {key}"},
+    "cli.diff.mode.align": {"uz": "mazmun bo'yicha tekislab", "en": "aligned by content"},
+    "cli.diff.mode.position": {"uz": "o'rni bo'yicha", "en": "by position"},
+    "cli.diff.mode.document": {"uz": "bitta hujjat sifatida", "en": "as one document"},
+    "cli.diff.mode.unordered": {"uz": "tartibsiz, butun yozuv bo'yicha", "en": "unordered, by whole record"},
+    "cli.error.diff_format": {
+        "uz": "Farqlar fayli nomi {formats} bilan tugashi kerak: {path}",
+        "en": "The differences file must end in {formats}: {path}",
+    },
+    "cli.warn.memory_limit_cap_tool": {
+        "uz": "--memory-limit {value}: «{setting}» sozlamasi ({limit}) bu ishga ko'pi bilan {cap} beradi; {cap} "
+              "ishlatiladi.",
+        "en": "--memory-limit {value}: the \"{setting}\" setting ({limit}) allows at most {cap} here; {cap} is used.",
+    },
     # ---- gui.common ----
     "gui.common.ok": {"uz": "OK", "en": "OK"},
     "gui.common.cancel": {"uz": "Bekor qilish", "en": "Cancel"},
@@ -2259,6 +6349,264 @@ MESSAGES: dict[str, dict[str, str]] = {
     "gui.session.view_cancelled": {
         "uz": "Filtr yoki tartiblash bekor qilindi: avvalgi ko'rinish qaytarildi ({label}).",
         "en": "The filter or sort was cancelled: the previous view is shown again ({label}).",
+    },
+    "gui.session.bookmark.gone": {"uz": "(o'chirilgan)", "en": "(deleted)"},
+    # ---- gui.edit ----
+    "gui.edit.reason.indexing": {
+        "uz": "Tahrirlash hali tayyor emas: fayl o'qilmoqda.",
+        "en": "Editing is not ready yet: the file is still being read.",
+    },
+    "gui.edit.reason.partial": {
+        "uz": "Faylda JSON xatosi bor: faqat xatogacha bo'lgan yozuvlar ochilgan, shuning uchun uni tahrirlab "
+        "bo'lmaydi.",
+        "en": "The file has a JSON error: only the records before the error are open, so it cannot be edited.",
+    },
+    "gui.edit.reason.locked": {
+        "uz": "Bu fayl boshqa oynada yoki boshqa dasturda tahrirlanmoqda: bu yerda uni faqat ko'rish mumkin.",
+        "en": "This file is being edited in another tab or program: here it can only be viewed.",
+    },
+    "gui.edit.reason.huge_single": {
+        "uz": "Fayl bitta juda katta JSON qiymatidan iborat (tahrirlash chegarasidan katta): uni faqat ko'rish mumkin.",
+        "en": "The file is one very large JSON value (above the editing limit): it can only be viewed.",
+    },
+    "gui.edit.reason.recovery_pending": {
+        "uz": "Avvalgi saqlanmagan o'zgarishlar topildi: avval ularni tiklang yoki o'chiring.",
+        "en": "Unsaved changes from before were found: restore or discard them first.",
+    },
+    "gui.edit.reason.file_changed": {
+        "uz": "Fayl diskda o'zgardi, shuning uchun tahrirlash to'xtatildi. O'zgarishlarni JSON Patch sifatida "
+        "saqlang yoki faylni qayta oching.",
+        "en": "The file changed on disk, so editing stopped. Save your changes as a JSON Patch or reopen the file.",
+    },
+    "gui.edit.reason.file_grown": {
+        "uz": "Fayl diskda kattalashdi (oxiriga ma'lumot qo'shildi), shuning uchun tahrirlash to'xtatildi. "
+        "O'zgarishlarni boshqa nom bilan saqlang yoki faylni qayta oching.",
+        "en": "The file grew on disk (data was appended), so editing stopped. Save your changes under another name "
+        "or reopen the file.",
+    },
+    "gui.edit.reason.saving": {"uz": "Fayl saqlanmoqda…", "en": "The file is being saved…"},
+    "gui.edit.reason.applying": {"uz": "O'zgarish qo'llanmoqda…", "en": "A change is being applied…"},
+    "gui.edit.reason.closed": {
+        "uz": "Tahrirlash yopilgan (fayl saqlandi yoki yopilmoqda).",
+        "en": "Editing is closed (the file was saved or is being closed).",
+    },
+    "gui.edit.reason.unavailable": {
+        "uz": "Tahrirlashni boshlab bo'lmadi (sababi xato oynasida ko'rsatilgan).",
+        "en": "Editing could not be started (the error message says why).",
+    },
+    "gui.edit.unavailable": {"uz": "Tahrirlab bo'lmaydi: {reason}", "en": "Editing is not possible: {reason}"},
+    "gui.edit.busy": {
+        "uz": "Oldingi amal hali tugamadi: biroz kuting.",
+        "en": "The previous action has not finished yet: wait a moment.",
+    },
+    "gui.edit.too_many": {
+        "uz": "{count} ta tugun tanlangan, bitta buyruq esa ko'pi bilan {max} ta tugun bilan ishlaydi. Ommaviy "
+        "amallardan foydalaning (Ctrl+H).",
+        "en": "{count} nodes are selected, but one command works on at most {max} nodes. Use Bulk operations "
+        "(Ctrl+H).",
+    },
+    "gui.edit.stale": {
+        "uz": "Hujjat shu orada o'zgardi: amalni yana bir bor bajaring.",
+        "en": "The document changed meanwhile: do it once more.",
+    },
+    "gui.edit.nothing_undo": {"uz": "Ortga qaytariladigan amal yo'q.", "en": "Nothing to undo."},
+    "gui.edit.nothing_redo": {"uz": "Qaytariladigan amal yo'q.", "en": "Nothing to redo."},
+    "gui.edit.restored": {
+        "uz": "Saqlanmagan o'zgarishlar tiklandi ({steps} ta qadam).",
+        "en": "The unsaved changes were restored ({steps} steps).",
+    },
+    "gui.edit.preview_stale": {
+        "uz": "Hisob eskirdi: hujjat shu orada o'zgardi. Oldindan ko'rishni qayta bajaring.",
+        "en": "The preview is out of date: the document changed meanwhile. Run the preview again.",
+    },
+    "gui.edit.patch_exported": {"uz": "{count} ta amal yozildi: {path}", "en": "{count} operations written to {path}"},
+    "gui.edit.nothing_to_discard": {"uz": "Tashlab yuboriladigan o'zgarish yo'q.", "en": "There are no changes to discard."},
+    "gui.edit.discarded": {"uz": "Barcha o'zgarishlar tashlab yuborildi.", "en": "All changes were discarded."},
+    "gui.edit.nothing_to_save": {"uz": "Saqlanadigan o'zgarish yo'q.", "en": "There are no changes to save."},
+    "gui.edit.save_cancelled": {
+        "uz": "Saqlash bekor qilindi: fayl o'zgarmadi.",
+        "en": "Saving was cancelled: the file did not change.",
+    },
+    "gui.edit.saved": {"uz": "Saqlandi: {path} ({records} ta yozuv).", "en": "Saved: {path} ({records} records)."},
+    "gui.edit.save_wait": {
+        "uz": "Fayl saqlanmoqda: saqlash tugashini kuting.",
+        "en": "The file is being saved: wait for the save to finish.",
+    },
+    "gui.edit.task.save": {"uz": "Saqlanmoqda: {name}", "en": "Saving {name}"},
+    "gui.edit.task.save_as": {"uz": "Saqlanmoqda: {name} → {target}", "en": "Saving {name} as {target}"},
+    "gui.edit.task.delete_records": {"uz": "Yozuvlar o'chirilmoqda: {name}", "en": "Deleting records in {name}"},
+    "gui.edit.task.duplicate_records": {"uz": "Yozuvlar nusxalanmoqda: {name}", "en": "Duplicating records in {name}"},
+    "gui.edit.task.bulk_preview": {
+        "uz": "Ommaviy amal hisoblanmoqda: {name}",
+        "en": "Computing a bulk operation for {name}",
+    },
+    "gui.edit.task.import_patch": {"uz": "JSON Patch qo'llanmoqda: {name}", "en": "Applying a JSON Patch to {name}"},
+    "gui.edit.task.export_patch": {
+        "uz": "O'zgarishlar JSON Patch sifatida yozilmoqda: {name}",
+        "en": "Writing the changes of {name} as a JSON Patch",
+    },
+    "gui.edit.task.export_pending": {
+        "uz": "Avvalgi o'zgarishlar JSON Patch sifatida yozilmoqda: {name}",
+        "en": "Writing the earlier changes of {name} as a JSON Patch",
+    },
+    "gui.edit.ask.title": {"uz": "Saqlanmagan o'zgarishlar", "en": "Unsaved changes"},
+    "gui.edit.ask.title.brace_list": {"uz": "Standart bo'lmagan JSON", "en": "Non-standard JSON"},
+    "gui.edit.ask.title.broken": {"uz": "Buzilgan qatorlar", "en": "Broken lines"},
+    "gui.edit.ask.title.gzip": {"uz": "Siqilgan fayl", "en": "Compressed file"},
+    "gui.edit.ask.title.save_as": {"uz": "Joyida saqlab bo'lmadi", "en": "Cannot save in place"},
+    "gui.edit.ask.title.damaged": {"uz": "Shikastlangan o'zgarishlar", "en": "Damaged changes"},
+    "gui.edit.ask.title.target": {"uz": "Fayl boshqa varaqda ochiq", "en": "The file is open in another tab"},
+    "gui.edit.ask.close": {
+        "uz": "{name} faylida saqlanmagan o'zgarishlar bor ({steps} ta qadam). Ular saqlansinmi?",
+        "en": "{name} has unsaved changes ({steps} steps). Save them?",
+    },
+    "gui.edit.ask.close_changed": {
+        "uz": "{name} fayli diskda o'zgardi, unda esa saqlanmagan o'zgarishlar bor ({steps} ta qadam). Faylni endi "
+        "joyida saqlab bo'lmaydi: o'zgarishlar JSON Patch sifatida saqlansinmi?",
+        "en": "{name} changed on disk and has unsaved changes ({steps} steps). The file can no longer be saved in "
+        "place: save the changes as a JSON Patch?",
+    },
+    "gui.edit.ask.close_grown": {
+        "uz": "{name} fayli diskda kattalashdi, unda esa saqlanmagan o'zgarishlar bor ({steps} ta qadam). Faylni "
+        "joyida saqlab bo'lmaydi: u boshqa nom bilan saqlansinmi?",
+        "en": "{name} grew on disk and has unsaved changes ({steps} steps). It cannot be saved in place: save it "
+        "under another name?",
+    },
+    "gui.edit.ask.discard": {
+        "uz": "Barcha saqlanmagan o'zgarishlar ({steps} ta qadam) o'chirilsinmi? Ularni qaytarib bo'lmaydi.",
+        "en": "Discard all unsaved changes ({steps} steps)? This cannot be undone.",
+    },
+    "gui.edit.ask.discard_pending": {
+        "uz": "{time} dagi saqlanmagan o'zgarishlar ({steps} ta qadam) butunlay o'chirilsinmi? Ularni qaytarib "
+        "bo'lmaydi.",
+        "en": "Delete the unsaved changes from {time} ({steps} steps) for good? This cannot be undone.",
+    },
+    "gui.edit.ask.damaged": {
+        "uz": "Tahrir qatlami {seq}-qadamda buzilgan. {last_good}-qadamgacha bo'lgan o'zgarishlar tiklansinmi? "
+        "Keyingi qadamlar yo'qoladi.",
+        "en": "The edit layer is damaged at step {seq}. Restore the changes up to step {last_good}? The later "
+        "steps are lost.",
+    },
+    "gui.edit.ask.broken_lines": {
+        "uz": "Faylda {count} ta buzilgan qator bor. Ular saqlangan faylga yozilmaydi. Davom etilsinmi?",
+        "en": "The file has {count} broken lines. They are not written to the saved file. Continue?",
+    },
+    "gui.edit.ask.save_as_instead": {
+        "uz": "Faylni joyida saqlab bo'lmadi. U boshqa nom bilan saqlansinmi?",
+        "en": "The file cannot be saved in place. Save it under another name?",
+    },
+    "gui.edit.button.save": {"uz": "Saqlash", "en": "Save"},
+    "gui.edit.button.save_as": {"uz": "Boshqacha saqlash…", "en": "Save As…"},
+    "gui.edit.button.patch": {"uz": "JSON Patch sifatida saqlash…", "en": "Save as JSON Patch…"},
+    "gui.edit.button.discard": {"uz": "Saqlamaslik", "en": "Don't save"},
+    "gui.edit.button.cancel": {"uz": "Bekor qilish", "en": "Cancel"},
+    "gui.edit.path.save_as": {"uz": "Boshqacha saqlash", "en": "Save As"},
+    "gui.edit.path.patch": {
+        "uz": "O'zgarishlarni JSON Patch sifatida saqlash",
+        "en": "Save the changes as a JSON Patch",
+    },
+    "gui.edit.path.filter_patch": {"uz": "JSON Patch (*.json)", "en": "JSON Patch (*.json)"},
+    "gui.edit.path.filter_all": {"uz": "Barcha fayllar (*)", "en": "All files (*)"},
+    "gui.edit.path.copy_suffix": {"uz": "_tahrirlangan", "en": "_edited"},
+    "gui.edit.pending.gone": {"uz": "Bu tahrir qatlami endi mavjud emas.", "en": "This edit layer no longer exists."},
+    "gui.edit.pending.not_restorable": {
+        "uz": "Bu o'zgarishlar faylning boshqa versiyasiga tegishli yoki buzilgan: ularni JSON Patch sifatida "
+        "saqlash yoki o'chirish mumkin.",
+        "en": "These changes belong to another version of the file or are damaged: they can be saved as a JSON "
+        "Patch or deleted.",
+    },
+    "gui.edit.pending.roll_conflict": {
+        "uz": "To'xtab qolgan saqlashni na yakunlab, na bekor qilib bo'ldi: {message}",
+        "en": "The interrupted save could neither be finished nor undone: {message}",
+    },
+    "gui.edit.pending.roll_conflict.hint": {
+        "uz": "Ko'rsatilgan fayllarni qo'lda tekshiring; saqlash yozuvi (jurnal) o'chirilmadi.",
+        "en": "Check the files named above by hand; the save journal was kept.",
+    },
+    "gui.edit.pending.roll_kept": {
+        "uz": "{path} fayli hali o'zgarishlar kiritilgan versiyada: oxirgi saqlash faylga yetib bormagan.",
+        "en": "{path} is still the version the changes were made for: the last save never reached the file.",
+    },
+    "gui.edit.pending.roll_unconfirmed": {
+        "uz": "To'xtab qolgan saqlash yakunlanganini tasdiqlab bo'lmadi. {message}",
+        "en": "The interrupted save could not be confirmed. {message}",
+    },
+    "gui.edit.pending.roll_unconfirmed.hint": {
+        "uz": "O'zgarishlar o'chirilmadi: ularni tiklang (\"Tiklash\") va faylni qayta saqlang.",
+        "en": "The changes were kept: restore them (\"Restore\") and save the file again.",
+    },
+    "gui.edit.refused": {"uz": "Bajarilmadi: {reason}", "en": "Not done: {reason}"},
+    "gui.edit.target.unsaved": {
+        "uz": "{path} fayli boshqa tabda ochiq va unda saqlanmagan o'zgarishlar (yoki tugamagan amal) bor: uning "
+        "ustiga yozib bo'lmaydi.",
+        "en": "{path} is open in another tab with unsaved changes (or an operation that has not finished): it "
+        "cannot be overwritten.",
+    },
+    "gui.edit.target.unsaved.hint": {
+        "uz": "Avval o'sha tabdagi o'zgarishlarni saqlang yoki tabni yoping, yoxud boshqa nom tanlang.",
+        "en": "First save the changes in that tab or close it, or choose another name.",
+    },
+    "gui.edit.target.locked": {
+        "uz": "{path} fayli dasturning boshqa oynasida tahrirlash uchun ochiq: uning ustiga yozib bo'lmaydi.",
+        "en": "{path} is open for editing in another window of the program: it cannot be overwritten.",
+    },
+    "gui.edit.target.locked.hint": {
+        "uz": "Faylni o'sha oynada yoping yoki boshqa nom tanlang.",
+        "en": "Close the file in that window or choose another name.",
+    },
+    "gui.edit.target.open": {
+        "uz": "{path} fayli boshqa tabda ochiq. Uning ustiga yozilsinmi? O'sha tab yangi faylni qayta ochadi.",
+        "en": "{path} is open in another tab. Overwrite it? That tab will open the new file again.",
+    },
+    "gui.edit.target.pending": {
+        "uz": "{path} faylida dasturda saqlanmagan o'zgarishlar bor (ular tiklash uchun saqlab qo'yilgan): uning "
+              "ustiga yozib bo'lmaydi.",
+        "en": "{path} has unsaved changes in this program (they are kept to be restored): it cannot be overwritten.",
+    },
+    "gui.edit.target.pending.hint": {
+        "uz": "Avval faylni jsonreshape'da oching va o'zgarishlarni tiklab saqlang yoki bekor qiling, yoxud boshqa "
+              "nom tanlang.",
+        "en": "First open the file in jsonreshape and restore and save the changes, or discard them, or choose "
+              "another name.",
+    },
+    "gui.edit.ask.busy_title": {"uz": "Amal davom etmoqda", "en": "An operation is running"},
+    "gui.edit.ask.busy": {
+        "uz": "{name}: \"{task}\" hali tugamagan. Tugashini kutasizmi yoki uni to'xtatasizmi? To'xtatilsa, uning "
+        "natijasi saqlanmaydi.",
+        "en": "{name}: \"{task}\" has not finished yet. Wait for it, or stop it? If it is stopped, its result is not "
+        "kept.",
+    },
+    "gui.edit.ask.readers": {
+        "uz": "{count} ta vazifa hali {name} faylini o'qiyapti ({tasks}). Fayl hozir saqlansa, ular xato bilan "
+        "tugaydi. Ular tugashini kutib, keyin saqlansinmi?",
+        "en": "{count} tasks are still reading {name} ({tasks}). If the file is saved now, they fail. Wait for them "
+        "to finish and save then?",
+    },
+    "gui.edit.button.wait": {"uz": "Kutish", "en": "Wait"},
+    "gui.edit.button.stop": {"uz": "To'xtatish", "en": "Stop"},
+    "gui.edit.button.wait_save": {"uz": "Kutib, keyin saqlash", "en": "Wait, then save"},
+    "gui.edit.button.stop_save": {"uz": "Ularni to'xtatib saqlash", "en": "Stop them and save"},
+    "gui.edit.task.save_wait": {
+        "uz": "Saqlash navbatda: {name} (vazifalar tugashi kutilmoqda)",
+        "en": "Saving {name} after the running tasks",
+    },
+    "gui.edit.save_waits": {
+        "uz": "Fayl {count} ta vazifa tugagach saqlanadi.",
+        "en": "The file will be saved when {count} tasks have finished.",
+    },
+    "gui.edit.editor.invalid": {
+        "uz": "Ochiq tahrirlash maydonidagi qiymat noto'g'ri: {reason} Uni tuzating yoki Esc bilan bekor qiling.",
+        "en": "The value in the open edit box is not valid: {reason} Fix it or press Esc to cancel it.",
+    },
+    "gui.edit.editor.checking": {
+        "uz": "Ochiq tahrirlash maydonidagi kalit hali tekshirilmoqda: biroz kuting va qayta urinib ko'ring.",
+        "en": "The key in the open edit box is still being checked: wait a moment and try again.",
+    },
+    "gui.edit.editor.busy": {
+        "uz": "Oldingi amal hali tugamadi: biroz kutib, qayta urinib ko'ring (ochiq tahrirlash maydonidagi qiymat "
+        "yo'qolmaydi).",
+        "en": "The previous action has not finished yet: try again in a moment (the value in the open edit box is "
+        "kept).",
     },
     # ---- gui.state ----
     "gui.state.busy": {
@@ -2338,7 +6686,108 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "This node is already selected in the tree.",
     },
     "gui.actions.open_new_tab": {"uz": "Yangi tabda ochish", "en": "Open in a new tab"},
+    "gui.actions.no_document": {"uz": "Hujjat ochiq emas.", "en": "The document is not open."},
+    "gui.actions.stats.need_record": {
+        "uz": "Statistika yozuvlar ichidagi maydonlar uchun (tashqi o'rama uchun emas).",
+        "en": "Statistics are for fields inside the records (not for the wrapper).",
+    },
+    "gui.actions.tools.unavailable": {"uz": "Bu yerda mavjud emas.", "en": "Not available here."},
+    "gui.actions.edit.value": {"uz": "Qiymatni tahrirlash", "en": "Edit value"},
+    "gui.actions.edit.json": {"uz": "JSON matn sifatida tahrirlash…", "en": "Edit as JSON text…"},
+    "gui.actions.edit.rename": {"uz": "Kalitni qayta nomlash", "en": "Rename key"},
+    "gui.actions.edit.insert": {"uz": "Qo'shish", "en": "Insert"},
+    "gui.actions.edit.insert_child": {"uz": "Ichiga (bola sifatida)…", "en": "Inside (as a child)…"},
+    "gui.actions.edit.insert_before": {"uz": "Oldiga…", "en": "Before…"},
+    "gui.actions.edit.insert_after": {"uz": "Ortiga…", "en": "After…"},
+    "gui.actions.edit.duplicate": {"uz": "Nusxasini qo'shish", "en": "Duplicate"},
+    "gui.actions.edit.delete": {"uz": "O'chirish", "en": "Delete"},
+    "gui.actions.edit.move_up": {"uz": "Yuqoriga surish", "en": "Move up"},
+    "gui.actions.edit.move_down": {"uz": "Pastga surish", "en": "Move down"},
+    "gui.actions.edit.paste": {"uz": "Buferdagi JSON'ni qo'yish", "en": "Paste JSON from the clipboard"},
+    "gui.actions.edit.change_type": {"uz": "Turini o'zgartirish", "en": "Change type"},
+    "gui.actions.edit.type.string": {"uz": "Satr", "en": "String"},
+    "gui.actions.edit.type.number": {"uz": "Son", "en": "Number"},
+    "gui.actions.edit.type.bool": {"uz": "Mantiqiy (true/false)", "en": "Boolean (true/false)"},
+    "gui.actions.edit.type.null": {"uz": "null", "en": "null"},
+    "gui.actions.edit.type.object": {"uz": "Obyekt", "en": "Object"},
+    "gui.actions.edit.type.array": {"uz": "Massiv", "en": "Array"},
+    "gui.actions.edit.type.same": {"uz": "Tugun allaqachon shu turda.", "en": "The node already has this type."},
+    "gui.actions.edit.no_editing": {
+        "uz": "Bu hujjatni hozir tahrirlab bo'lmaydi.",
+        "en": "This document cannot be edited right now.",
+    },
+    "gui.actions.edit.busy": {
+        "uz": "Oldingi amal hali bajarilmoqda, biroz kuting.",
+        "en": "The previous change is still being made, please wait a moment.",
+    },
+    "gui.actions.edit.not_here": {
+        "uz": "Bu amal shu ko'rinishda mavjud emas.",
+        "en": "This command is not available in this view.",
+    },
+    "gui.actions.edit.no_key_element": {
+        "uz": "Massiv elementining kaliti yo'q (u faqat o'rni bilan aniqlanadi).",
+        "en": "An array element has no key (only its position).",
+    },
+    "gui.actions.edit.no_key_record": {
+        "uz": "Bu hujjatda yozuvlarning kaliti yo'q (ular faqat raqami bilan aniqlanadi).",
+        "en": "The records of this document have no key (only their number).",
+    },
+    "gui.actions.edit.no_key_root": {"uz": "Ildiz tugunning kaliti yo'q.", "en": "The root node has no key."},
+    "gui.actions.edit.need_container": {
+        "uz": "Bola faqat obyekt yoki massivga qo'shiladi.",
+        "en": "Children can only be added to an object or an array.",
+    },
+    "gui.actions.edit.root_no_siblings": {
+        "uz": "Ildiz tugunning yonida boshqa tugun bo'lmaydi.",
+        "en": "The root node cannot have neighbours.",
+    },
+    "gui.actions.edit.reason.indexing": {
+        "uz": "Fayl hali indekslanmoqda; tugagach tahrirlash mumkin bo'ladi.",
+        "en": "The file is still being indexed; editing becomes possible when it is done.",
+    },
+    "gui.actions.edit.reason.partial": {
+        "uz": "Faylda JSON xatosi bor, shuning uchun u faqat ko'rish uchun ochilgan.",
+        "en": "The file has a JSON error, so it is open for viewing only.",
+    },
+    "gui.actions.edit.reason.locked": {
+        "uz": "Bu faylni boshqa oyna yoki dastur nusxasi tahrirlamoqda.",
+        "en": "Another tab or another copy of the program is editing this file.",
+    },
+    "gui.actions.edit.reason.huge_single": {
+        "uz": "Fayl bitta juda katta qiymatdan iborat; uni tahrirlab bo'lmaydi.",
+        "en": "The file is one huge value; it cannot be edited.",
+    },
+    "gui.actions.edit.reason.recovery_pending": {
+        "uz": "Avval topilgan saqlanmagan o'zgarishlar haqida qaror qiling (tiklash yoki o'chirish).",
+        "en": "First decide about the unsaved changes that were found (restore or discard them).",
+    },
+    "gui.actions.edit.reason.file_changed": {
+        "uz": "Fayl tashqaridan o'zgartirildi; tahrirlash uchun uni qayta oching.",
+        "en": "The file was changed by another program; reopen it to edit.",
+    },
+    "gui.actions.edit.reason.file_grown": {
+        "uz": "Fayl ochilgandan keyin o'sdi; tahrirlash uchun uni qayta oching.",
+        "en": "The file grew after it was opened; reopen it to edit.",
+    },
+    "gui.actions.edit.reason.saving": {"uz": "Fayl saqlanmoqda.", "en": "The file is being saved."},
+    "gui.actions.edit.reason.applying": {
+        "uz": "O'zgarish qo'llanmoqda.",
+        "en": "A change is being applied.",
+    },
+    "gui.actions.edit.reason.closed": {"uz": "Hujjat yopilgan.", "en": "The document is closed."},
+    "gui.actions.edit.reason.unavailable": {
+        "uz": "Tahrirlashni tayyorlab bo'lmadi (tafsilotlar xato oynasida va logda).",
+        "en": "Editing could not be set up (the details are in the error window and the log).",
+    },
+    "gui.actions.edit.reason.other": {
+        "uz": "Tahrirlash hozir mumkin emas ({reason}).",
+        "en": "Editing is not possible right now ({reason}).",
+    },
     # ---- gui.widgets ----
+    "gui.widgets.edit.unavailable": {
+        "uz": "Hozir tahrirlab bo'lmaydi.",
+        "en": "Editing is not possible right now.",
+    },
     "gui.widgets.task.load_value": {"uz": "Qiymat o'qilmoqda", "en": "Reading a value"},
     "gui.widgets.error.title": {"uz": "Xato", "en": "Error"},
     "gui.widgets.error.unexpected": {"uz": "Kutilmagan xato yuz berdi.", "en": "An unexpected error occurred."},
@@ -2379,6 +6828,329 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Yana {count} ta xato oyna ochilmasdan logga yozildi. Tafsilotlar log faylida.",
         "en": "{count} more errors were written to the log without opening a window. See the log for details.",
     },
+    # ---- gui.smart ----
+    # smart values in the views (tree / table cells, the full-value window): links, thumbnails
+    "gui.smart.open.title": {"uz": "Havolani ochish", "en": "Open the link"},
+    "gui.smart.open.question": {
+        "uz": "Brauzerda ochilsinmi?\n\n{url}\n\nHavolani tizimdagi brauzer ochadi; dasturning o'zi hech narsa "
+              "yubormaydi.",
+        "en": "Open in the browser?\n\n{url}\n\nThe system browser opens the link; the program itself sends "
+              "nothing.",
+    },
+    "gui.smart.open.mail": {
+        "uz": "Pochta dasturida ochilsinmi?\n\n{url}\n\nManzilni tizimdagi pochta dasturi ochadi; dasturning o'zi "
+              "hech narsa yubormaydi.",
+        "en": "Open in the mail program?\n\n{url}\n\nThe system's mail program opens the address; the program "
+              "itself sends nothing.",
+    },
+    "gui.smart.open.button": {"uz": "Brauzerda ochish…", "en": "Open in the browser…"},
+    "gui.smart.open.mail_button": {"uz": "Pochta dasturida ochish…", "en": "Open in the mail program…"},
+    "gui.smart.open.link_tip": {
+        "uz": "Bosilsa, avval so'raladi, keyin tizimdagi dasturda ochiladi",
+        "en": "Click: you are asked first, then it opens in the system's program",
+    },
+    "gui.smart.link.url": {"uz": "Havola:", "en": "Link:"},
+    "gui.smart.link.email": {"uz": "E-pochta manzili:", "en": "E-mail address:"},
+    "gui.smart.thumb.truncated": {
+        "uz": "Qiymat to'liq yuklanmagan, shuning uchun rasmning kichik nusxasi ko'rsatilmaydi.",
+        "en": "The value was not loaded in full, so no small copy of the image is shown.",
+    },
+    "gui.smart.thumb.too_large": {
+        "uz": "Rasm juda katta ({width}×{height} piksel): kichik nusxasi ko'rsatilmaydi.",
+        "en": "The image is too large ({width}×{height} pixels): no small copy is shown.",
+    },
+    "gui.smart.thumb.failed": {
+        "uz": "Rasmni o'qib bo'lmadi: kichik nusxasi ko'rsatilmaydi.",
+        "en": "The image could not be read: no small copy is shown.",
+    },
+    # ---- gui.editors ----
+    # editing widgets and dialogs (gui/editors.py): inline editor, text / JSON / key / insert dialogs, type menu
+    "gui.editors.error.number": {
+        "uz": "Bu JSON soni emas. Masalan: 12, -3.5, 0.1, 1e3 (oldida + yoki ortiqcha 0 bo'lmaydi, kasr nuqta bilan "
+              "yoziladi).",
+        "en": "This is not a JSON number. For example: 12, -3.5, 0.1, 1e3 (no leading + or extra 0; decimals use a "
+              "dot).",
+    },
+    "gui.editors.error.key_empty": {"uz": "Kalit bo'sh bo'lishi mumkin emas.", "en": "The key cannot be empty."},
+    "gui.editors.error.key_exists": {
+        "uz": "Bu obyektda «{key}» kaliti allaqachon bor.",
+        "en": "This object already has the key \"{key}\".",
+    },
+    "gui.editors.error.key_required": {"uz": "Kalitni kiriting.", "en": "Enter a key."},
+    "gui.editors.error.escaped": {
+        "uz": "Kodli yozuv noto'g'ri ({column}-belgi): {reason}.",
+        "en": "The escaped text is not valid (character {column}): {reason}.",
+    },
+    "gui.editors.error.quote": {
+        "uz": "qo'shtirnoq \\\" ko'rinishida yozilishi kerak",
+        "en": "a quote must be written as \\\"",
+    },
+    "gui.editors.error.key_invalid": {"uz": "Kalit noto'g'ri: {reason}", "en": "The key is not valid: {reason}"},
+    "gui.editors.error.insert_invalid": {"uz": "Qo'shib bo'lmaydi: {reason}", "en": "Cannot insert: {reason}"},
+    "gui.editors.error.too_long": {
+        "uz": "Matn juda uzun ({size}; bu oynada ko'pi bilan {limit}).",
+        "en": "The text is too long ({size}; at most {limit} in this window).",
+    },
+    "gui.editors.escaped.tip": {
+        "uz": "Maxsus belgilar kod bilan ko'rsatilgan: \\n — yangi qator, \\r — qator boshi, \\t — tabulyatsiya, "
+              "\\\" — qo'shtirnoq, \\\\ — teskari chiziq, \\uXXXX — boshqa belgilar.",
+        "en": "Special characters are shown as escapes: \\n line break, \\r carriage return, \\t tab, \\\" quote, "
+              "\\\\ backslash, \\uXXXX other characters.",
+    },
+    "gui.editors.special.mixed_newlines": {
+        "uz": "har xil qator tugashlari (\\r\\n va \\n)",
+        "en": "mixed line endings (\\r\\n and \\n)",
+    },
+    "gui.editors.special.surrogates": {
+        "uz": "juftsiz surrogat belgilar (\\ud800…\\udfff)",
+        "en": "unpaired surrogate characters (\\ud800…\\udfff)",
+    },
+    "gui.editors.special.separators": {
+        "uz": "maxsus ajratuvchi belgilar (U+2029, U+FDD0, U+FDD1)",
+        "en": "special separator characters (U+2029, U+FDD0, U+FDD1)",
+    },
+    "gui.editors.loading": {"uz": "Qiymat yuklanmoqda…", "en": "Loading the value…"},
+    "gui.editors.load_failed": {
+        "uz": "Qiymatni yuklab bo'lmadi: {error}",
+        "en": "The value could not be loaded: {error}",
+    },
+    "gui.editors.not_string": {"uz": "Bu tugun matn (string) emas.", "en": "This node is not a string."},
+    "gui.editors.discard.question": {
+        "uz": "Kiritilgan o'zgarishlar saqlanmaydi. Oynani yopaymi?",
+        "en": "The changes you made will be lost. Close the window?",
+    },
+    "gui.editors.task.load": {"uz": "Tahrirlash uchun qiymat yuklanmoqda", "en": "Loading a value to edit"},
+    "gui.editors.task.validate": {"uz": "JSON tekshirilmoqda", "en": "Checking the JSON"},
+    "gui.editors.task.format": {"uz": "JSON formatlanmoqda", "en": "Formatting the JSON"},
+    # string dialog
+    "gui.editors.string.title": {"uz": "Matnni tahrirlash", "en": "Edit text"},
+    "gui.editors.string.wrap": {"uz": "Qatorlarni o'rash", "en": "Wrap lines"},
+    "gui.editors.string.escapes": {
+        "uz": "Maxsus belgilarni kod bilan ko'rsatish",
+        "en": "Show special characters as escapes",
+    },
+    "gui.editors.string.count": {"uz": "{count} ta belgi, {lines} qator", "en": "{count} characters, {lines} lines"},
+    "gui.editors.string.count_invalid": {
+        "uz": "Belgilar soni: kodli yozuv tuzatilgach ko'rsatiladi",
+        "en": "Characters: shown once the escaped text is valid",
+    },
+    "gui.editors.string.too_large": {
+        "uz": "Bu matn juda katta ({size}): bu oynada {limit} gacha bo'lgan matnlarni tahrirlash mumkin.",
+        "en": "This text is too large ({size}): this window edits texts up to {limit}.",
+    },
+    "gui.editors.string.too_large.hint": {
+        "uz": "Katta matnlarni «Ommaviy amallar» (Ctrl+H) dagi «Topish va almashtirish» bilan yoki JSON Patch import "
+              "qilib o'zgartiring.",
+        "en": "Change large texts with Find and replace in Bulk operations (Ctrl+H) or by importing a JSON Patch.",
+    },
+    "gui.editors.string.forced_escapes": {
+        "uz": "Bu matnda oddiy tahrirlash maydoni aynan saqlay olmaydigan belgilar bor: {what}. Shuning uchun matn "
+              "kod bilan ko'rsatilgan.",
+        "en": "This text has characters the plain editor cannot keep exactly: {what}. So it is shown with escapes.",
+    },
+    "gui.editors.string.plain_refused": {
+        "uz": "Oddiy ko'rinishga o'tib bo'lmaydi: matnda {what} bor.",
+        "en": "Cannot switch to plain text: the text has {what}.",
+    },
+    # JSON dialog
+    "gui.editors.json.title": {"uz": "JSON sifatida tahrirlash", "en": "Edit as JSON"},
+    "gui.editors.json.valid": {"uz": "✓ To'g'ri JSON: {type}", "en": "✓ Valid JSON: {type}"},
+    "gui.editors.json.invalid": {
+        "uz": "✗ {line}-qator, {column}-ustun: {reason}",
+        "en": "✗ Line {line}, column {column}: {reason}",
+    },
+    "gui.editors.json.checking": {"uz": "Tekshirilmoqda…", "en": "Checking…"},
+    "gui.editors.json.indent": {"uz": "Chekinish:", "en": "Indent:"},
+    "gui.editors.json.indent.2": {"uz": "2 ta bo'sh joy", "en": "2 spaces"},
+    "gui.editors.json.indent.4": {"uz": "4 ta bo'sh joy", "en": "4 spaces"},
+    "gui.editors.json.indent.tab": {"uz": "Tabulyatsiya", "en": "Tab"},
+    "gui.editors.json.format": {"uz": "Formatlash", "en": "Format"},
+    "gui.editors.json.format.tip": {
+        "uz": "Matnni tanlangan chekinish bilan qayta joylashtiradi; qiymatlar (sonlar, matnlar) aynan saqlanadi.",
+        "en": "Re-indents the text with the chosen indent; values (numbers, strings) stay exactly as written.",
+    },
+    "gui.editors.json.ok.tip": {
+        "uz": "Saqlash (Ctrl+Enter). Faqat JSON to'g'ri bo'lganda ishlaydi.",
+        "en": "Save (Ctrl+Enter). Available only while the JSON is valid.",
+    },
+    "gui.editors.json.too_large": {
+        "uz": "Bu tugun juda katta ({size}): bu oynada {limit} gacha bo'lgan JSON matnini tahrirlash mumkin.",
+        "en": "This node is too large ({size}): this window edits JSON texts up to {limit}.",
+    },
+    "gui.editors.json.too_large.hint": {
+        "uz": "Katta tugunlarni JSON Patch yoki «Ommaviy amallar» (Ctrl+H) bilan o'zgartiring.",
+        "en": "Change large nodes with a JSON Patch or with Bulk operations (Ctrl+H).",
+    },
+    # key and insert dialogs
+    "gui.editors.key.title": {"uz": "Kalitni qayta nomlash", "en": "Rename key"},
+    "gui.editors.key.label": {"uz": "Yangi kalit:", "en": "New key:"},
+    "gui.editors.key.checking": {
+        "uz": "Bunday kalit bor-yo'qligi tekshirilmoqda…",
+        "en": "Checking whether this key exists already…",
+    },
+    "gui.editors.insert.title": {"uz": "Qo'shish", "en": "Insert"},
+    "gui.editors.insert.position": {"uz": "Qayerga:", "en": "Where:"},
+    "gui.editors.insert.before": {"uz": "Oldiga", "en": "Before"},
+    "gui.editors.insert.after": {"uz": "Ortiga", "en": "After"},
+    "gui.editors.insert.child": {"uz": "Ichiga (oxiriga)", "en": "Inside (at the end)"},
+    "gui.editors.insert.key": {"uz": "Kalit:", "en": "Key:"},
+    "gui.editors.insert.key.placeholder": {"uz": "yangi a'zoning kaliti", "en": "the key of the new member"},
+    "gui.editors.insert.type": {"uz": "Turi:", "en": "Type:"},
+    "gui.editors.insert.value": {"uz": "Qiymat:", "en": "Value:"},
+    "gui.editors.insert.null": {"uz": "null qiymati", "en": "the null value"},
+    "gui.editors.insert.object": {"uz": "Bo'sh obyekt {}", "en": "An empty object {}"},
+    "gui.editors.insert.array": {"uz": "Bo'sh massiv []", "en": "An empty array []"},
+    # type names (menus, combos)
+    "gui.editors.type.menu": {"uz": "Turini o'zgartirish", "en": "Change type"},
+    "gui.editors.type.string": {"uz": "Satr", "en": "String"},
+    "gui.editors.type.number": {"uz": "Son", "en": "Number"},
+    "gui.editors.type.bool": {"uz": "Mantiqiy (true/false)", "en": "Boolean (true/false)"},
+    "gui.editors.type.null": {"uz": "null", "en": "null"},
+    "gui.editors.type.object": {"uz": "Obyekt {…}", "en": "Object {…}"},
+    "gui.editors.type.array": {"uz": "Massiv […]", "en": "Array […]"},
+    "gui.editors.type.json": {"uz": "JSON matni", "en": "JSON text"},
+    "gui.editors.type.same": {"uz": "Qiymat allaqachon shu turda.", "en": "The value already has this type."},
+    "gui.editors.type.impossible": {
+        "uz": "Turni o'zgartirib bo'lmaydi: {source} qiymati {target} turiga aylanmaydi.",
+        "en": "A {source} value cannot be converted to {target}.",
+    },
+    # ---- gui.bulk ----
+    # the bulk operations dialog (gui/bulkdialog.py)
+    "gui.bulk.title": {"uz": "Ommaviy amallar — {name}", "en": "Bulk operations — {name}"},
+    "gui.bulk.operation": {"uz": "Amal:", "en": "Operation:"},
+    "gui.bulk.params": {"uz": "Parametrlar", "en": "Parameters"},
+    "gui.bulk.scope": {"uz": "Qaysi yozuvlarda", "en": "Records"},
+    "gui.bulk.scope.all": {"uz": "Barcha yozuvlar ({count})", "en": "All records ({count})"},
+    "gui.bulk.scope.view": {"uz": "Joriy ko'rinish ({count})", "en": "Current view ({count})"},
+    "gui.bulk.scope.view_base": {
+        "uz": "Joriy ko'rinish (filtr yo'q — barcha yozuvlar)",
+        "en": "Current view (no filter: all records)",
+    },
+    "gui.bulk.scope.selected": {"uz": "Tanlangan yozuvlar ({count})", "en": "Selected records ({count})"},
+    "gui.bulk.scope.selected_none": {
+        "uz": "Tanlangan yozuvlar (hech narsa tanlanmagan)",
+        "en": "Selected records (nothing selected)",
+    },
+    "gui.bulk.scope.selected.tip": {
+        "uz": "Jadval yoki daraxtda yozuvlarni tanlang (bir nechtasini Ctrl yoki Shift bilan).",
+        "en": "Select records in the table or the tree (several with Ctrl or Shift).",
+    },
+    "gui.bulk.scope.view_busy": {
+        "uz": "Joriy ko'rinish hali hisoblanmoqda: filtr yoki saralash tugashini kuting.",
+        "en": "The current view is still being computed: wait for the filter or sort to finish.",
+    },
+    "gui.bulk.scope.no_selection": {"uz": "Hech qanday yozuv tanlanmagan.", "en": "No records are selected."},
+    "gui.bulk.preview": {"uz": "Ko'rib chiqish", "en": "Preview"},
+    "gui.bulk.preview.tip": {
+        "uz": "Hech narsani o'zgartirmasdan natijani hisoblaydi: nechta yozuv va qiymat o'zgarishini va misollarni "
+              "ko'rsatadi.",
+        "en": "Computes the result without changing anything: shows how many records and values would change, with "
+              "examples.",
+    },
+    "gui.bulk.stop": {"uz": "To'xtatish", "en": "Stop"},
+    "gui.bulk.apply": {"uz": "Qo'llash", "en": "Apply"},
+    "gui.bulk.apply.tip": {
+        "uz": "Ko'rib chiqilgan o'zgarishlarni bitta qadam sifatida qo'llaydi (Ctrl+Z bilan qaytarish mumkin).",
+        "en": "Applies the previewed changes as one step (Ctrl+Z undoes it).",
+    },
+    "gui.bulk.close.tip": {
+        "uz": "Oynani yopadi; qo'llanmagan ko'rib chiqish natijasi o'chiriladi.",
+        "en": "Closes the window; a preview that was not applied is discarded.",
+    },
+    "gui.bulk.param.find": {"uz": "Topish:", "en": "Find:"},
+    "gui.bulk.param.replacement": {"uz": "O'rniga:", "en": "Replace with:"},
+    "gui.bulk.param.regex": {"uz": "Muntazam ifoda (regex)", "en": "Regular expression"},
+    "gui.bulk.param.case_sensitive": {"uz": "Katta-kichik harfni farqlash", "en": "Match case"},
+    "gui.bulk.param.whole_word": {"uz": "Butun so'z", "en": "Whole word"},
+    "gui.bulk.param.path": {"uz": "Yo'l:", "en": "Path:"},
+    "gui.bulk.param.path_optional": {
+        "uz": "ixtiyoriy: masalan address.city yoki ..name (bo'sh — hamma joyda)",
+        "en": "optional: e.g. address.city or ..name (empty: everywhere)",
+    },
+    "gui.bulk.param.path_required": {
+        "uz": "masalan: address.city, items[*].price yoki ..id",
+        "en": "e.g. address.city, items[*].price or ..id",
+    },
+    "gui.bulk.param.objects_path": {
+        "uz": "ixtiyoriy: obyektlar yo'li, masalan items[*] (bo'sh — hamma obyektlar)",
+        "en": "optional: the path of the objects, e.g. items[*] (empty: every object)",
+    },
+    "gui.bulk.param.old": {"uz": "Eski kalit:", "en": "Old key:"},
+    "gui.bulk.param.new": {"uz": "Yangi kalit:", "en": "New key:"},
+    "gui.bulk.param.value": {"uz": "Qiymat (JSON):", "en": "Value (JSON):"},
+    "gui.bulk.param.value.placeholder": {
+        "uz": "masalan: \"Toshkent\", 42, true, null yoki {\"a\": 1}",
+        "en": "e.g. \"Tashkent\", 42, true, null or {\"a\": 1}",
+    },
+    "gui.bulk.param.mode": {"uz": "Qachon:", "en": "When:"},
+    "gui.bulk.param.trim": {"uz": "Chetdagi bo'sh joylarni olib tashlash", "en": "Trim spaces at both ends"},
+    "gui.bulk.param.collapse": {
+        "uz": "Ketma-ket bo'sh joylarni bittaga yig'ish",
+        "en": "Collapse runs of spaces into one",
+    },
+    "gui.bulk.param.to": {"uz": "Yangi tur:", "en": "New type:"},
+    "gui.bulk.param.key": {"uz": "Kalit maydon:", "en": "Key field:"},
+    "gui.bulk.param.key.placeholder": {
+        "uz": "masalan: id yoki email; yozuv kaliti uchun $key",
+        "en": "e.g. id or email; $key for the record key",
+    },
+    "gui.bulk.param.keep": {"uz": "Qaysi biri qoladi:", "en": "Keep:"},
+    "gui.bulk.param.path.help": {
+        "uz": "Yo'llar: a.b — ichma-ich maydon, items[*] — massivning har bir elementi, ..id — istalgan chuqurlikdagi "
+              "id.",
+        "en": "Paths: a.b a nested field, items[*] every element of an array, ..id an id at any depth.",
+    },
+    "gui.bulk.result.title": {"uz": "Natija", "en": "Result"},
+    "gui.bulk.result.counts": {
+        "uz": "{scanned} ta yozuv ko'rildi · {records} ta yozuv o'zgaradi · {values} ta qiymat",
+        "en": "{scanned} records scanned · {records} records would change · {values} values",
+    },
+    "gui.bulk.result.counts_dedupe": {
+        "uz": "{scanned} ta yozuv ko'rildi · {records} ta takror yozuv o'chiriladi",
+        "en": "{scanned} records scanned · {records} duplicate records would be deleted",
+    },
+    "gui.bulk.result.conflicts": {"uz": "{count} ta ziddiyat", "en": "conflicts: {count}"},
+    "gui.bulk.result.failures": {"uz": "{count} ta xato", "en": "failures: {count}"},
+    "gui.bulk.result.huge": {
+        "uz": "{count} ta juda katta yozuv o'tkazib yuborildi",
+        "en": "very large records skipped: {count}",
+    },
+    "gui.bulk.result.detail": {"uz": "Yangi ma'lumot: {size} · vaqt: {elapsed}", "en": "New data: {size} · time: {elapsed}"},
+    "gui.bulk.result.nothing": {"uz": "Hech narsa o'zgarmaydi.", "en": "Nothing would change."},
+    "gui.bulk.examples": {"uz": "Misollar (oldin → keyin)", "en": "Examples (before → after)"},
+    "gui.bulk.problems": {"uz": "Muammolar", "en": "Problems"},
+    "gui.bulk.col.record": {"uz": "Yozuv", "en": "Record"},
+    "gui.bulk.col.path": {"uz": "Yo'l", "en": "Path"},
+    "gui.bulk.col.before": {"uz": "Oldin", "en": "Before"},
+    "gui.bulk.col.after": {"uz": "Keyin", "en": "After"},
+    "gui.bulk.col.value": {"uz": "Qiymat", "en": "Value"},
+    "gui.bulk.col.reason": {"uz": "Sabab", "en": "Reason"},
+    "gui.bulk.example.reveal.tip": {
+        "uz": "Ikki marta bosing: yozuvni daraxtda ko'rsatadi",
+        "en": "Double-click to show the record in the tree",
+    },
+    "gui.bulk.status.running": {"uz": "Ko'rib chiqilmoqda…", "en": "Previewing…"},
+    "gui.bulk.status.done": {"uz": "Ko'rib chiqildi: {label}", "en": "Preview ready: {label}"},
+    "gui.bulk.status.failed": {"uz": "Ko'rib chiqib bo'lmadi: {error}", "en": "The preview failed: {error}"},
+    "gui.bulk.status.cancelled": {"uz": "Ko'rib chiqish to'xtatildi.", "en": "The preview was stopped."},
+    "gui.bulk.status.stale": {
+        "uz": "Ko'rib chiqishdan keyin ma'lumot o'zgardi: qo'llash uchun amalni qaytadan ko'rib chiqing.",
+        "en": "The data changed after the preview: preview the operation again to apply it.",
+    },
+    "gui.bulk.status.applying": {"uz": "Qo'llanmoqda…", "en": "Applying…"},
+    "gui.bulk.status.applied": {"uz": "Qo'llandi: {label}", "en": "Applied: {label}"},
+    "gui.bulk.status.not_applied": {"uz": "O'zgarishlar qo'llanmadi.", "en": "The changes were not applied."},
+    "gui.bulk.status.busy": {
+        "uz": "Boshqa tahrir bajarilmoqda: u tugashini kuting.",
+        "en": "Another edit is in progress: wait for it to finish.",
+    },
+    "gui.bulk.unavailable": {"uz": "Hozir tahrirlab bo'lmaydi.", "en": "Editing is not possible right now."},
+    "gui.bulk.huge_note": {
+        "uz": "Diqqat: {limit} dan katta yozuvlar ommaviy amallarda o'zgartirilmaydi, ular «o'tkazib yuborildi» deb "
+              "sanaladi.",
+        "en": "Note: records larger than {limit} are not changed by bulk operations; they are counted as skipped.",
+    },
+    "gui.bulk.task.huge": {"uz": "Juda katta yozuvlar tekshirilmoqda", "en": "Checking for very large records"},
     # ---- gui.tree ----
     "gui.tree.col.key": {"uz": "Kalit", "en": "Key"},
     "gui.tree.col.value": {"uz": "Qiymat", "en": "Value"},
@@ -2470,6 +7242,100 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "View only: the file and the [index] of each element stay the same. "
               "null and missing values come last.",
     },
+    # gui.tree: editing (§12.9)
+    "gui.tree.edited": {"uz": "tahrirlangan", "en": "edited"},
+    "gui.tree.edited.tip": {
+        "uz": "Bu tugun tahrirlangan va hali saqlanmagan, shuning uchun faylda o'rni yo'q.",
+        "en": "This node was edited and is not saved yet, so it has no position in the file.",
+    },
+    "gui.tree.size.tip.edited": {
+        "uz": "{bytes} bayt\nTahrirlangan: faylda hali o'rni yo'q",
+        "en": "{bytes} bytes\nEdited: no position in the file yet",
+    },
+    "gui.tree.edit.unavailable": {"uz": "Hozir tahrirlab bo'lmaydi", "en": "Editing is not possible right now"},
+    "gui.tree.edit.no_node": {
+        "uz": "Avval tugunni tanlang (yoki u yuklanishini kuting)",
+        "en": "Select a node first (or wait until it is loaded)",
+    },
+    "gui.tree.edit.records_locked": {
+        "uz": "Yozuvlarni saqlovchi massiv va uni o'rab turgan obyekt butunligicha almashtirilmaydi: "
+              "yozuvlarni alohida tahrirlang.",
+        "en": "The array holding the records and the object around it cannot be replaced as a whole: "
+              "edit the records one by one.",
+    },
+    "gui.tree.edit.too_large": {
+        "uz": "Bu qiymat tahrirlash oynasi uchun juda katta ({size}). Ommaviy almashtirish yoki JSON Patch'dan "
+              "foydalaning.",
+        "en": "This value is too large for the editor ({size}). Use Bulk replace or a JSON Patch.",
+    },
+    "gui.tree.edit.title.value": {"uz": "{path} — qiymatni tahrirlash", "en": "{path} — edit the value"},
+    "gui.tree.edit.title.json": {"uz": "{path} — JSON sifatida tahrirlash", "en": "{path} — edit as JSON"},
+    "gui.tree.edit.title.key": {"uz": "{path} — kalitni qayta nomlash", "en": "{path} — rename the key"},
+    "gui.tree.edit.title.insert": {"uz": "{path} — yangi tugun qo'shish", "en": "{path} — insert a node"},
+    "gui.tree.edit.no_key": {
+        "uz": "Bu tugunning kaliti yo'q (massiv elementi yoki ildiz)",
+        "en": "This node has no key (an array element or the root)",
+    },
+    "gui.tree.edit.insert.child": {"uz": "Ichiga, oxiriga qo'shish…", "en": "Insert as a child (at the end)…"},
+    "gui.tree.edit.insert.before": {"uz": "Oldiga qo'shish…", "en": "Insert before…"},
+    "gui.tree.edit.insert.after": {"uz": "Ortiga qo'shish…", "en": "Insert after…"},
+    "gui.tree.edit.insert.record_before": {"uz": "Oldiga yangi yozuv…", "en": "New record before…"},
+    "gui.tree.edit.insert.record_after": {"uz": "Ortiga yangi yozuv…", "en": "New record after…"},
+    "gui.tree.edit.need_container": {
+        "uz": "Bola faqat obyekt yoki massivga qo'shiladi",
+        "en": "Children can only be added to objects and arrays",
+    },
+    "gui.tree.edit.root_no_siblings": {
+        "uz": "Ildiz tugunning yonida boshqa tugun bo'lmaydi",
+        "en": "The root node has no siblings",
+    },
+    "gui.tree.edit.too_many": {
+        "uz": "Bitta buyruq ko'pi bilan {limit} ta tugunni qabul qiladi. Ko'proq tugun uchun Ommaviy amallardan "
+              "foydalaning (Ctrl+H).",
+        "en": "One command takes at most {limit} nodes. For more nodes use Bulk operations (Ctrl+H).",
+    },
+    "gui.tree.edit.nothing_selected": {"uz": "Hech narsa tanlanmagan", "en": "Nothing is selected"},
+    "gui.tree.edit.not_siblings": {
+        "uz": "Birga faqat bitta ota tugundagi qo'shni tugunlarni ko'chirish mumkin",
+        "en": "Only nodes with the same parent can be moved together",
+    },
+    "gui.tree.edit.view_records": {
+        "uz": "Yozuvlar tartibini faqat filtr va saralashsiz ko'rinishda o'zgartirish mumkin",
+        "en": "Records can be reordered only in the view without a filter or sorting",
+    },
+    "gui.tree.edit.sorted_parent": {
+        "uz": "Ota tugun saralangan holda ko'rsatilmoqda: ko'chirish uchun avval asl tartibga qayting",
+        "en": "The parent is shown sorted: switch back to the original order to move its children",
+    },
+    "gui.tree.edit.clipboard_empty": {
+        "uz": "Buferda joylashtiriladigan matn yo'q",
+        "en": "The clipboard holds no text to paste",
+    },
+    "gui.tree.edit.task.positions": {"uz": "Tanlangan yozuvlar aniqlanmoqda", "en": "Finding the selected records"},
+    "gui.tree.edit.task.refs": {"uz": "Tanlangan tugunlar o'qilmoqda", "en": "Reading the selected nodes"},
+    "gui.tree.edit.gone": {
+        "uz": "Tahrirlanayotgan tugun endi yo'q (u o'chirilgan yoki hujjat qayta ochilgan). O'zgarish "
+              "qo'llanmadi.",
+        "en": "The node being edited no longer exists (it was deleted or the document was reopened). The "
+              "change was not applied.",
+    },
+    "gui.tree.task.key_check": {"uz": "Kalit tekshirilmoqda", "en": "Checking the key"},
+    "gui.tree.edit.fixed.wrapper": {
+        "uz": "O'rama obyektni o'chirib, nusxalab yoki surib bo'lmaydi: yozuvlar uning ichida. Uning boshqa "
+              "a'zolarini yoki yozuvlarni tanlang.",
+        "en": "The wrapper object cannot be deleted, duplicated or moved: the records are inside it. Select its "
+              "other members or the records.",
+    },
+    "gui.tree.edit.fixed.records": {
+        "uz": "Yozuvlar konteynerini o'chirib, nusxalab yoki surib bo'lmaydi: yozuvlarning o'zini tanlang.",
+        "en": "The record container cannot be deleted, duplicated or moved: select the records themselves.",
+    },
+    "gui.tree.edit.fixed.root": {
+        "uz": "Hujjat ildizini o'chirib, nusxalab yoki surib bo'lmaydi.",
+        "en": "The root of the document cannot be deleted, duplicated or moved.",
+    },
+    "gui.tree.task.load_value": {"uz": "Qiymat tahrirlash uchun o'qilmoqda", "en": "Reading the value to edit"},
+    "gui.tree.task.refresh": {"uz": "O'zgargan tugunlar qayta o'qilmoqda", "en": "Reading the changed nodes again"},
     # ---- gui.quickfind ----
     "gui.quickfind.label": {"uz": "Topish:", "en": "Find:"},
     "gui.quickfind.placeholder": {"uz": "Yuklangan qismdan topish", "en": "Find in the loaded part"},
@@ -2486,6 +7352,99 @@ MESSAGES: dict[str, dict[str, str]] = {
     "gui.quickfind.count": {"uz": "{total} ta", "en": "{total} found"},
     "gui.quickfind.position": {"uz": "{index} / {total}", "en": "{index} of {total}"},
     # ---- gui.table ----
+    "gui.table.edit.index": {
+        "uz": "Raqam ustunini tahrirlab bo'lmaydi: u yozuvning o'rni.",
+        "en": "The number column cannot be edited: it is the record's position.",
+    },
+    "gui.table.edit.loading": {"uz": "Yozuv hali yuklanmoqda.", "en": "The record is still loading."},
+    "gui.table.edit.no_key": {
+        "uz": "Bu hujjatning yozuvlarida kalit yo'q.",
+        "en": "The records of this document have no keys.",
+    },
+    "gui.table.edit.invalid_column": {"uz": "Ustun yo'li noto'g'ri.", "en": "The column path is not valid."},
+    "gui.table.edit.huge": {
+        "uz": "Yozuv tahrirlash uchun juda katta: Ommaviy amallar yoki JSON Patch'dan foydalaning.",
+        "en": "The record is too large to edit: use Bulk operations or JSON Patch.",
+    },
+    "gui.table.edit.wildcard_none": {
+        "uz": "Bu katakda qiymat yo'q. Yangi maydonni aniq yo'lli ustunda kiriting (masalan, orders[0].id).",
+        "en": "This cell has no value. Enter a new field in a column with a concrete path (e.g. orders[0].id).",
+    },
+    "gui.table.edit.wildcard_many": {
+        "uz": "Katakda bir nechta qiymat bor: ularni Ommaviy amallar (Ctrl+H) bilan o'zgartiring.",
+        "en": "The cell holds several values: change them with Bulk operations (Ctrl+H).",
+    },
+    "gui.table.edit.no_cell": {"uz": "Tahrirlanadigan katak tanlanmagan.", "en": "No cell to edit is selected."},
+    "gui.table.edit.title": {"uz": "{path} — qiymatni tahrirlash", "en": "{path} — edit the value"},
+    "gui.table.edit.gone": {
+        "uz": "Tahrirlanayotgan qiymat endi yo'q (u o'chirilgan). O'zgarish saqlanmadi.",
+        "en": "The value being edited no longer exists (it was deleted). The change was not applied.",
+    },
+    "gui.table.edit.changed": {
+        "uz": "Shu orada ma'lumot o'zgardi: amalni yana bir bor bajaring.",
+        "en": "The data changed meanwhile: please try again.",
+    },
+    "gui.table.edit.not_ready": {
+        "uz": "Fayl hali to'liq o'qilmagan: tahrirlash indekslash tugagach mumkin.",
+        "en": "The file has not been read completely yet: editing is possible once indexing has finished.",
+    },
+    "gui.table.edit.collect": {"uz": "Tanlangan maydonlar qidirilmoqda", "en": "Looking up the selected fields"},
+    "gui.table.task.key_check": {"uz": "Kalit tekshirilmoqda", "en": "Checking the key"},
+    "gui.table.delete.wildcard": {
+        "uz": "Yulduzchali (*) ustunlardagi qiymatlar o'chirilmadi: ularni Ommaviy amallar (Ctrl+H) bilan o'chiring.",
+        "en": "Values in wildcard (*) columns were not deleted: delete them with Bulk operations (Ctrl+H).",
+    },
+    "gui.table.delete.nothing": {
+        "uz": "Tanlangan kataklarda o'chiriladigan maydon yo'q.",
+        "en": "The selected cells have no field to delete.",
+    },
+    "gui.table.delete.too_many": {
+        "uz": "Juda ko'p katak tanlangan ({count}, ko'pi bilan {limit}): maydonni Ommaviy amallar (Ctrl+H) bilan "
+              "o'chiring.",
+        "en": "Too many cells are selected ({count}, at most {limit}): delete the field with Bulk operations "
+              "(Ctrl+H).",
+    },
+    "gui.table.delete.missing": {
+        "uz": "Tanlangan yozuvlarda bu maydonlar yo'q.",
+        "en": "The selected records do not have these fields.",
+    },
+    "gui.table.records.single": {
+        "uz": "Bitta qiymatdan iborat hujjatda yozuv qo'shib, nusxalab yoki o'chirib bo'lmaydi.",
+        "en": "A document of one value has no records to insert, duplicate or delete.",
+    },
+    "gui.table.records.collect": {"uz": "Yozuvlar yig'ilmoqda ({count})", "en": "Collecting the records ({count})"},
+    "gui.table.records.delete_confirm": {
+        "uz": "{count} ta yozuv o'chirilsinmi? (Ctrl+Z bilan qaytarish mumkin.)",
+        "en": "Delete {count} records? (Ctrl+Z undoes it.)",
+    },
+    "gui.table.records.insert_title": {"uz": "Yangi yozuv", "en": "New record"},
+    "gui.table.menu.delete_records": {"uz": "Yozuvni o'chirish", "en": "Delete record"},
+    "gui.table.edit.key_no_json": {
+        "uz": "Kalitni JSON sifatida tahrirlab bo'lmaydi: uni F2 bilan qayta nomlang.",
+        "en": "A key cannot be edited as JSON: rename it with F2.",
+    },
+    "gui.table.edit.no_rename": {
+        "uz": "Bu katakda qayta nomlanadigan kalit yo'q (massiv elementi yoki mavjud bo'lmagan maydon).",
+        "en": "This cell has no key to rename (an array element, or a field that does not exist).",
+    },
+    "gui.table.edit.no_container": {
+        "uz": "Bola faqat obyekt yoki massivga qo'shiladi.",
+        "en": "A child can only be added to an object or an array.",
+    },
+    "gui.table.records.move_base_only": {
+        "uz": "Yozuvlarni faqat filtrlanmagan va tartiblanmagan ko'rinishda surish mumkin.",
+        "en": "Records can only be moved in the unfiltered, unsorted view.",
+    },
+    "gui.table.records.too_many": {
+        "uz": "Juda ko'p yozuv tanlangan ({count}, ko'pi bilan {limit}).",
+        "en": "Too many records are selected ({count}, at most {limit}).",
+    },
+    "gui.table.records.paste_empty": {"uz": "Buferda matn yo'q.", "en": "The clipboard holds no text."},
+    "gui.table.records.not_in_view": {
+        "uz": "Yangi yozuv joriy ko'rinishda (filtr / tartib) yo'q: uni ko'rish uchun ko'rinishni yangilang.",
+        "en": "The new record is not in the current view (filter / sort): refresh the view to see it.",
+    },
+    "gui.table.menu.delete_records_n": {"uz": "Yozuvlarni o'chirish ({count})", "en": "Delete records ({count})"},
     "gui.table.busy": {"uz": "⟳ Ko'rinish yangilanmoqda…", "en": "⟳ Updating the view…"},
     "gui.table.col.key": {"uz": "Kalit", "en": "Key"},
     "gui.table.col.index": {"uz": "Raqam", "en": "Number"},
@@ -2602,6 +7561,10 @@ MESSAGES: dict[str, dict[str, str]] = {
     "gui.table.menu.sort_asc": {"uz": "O'sish bo'yicha tartiblash", "en": "Sort ascending"},
     "gui.table.menu.sort_desc": {"uz": "Kamayish bo'yicha tartiblash", "en": "Sort descending"},
     "gui.table.menu.sort_clear": {"uz": "Tartiblashni bekor qilish", "en": "Remove sorting"},
+    "gui.table.menu.stats.index": {
+        "uz": "Yozuv raqami ($index) maydon emas: uning statistikasi yo'q.",
+        "en": "The record number ($index) is not a field: it has no statistics.",
+    },
     "gui.table.menu.hide": {"uz": "Ustunni yashirish", "en": "Hide column"},
     "gui.table.menu.remove": {"uz": "Ustunni olib tashlash", "en": "Remove column"},
     "gui.table.menu.fit": {"uz": "Kenglikni moslash", "en": "Fit width"},
@@ -2640,6 +7603,36 @@ MESSAGES: dict[str, dict[str, str]] = {
               "drag them or use the buttons to change the order.",
     },
     # ---- gui.text ----
+    "gui.text.edit_json.button": {"uz": "Tahrirlash…", "en": "Edit…"},
+    "gui.text.edit_json.tip": {
+        "uz": "Tugunni JSON matni sifatida tahrirlash, jonli tekshiruv bilan (Shift+Enter)",
+        "en": "Edit the node as JSON text, with live validation (Shift+Enter)",
+    },
+    "gui.text.menu.edit_json": {"uz": "JSON sifatida tahrirlash…", "en": "Edit as JSON…"},
+    "gui.text.edit_json.title": {"uz": "{path} — JSON sifatida tahrirlash", "en": "{path} — edit as JSON"},
+    "gui.text.edit_json.no_node": {"uz": "Tahrirlanadigan tugun yo'q.", "en": "There is no node to edit."},
+    "gui.text.edit_json.virtual": {
+        "uz": "JSON Lines faylining ildizini butunicha tahrirlab bo'lmaydi: yozuvlarni alohida tahrirlang.",
+        "en": "The root of a JSON Lines file cannot be edited as a whole: edit its records one by one.",
+    },
+    "gui.text.edit_json.too_large": {
+        "uz": "Tugun matn sifatida tahrirlash uchun juda katta ({size} dan ortiq): Ommaviy amallar yoki JSON "
+              "Patch'dan foydalaning.",
+        "en": "The node is too large to edit as text (over {size}): use Bulk operations or JSON Patch.",
+    },
+    "gui.text.edit_json.json_error": {
+        "uz": "Tugun ichida JSON xatosi bor: bunday faylni tahrirlab bo'lmaydi.",
+        "en": "The node contains a JSON error: such a file cannot be edited.",
+    },
+    "gui.text.edit_json.gone": {
+        "uz": "Tahrirlanayotgan tugun endi yo'q (u o'chirilgan). O'zgarish saqlanmadi.",
+        "en": "The node being edited no longer exists (it was deleted). The change was not applied.",
+    },
+    "gui.text.edited": {"uz": "tahrirlangan", "en": "edited"},
+    "gui.text.node_deleted": {
+        "uz": "Bu tugun tahrir natijasida o'chirildi.",
+        "en": "This node was deleted by an edit.",
+    },
     "gui.text.indent": {"uz": "Chekinish:", "en": "Indent:"},
     "gui.text.indent.tip": {
         "uz": "Chiroyli formatdagi bir pog'ona surilish kengligi",
@@ -2706,6 +7699,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Line {line}, column {column} · {lines} lines",
     },
     # ---- gui.raw ----
+    "gui.raw.edited_note": {
+        "uz": "Tanlangan tugun tahrirlangan — xom ko'rinish asl faylni ko'rsatadi, bu tugun unda yo'q.",
+        "en": "The selected node was edited — the raw view shows the original file, where this node is not.",
+    },
     "gui.raw.offset.label": {"uz": "Bayt o'rni:", "en": "Offset:"},
     "gui.raw.offset.placeholder": {"uz": "123456 yoki 0x1E240", "en": "123456 or 0x1E240"},
     "gui.raw.offset.tip": {
@@ -2775,6 +7772,7 @@ MESSAGES: dict[str, dict[str, str]] = {
     "gui.raw.menu.copy": {"uz": "Nusxalash", "en": "Copy"},
     "gui.raw.menu.copy_offset": {"uz": "Bayt o'rnini nusxalash: {offset}", "en": "Copy the offset: {offset}"},
     # ---- gui.schema ----
+    "gui.schema.header.stale": {"uz": "tahrirlardan keyin yangilanmoqda…", "en": "updating after the edits…"},
     "gui.schema.col.field": {"uz": "Maydon", "en": "Field"},
     "gui.schema.col.types": {"uz": "Turlar", "en": "Types"},
     "gui.schema.col.presence": {"uz": "Mavjudlik", "en": "Presence"},
@@ -2825,6 +7823,15 @@ MESSAGES: dict[str, dict[str, str]] = {
     "gui.schema.act.sort_desc": {"uz": "Tartiblash ↓", "en": "Sort ↓"},
     "gui.schema.act.copy_path": {"uz": "Yo'lni nusxalash", "en": "Copy path"},
     "gui.schema.act.filter_builder": {"uz": "Filtr quruvchiga qo'shish", "en": "Add to the filter builder"},
+    "gui.schema.act.mapping": {"uz": "Tuzilma quruvchi…", "en": "Structure builder…"},
+    "gui.schema.act.mapping.tip": {
+        "uz": "Maydonlarni sudrab yangi tuzilma yasash va butun faylni shu tuzilmada eksport qilish",
+        "en": "Build a new structure by dragging the fields and export the whole file in it",
+    },
+    "gui.schema.why.mapping_wait": {
+        "uz": "Fayl to'liq ochilib, indekslangandan keyin.",
+        "en": "Once the file is open and indexed.",
+    },
     "gui.schema.retry": {"uz": "Qayta urinish", "en": "Try again"},
     "gui.schema.waiting_open": {"uz": "Fayl ochilmoqda…", "en": "Opening the file…"},
     "gui.schema.unavailable": {
@@ -2871,6 +7878,727 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Sorting by pooled keys (*) is meaningless.",
     },
     "gui.schema.original_order": {"uz": "Asl tartib", "en": "Original order"},
+    "gui.schema.col.nulls": {"uz": "null / yo'q", "en": "null / missing"},
+    "gui.schema.col.nulls.tip": {
+        "uz": "null qiymatlar soni / maydon yo'q bo'lgan joylar soni (yozuvlar yoki massiv elementlari)",
+        "en": "Number of null values / of the places without the field (records or array elements)",
+    },
+    "gui.schema.tip.nulls": {"uz": "null: {nulls} ta (qiymatlarning {pct})", "en": "null: {nulls} ({pct} of the values)"},
+    "gui.schema.tip.missing": {"uz": "Yo'q: {missing} / {base} ({context})", "en": "Missing: {missing} of {base} ({context})"},
+    "gui.schema.tip.basis.sample": {
+        "uz": "Namuna bo'yicha: {scanned} ta yozuv (jami {total}); aniq sonlar to'liq skanerlashdan keyin.",
+        "en": "From a sample of {scanned} records (of {total}); exact numbers after a full scan.",
+    },
+    "gui.schema.tip.basis.full": {
+        "uz": "Barcha {scanned} ta yozuv bo'yicha (to'liq skanerlash).",
+        "en": "From all {scanned} records (full scan).",
+    },
+    "gui.schema.detail.integers": {"uz": "butun {pct}", "en": "integers {pct}"},
+    "gui.schema.tip.integers": {
+        "uz": "  shundan butun sonlar: {count} ta ({pct})",
+        "en": "  of them integers: {count} ({pct})",
+    },
+    "gui.schema.why.dupes_array": {
+        "uz": "Massiv ichidagi maydonning bitta yozuvda bir nechta qiymati bo'lishi mumkin: u takroriylik kaliti "
+              "bo'la olmaydi.",
+        "en": "A field inside an array may have several values in one record: it cannot be a duplicates key.",
+    },
+    "gui.schema.why.dupes_pooled": {
+        "uz": "Birlashtirilgan kalitlar (*) takroriylik kaliti bo'la olmaydi.",
+        "en": "Pooled keys (*) cannot be a duplicates key.",
+    },
+    # ---- gui.statspanel ----
+    # the field statistics dock (gui/statspanel.py)
+    "gui.statspanel.field.label": {"uz": "Maydon:", "en": "Field:"},
+    "gui.statspanel.field.name": {"uz": "Statistika maydoni", "en": "Statistics field"},
+    "gui.statspanel.field.placeholder": {
+        "uz": "masalan: contact.address.city, orders[*].sum, $key",
+        "en": "e.g. contact.address.city, orders[*].sum, $key",
+    },
+    "gui.statspanel.field.tip": {
+        "uz": "Statistikasi hisoblanadigan maydon (yozuv ichidagi yo'l). Ro'yxat hujjat tuzilmasidan olinadi; "
+              "istalgan yo'lni yozish mumkin: [*] — massiv elementlari, * — obyektning har bir kaliti, .. — "
+              "istalgan chuqurlik, $ — butun yozuv, $key — kalitli hujjatda yozuvning kaliti. Enter — hisoblash.",
+        "en": "The field to compute statistics for (a path inside the record). The list comes from the document's "
+              "structure; any path can be typed: [*] array elements, * every key of an object, .. any depth, $ "
+              "the whole record, $key the record key of a keyed document. Enter computes.",
+    },
+    "gui.statspanel.field.empty": {
+        "uz": "Maydon yo'lini yozing yoki ro'yxatdan tanlang.",
+        "en": "Type a field path or pick one from the list.",
+    },
+    "gui.statspanel.scope.label": {"uz": "Doira:", "en": "Scope:"},
+    "gui.statspanel.scope.name": {"uz": "Statistika doirasi", "en": "Statistics scope"},
+    "gui.statspanel.scope.view": {
+        "uz": "Joriy ko'rinish ({count} ta yozuv): {label}",
+        "en": "Current view ({count} records): {label}",
+    },
+    "gui.statspanel.scope.view.one": {
+        "uz": "Joriy ko'rinish ({count} ta yozuv): {label}",
+        "en": "Current view ({count} record): {label}",
+    },
+    "gui.statspanel.scope.all": {"uz": "Barcha yozuvlar ({count} ta)", "en": "All records ({count})"},
+    "gui.statspanel.scope.single": {"uz": "Butun hujjat (bitta qiymat)", "en": "The whole document (one value)"},
+    "gui.statspanel.scope.tip": {
+        "uz": "Joriy ko'rinish — filtr, tartib yoki qidiruv natijasi ko'rsatayotgan yozuvlar; barcha yozuvlar — "
+              "fayldagi hamma yozuvlar.",
+        "en": "Current view: the records the filter, sort or search result shows; all records: every record of "
+              "the file.",
+    },
+    "gui.statspanel.compute": {"uz": "Hisoblash", "en": "Compute"},
+    "gui.statspanel.compute.tip": {
+        "uz": "Maydon statistikasini fon vazifasida hisoblash (Enter).",
+        "en": "Compute the statistics of the field in a background task (Enter).",
+    },
+    "gui.statspanel.cancel": {"uz": "Bekor qilish", "en": "Cancel"},
+    "gui.statspanel.cancel.tip": {
+        "uz": "Hisoblashni to'xtatish (shu paytgacha olingan oraliq natija ko'rinib turadi).",
+        "en": "Stop the computation (the partial result so far stays on screen).",
+    },
+    "gui.statspanel.exact": {"uz": "Aniq hisoblash", "en": "Exact count"},
+    "gui.statspanel.exact.tip": {
+        "uz": "Noyob qiymatlar juda ko'p bo'lgani uchun natija taxminiy. Aniq qayta hisoblash vaqtinchalik "
+              "fayllardan foydalanadi va sekinroq ishlaydi.",
+        "en": "The result is approximate because there are very many distinct values. The exact recount uses "
+              "temporary files and is slower.",
+    },
+    "gui.statspanel.exact.tip_off": {
+        "uz": "Natija taxminiy bo'lganda uni aniq qayta hisoblash mumkin.",
+        "en": "An approximate result can be counted again exactly.",
+    },
+    "gui.statspanel.refresh": {"uz": "Yangilash", "en": "Refresh"},
+    "gui.statspanel.refresh.tip": {
+        "uz": "Statistikani hozirgi ma'lumot va doira bo'yicha qayta hisoblash.",
+        "en": "Compute the statistics again for the current data and scope.",
+    },
+    "gui.statspanel.task": {"uz": "Statistika: {field} ({name})", "en": "Statistics: {field} ({name})"},
+    "gui.statspanel.task.exact": {
+        "uz": "Aniq statistika: {field} ({name})",
+        "en": "Exact statistics: {field} ({name})",
+    },
+    "gui.statspanel.task.reveal": {"uz": "Qiymat daraxtda qidirilmoqda", "en": "Finding the value in the tree"},
+    "gui.statspanel.status.no_document": {"uz": "Hujjat ochilmagan.", "en": "No document is open."},
+    "gui.statspanel.status.not_ready": {
+        "uz": "Hujjat hali o'qilmoqda (indekslanmoqda): tugagach hisoblash mumkin.",
+        "en": "The document is still being read (indexed): you can compute once it is done.",
+    },
+    "gui.statspanel.status.view_busy": {
+        "uz": "Joriy ko'rinish (filtr yoki tartib) hali hisoblanmoqda: tugashini kuting yoki «Barcha yozuvlar» "
+              "doirasini tanlang.",
+        "en": "The current view (filter or sort) is still being computed: wait for it or choose the scope "
+              "\"All records\".",
+    },
+    "gui.statspanel.status.idle": {
+        "uz": "Maydonni tanlang va «Hisoblash» tugmasini bosing.",
+        "en": "Choose a field and click Compute.",
+    },
+    "gui.statspanel.status.running": {"uz": "Hisoblanmoqda…", "en": "Computing…"},
+    "gui.statspanel.status.partial": {
+        "uz": "Hisoblanmoqda: {done} / {total} ta yozuv ko'rildi (oraliq natija).",
+        "en": "Computing: {done} of {total} records seen (partial result).",
+    },
+    "gui.statspanel.status.done": {"uz": "Tayyor ({seconds} s).", "en": "Done ({seconds} s)."},
+    "gui.statspanel.status.cancelled": {
+        "uz": "To'xtatildi: ko'rsatilgan natija to'liq emas.",
+        "en": "Stopped: the result shown is not complete.",
+    },
+    "gui.statspanel.status.cancelled_empty": {"uz": "To'xtatildi.", "en": "Stopped."},
+    "gui.statspanel.status.failed": {"uz": "Hisoblab bo'lmadi: {error}", "en": "Could not compute: {error}"},
+    "gui.statspanel.status.reopened": {
+        "uz": "Fayl qayta ochildi: hisoblash to'xtatildi.",
+        "en": "The file was reopened: the computation was stopped.",
+    },
+    "gui.statspanel.stale.data": {
+        "uz": "Natija eskirgan: hujjat o'zgardi. Qayta hisoblash uchun «Yangilash»ni bosing.",
+        "en": "The result is out of date: the document changed. Click Refresh to compute it again.",
+    },
+    "gui.statspanel.stale.view": {
+        "uz": "Natija eskirgan: joriy ko'rinish o'zgardi. Qayta hisoblash uchun «Yangilash»ni bosing.",
+        "en": "The result is out of date: the current view changed. Click Refresh to compute it again.",
+    },
+    "gui.statspanel.header": {
+        "uz": "{field} — {records} ta yozuv, {seconds} s",
+        "en": "{field} — {records} records, {seconds} s",
+    },
+    "gui.statspanel.header.one": {
+        "uz": "{field} — {records} ta yozuv, {seconds} s",
+        "en": "{field} — {records} record, {seconds} s",
+    },
+    "gui.statspanel.header.partial": {
+        "uz": "{field} — {done} / {total} ta yozuv ko'rildi",
+        "en": "{field} — {done} of {total} records seen",
+    },
+    "gui.statspanel.header.scope": {"uz": "Doira: {label}", "en": "Scope: {label}"},
+    "gui.statspanel.header.context": {
+        "uz": "Mavjudlik har bir {context} elementi bo'yicha sanaladi ({count} ta element); filtrlar esa butun "
+              "yozuvlarni tanlaydi.",
+        "en": "Presence is counted per element of {context} ({count} elements); filters select whole records.",
+    },
+    "gui.statspanel.col.what": {"uz": "Ko'rsatkich", "en": "Measure"},
+    "gui.statspanel.col.value": {"uz": "Qiymat", "en": "Value"},
+    "gui.statspanel.col.share": {"uz": "Ulush", "en": "Share"},
+    "gui.statspanel.col.count": {"uz": "Soni", "en": "Count"},
+    "gui.statspanel.col.records": {"uz": "Yozuvlar", "en": "Records"},
+    "gui.statspanel.col.rank": {"uz": "№", "en": "#"},
+    "gui.statspanel.summary.name": {"uz": "Maydon statistikasi", "en": "Field statistics"},
+    "gui.statspanel.top.name": {"uz": "Eng ko'p uchragan qiymatlar", "en": "Most frequent values"},
+    "gui.statspanel.types.name": {"uz": "Turlar taqsimoti", "en": "Type distribution"},
+    "gui.statspanel.types.tip": {"uz": "Turlar: {types}", "en": "Types: {types}"},
+    "gui.statspanel.row.present": {"uz": "Mavjud", "en": "Present"},
+    "gui.statspanel.row.null": {"uz": "null", "en": "null"},
+    "gui.statspanel.row.missing": {"uz": "Yo'q", "en": "Missing"},
+    "gui.statspanel.row.type": {"uz": "Turi: {type}", "en": "Type: {type}"},
+    "gui.statspanel.row.distinct": {"uz": "Noyob qiymatlar", "en": "Distinct values"},
+    "gui.statspanel.row.values": {"uz": "Qiymatlar (jami)", "en": "Values (total)"},
+    "gui.statspanel.row.numbers": {"uz": "Sonlar", "en": "Numbers"},
+    "gui.statspanel.row.min": {"uz": "Eng kichik son", "en": "Minimum"},
+    "gui.statspanel.row.max": {"uz": "Eng katta son", "en": "Maximum"},
+    "gui.statspanel.row.mean": {"uz": "O'rtacha", "en": "Mean"},
+    "gui.statspanel.row.sum": {"uz": "Yig'indi", "en": "Sum"},
+    "gui.statspanel.row.str_min": {"uz": "Eng qisqa satr", "en": "Shortest string"},
+    "gui.statspanel.row.str_max": {"uz": "Eng uzun satr", "en": "Longest string"},
+    "gui.statspanel.row.empty": {"uz": "Bo'sh satrlar", "en": "Empty strings"},
+    "gui.statspanel.row.arr_min": {"uz": "Eng qisqa massiv", "en": "Shortest array"},
+    "gui.statspanel.row.arr_max": {"uz": "Eng uzun massiv", "en": "Longest array"},
+    "gui.statspanel.row.obj_min": {"uz": "Eng kam kalitli obyekt", "en": "Object with the fewest keys"},
+    "gui.statspanel.row.obj_max": {"uz": "Eng ko'p kalitli obyekt", "en": "Object with the most keys"},
+    "gui.statspanel.value.numbers": {
+        "uz": "{count} ta (butun: {integers})",
+        "en": "{count} (integers: {integers})",
+    },
+    "gui.statspanel.value.chars": {"uz": "{count} belgi", "en": "{count} characters"},
+    "gui.statspanel.value.chars.one": {"uz": "{count} belgi", "en": "{count} character"},
+    "gui.statspanel.value.items": {"uz": "{count} element", "en": "{count} elements"},
+    "gui.statspanel.value.items.one": {"uz": "{count} element", "en": "{count} element"},
+    "gui.statspanel.value.keys": {"uz": "{count} kalit", "en": "{count} keys"},
+    "gui.statspanel.value.keys.one": {"uz": "{count} kalit", "en": "{count} key"},
+    "gui.statspanel.distinct.exact": {"uz": "{count} (aniq)", "en": "{count} (exact)"},
+    "gui.statspanel.distinct.approx": {
+        "uz": "≈ {count} (±{error}; HyperLogLog, ±{rse} %)",
+        "en": "≈ {count} (±{error}; HyperLogLog, ±{rse} %)",
+    },
+    "gui.statspanel.distinct.partial": {"uz": "hozircha {count}", "en": "{count} so far"},
+    "gui.statspanel.distinct.partial_approx": {
+        "uz": "hozircha ≈ {count} (±{error}; HyperLogLog, ±{rse} %)",
+        "en": "≈ {count} so far (±{error}; HyperLogLog, ±{rse} %)",
+    },
+    "gui.statspanel.sum.approx": {"uz": "≈ {sum} (50 ta muhim raqam)", "en": "≈ {sum} (50 significant digits)"},
+    "gui.statspanel.sum.skipped": {
+        "uz": "{sum} ({count} ta son qo'shilmadi)",
+        "en": "{sum} ({count} numbers left out)",
+    },
+    "gui.statspanel.sum.skipped.one": {
+        "uz": "{sum} ({count} ta son qo'shilmadi)",
+        "en": "{sum} ({count} number left out)",
+    },
+    "gui.statspanel.sum.approx_skipped": {
+        "uz": "≈ {sum} (50 ta muhim raqam; {count} ta son qo'shilmadi)",
+        "en": "≈ {sum} (50 significant digits; {count} numbers left out)",
+    },
+    "gui.statspanel.sum.approx_skipped.one": {
+        "uz": "≈ {sum} (50 ta muhim raqam; {count} ta son qo'shilmadi)",
+        "en": "≈ {sum} (50 significant digits; {count} number left out)",
+    },
+    "gui.statspanel.mean.skipped": {
+        "uz": "{mean} ({count} ta son hisobga olinmadi)",
+        "en": "{mean} ({count} numbers left out)",
+    },
+    "gui.statspanel.mean.skipped.one": {
+        "uz": "{mean} ({count} ta son hisobga olinmadi)",
+        "en": "{mean} ({count} number left out)",
+    },
+    "gui.statspanel.top.title": {
+        "uz": "Eng ko'p uchragan {count} ta qiymat",
+        "en": "The {count} most frequent values",
+    },
+    "gui.statspanel.top.title.one": {"uz": "Eng ko'p uchragan qiymat", "en": "The most frequent value"},
+    "gui.statspanel.top.title_approx": {
+        "uz": "Eng ko'p uchragan {count} ta qiymat (taxminiy: har birining haqiqiy soni {bound} tagacha ko'p "
+              "bo'lishi mumkin)",
+        "en": "The {count} most frequent values (approximate: each true count may be up to {bound} higher)",
+    },
+    "gui.statspanel.top.title_partial": {
+        "uz": "Eng ko'p uchragan qiymatlar (oraliq natija)",
+        "en": "The most frequent values (partial result)",
+    },
+    "gui.statspanel.top.title_partial_approx": {
+        "uz": "Eng ko'p uchragan qiymatlar (oraliq natija, taxminiy: har birining haqiqiy soni {bound} tagacha ko'p "
+              "bo'lishi mumkin)",
+        "en": "The most frequent values (partial result, approximate: each true count may be up to {bound} higher)",
+    },
+    "gui.statspanel.top.empty": {"uz": "Bu maydonda qiymatlar yo'q.", "en": "The field has no values."},
+    "gui.statspanel.top.count_approx": {"uz": "≈ {count}", "en": "≈ {count}"},
+    "gui.statspanel.top.count_tip": {
+        "uz": "Haqiqiy soni {low} dan {high} gacha.",
+        "en": "The true count is between {low} and {high}.",
+    },
+    "gui.statspanel.top.value_tip": {
+        "uz": "{value}\nBirinchi marta #{record} yozuvda uchraydi.",
+        "en": "{value}\nFirst seen in record #{record}.",
+    },
+    "gui.statspanel.top.records_tip": {
+        "uz": "Shu qiymat bor yozuvlar: {count} ta. Filtr aynan shu yozuvlarni tanlaydi.",
+        "en": "Records holding this value: {count}. The filter selects these records.",
+    },
+    "gui.statspanel.tip.context": {
+        "uz": "Mavjudlik {context} elementlari bo'yicha sanalgan; filtr esa butun yozuvlarni tanlaydi.",
+        "en": "Presence is counted per element of {context}; the filter selects whole records.",
+    },
+    "gui.statspanel.tip.missing_context": {
+        "uz": "Filtr {field} maydoni birorta elementida ham bo'lmagan yozuvlarni tanlaydi.",
+        "en": "The filter selects the records in which no element has the field {field}.",
+    },
+    "gui.statspanel.tip.first": {
+        "uz": "Birinchi marta #{record} yozuvda uchraydi.",
+        "en": "First seen in record #{record}.",
+    },
+    "gui.statspanel.menu.filter": {"uz": "Filtr: {expr}", "en": "Filter: {expr}"},
+    "gui.statspanel.menu.filter_none": {"uz": "Filtr qo'yib bo'lmaydi", "en": "No filter available"},
+    "gui.statspanel.menu.reveal": {"uz": "Daraxtda ko'rsatish", "en": "Show in tree"},
+    "gui.statspanel.menu.copy": {"uz": "Qiymatni nusxalash", "en": "Copy the value"},
+    "gui.statspanel.dupes": {"uz": "Takrorlar…", "en": "Duplicates…"},
+    "gui.statspanel.dupes.tip": {
+        "uz": "Shu maydon qiymati bo'yicha takroriy yozuvlarni topish.",
+        "en": "Find the records that repeat a value of this field.",
+    },
+    "gui.statspanel.why.single": {
+        "uz": "Bitta qiymatdan iborat hujjatni filtrlab bo'lmaydi.",
+        "en": "A document holding one value cannot be filtered.",
+    },
+    "gui.statspanel.why.too_long": {
+        "uz": "Qiymat juda uzun (1 MiB dan ortiq): u bo'yicha filtr qo'yib bo'lmaydi.",
+        "en": "The value is too long (over 1 MiB) to filter by.",
+    },
+    "gui.statspanel.why.multi_len": {
+        "uz": "Bu maydon bitta yozuvda bir nechta qiymatga ega bo'lishi mumkin, len() esa faqat birinchisini "
+              "tekshiradi: uzunlik bo'yicha filtr taklif qilinmaydi.",
+        "en": "This field may hold several values in a record and len() checks only the first one, so no length "
+              "filter is offered.",
+    },
+    "gui.statspanel.why.no_filter": {
+        "uz": "Bu qiymat bo'yicha filtr qo'yib bo'lmaydi: {error}",
+        "en": "Cannot filter by this value: {error}",
+    },
+    "gui.statspanel.why.stale": {
+        "uz": "Natija eskirgan: yozuv raqamlari o'zgargan bo'lishi mumkin. Avval «Yangilash»ni bosing.",
+        "en": "The result is out of date: the record numbers may have changed. Click Refresh first.",
+    },
+    "gui.statspanel.why.dupes_wild": {
+        "uz": "Takrorlar faqat aniq yo'l bo'yicha qidiriladi ('*', '[*]' va '..' ishlatilmaydi).",
+        "en": "Duplicates are looked for by an exact path only ('*', '[*]' and '..' cannot be used).",
+    },
+    "gui.statspanel.why.dupes_none": {
+        "uz": "Bu maydonda takrorlanadigan qiymat yo'q.",
+        "en": "No value of this field repeats.",
+    },
+    "gui.statspanel.reveal.not_found": {
+        "uz": "Qiymat #{record} yozuvda topilmadi: yozuvning o'zi ko'rsatildi.",
+        "en": "The value was not found in record #{record}: the record itself is shown.",
+    },
+    "gui.statspanel.filter.applied": {"uz": "Filtr qo'yildi: {expr}", "en": "Filter applied: {expr}"},
+    "gui.statspanel.copied": {"uz": "Nusxalandi.", "en": "Copied."},
+    # menu items / dock title for the integration (round B: main window, node menu, table header, schema view)
+    "gui.statspanel.dock.title": {"uz": "Statistika", "en": "Statistics"},
+    "gui.statspanel.action": {"uz": "Maydon statistikasi…", "en": "Field statistics…"},
+    "gui.statspanel.action.tip": {
+        "uz": "Maydon statistikasi: mavjud / null / yo'q, turlar, noyob qiymatlar, sonlar, eng ko'p uchragan "
+              "qiymatlar (qiymat bosilsa filtr qo'yiladi).",
+        "en": "Field statistics: present / null / missing, types, distinct values, numbers, the most frequent "
+              "values (click a value to filter by it).",
+    },
+    "gui.statspanel.action.node": {"uz": "Statistika", "en": "Statistics"},
+    "gui.statspanel.action.node.tip": {
+        "uz": "Shu maydonning statistikasi (massiv elementlari [*] bo'yicha).",
+        "en": "Statistics of this field (array elements as [*]).",
+    },
+    # ---- gui.dupesdialog ----
+    # the duplicates dialog (gui/dupesdialog.py)
+    "gui.dupesdialog.title": {"uz": "Takroriy yozuvlar — {name}", "en": "Duplicate records — {name}"},
+    "gui.dupesdialog.key.label": {"uz": "Kalit maydon:", "en": "Key field:"},
+    "gui.dupesdialog.key.name": {"uz": "Takrorlar qidiriladigan maydon", "en": "Field to find duplicates by"},
+    "gui.dupesdialog.key.placeholder": {
+        "uz": "masalan: id, email, contact.phone, $key",
+        "en": "e.g. id, email, contact.phone, $key",
+    },
+    "gui.dupesdialog.key.tip": {
+        "uz": "Takrorlar shu maydon qiymati bo'yicha qidiriladi. Aniq yo'l bo'lishi kerak ('*', '[*]' va '..' "
+              "ishlatilmaydi); $ — butun yozuv, $key — kalitli hujjatda yozuvning kaliti. Sonlar aniq qiymati "
+              "bo'yicha solishtiriladi (1 = 1.0), satrlar esa harfma-harf.",
+        "en": "Duplicates are found by the value of this field. It must be an exact path ('*', '[*]' and '..' "
+              "cannot be used); $ is the whole record, $key the record key of a keyed document. Numbers compare "
+              "by their exact value (1 = 1.0), strings letter by letter.",
+    },
+    "gui.dupesdialog.key.empty": {
+        "uz": "Kalit maydonni yozing yoki ro'yxatdan tanlang.",
+        "en": "Type a key field or pick one from the list.",
+    },
+    "gui.dupesdialog.keep.label": {"uz": "Har guruhda qoladi:", "en": "Keep in each group:"},
+    "gui.dupesdialog.keep.first": {"uz": "birinchi yozuv", "en": "the first record"},
+    "gui.dupesdialog.keep.last": {"uz": "oxirgi yozuv", "en": "the last record"},
+    "gui.dupesdialog.keep.tip": {
+        "uz": "Har bir guruhda qaysi yozuv asl nusxa hisoblanadi (fayldagi o'rni bo'yicha); qolganlari ortiqcha "
+              "nusxa deb belgilanadi.",
+        "en": "Which record of each group counts as the original (by its position in the file); the others are "
+              "marked as extra copies.",
+    },
+    "gui.dupesdialog.scope.label": {"uz": "Doira:", "en": "Scope:"},
+    "gui.dupesdialog.scope.view": {
+        "uz": "Joriy ko'rinish ({count} ta yozuv)",
+        "en": "Current view ({count} records)",
+    },
+    "gui.dupesdialog.scope.view.one": {
+        "uz": "Joriy ko'rinish ({count} ta yozuv)",
+        "en": "Current view ({count} record)",
+    },
+    "gui.dupesdialog.scope.view_base": {
+        "uz": "Joriy ko'rinish (barcha yozuvlar)",
+        "en": "Current view (all records)",
+    },
+    "gui.dupesdialog.scope.all": {"uz": "Barcha yozuvlar ({count} ta)", "en": "All records ({count})"},
+    "gui.dupesdialog.run": {"uz": "Qidirish", "en": "Find"},
+    "gui.dupesdialog.run.tip": {
+        "uz": "Takroriy yozuvlarni fon vazifasida qidirish.",
+        "en": "Find the duplicate records in a background task.",
+    },
+    "gui.dupesdialog.stop": {"uz": "To'xtatish", "en": "Stop"},
+    "gui.dupesdialog.task": {"uz": "Takrorlar: {key} ({name})", "en": "Duplicates: {key} ({name})"},
+    "gui.dupesdialog.task.copy": {"uz": "Takroriy yozuvlar tayyorlanmoqda", "en": "Preparing the duplicate records"},
+    "gui.dupesdialog.task.value": {"uz": "Kalit qiymati o'qilmoqda", "en": "Reading the key value"},
+    "gui.dupesdialog.status.no_document": {"uz": "Hujjat yopilgan.", "en": "The document is closed."},
+    "gui.dupesdialog.status.not_ready": {
+        "uz": "Hujjat hali o'qilmoqda (indekslanmoqda): tugagach qidirish mumkin.",
+        "en": "The document is still being read (indexed): you can search once it is done.",
+    },
+    "gui.dupesdialog.status.view_busy": {
+        "uz": "Joriy ko'rinish (filtr yoki tartib) hali hisoblanmoqda: tugashini kuting yoki «Barcha yozuvlar» "
+              "doirasini tanlang.",
+        "en": "The current view (filter or sort) is still being computed: wait for it or choose the scope "
+              "\"All records\".",
+    },
+    "gui.dupesdialog.status.idle": {
+        "uz": "Kalit maydonni tanlang va «Qidirish»ni bosing.",
+        "en": "Choose a key field and click Find.",
+    },
+    "gui.dupesdialog.status.running": {"uz": "Takrorlar qidirilmoqda…", "en": "Looking for duplicates…"},
+    "gui.dupesdialog.status.done": {"uz": "Tayyor ({seconds} s).", "en": "Done ({seconds} s)."},
+    "gui.dupesdialog.status.cancelled": {"uz": "To'xtatildi.", "en": "Stopped."},
+    "gui.dupesdialog.status.failed": {"uz": "Qidirib bo'lmadi: {error}", "en": "Could not search: {error}"},
+    "gui.dupesdialog.status.reopened": {
+        "uz": "Fayl qayta ochildi: qidiruv to'xtatildi.",
+        "en": "The file was reopened: the search was stopped.",
+    },
+    "gui.dupesdialog.stale.data": {
+        "uz": "Natija eskirgan: hujjat o'zgardi — qayta qidiring.",
+        "en": "The result is out of date: the document changed. Search again.",
+    },
+    "gui.dupesdialog.stale.view": {
+        "uz": "Qidiruvdan keyin joriy ko'rinish o'zgardi.",
+        "en": "The current view changed after the search.",
+    },
+    "gui.dupesdialog.count.scanned": {"uz": "Tekshirilgan yozuvlar", "en": "Records checked"},
+    "gui.dupesdialog.count.with_key": {"uz": "Kaliti bor yozuvlar", "en": "Records with the key"},
+    "gui.dupesdialog.count.missing": {"uz": "Kaliti yo'q yozuvlar", "en": "Records without the key"},
+    "gui.dupesdialog.count.skipped": {"uz": "O'qib bo'lmagan yozuvlar", "en": "Records that could not be read"},
+    "gui.dupesdialog.count.distinct": {"uz": "Noyob kalit qiymatlari", "en": "Distinct key values"},
+    "gui.dupesdialog.count.groups": {"uz": "Takrorlangan qiymatlar (guruhlar)", "en": "Repeated values (groups)"},
+    "gui.dupesdialog.count.duplicates": {"uz": "Ortiqcha nusxalar", "en": "Extra copies (duplicates)"},
+    "gui.dupesdialog.groups.title": {
+        "uz": "Birinchi {count} ta guruh (fayldagi o'rni bo'yicha)",
+        "en": "The first {count} groups (by position in the file)",
+    },
+    "gui.dupesdialog.groups.title.one": {
+        "uz": "Takroriy guruh ({count} ta)",
+        "en": "The group of duplicates ({count})",
+    },
+    "gui.dupesdialog.groups.none": {
+        "uz": "Takrorlanadigan qiymat topilmadi.",
+        "en": "No repeated values were found.",
+    },
+    "gui.dupesdialog.groups.col.key": {"uz": "Kalit qiymati / yozuv", "en": "Key value / record"},
+    "gui.dupesdialog.groups.col.size": {"uz": "Yozuvlar", "en": "Records"},
+    "gui.dupesdialog.groups.name": {"uz": "Takroriy guruhlar", "en": "Groups of duplicates"},
+    "gui.dupesdialog.groups.kept": {"uz": "(qoladi)", "en": "(kept)"},
+    "gui.dupesdialog.groups.more": {"uz": "… yana {count} ta yozuv", "en": "… {count} more records"},
+    "gui.dupesdialog.groups.more.one": {"uz": "… yana {count} ta yozuv", "en": "… {count} more record"},
+    "gui.dupesdialog.menu.reveal": {"uz": "Daraxtda ko'rsatish", "en": "Show in tree"},
+    "gui.dupesdialog.menu.filter_key": {
+        "uz": "Shu kalit qiymati bo'yicha filtr",
+        "en": "Filter by this key value",
+    },
+    "gui.dupesdialog.menu.copy": {"uz": "Kalit qiymatini nusxalash", "en": "Copy the key value"},
+    "gui.dupesdialog.filter": {"uz": "Filtr", "en": "Filter"},
+    "gui.dupesdialog.filter.tip": {
+        "uz": "Ko'rinishni tanlangan guruhning kalit qiymati bo'yicha filtrlash.",
+        "en": "Filter the view by the key value of the selected group.",
+    },
+    "gui.dupesdialog.filter.applied": {"uz": "Filtr qo'yildi: {expr}", "en": "Filter applied: {expr}"},
+    "gui.dupesdialog.show": {"uz": "Takroriylarni ko'rsatish", "en": "Show the duplicates"},
+    "gui.dupesdialog.show.tip": {
+        "uz": "Ortiqcha nusxalarni (har guruhda qoladigan yozuvdan boshqa hammasini) joriy ko'rinish sifatida "
+              "ochish.",
+        "en": "Show the extra copies (every record of a group except the one kept) as the current view.",
+    },
+    "gui.dupesdialog.shown": {
+        "uz": "Takroriy yozuvlar ko'rsatildi: {count} ta.",
+        "en": "Duplicate records shown: {count}.",
+    },
+    "gui.dupesdialog.shown.one": {
+        "uz": "Takroriy yozuvlar ko'rsatildi: {count} ta.",
+        "en": "Duplicate record shown: {count}.",
+    },
+    "gui.dupesdialog.export": {"uz": "Eksport…", "en": "Export…"},
+    "gui.dupesdialog.export.tip": {
+        "uz": "Ortiqcha nusxalarni faylga eksport qilish.",
+        "en": "Export the extra copies to a file.",
+    },
+    "gui.dupesdialog.remove": {"uz": "Takroriylarni o'chirish…", "en": "Remove the duplicates…"},
+    "gui.dupesdialog.remove.tip": {
+        "uz": "Takrorlarni o'chirishning oldindan ko'rinishini ommaviy amallar oynasida ochish: "
+              "tasdiqlamaguningizcha hech narsa o'zgarmaydi.",
+        "en": "Open the preview of removing the duplicates in the bulk operations window: nothing changes until "
+              "you confirm.",
+    },
+    "gui.dupesdialog.remove.view_changed": {
+        "uz": "Qidiruv joriy ko'rinishda bajarilgan edi, ammo ko'rinish o'zgardi: o'chirishdan oldin qayta "
+              "qidiring yoki «Barcha yozuvlar» doirasini tanlang.",
+        "en": "The search ran on the current view, but the view has changed: search again or choose \"All "
+              "records\" before removing.",
+    },
+    "gui.dupesdialog.close": {"uz": "Yopish", "en": "Close"},
+    "gui.dupesdialog.why.no_result": {"uz": "Avval takrorlarni qidiring.", "en": "Find the duplicates first."},
+    "gui.dupesdialog.why.none": {"uz": "Takroriy yozuvlar yo'q.", "en": "There are no duplicate records."},
+    "gui.dupesdialog.why.no_group": {"uz": "Ro'yxatdan guruhni tanlang.", "en": "Select a group in the list."},
+    "gui.dupesdialog.why.single": {
+        "uz": "Bitta qiymatdan iborat hujjatda bu amal bajarilmaydi.",
+        "en": "This is not available for a document holding one value.",
+    },
+    "gui.dupesdialog.why.stale": {
+        "uz": "Natija eskirgan (hujjat o'zgardi): qayta qidiring.",
+        "en": "The result is out of date (the document changed): search again.",
+    },
+    "gui.dupesdialog.copied": {"uz": "Nusxalandi.", "en": "Copied."},
+    # menu items for the integration (round B: Tools menu, schema view)
+    "gui.dupesdialog.action": {"uz": "Takroriy yozuvlar…", "en": "Duplicate records…"},
+    "gui.dupesdialog.action.tip": {
+        "uz": "Tanlangan kalit bo'yicha takroriy yozuvlarni topish, ko'rsatish, eksport qilish yoki o'chirish.",
+        "en": "Find the records that repeat a key, then show, export or remove them.",
+    },
+    # ---- gui.mapview ----
+    # the structure builder view (gui/mapview.py, gui/mapmodel.py; docs/ARCHITECTURE.md §13.5)
+    "gui.mapview.act.open": {"uz": "Tuzilmani ochish…", "en": "Open mapping…"},
+    "gui.mapview.act.open.tip": {
+        "uz": "Saqlangan tuzilma (mapping) faylini ochish",
+        "en": "Open a saved mapping file",
+    },
+    "gui.mapview.act.save": {"uz": "Tuzilmani saqlash…", "en": "Save mapping…"},
+    "gui.mapview.act.save.tip": {
+        "uz": "Tuzilmani mapping fayli sifatida saqlash (keyin «jsonreshape apply» bilan ishlatish mumkin)",
+        "en": "Save the structure as a mapping file (usable later with «jsonreshape apply»)",
+    },
+    "gui.mapview.act.undo": {"uz": "Ortga qaytarish", "en": "Undo"},
+    "gui.mapview.act.undo.tip": {
+        "uz": "Tuzilmadagi oxirgi o'zgarishni ortga qaytarish (Ctrl+Z)",
+        "en": "Undo the last change of the structure (Ctrl+Z)",
+    },
+    "gui.mapview.act.redo": {"uz": "Qayta bajarish", "en": "Redo"},
+    "gui.mapview.act.redo.tip": {
+        "uz": "Ortga qaytarilgan o'zgarishni qayta bajarish (Ctrl+Y, Ctrl+Shift+Z)",
+        "en": "Do the undone change again (Ctrl+Y, Ctrl+Shift+Z)",
+    },
+    "gui.mapview.act.reset": {"uz": "Asl holat", "en": "Original"},
+    "gui.mapview.act.reset.tip": {
+        "uz": "Fayldan aniqlangan asl tuzilmaga qaytish (buni ham qaytarish mumkin)",
+        "en": "Go back to the structure found in the file (this can be undone too)",
+    },
+    "gui.mapview.act.expand": {"uz": "Hammasini ochish", "en": "Expand all"},
+    "gui.mapview.act.collapse": {"uz": "Yig'ish", "en": "Collapse"},
+    "gui.mapview.act.full_scan": {"uz": "To'liq skanerlash", "en": "Full scan"},
+    "gui.mapview.act.full_scan.running": {"uz": "Skanerlanmoqda…", "en": "Scanning…"},
+    "gui.mapview.act.full_scan.tip": {
+        "uz": "Tuzilmani namunadan emas, barcha yozuvlardan aniqlash (fonda, vazifalar panelida bekor qilish "
+              "mumkin)",
+        "en": "Find the structure from every record instead of a sample (in the background; it can be cancelled "
+              "in the tasks panel)",
+    },
+    "gui.mapview.act.compact": {"uz": "Ixcham", "en": "Compact"},
+    "gui.mapview.act.compact.tip": {
+        "uz": "Eksportda JSON'ni chekinishsiz, ixcham yozish",
+        "en": "Write the exported JSON compact, without indentation",
+    },
+    "gui.mapview.act.export": {"uz": "Eksport…", "en": "Export…"},
+    "gui.mapview.act.export.tip": {
+        "uz": "Butun faylni shu tuzilma bo'yicha qayta qurib saqlash (Ctrl+E)",
+        "en": "Restructure the whole file with this structure and save it (Ctrl+E)",
+    },
+    "gui.mapview.pane.tree": {"uz": "Tuzilma", "en": "Structure"},
+    "gui.mapview.pane.preview": {"uz": "Ko'rinish", "en": "Preview"},
+    "gui.mapview.hint.inside": {"uz": "Sudrab ko'chir: qator o'rtasiga → ichiga", "en": "Drag: onto the middle → inside"},
+    "gui.mapview.hint.sibling": {"uz": "tepasi / pastiga → yoniga", "en": "top / bottom → next to it"},
+    "gui.mapview.hint.merge": {
+        "uz": "massivni massivga → elementlari qo'shiladi",
+        "en": "an array onto an array → its elements are added",
+    },
+    "gui.mapview.hint.keys": {
+        "uz": "Klaviatura: F2 — nomlash, Del — olib tashlash, Insert — yangi guruh, Ctrl+X va Ctrl+V — ko'chirish, "
+              "Alt+↑/↓ — surish, Ctrl+Shift+U — ichidagilarni chiqarish, Enter — ochish/yig'ish",
+        "en": "Keyboard: F2 rename, Del remove, Insert new group, Ctrl+X then Ctrl+V move, Alt+↑/↓ move up/down, "
+              "Ctrl+Shift+U unwrap, Enter expand/collapse",
+    },
+    "gui.mapview.source.sample": {
+        "uz": "Namunadan: {scanned} / {total} yozuv",
+        "en": "From a sample: {scanned} of {total} records",
+    },
+    "gui.mapview.source.sample_members": {
+        "uz": "Namunadan: {scanned} / {total} a'zo",
+        "en": "From a sample: {scanned} of {total} members",
+    },
+    "gui.mapview.source.full": {"uz": "Barcha {scanned} yozuvdan", "en": "From all {scanned} records"},
+    "gui.mapview.source.full_members": {"uz": "Barcha {scanned} a'zodan", "en": "From all {scanned} members"},
+    "gui.mapview.source.file": {"uz": "Fayldan: {name}", "en": "From the file {name}"},
+    "gui.mapview.source.skipped": {
+        "uz": "{count} ta juda katta yozuv hisobga olinmadi",
+        "en": "{count} very large records were left out",
+    },
+    "gui.mapview.source.truncated": {"uz": "tuzilma qisqartirildi", "en": "structure shortened"},
+    "gui.mapview.source.flattening": {"uz": "tekislanmoqda…", "en": "flattening…"},
+    "gui.mapview.state.waiting_open": {"uz": "Fayl ochilmoqda…", "en": "Opening the file…"},
+    "gui.mapview.state.waiting_index": {
+        "uz": "Fayl indekslanmoqda: tuzilma indeks tugagach aniqlanadi.",
+        "en": "The file is being indexed: the structure is found once the index is complete.",
+    },
+    "gui.mapview.state.building": {
+        "uz": "Tuzilma {count} ta yozuvlik namunadan aniqlanmoqda…",
+        "en": "Finding the structure from a sample of {count} records…",
+    },
+    "gui.mapview.state.scanning": {
+        "uz": "Tuzilma barcha yozuvlardan aniqlanmoqda…",
+        "en": "Finding the structure from every record…",
+    },
+    "gui.mapview.state.failed": {"uz": "Tuzilmani aniqlab bo'lmadi: {error}", "en": "The structure could not be found: {error}"},
+    "gui.mapview.state.unavailable": {
+        "uz": "Fayl ochilmadi: tuzilma quruvchi ishlamaydi.",
+        "en": "The file did not open: the structure builder cannot work.",
+    },
+    "gui.mapview.retry": {"uz": "Qayta urinish", "en": "Try again"},
+    "gui.mapview.caret.open": {"uz": "Ochish", "en": "Expand"},
+    "gui.mapview.caret.close": {"uz": "Yig'ish", "en": "Collapse"},
+    "gui.mapview.rename.name": {"uz": "Yangi nom", "en": "New name"},
+    "gui.mapview.menu.cut": {"uz": "Ko'chirish uchun kesib olish", "en": "Cut (to move)"},
+    "gui.mapview.menu.paste": {"uz": "Shu yerga qo'yish", "en": "Put here"},
+    "gui.mapview.menu.move_up": {"uz": "Yuqoriga surish", "en": "Move up"},
+    "gui.mapview.menu.move_down": {"uz": "Pastga surish", "en": "Move down"},
+    "gui.mapview.menu.open": {"uz": "Ochish", "en": "Expand"},
+    "gui.mapview.menu.close": {"uz": "Yig'ish", "en": "Collapse"},
+    "gui.mapview.menu.copy_source": {"uz": "Manba yo'lini nusxalash", "en": "Copy the source path"},
+    "gui.mapview.why.no_tree": {"uz": "Tuzilma hali tayyor emas.", "en": "The structure is not ready yet."},
+    "gui.mapview.why.busy": {
+        "uz": "Rekursiv tekislash hisoblanmoqda: tugashini kuting.",
+        "en": "A recursive flatten is being computed: wait until it is done.",
+    },
+    "gui.mapview.why.scanning": {
+        "uz": "Tuzilma barcha yozuvlardan aniqlanmoqda va tugagach shu tuzilmaning o'rnini oladi: tugashini "
+              "kuting (vazifalar panelida bekor qilish mumkin).",
+        "en": "The structure is being found from every record and replaces this one when done: wait until it is "
+              "done (it can be cancelled in the tasks panel).",
+    },
+    "gui.mapview.why.no_cut": {
+        "uz": "Avval ko'chiriladigan tugunni Ctrl+X bilan kesib oling.",
+        "en": "First cut the node to move with Ctrl+X.",
+    },
+    "gui.mapview.why.no_children": {"uz": "Bu qatorning ichida hech narsa yo'q.", "en": "This row holds nothing."},
+    "gui.mapview.why.original": {
+        "uz": "Tuzilma hali o'zgartirilmagan: u asl holatda.",
+        "en": "The structure has not been changed: it is the original.",
+    },
+    "gui.mapview.msg.cut": {
+        "uz": "«{name}» kesib olindi: qo'yiladigan qatorni tanlab Ctrl+V bosing (Esc — bekor qilish).",
+        "en": "«{name}» was cut: select the row to put it on and press Ctrl+V (Esc cancels).",
+    },
+    "gui.mapview.msg.cut_cancelled": {"uz": "Ko'chirish bekor qilindi.", "en": "The move was cancelled."},
+    "gui.mapview.msg.flattening": {
+        "uz": "«{key}» rekursiv tekislanmoqda…",
+        "en": "Flattening «{key}» recursively…",
+    },
+    "gui.mapview.msg.saved": {"uz": "Tuzilma saqlandi: {path}", "en": "The mapping was saved: {path}"},
+    "gui.mapview.msg.loaded": {"uz": "Tuzilma ochildi: {path}", "en": "The mapping was opened: {path}"},
+    "gui.mapview.msg.rebuilt": {
+        "uz": "Fayl boshqa ko'rinishda qayta ochildi: tuzilma yangidan aniqlandi (oldingisi bu yozuvlarga mos emas).",
+        "en": "The file was opened again another way: the structure was found anew (the previous one does not fit "
+              "these records).",
+    },
+    "gui.mapview.msg.not_ready": {"uz": "Tuzilma hali tayyor emas.", "en": "The structure is not ready yet."},
+    "gui.mapview.ask.title": {"uz": "Tuzilma quruvchi", "en": "Structure builder"},
+    "gui.mapview.ask.replace": {
+        "uz": "Tuzilmadagi {count} ta o'zgarish yo'qoladi (keyin qaytarib bo'lmaydi). Davom etilsinmi?",
+        "en": "The {count} changes of the structure will be lost (they cannot be undone afterwards). Continue?",
+    },
+    "gui.mapview.open.title": {"uz": "Tuzilma (mapping) faylini ochish", "en": "Open a mapping file"},
+    "gui.mapview.save.title": {"uz": "Tuzilmani (mapping) saqlash", "en": "Save the mapping"},
+    "gui.mapview.filter": {
+        "uz": "Mapping fayllari ({patterns});;Barcha fayllar (*)",
+        "en": "Mapping files ({patterns});;All files (*)",
+    },
+    "gui.mapview.undo_label": {"uz": "tuzilma", "en": "structure"},
+    "gui.mapview.task.build": {"uz": "Tuzilma aniqlanmoqda: {name}", "en": "Finding the structure: {name}"},
+    "gui.mapview.task.full": {
+        "uz": "Tuzilma barcha yozuvlardan aniqlanmoqda: {name}",
+        "en": "Finding the structure from every record: {name}",
+    },
+    "gui.mapview.task.flatten": {"uz": "Rekursiv tekislash: {name}", "en": "Recursive flatten: {name}"},
+    "gui.mapview.task.preview": {"uz": "Tuzilma ko'rinishi: {name}", "en": "Structure preview: {name}"},
+    "gui.mapview.task.open": {"uz": "Tuzilma ochilmoqda: {name}", "en": "Opening the mapping: {name}"},
+    "gui.mapview.task.save": {"uz": "Tuzilma saqlanmoqda: {name}", "en": "Saving the mapping: {name}"},
+    "gui.mapview.preview.out": {"uz": "Natija", "en": "Result"},
+    "gui.mapview.preview.src": {"uz": "Asl", "en": "Original"},
+    "gui.mapview.preview.kind_tip": {
+        "uz": "Ko'rinish turi: natija yoki fayldagi asl yozuv",
+        "en": "Preview kind: the result or the original record of the file",
+    },
+    "gui.mapview.preview.prev": {"uz": "Oldingi yozuv", "en": "Previous record"},
+    "gui.mapview.preview.next": {"uz": "Keyingi yozuv", "en": "Next record"},
+    "gui.mapview.preview.number": {"uz": "Yozuv raqami (0 dan)", "en": "Record number (from 0)"},
+    "gui.mapview.preview.total": {"uz": "/ {count} ta yozuv", "en": "of {count} records"},
+    "gui.mapview.preview.total_members": {"uz": "/ {count} ta a'zo", "en": "of {count} members"},
+    "gui.mapview.preview.more_out": {"uz": "… davomi eksportda", "en": "… the rest is in the export"},
+    "gui.mapview.preview.more_items": {"uz": "… yana {count} ta", "en": "… {count} more"},
+    "gui.mapview.preview.more_keys": {"uz": "… yana {count} ta kalit", "en": "… {count} more keys"},
+    "gui.mapview.preview.cut": {
+        "uz": "… ko'rinish shu yerda qisqartirildi (eksportda hammasi chiqadi)",
+        "en": "… the preview is cut here (the export writes everything)",
+    },
+    "gui.mapview.preview.error": {"uz": "Ko'rinishni hisoblab bo'lmadi: {error}", "en": "The preview could not be computed: {error}"},
+    "gui.mapview.preview.too_large": {
+        "uz": "#{record} yozuv ko'rinish uchun juda katta ({size}, chegara {limit}); eksport uni baribir qayta quradi.",
+        "en": "Record #{record} is too large for the preview ({size}, limit {limit}); the export restructures it "
+              "anyway.",
+    },
+    "gui.mapview.preview.no_records": {"uz": "Hujjatda yozuv yo'q.", "en": "The document has no records."},
+    "gui.mapview.preview.missing_member": {
+        "uz": "«{key}» a'zosi natijaga yozilmaydi: tuzilma unga qiymat bermaydi.",
+        "en": "The member «{key}» is not written: the structure gives it no value.",
+    },
+    "gui.mapview.preview.foot.out": {"uz": "#{record} yozuv natijada qanday chiqishi.", "en": "How record #{record} comes out."},
+    "gui.mapview.preview.foot.out_member": {
+        "uz": "#{record} a'zo natijada qanday chiqishi.",
+        "en": "How member #{record} comes out.",
+    },
+    "gui.mapview.preview.foot.limit": {
+        "uz": "Ko'rinishda massivlarning 20 tasigacha elementi; eksportda hammasi chiqadi.",
+        "en": "The preview shows up to 20 elements of each array; the export writes them all.",
+    },
+    "gui.mapview.preview.foot.src": {
+        "uz": "Fayldagi #{record} yozuv, o'zgartirilmagan holda.",
+        "en": "Record #{record} of the file, unchanged.",
+    },
+    "gui.mapview.preview.foot.src_member": {
+        "uz": "Fayldagi #{record} a'zo, o'zgartirilmagan holda.",
+        "en": "Member #{record} of the file, unchanged.",
+    },
+    "gui.mapview.preview.foot.src_value": {"uz": "Fayldagi asl ma'lumot.", "en": "The original data of the file."},
+    "gui.mapview.preview.foot.edited": {
+        "uz": "Saqlanmagan o'zgarishlar ham hisobga olingan.",
+        "en": "Unsaved changes are included.",
+    },
     # ---- gui.filter ----
     "gui.filter.builder": {"uz": "Quruvchi", "en": "Builder"},
     "gui.filter.expression": {"uz": "Ifoda", "en": "Expression"},
@@ -3143,6 +8871,25 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Fayl qayta ochildi: qidiruvni qaytadan bajaring.",
         "en": "The file was reopened: run the search again.",
     },
+    "gui.search.stale_edit": {
+        "uz": "Hujjat o'zgardi (tahrir yoki ularni bekor qilish): qidiruvni qaytadan bajaring.",
+        "en": "The document changed (an edit, or the changes were discarded): run the search again.",
+    },
+    "gui.search.outdated": {
+        "uz": "Hujjat qidiruvdan keyin tahrirlandi: natijalar eskirgan bo'lishi mumkin. Yangilash uchun qaytadan "
+        "qidiring.",
+        "en": "The document was edited after the search: the results may be out of date. Search again to "
+        "refresh them.",
+    },
+    "gui.search.outdated_cleared": {
+        "uz": "Hujjat qidiruvdan keyin tahrirlandi va natijalar juda ko'p edi: qidiruvni qaytadan bajaring.",
+        "en": "The document was edited after the search and there were too many results to update: run the "
+        "search again.",
+    },
+    "gui.search.export.outdated": {
+        "uz": "Qidirilgan ko'rinishdagi yozuvlar tahrirda ko'chdi: eksport uchun qaytadan qidiring.",
+        "en": "The records of the view searched were moved by an edit: search again to export.",
+    },
     "gui.search.task": {"uz": "Qidiruv: “{text}” — {name}", "en": "Search: “{text}” in {name}"},
     "gui.search.task.history": {"uz": "Qidiruv tarixi", "en": "Search history"},
     "gui.search.task.open": {
@@ -3238,6 +8985,47 @@ MESSAGES: dict[str, dict[str, str]] = {
     "gui.search.menu.copy_rows": {"uz": "Tanlangan qatorlarni nusxalash", "en": "Copy the selected rows"},
     # ---- gui.export ----
     "gui.export.title": {"uz": "Eksport — {name}", "en": "Export — {name}"},
+    "gui.export.mapping.title": {"uz": "Tuzilma bo'yicha eksport — {name}", "en": "Export with the mapping — {name}"},
+    "gui.export.mapping.use": {
+        "uz": "Tuzilma bo'yicha qayta qurish ({summary})",
+        "en": "Restructure with the mapping ({summary})",
+    },
+    "gui.export.mapping.use_plain": {"uz": "Tuzilma bo'yicha qayta qurish", "en": "Restructure with the mapping"},
+    "gui.export.mapping.use.tip": {
+        "uz": "Har bir yozuv tuzilma quruvchidagi tuzilma bo'yicha qayta quriladi. Belgini olib tashlasangiz, oddiy "
+              "eksport bo'ladi.",
+        "en": "Every record is restructured with the structure builder's mapping. Clear it for an ordinary export.",
+    },
+    "gui.export.mapping.formats": {
+        "uz": "Tuzilma bo'yicha eksport faqat JSON yoki JSON Lines bo'ladi.",
+        "en": "An export with the mapping is JSON or JSON Lines only.",
+    },
+    "gui.export.mapping.no_node": {
+        "uz": "Tuzilma bo'yicha eksportda bitta tugunni tanlab bo'lmaydi: yozuvlar qayta quriladi.",
+        "en": "An export with the mapping cannot take one node: it restructures the records.",
+    },
+    "gui.export.mapping.not_used": {
+        "uz": "Tuzilma bo'yicha eksportda ishlatilmaydi (kalitlar tartibi tuzilmadan olinadi).",
+        "en": "Not used by an export with the mapping (the key order comes from the structure).",
+    },
+    "gui.export.mapping.skip_huge": {
+        "uz": "Juda katta yozuvlarni o'tkazib yuborish",
+        "en": "Skip very large records",
+    },
+    "gui.export.mapping.skip_huge.tip": {
+        "uz": "{limit} dan katta yozuvlarni xotirada qayta qurib bo'lmaydi: belgilansa ular o'tkazib yuboriladi va "
+              "soni hisobotda aytiladi, aks holda eksport ularga yetganda to'xtaydi.",
+        "en": "Records larger than {limit} cannot be restructured in memory: when this is checked they are skipped "
+              "and counted in the report, otherwise the export stops at the first one.",
+    },
+    "gui.export.mapping.task": {"uz": "Tuzilma bo'yicha eksport: {name}", "en": "Export with the mapping: {name}"},
+    "gui.export.mapping.no_tree": {"uz": "Tuzilma hali tayyor emas.", "en": "The structure is not ready yet."},
+    "gui.export.mapping.gzip": {
+        "uz": "Tuzilma bo'yicha eksport siqilmagan JSON yozadi, nom esa .gz bilan tugaydi: nomdan .gz ni olib "
+              "tashlang.",
+        "en": "The export with the mapping writes uncompressed JSON, but the name ends in .gz: remove .gz from "
+              "the name.",
+    },
     "gui.export.path.label": {"uz": "Fayl:", "en": "File:"},
     "gui.export.path.placeholder": {"uz": "Natija fayli yo'li", "en": "Path of the result file"},
     "gui.export.browse": {"uz": "Tanlash…", "en": "Browse…"},
@@ -3270,8 +9058,38 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Select a node in the tree or the table.",
     },
     "gui.export.scope.node.tip": {
-        "uz": "Faqat tanlangan tugun yoziladi (JSON yoki JSON Lines). Sonlar va matnlar baytma-bayt o'zgarmaydi.",
-        "en": "Only the selected node is written (JSON or JSON Lines). Numbers and strings stay byte for byte.",
+        "uz": "Faqat tanlangan tugun yoziladi. JSON / JSON Lines: sonlar va matnlar baytma-bayt o'zgarmaydi. CSV, "
+              "Excel, SQLite: massiv yoki obyekt tugunning elementlari yozuvlar sifatida yoziladi.",
+        "en": "Only the selected node is written. JSON / JSON Lines: numbers and strings stay byte for byte. CSV, "
+              "Excel, SQLite: the elements of an array or object node are written as the records.",
+    },
+    "gui.export.scope.selected": {
+        "uz": "Tanlangan yozuvlar ({count} ta)",
+        "en": "Selected records ({count})",
+    },
+    "gui.export.scope.selected.tip": {
+        "uz": "Jadvalda yoki daraxtda tanlangan yozuvlar, ko'rinishdagi tartibda.",
+        "en": "The records selected in the table or the tree, in the order of the view.",
+    },
+    "gui.export.scope.selected_none": {"uz": "Tanlangan yozuvlar (tanlanmagan)", "en": "Selected records (none)"},
+    "gui.export.scope.selected_none.tip": {
+        "uz": "Avval jadvalda qatorlarni yoki daraxtda tugunlarni tanlang.",
+        "en": "First select rows in the table or nodes in the tree.",
+    },
+    "gui.export.scope.selected_label": {"uz": "Tanlangan yozuvlar", "en": "Selected records"},
+    "gui.export.scope.records": {"uz": "{label} ({count} ta yozuv)", "en": "{label} ({count} records)"},
+    "gui.export.scope.records.tip": {
+        "uz": "Shu yozuvlar ro'yxati yoziladi; joriy ko'rinish o'zgarmaydi.",
+        "en": "This list of records is written; the current view does not change.",
+    },
+    "gui.export.scope.records_default": {"uz": "Berilgan yozuvlar", "en": "Given records"},
+    "gui.export.scope.records_gone": {
+        "uz": "Yozuvlar ro'yxati endi yo'q (hujjat yopilgan).",
+        "en": "The list of records is gone (the document was closed).",
+    },
+    "gui.export.mapping.no_scope": {
+        "uz": "Tuzilma bo'yicha eksport faqat joriy ko'rinish yoki barcha yozuvlar uchun.",
+        "en": "An export with the mapping takes the current view or all records only.",
     },
     "gui.export.scope.single.tip": {
         "uz": "Bu fayl bitta JSON qiymati: u butunligicha yoziladi.",
@@ -3299,9 +9117,35 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "A node export keeps the keys in file order.",
     },
     "gui.export.keep_wrapper": {"uz": "Tashqi o'ramani saqlash", "en": "Keep the wrapper"},
-    "gui.export.keep_wrapper.tip": {
+    "gui.export.keep_wrapper.tip.json": {
         "uz": "Yozuvlar massivi atrofidagi tashqi o'rama maydonlari (masalan, meta) ham yoziladi.",
         "en": "The wrapper's fields around the record array (e.g. meta) are written too.",
+    },
+    "gui.export.keep_wrapper.tip.sqlite": {
+        "uz": "Tashqi o'rama maydonlari (masalan, meta) alohida _wrapper jadvaliga yoziladi.",
+        "en": "The wrapper's fields (e.g. meta) are written to a separate _wrapper table.",
+    },
+    "gui.export.keep_wrapper.tip.jsonl": {
+        "uz": "JSON Lines'da tashqi o'rama uchun joy yo'q: belgilansa hisobotda bu haqda eslatma chiqadi; "
+              "belgilanmasa faqat yozuvlar so'ralgan hisoblanadi.",
+        "en": "JSON Lines has no place for the wrapper: when checked, the report notes that it was not written; "
+              "unchecked means only the records are wanted.",
+    },
+    "gui.export.keep_wrapper.tip.csv": {
+        "uz": "CSV'da tashqi o'rama uchun joy yo'q: belgilansa hisobotda bu haqda eslatma chiqadi; belgilanmasa "
+              "faqat yozuvlar so'ralgan hisoblanadi.",
+        "en": "CSV has no place for the wrapper: when checked, the report notes that it was not written; unchecked "
+              "means only the records are wanted.",
+    },
+    "gui.export.keep_wrapper.tip.xlsx": {
+        "uz": "Excel faylida tashqi o'rama uchun joy yo'q: belgilansa hisobotda bu haqda eslatma chiqadi; "
+              "belgilanmasa faqat yozuvlar so'ralgan hisoblanadi.",
+        "en": "An Excel file has no place for the wrapper: when checked, the report notes that it was not written; "
+              "unchecked means only the records are wanted.",
+    },
+    "gui.export.keep_wrapper.node": {
+        "uz": "Tugun eksportida natija faqat shu tugunning o'zi bo'ladi (tashqi o'ramasiz).",
+        "en": "A node export writes the node alone (without a wrapper).",
     },
     "gui.export.keep_wrapper.only_wrapped": {
         "uz": "Faqat yozuvlari boshqa obyekt ichidagi massivda turgan hujjatlar uchun.",
@@ -3383,18 +9227,15 @@ MESSAGES: dict[str, dict[str, str]] = {
         "parent record. You can then query them with SQL.",
     },
     "gui.export.node_formats": {
-        "uz": "Joriy tugunni faqat JSON yoki JSON Lines formatida eksport qilish mumkin.",
-        "en": "The current node can be exported only as JSON or JSON Lines.",
+        "uz": "Tugunning o'zi faqat JSON yoki JSON Lines formatida yoziladi (CSV, Excel va SQLite massiv yoki "
+              "obyekt tugunning elementlarini yozuv sifatida yozadi).",
+        "en": "The node itself is written only as JSON or JSON Lines (CSV, Excel and SQLite write the elements of "
+              "an array or object node as records).",
     },
-    "gui.export.node_truncated": {
-        "uz": "Tugun ma'lumotini oxirigacha o'qib bo'lmadi: fayl qisqargan.",
-        "en": "The node's data could not be read to the end: the file got shorter.",
+    "gui.export.progress.node_open": {
+        "uz": "Tugun yozuvlar sifatida ochilmoqda: {name}",
+        "en": "Opening the node as records: {name}",
     },
-    "gui.export.node_truncated.hint": {
-        "uz": "Faylni qayta oching (F5) va yana urinib ko'ring.",
-        "en": "Reopen the file (F5) and try again.",
-    },
-    "gui.export.progress.node": {"uz": "Tugun yozilmoqda: {name}", "en": "Writing the node: {name}"},
     "gui.export.need_path": {"uz": "Natija faylini tanlang.", "en": "Choose the result file."},
     "gui.export.same_file.hint": {
         "uz": "Boshqa nom yoki papka tanlang: asl fayl hech qachon o'zgarmaydi.",
@@ -3453,6 +9294,12 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Stopped: no file was written.",
     },
     "gui.export.report.title": {"uz": "Eksport tugadi", "en": "Export finished"},
+    "gui.export.report.mapping": {
+        "uz": "Tuzilma bo'yicha: {records} ta yozuv → {items} ta element ({passes} o'tish), {size}; {seconds} vaqt "
+              "ketdi ({rate} MB/s).",
+        "en": "With the mapping: {records} records → {items} items ({passes} passes), {size}; took {seconds} "
+              "({rate} MB/s).",
+    },
     "gui.export.report.summary": {
         "uz": "{records} ta yozuv ({rows} ta qator), {size}; {seconds} vaqt ketdi ({rate} MB/s).",
         "en": "{records} records ({rows} rows), {size}; took {seconds} ({rate} MB/s).",
@@ -3465,6 +9312,1280 @@ MESSAGES: dict[str, dict[str, str]] = {
     "gui.export.report.files": {"uz": "Fayllar ({count}):", "en": "Files ({count}):"},
     "gui.export.report.warnings": {"uz": "Ogohlantirishlar ({count}):", "en": "Warnings ({count}):"},
     "gui.export.report.open_folder": {"uz": "Papkani ochish", "en": "Open folder"},
+    "gui.export.report.edited": {
+        "uz": "Eksportga saqlanmagan o'zgarishlar ham kirdi.",
+        "en": "The unsaved changes were exported too.",
+    },
+    "gui.export.edited_note": {
+        "uz": "Hujjatda saqlanmagan o'zgarishlar bor: eksportga ular ham kiradi (fayl o'zi o'zgarmaydi).",
+        "en": "The document has unsaved changes: the export includes them (the file itself is not changed).",
+    },
+    # ---- gui.validatepanel ----
+    "gui.validatepanel.menu.json_schema": {"uz": "JSON Schema", "en": "JSON Schema"},
+    "gui.validatepanel.menu.generate": {"uz": "Schema yaratish…", "en": "Generate a schema…"},
+    "gui.validatepanel.menu.generate.tip": {
+        "uz": "Hujjat ma'lumotlaridan JSON Schema (draft 2020-12) yaratib, faylga yozish",
+        "en": "Generate a JSON Schema (draft 2020-12) from the document's data and write it to a file",
+    },
+    "gui.validatepanel.menu.validate": {"uz": "Schema bo'yicha tekshirish…", "en": "Validate against a schema…"},
+    "gui.validatepanel.menu.validate.tip": {
+        "uz": "Hujjatni JSON Schema fayli bo'yicha tekshirish: xatolar yozuv raqami va yo'li bilan chiqadi",
+        "en": "Validate the document against a JSON Schema file: problems are listed with the record number and "
+              "path",
+    },
+    "gui.validatepanel.dock": {"uz": "Schema tekshiruvi", "en": "Schema validation"},
+    "gui.validatepanel.gen.title": {"uz": "Schema yaratish — {name}", "en": "Generate a schema — {name}"},
+    "gui.validatepanel.gen.intro": {
+        "uz": "Hujjat ma'lumotlaridan JSON Schema (draft 2020-12) yaratiladi va faylga yoziladi. Sonlar aynan "
+              "fayldagidek saqlanadi.",
+        "en": "A JSON Schema (draft 2020-12) is generated from the document's data and written to a file. Numbers "
+              "are kept exactly as in the file.",
+    },
+    "gui.validatepanel.gen.source": {"uz": "Nimaga asoslanadi", "en": "Based on"},
+    "gui.validatepanel.gen.source.cached": {
+        "uz": "Tayyor to'liq tahlil ({count} ta yozuv)",
+        "en": "The full analysis already made ({count} records)",
+    },
+    "gui.validatepanel.gen.source.cached.tip": {
+        "uz": "Tuzilma ko'rinishidagi to'liq skanerlash natijasi qayta ishlatiladi: fayl yana o'qilmaydi.",
+        "en": "The result of the structure view's full scan is reused: the file is not read again.",
+    },
+    "gui.validatepanel.gen.source.cached_none": {
+        "uz": "Tayyor to'liq tahlil (hali yo'q)",
+        "en": "The full analysis already made (none yet)",
+    },
+    "gui.validatepanel.gen.source.cached.tip_none": {
+        "uz": "To'liq tahlil hali bajarilmagan yoki hujjat o'zgargandan keyin eskirgan. \"To'liq skanerlash\"ni "
+              "tanlang.",
+        "en": "No full analysis has been made yet, or the document changed since. Choose \"Full scan\".",
+    },
+    "gui.validatepanel.gen.source.full": {
+        "uz": "To'liq skanerlash (barcha yozuvlar o'qiladi)",
+        "en": "Full scan (every record is read)",
+    },
+    "gui.validatepanel.gen.source.full.tip": {
+        "uz": "Aniq schema: har bir yozuv hisobga olinadi. Katta faylda biroz vaqt oladi (fonda bajariladi, "
+              "to'xtatish mumkin).",
+        "en": "An exact schema: every record is taken into account. Takes a while for a big file (it runs in the "
+              "background and can be stopped).",
+    },
+    "gui.validatepanel.gen.source.sample": {"uz": "Namuna ({count} ta yozuv)", "en": "A sample ({count} records)"},
+    "gui.validatepanel.gen.source.sample.tip": {
+        "uz": "Tez, lekin taxminiy: faqat namunadagi yozuvlar ko'riladi.",
+        "en": "Fast but approximate: only the records of the sample are looked at.",
+    },
+    "gui.validatepanel.gen.sample_warning": {
+        "uz": "Diqqat: namuna asosidagi schema hamma yozuvlarni hisobga olmaydi — kam uchraydigan maydonlar tushib "
+              "qolishi, ba'zi maydonlar esa noto'g'ri \"majburiy\" (required) deb belgilanishi mumkin. Aniq schema "
+              "uchun to'liq skanerlashni tanlang.",
+        "en": "Note: a schema made from a sample does not take every record into account: rare fields may be "
+              "missing and some fields may wrongly be marked \"required\". Choose the full scan for an exact "
+              "schema.",
+    },
+    "gui.validatepanel.gen.level": {"uz": "Schema nimani tasvirlaydi", "en": "The schema describes"},
+    "gui.validatepanel.gen.level.document": {"uz": "Butun hujjatni", "en": "The whole document"},
+    "gui.validatepanel.gen.level.document.tip": {
+        "uz": "Massiv uchun \"items\", kalitli obyekt uchun \"additionalProperties\", o'ralgan hujjatda o'rovchi "
+              "obyekt bilan birga. JSON Lines va bitta qiymatli faylda bitta yozuv schemasi bilan bir xil.",
+        "en": "\"items\" for an array, \"additionalProperties\" for a keyed object, with the wrapper object for a "
+              "wrapped document. For JSON Lines and single-value files it is the same as the record schema.",
+    },
+    "gui.validatepanel.gen.level.record": {"uz": "Bitta yozuvni", "en": "One record"},
+    "gui.validatepanel.gen.level.record.tip": {
+        "uz": "Har bir yozuv shu schemaga mos kelishi kerak (masalan, API javobidagi bitta element).",
+        "en": "Every record must match this schema (e.g. one item of an API response).",
+    },
+    "gui.validatepanel.gen.strict": {"uz": "Qat'iy cheklovlar", "en": "Strict constraints"},
+    "gui.validatepanel.gen.strict.tip": {
+        "uz": "Uzunlik va son oraliqlari (min/max), kam qiymatli maydonlar uchun enum, formatlar (sana, email, "
+              "URI…) va ortiqcha maydonlarni taqiqlash. Buning uchun hujjat yana bir marta o'qiladi.",
+        "en": "Length and number ranges (min/max), enum for fields with few values, formats (date, email, URI…) "
+              "and no extra members. The document is read once more for this.",
+    },
+    "gui.validatepanel.gen.title_label": {"uz": "&Sarlavha (title):", "en": "&Title:"},
+    "gui.validatepanel.gen.save": {"uz": "Saqlash…", "en": "Save…"},
+    "gui.validatepanel.gen.save.tip": {
+        "uz": "Schema faylini tanlab, yaratishni boshlash",
+        "en": "Choose the schema file and start",
+    },
+    "gui.validatepanel.gen.save_title": {"uz": "Schemani saqlash", "en": "Save the schema"},
+    "gui.validatepanel.gen.stop": {"uz": "To'xtatish", "en": "Stop"},
+    "gui.validatepanel.gen.open": {"uz": "Faylni ochish", "en": "Open the file"},
+    "gui.validatepanel.gen.open.tip": {
+        "uz": "Yozilgan schemani yangi varaqda ochish",
+        "en": "Open the written schema in a new tab",
+    },
+    "gui.validatepanel.gen.task": {"uz": "Schema yaratilmoqda: {name}", "en": "Generating a schema: {name}"},
+    "gui.validatepanel.gen.progress.scan": {
+        "uz": "Tuzilma tahlil qilinmoqda: {name}",
+        "en": "Analysing the structure of {name}",
+    },
+    "gui.validatepanel.gen.progress.strict": {
+        "uz": "Qat'iy cheklovlar uchun qiymatlar o'qilmoqda: {name}",
+        "en": "Reading the values for the strict constraints: {name}",
+    },
+    "gui.validatepanel.gen.progress.write": {"uz": "Yozilmoqda: {name}", "en": "Writing {name}"},
+    "gui.validatepanel.gen.running": {"uz": "Schema yaratilmoqda…", "en": "Generating the schema…"},
+    "gui.validatepanel.gen.done": {
+        "uz": "Schema yozildi: {path} ({size}; {fields} ta maydon; {records} ta yozuv asosida)",
+        "en": "Schema written: {path} ({size}; {fields} fields; based on {records} records)",
+    },
+    "gui.validatepanel.gen.done_sample": {
+        "uz": "Diqqat: schema namuna asosida ({records} / {total} ta yozuv).",
+        "en": "Note: the schema is based on a sample ({records} of {total} records).",
+    },
+    "gui.validatepanel.gen.failed": {"uz": "Schema yaratilmadi: {error}", "en": "The schema was not generated: {error}"},
+    "gui.validatepanel.gen.cancelled": {"uz": "To'xtatildi; fayl yozilmadi.", "en": "Stopped; no file was written."},
+    "gui.validatepanel.gen.no_document": {"uz": "Hujjat ochilmagan.", "en": "No document is open."},
+    "gui.validatepanel.gen.status": {"uz": "Schema yozildi: {path}", "en": "Schema written: {path}"},
+    "gui.validatepanel.same_file.hint": {
+        "uz": "Manba faylning ustiga yozib bo'lmaydi: boshqa nom tanlang.",
+        "en": "The source file cannot be overwritten: choose another name.",
+    },
+    "gui.validatepanel.title": {"uz": "Schema bo'yicha tekshirish — {name}", "en": "Validate against a schema — {name}"},
+    "gui.validatepanel.schema.label": {"uz": "&Schema:", "en": "&Schema:"},
+    "gui.validatepanel.schema.placeholder": {
+        "uz": "JSON Schema fayli (draft 2020-12)",
+        "en": "A JSON Schema file (draft 2020-12)",
+    },
+    "gui.validatepanel.schema.browse": {"uz": "Tanlash…", "en": "Browse…"},
+    "gui.validatepanel.schema.browse_title": {"uz": "JSON Schema faylini tanlash", "en": "Choose a JSON Schema file"},
+    "gui.validatepanel.schema.filter": {
+        "uz": "JSON Schema (*.schema.json *.json);;Barcha fayllar (*)",
+        "en": "JSON Schema (*.schema.json *.json);;All files (*)",
+    },
+    "gui.validatepanel.schema.checking": {"uz": "Schema tekshirilmoqda…", "en": "Checking the schema…"},
+    "gui.validatepanel.schema.ok": {
+        "uz": "Schema yaroqli ({count} ta qism-schema).",
+        "en": "The schema is valid ({count} subschemas).",
+    },
+    "gui.validatepanel.schema.ok_title": {
+        "uz": "Schema yaroqli: \"{title}\" ({count} ta qism-schema).",
+        "en": "The schema is valid: \"{title}\" ({count} subschemas).",
+    },
+    "gui.validatepanel.schema.need": {"uz": "Avval schema faylini tanlang.", "en": "Choose a schema file first."},
+    "gui.validatepanel.schema_path_tip": {"uz": "Schemadagi joyi: {pointer}", "en": "Place in the schema: {pointer}"},
+    "gui.validatepanel.task.schema": {"uz": "Schema fayli tekshirilmoqda", "en": "Checking a schema file"},
+    "gui.validatepanel.scope.label": {"uz": "&Qo'llanish:", "en": "&Applies to:"},
+    "gui.validatepanel.scope.auto": {"uz": "Avtomatik", "en": "Automatic"},
+    "gui.validatepanel.scope.record": {"uz": "Har bir yozuvga", "en": "Each record"},
+    "gui.validatepanel.scope.document": {"uz": "Butun hujjatga", "en": "The whole document"},
+    "gui.validatepanel.scope.tip": {
+        "uz": "Avtomatik: schema butun hujjatni (masalan, massivni) yoki bitta yozuvni tasvirlashi o'zi aniqlanadi.",
+        "en": "Automatic: whether the schema describes the whole document (e.g. the array) or one record is "
+              "detected.",
+    },
+    "gui.validatepanel.source.label": {"uz": "&Yozuvlar:", "en": "&Records:"},
+    "gui.validatepanel.source.all": {"uz": "Barcha yozuvlar", "en": "All records"},
+    "gui.validatepanel.source.view": {"uz": "Joriy ko'rinish", "en": "The current view"},
+    "gui.validatepanel.source.view_label": {
+        "uz": "Joriy ko'rinish — {label} ({count} ta)",
+        "en": "The current view — {label} ({count})",
+    },
+    "gui.validatepanel.source.view.tip": {
+        "uz": "\"Joriy ko'rinish\": filtr, tartiblash yoki qidiruv natijasidagi yozuvlar ({label}).",
+        "en": "\"The current view\": the records of the filter, sort or search result ({label}).",
+    },
+    "gui.validatepanel.source.single": {
+        "uz": "Bitta qiymatli hujjat: butun hujjat tekshiriladi.",
+        "en": "A single-value document: the whole document is validated.",
+    },
+    "gui.validatepanel.formats": {"uz": "Formatlarni tekshirish", "en": "Check formats"},
+    "gui.validatepanel.formats.tip": {
+        "uz": "\"format\" kalit so'zini talab sifatida tekshirish: date-time, date, time, email, uri, uuid, ipv4, "
+              "ipv6 (aks holda u faqat izoh hisoblanadi).",
+        "en": "Assert the \"format\" keyword: date-time, date, time, email, uri, uuid, ipv4, ipv6 (otherwise it is "
+              "only an annotation).",
+    },
+    "gui.validatepanel.max_issues": {"uz": "&Ko'pi bilan xato:", "en": "&Issues listed at most:"},
+    "gui.validatepanel.max_issues.tip": {
+        "uz": "Ro'yxatda saqlanadigan xatolar soni; hammasi sanaladi va eksportga kiradi.",
+        "en": "Issues kept in the list; all of them are counted and exported.",
+    },
+    "gui.validatepanel.per_record": {"uz": "&Har yozuvda:", "en": "&Per record:"},
+    "gui.validatepanel.per_record.tip": {
+        "uz": "Bitta yozuvdan ko'pi bilan nechta xato yig'iladi (yozuv baribir xato deb belgilanadi).",
+        "en": "Issues collected per record at most (the record is marked invalid anyway).",
+    },
+    "gui.validatepanel.run": {"uz": "Tekshirish", "en": "Validate"},
+    "gui.validatepanel.run.tip": {
+        "uz": "Hujjatni schema bo'yicha tekshirish (fonda; Enter)",
+        "en": "Validate the document against the schema (in the background; Enter)",
+    },
+    "gui.validatepanel.cancel": {"uz": "To'xtatish", "en": "Stop"},
+    "gui.validatepanel.task": {"uz": "Schema bo'yicha tekshirilmoqda: {name}", "en": "Validating {name}"},
+    "gui.validatepanel.progress.schema": {"uz": "Schema o'qilmoqda: {name}", "en": "Reading the schema {name}"},
+    "gui.validatepanel.col.record": {"uz": "Yozuv", "en": "Record"},
+    "gui.validatepanel.col.path": {"uz": "Yo'l", "en": "Path"},
+    "gui.validatepanel.col.message": {"uz": "Xato", "en": "Problem"},
+    "gui.validatepanel.col.keyword": {"uz": "Kalit so'z", "en": "Keyword"},
+    "gui.validatepanel.document": {"uz": "hujjat", "en": "document"},
+    "gui.validatepanel.empty": {"uz": "Xatolar shu yerda chiqadi", "en": "The problems appear here"},
+    "gui.validatepanel.empty_ok": {"uz": "Xato topilmadi", "en": "No problems found"},
+    "gui.validatepanel.live": {
+        "uz": "Tekshirilmoqda… {issues} ta xato topildi",
+        "en": "Validating… {issues} problems found",
+    },
+    "gui.validatepanel.running": {"uz": "Tekshirilmoqda…", "en": "Validating…"},
+    "gui.validatepanel.summary.ok": {
+        "uz": "{scanned} ta yozuv tekshirildi: hammasi schemaga mos ({seconds}).",
+        "en": "{scanned} records validated: all match the schema ({seconds}).",
+    },
+    "gui.validatepanel.summary.bad": {
+        "uz": "{scanned} ta yozuv tekshirildi: {invalid} tasi schemaga mos emas, jami {issues} ta xato ({seconds}).",
+        "en": "{scanned} records validated: {invalid} do not match the schema, {issues} problems in all "
+              "({seconds}).",
+    },
+    "gui.validatepanel.summary.scope.record": {
+        "uz": "Schema har bir yozuvga qo'llandi.",
+        "en": "The schema was applied to each record.",
+    },
+    "gui.validatepanel.summary.scope.document": {
+        "uz": "Schema butun hujjatga qo'llandi.",
+        "en": "The schema was applied to the whole document.",
+    },
+    "gui.validatepanel.summary.view": {
+        "uz": "Faqat joriy ko'rinishdagi yozuvlar: {label}.",
+        "en": "Only the records of the current view: {label}.",
+    },
+    "gui.validatepanel.summary.formats_on": {"uz": "Formatlar ham tekshirildi.", "en": "Formats were checked too."},
+    "gui.validatepanel.summary.document": {
+        "uz": "Hujjatning o'ziga tegishli xatolar: {count}",
+        "en": "Problems of the document itself: {count}",
+    },
+    "gui.validatepanel.summary.keywords": {"uz": "Kalit so'zlar bo'yicha: {items}", "en": "By keyword: {items}"},
+    "gui.validatepanel.summary.paths": {"uz": "Ko'p uchragan yo'llar: {items}", "en": "Most frequent paths: {items}"},
+    "gui.validatepanel.summary.item": {"uz": "{name} ({count})", "en": "{name} ({count})"},
+    "gui.validatepanel.cancelled": {
+        "uz": "To'xtatildi: tekshiruv to'liq emas ({issues} ta xato ko'rsatildi).",
+        "en": "Stopped: the validation is incomplete ({issues} problems listed).",
+    },
+    "gui.validatepanel.failed": {"uz": "Tekshirib bo'lmadi: {error}", "en": "The validation failed: {error}"},
+    "gui.validatepanel.stale": {
+        "uz": "Fayl qayta ochildi: natijalar o'chirildi, qaytadan tekshiring.",
+        "en": "The file was reopened: the results were cleared, validate again.",
+    },
+    "gui.validatepanel.stale_edit": {
+        "uz": "Hujjat o'zgardi va yozuvlar joyi siljidi: natijalar o'chirildi, qaytadan tekshiring.",
+        "en": "The document changed and records moved: the results were cleared, validate again.",
+    },
+    "gui.validatepanel.stale_running": {
+        "uz": "Tekshiruv paytida hujjat o'zgardi: tekshiruv to'xtatildi, qaytadan tekshiring.",
+        "en": "The document changed during the validation: it was stopped, validate again.",
+    },
+    "gui.validatepanel.outdated": {
+        "uz": "Hujjat tekshiruvdan keyin o'zgartirildi: natijalar eskirgan bo'lishi mumkin, qaytadan tekshiring.",
+        "en": "The document was edited after the validation: the results may be outdated, validate again.",
+    },
+    "gui.validatepanel.no_document": {"uz": "Hujjat ochilmagan.", "en": "No document is open."},
+    "gui.validatepanel.view_busy": {
+        "uz": "Ko'rinish (filtr yoki tartiblash) hali hisoblanmoqda; tugashini kuting.",
+        "en": "The view (filter or sort) is still being computed; wait until it is done.",
+    },
+    "gui.validatepanel.whole_document": {
+        "uz": "Bu xato butun hujjatga (yozuvlar to'plamiga) tegishli: daraxtda unga alohida tugun yo'q.",
+        "en": "This problem concerns the whole document (the set of records): it has no node of its own in the "
+              "tree.",
+    },
+    "gui.validatepanel.records": {"uz": "Xatoli yozuvlarni ko'rsatish", "en": "Show the invalid records"},
+    "gui.validatepanel.records.tip": {
+        "uz": "Schemaga mos kelmagan yozuvlarni ko'rinish sifatida ochish (filtr va tartiblash ularga qo'llanadi)",
+        "en": "Show the records that do not match the schema as the view (filter and sort then work on them)",
+    },
+    "gui.validatepanel.records.need": {
+        "uz": "Avval tekshiruvni oxirigacha bajaring.",
+        "en": "Run a complete validation first.",
+    },
+    "gui.validatepanel.records.none": {"uz": "Xatoli yozuv yo'q.", "en": "There are no invalid records."},
+    "gui.validatepanel.records.outdated": {
+        "uz": "Hujjat tekshiruvdan keyin o'zgardi: qaytadan tekshiring.",
+        "en": "The document changed after the validation: validate again.",
+    },
+    "gui.validatepanel.records.single": {
+        "uz": "Bitta qiymatli hujjatda yozuvlar ko'rinishi yo'q.",
+        "en": "A single-value document has no record view.",
+    },
+    "gui.validatepanel.records_label": {"uz": "Schemaga mos emas: {name}", "en": "Not matching {name}"},
+    "gui.validatepanel.task.records": {
+        "uz": "Xatoli yozuvlar tayyorlanmoqda",
+        "en": "Preparing the invalid records",
+    },
+    "gui.validatepanel.export": {"uz": "Eksport…", "en": "Export…"},
+    "gui.validatepanel.export.tip": {
+        "uz": "Barcha xatolarni (faqat ro'yxatdagilarni emas) CSV yoki JSON Lines faylga yozish: hujjat joriy "
+              "sozlamalar bilan qaytadan tekshiriladi.",
+        "en": "Write every problem (not only the listed ones) to a CSV or JSON Lines file: the document is "
+              "validated again with the current settings.",
+    },
+    "gui.validatepanel.export.title": {"uz": "Xatolarni eksport qilish", "en": "Export the problems"},
+    "gui.validatepanel.export.filter": {
+        "uz": "CSV (*.csv);;JSON Lines (*.jsonl)",
+        "en": "CSV (*.csv);;JSON Lines (*.jsonl)",
+    },
+    "gui.validatepanel.export.task": {
+        "uz": "Schema xatolari eksport qilinmoqda: {name}",
+        "en": "Exporting the schema problems: {name}",
+    },
+    "gui.validatepanel.export.done": {"uz": "{count} ta xato yozildi: {path}", "en": "{count} problems written to {path}"},
+    "gui.validatepanel.export.bad_format": {
+        "uz": "Faqat .csv yoki .jsonl fayl yozish mumkin: {name}",
+        "en": "Only a .csv or .jsonl file can be written: {name}",
+    },
+    "gui.validatepanel.menu.show": {"uz": "Daraxtda ko'rsatish", "en": "Show in the tree"},
+    "gui.validatepanel.menu.copy_message": {"uz": "Xato matnini nusxalash", "en": "Copy the message"},
+    "gui.validatepanel.menu.copy_path": {"uz": "Yo'lni nusxalash", "en": "Copy the path"},
+    "gui.validatepanel.menu.copy_rows": {"uz": "Tanlangan qatorlarni nusxalash", "en": "Copy the selected rows"},
+    # ---- gui.repairdialog ----
+    "gui.repairdialog.menu.repair": {"uz": "JSON'ni ta'mirlash…", "en": "Repair JSON…"},
+    "gui.repairdialog.menu.repair.tip": {
+        "uz": "Buzilgan JSON fayldan to'g'ri JSON nusxa yasash (manba fayl o'zgarmaydi)",
+        "en": "Make a valid copy of a broken JSON file (the source file is not changed)",
+    },
+    "gui.repairdialog.bar.repair": {"uz": "Ta'mirlash…", "en": "Repair…"},
+    "gui.repairdialog.bar.brace_list": {"uz": "Standart JSON'ga aylantirish…", "en": "Convert to standard JSON…"},
+    "gui.repairdialog.title": {"uz": "JSON'ni ta'mirlash — {name}", "en": "Repair JSON — {name}"},
+    "gui.repairdialog.title_none": {"uz": "JSON'ni ta'mirlash", "en": "Repair JSON"},
+    "gui.repairdialog.intro": {
+        "uz": "Buzilgan JSON fayldan to'g'ri JSON nusxa yasaladi. Manba fayl o'zgarmaydi; har bir tuzatish "
+              "hisobotda ko'rsatiladi, hech narsa jimgina o'zgartirilmaydi.",
+        "en": "A valid JSON copy is made of a broken JSON file. The source file is not changed; every fix is "
+              "listed in the report, nothing is changed silently.",
+    },
+    "gui.repairdialog.browse": {"uz": "Tanlash…", "en": "Browse…"},
+    "gui.repairdialog.source.label": {"uz": "&Manba:", "en": "&Source:"},
+    "gui.repairdialog.source.title": {"uz": "Ta'mirlanadigan faylni tanlash", "en": "Choose the file to repair"},
+    "gui.repairdialog.source.filter": {
+        "uz": "JSON fayllar (*.json *.jsonl *.ndjson *.geojson *.gz *.txt);;Barcha fayllar (*)",
+        "en": "JSON files (*.json *.jsonl *.ndjson *.geojson *.gz *.txt);;All files (*)",
+    },
+    "gui.repairdialog.source.need": {"uz": "Ta'mirlanadigan faylni tanlang.", "en": "Choose the file to repair."},
+    "gui.repairdialog.target.label": {"uz": "&Natija:", "en": "&Output:"},
+    "gui.repairdialog.target.title": {"uz": "Ta'mirlangan faylni saqlash", "en": "Save the repaired file"},
+    "gui.repairdialog.target.filter": {
+        "uz": "JSON (*.json);;JSON Lines (*.jsonl);;Siqilgan JSON (*.gz);;Barcha fayllar (*)",
+        "en": "JSON (*.json);;JSON Lines (*.jsonl);;Compressed JSON (*.gz);;All files (*)",
+    },
+    "gui.repairdialog.same_file.hint": {
+        "uz": "Ta'mirlangan nusxa hech qachon manba faylning ustiga yozilmaydi: boshqa nom tanlang.",
+        "en": "The repaired copy is never written over the source file: choose another name.",
+    },
+    "gui.repairdialog.overwrite": {
+        "uz": "{path} allaqachon bor. Ustiga yozilsinmi?",
+        "en": "{path} already exists. Overwrite it?",
+    },
+    "gui.repairdialog.options": {"uz": "Parametrlar", "en": "Options"},
+    "gui.repairdialog.format.label": {"uz": "&Format:", "en": "&Format:"},
+    "gui.repairdialog.format.auto": {"uz": "Avtomatik aniqlash", "en": "Detect automatically"},
+    "gui.repairdialog.format.tip": {
+        "uz": "Buzilgan fayl boshida format noto'g'ri aniqlanishi mumkin; kerak bo'lsa shu yerda ko'rsating.",
+        "en": "The format of a broken file may be detected wrongly; choose it here when needed.",
+    },
+    "gui.repairdialog.record_path.label": {"uz": "&Yozuvlar yo'li:", "en": "&Record path:"},
+    "gui.repairdialog.record_path.placeholder": {
+        "uz": "masalan: data.items (ixtiyoriy)",
+        "en": "e.g. data.items (optional)",
+    },
+    "gui.repairdialog.record_path.invalid": {
+        "uz": "Yozuvlar yo'li noto'g'ri: {error}",
+        "en": "Invalid record path: {error}",
+    },
+    "gui.repairdialog.nan.label": {"uz": "NaN / &Infinity:", "en": "NaN / &Infinity:"},
+    "gui.repairdialog.nan.null": {"uz": "null ga almashtirish", "en": "replace with null"},
+    "gui.repairdialog.nan.string": {"uz": "matn sifatida saqlash (\"NaN\")", "en": "keep as text (\"NaN\")"},
+    "gui.repairdialog.jsonl": {
+        "uz": "Ketma-ket qiymatlarni JSON Lines qilib yozish",
+        "en": "Write concatenated values as JSON Lines",
+    },
+    "gui.repairdialog.jsonl.tip": {
+        "uz": "Faqat bir-biridan keyin kelgan qiymatlar yoki JSON Lines fayl uchun; aks holda natija massiv "
+              "bo'ladi.",
+        "en": "Only for values one after another or a JSON Lines file; otherwise the result is an array.",
+    },
+    "gui.repairdialog.partial": {
+        "uz": "Ta'mirlab bo'lmaydigan joydan oldingi yozuvlarni saqlash",
+        "en": "Keep the records before an unrepairable place",
+    },
+    "gui.repairdialog.partial.tip": {
+        "uz": "O'chiq bo'lsa, ta'mirlab bo'lmaydigan muammo topilganda hech narsa yozilmaydi.",
+        "en": "When off, nothing is written if an unrepairable problem is found.",
+    },
+    "gui.repairdialog.check": {"uz": "Tekshirish", "en": "Check"},
+    "gui.repairdialog.check.tip": {
+        "uz": "Faylni tekshirish: nima tuzatilishini ko'rsatadi, hech narsa yozmaydi",
+        "en": "Check the file: shows what would be fixed, writes nothing",
+    },
+    "gui.repairdialog.repair": {"uz": "Ta'mirlash", "en": "Repair"},
+    "gui.repairdialog.repair.tip": {
+        "uz": "Ta'mirlangan nusxani natija fayliga yozish",
+        "en": "Write the repaired copy to the output file",
+    },
+    "gui.repairdialog.stop": {"uz": "To'xtatish", "en": "Stop"},
+    "gui.repairdialog.task.check": {"uz": "Tekshirilmoqda: {name}", "en": "Checking {name}"},
+    "gui.repairdialog.task.repair": {"uz": "Ta'mirlanmoqda: {name}", "en": "Repairing {name}"},
+    "gui.repairdialog.progress": {"uz": "{done} / {total} · {rate}/s", "en": "{done} / {total} · {rate}/s"},
+    "gui.repairdialog.progress_eta": {
+        "uz": "{done} / {total} · {rate}/s · {eta} qoldi",
+        "en": "{done} / {total} · {rate}/s · {eta} left",
+    },
+    "gui.repairdialog.cancelled": {"uz": "To'xtatildi; hech narsa yozilmadi.", "en": "Stopped; nothing was written."},
+    "gui.repairdialog.failed": {"uz": "Bajarilmadi: {error}", "en": "Failed: {error}"},
+    "gui.repairdialog.status.written": {"uz": "Ta'mirlandi: {path}", "en": "Repaired: {path}"},
+    "gui.repairdialog.confirm_stop": {
+        "uz": "Ta'mirlash hali tugamagan. U to'xtatilib, oyna yopilsinmi? (Hech narsa yozilmaydi.)",
+        "en": "The repair has not finished. Stop it and close the window? (Nothing is written.)",
+    },
+    "gui.repairdialog.kinds": {"uz": "Format: {kind} → natija: {output}", "en": "Format: {kind} → output: {output}"},
+    "gui.repairdialog.kinds.record_path": {"uz": "yozuvlar yo'li: {path}", "en": "record path: {path}"},
+    "gui.repairdialog.col.category": {"uz": "Turi", "en": "Kind"},
+    "gui.repairdialog.col.fix": {"uz": "Tuzatish", "en": "Fix"},
+    "gui.repairdialog.col.count": {"uz": "Soni", "en": "Count"},
+    "gui.repairdialog.col.first": {"uz": "Birinchi joyi", "en": "First place"},
+    "gui.repairdialog.col.line": {"uz": "Qator", "en": "Line"},
+    "gui.repairdialog.col.column": {"uz": "Ustun", "en": "Column"},
+    "gui.repairdialog.col.before": {"uz": "Oldin", "en": "Before"},
+    "gui.repairdialog.col.after": {"uz": "Keyin", "en": "After"},
+    "gui.repairdialog.col.record": {"uz": "Yozuv", "en": "Record"},
+    "gui.repairdialog.col.record.tip": {
+        "uz": "Ta'mirlangan fayldagi yozuv raqami (0 dan)",
+        "en": "The record number in the repaired file (from 0)",
+    },
+    "gui.repairdialog.location": {"uz": "{line}-qator, {column}-ustun", "en": "line {line}, column {column}"},
+    "gui.repairdialog.location.tip": {
+        "uz": "Manba faylning {offset}-bayti; ko'rish uchun ikki marta bosing yoki Enter",
+        "en": "Byte {offset} of the source file; double-click or press Enter to see it",
+    },
+    "gui.repairdialog.nothing": {"uz": "(hech narsa)", "en": "(nothing)"},
+    "gui.repairdialog.summary.empty": {"uz": "Tuzatish kerak bo'lmadi", "en": "Nothing needed fixing"},
+    "gui.repairdialog.fixes.title": {"uz": "Barcha tuzatishlar ({count} ta):", "en": "Every fix ({count}):"},
+    "gui.repairdialog.fixes.shown": {
+        "uz": "Ro'yxatda dastlabki {shown} ta tuzatish (jami {total} ta); hammasini \"Hisobotni saqlash\" orqali "
+              "olish mumkin.",
+        "en": "The first {shown} fixes are listed ({total} in all); save the report to get all of them.",
+    },
+    "gui.repairdialog.fixes.empty": {"uz": "Tuzatishlar shu yerda chiqadi", "en": "The fixes appear here"},
+    "gui.repairdialog.truncated.title": {"uz": "Fayl kesilgan", "en": "The file is cut off"},
+    "gui.repairdialog.truncated.text": {
+        "uz": "Ma'lumot {line}-qator, {column}-ustunda uziladi. Oxirgi to'liq yozuvgacha saqlandi: {kept} ta "
+              "yozuv; tashlab yuborildi: {dropped}; oxiriga qo'shildi: {closers}",
+        "en": "The data breaks off at line {line}, column {column}. Kept up to the last complete record: {kept} "
+              "records; dropped: {dropped}; appended: {closers}",
+    },
+    "gui.repairdialog.problem.title": {"uz": "Ta'mirlab bo'lmaydigan joy", "en": "An unrepairable place"},
+    "gui.repairdialog.problem.nothing_written": {"uz": "Hech narsa yozilmadi.", "en": "Nothing was written."},
+    "gui.repairdialog.show_location": {"uz": "Joyini ko'rsatish", "en": "Show the place"},
+    "gui.repairdialog.show_location.tip": {
+        "uz": "Manba faylning xom ko'rinishida shu joyni ochish",
+        "en": "Open this place in the raw view of the source file",
+    },
+    "gui.repairdialog.show_location.none": {
+        "uz": "Manba fayl ochiq varaqda emas: joyini ko'rsatib bo'lmaydi.",
+        "en": "The source file is not open in a tab: the place cannot be shown.",
+    },
+    "gui.repairdialog.save_partial": {"uz": "Qisman natijani saqlash", "en": "Save the partial result"},
+    "gui.repairdialog.save_partial.tip": {
+        "uz": "Muammodan oldingi to'liq yozuvlarni natija fayliga yozish (to'g'ri yopilgan holda)",
+        "en": "Write the complete records before the problem to the output file (properly closed)",
+    },
+    "gui.repairdialog.save_report": {"uz": "Hisobotni saqlash…", "en": "Save the report…"},
+    "gui.repairdialog.save_report.title": {"uz": "Ta'mirlash hisobotini saqlash", "en": "Save the repair report"},
+    "gui.repairdialog.save_report.filter": {
+        "uz": "CSV (*.csv);;JSON (*.json);;JSON Lines (*.jsonl)",
+        "en": "CSV (*.csv);;JSON (*.json);;JSON Lines (*.jsonl)",
+    },
+    "gui.repairdialog.save_report.task": {
+        "uz": "Ta'mirlash hisoboti yozilmoqda: {name}",
+        "en": "Writing the repair report: {name}",
+    },
+    "gui.repairdialog.save_report.done": {"uz": "Hisobot yozildi: {path}", "en": "Report written: {path}"},
+    "gui.repairdialog.save_report.none": {"uz": "Avval tekshiring yoki ta'mirlang.", "en": "Check or repair first."},
+    "gui.repairdialog.save_report.bad_format": {
+        "uz": "Hisobot faqat .csv, .json yoki .jsonl faylga yoziladi: {name}",
+        "en": "The report is written only to a .csv, .json or .jsonl file: {name}",
+    },
+    "gui.repairdialog.open": {"uz": "Ta'mirlangan faylni ochish", "en": "Open the repaired file"},
+    "gui.repairdialog.open.tip": {"uz": "Yangi varaqda ochish", "en": "Open it in a new tab"},
+    # ---- gui.filetools ----
+    # split / merge dialogs (gui/filetoolsdialog.py, docs/ARCHITECTURE.md §14.9); the action texts are for the menus
+    "gui.filetools.action.split": {"uz": "Faylni bo'lish…", "en": "Split file…"},
+    "gui.filetools.action.split.tip": {
+        "uz": "Faylni yoki joriy ko'rinishni bir nechta kichikroq faylga bo'lish",
+        "en": "Split the file or the current view into several smaller files",
+    },
+    "gui.filetools.action.split_node": {"uz": "Shu tugunni qismlarga bo'lish…", "en": "Split this node into parts…"},
+    "gui.filetools.action.split_node.tip": {
+        "uz": "Shu massiv elementlarini (yoki obyekt a'zolarini) bir nechta faylga bo'lish",
+        "en": "Split the elements of this array (or the members of this object) into several files",
+    },
+    "gui.filetools.action.merge": {"uz": "Fayllarni birlashtirish…", "en": "Merge files…"},
+    "gui.filetools.action.merge.tip": {
+        "uz": "Bir nechta JSON / JSON Lines fayl va ochiq tablarni bitta faylga birlashtirish",
+        "en": "Merge several JSON / JSON Lines files and open tabs into one file",
+    },
+    "gui.filetools.choose": {"uz": "Tanlash…", "en": "Choose…"},
+    "gui.filetools.close.tip": {
+        "uz": "Oynani yopish; boshlangan ish davom etadi (Vazifalar panelida) va natijasi baribir ko'rsatiladi",
+        "en": "Close the window; a started job goes on (in the Tasks panel) and its result is still shown",
+    },
+    "gui.filetools.stop": {"uz": "To'xtatish", "en": "Stop"},
+    "gui.filetools.stop.tip": {
+        "uz": "Ishni to'xtatish: hech qanday fayl yozilmaydi, mavjud fayllar o'zgarmaydi",
+        "en": "Stop the job: no file is written, existing files stay as they were",
+    },
+    "gui.filetools.more_names": {"uz": "va yana {count} ta", "en": "and {count} more"},
+    "gui.filetools.format.same": {"uz": "Asl formatda (baytma-bayt nusxa)", "en": "Original format (byte-for-byte copy)"},
+    "gui.filetools.format.same.tip": {
+        "uz": "Qismlar faylning o'z turida, kodlashida va siqilishida (gzip) yoziladi; yozuvlar baytma-bayt "
+              "ko'chiriladi. Joriy ko'rinish bo'linganda yozuvlar fayl formatida qayta yoziladi.",
+        "en": "The parts keep the file's own kind, encoding and compression (gzip); the records are copied byte "
+              "for byte. When the current view is split, its records are written again in the file's format.",
+    },
+    "gui.filetools.format.json": {"uz": "JSON", "en": "JSON"},
+    "gui.filetools.format.jsonl": {"uz": "JSON Lines (har qatorda bitta yozuv)", "en": "JSON Lines (one record per line)"},
+    "gui.filetools.format.csv": {"uz": "CSV (jadval)", "en": "CSV (table)"},
+    "gui.filetools.format.xlsx": {"uz": "Excel (XLSX)", "en": "Excel (XLSX)"},
+    "gui.filetools.format.sqlite": {"uz": "SQLite ma'lumotlar bazasi", "en": "SQLite database"},
+    "gui.filetools.indent": {"uz": "Chekinish:", "en": "Indentation:"},
+    "gui.filetools.indent.2": {"uz": "2 bo'shliq", "en": "2 spaces"},
+    "gui.filetools.indent.4": {"uz": "4 bo'shliq", "en": "4 spaces"},
+    "gui.filetools.indent.tab": {"uz": "Tab", "en": "Tab"},
+    "gui.filetools.indent.compact": {"uz": "Ixcham (bo'shliqlarsiz)", "en": "Compact (no whitespace)"},
+    "gui.filetools.indent.n": {"uz": "{n} bo'shliq", "en": "{n} spaces"},
+    "gui.filetools.sort": {"uz": "Kalitlarni tartiblash:", "en": "Sort keys:"},
+    "gui.filetools.sort.none": {"uz": "Yo'q (fayldagi tartib)", "en": "No (file order)"},
+    "gui.filetools.sort.alpha": {"uz": "Alifbo bo'yicha", "en": "Alphabetically"},
+    "gui.filetools.sort.codepoint": {"uz": "Kod nuqtasi bo'yicha", "en": "By code point"},
+    "gui.filetools.sort.tip": {
+        "uz": "Har bir yozuvdagi obyekt kalitlarini tartiblash (o'zbek alifbosi, raqamlar tabiiy tartibda); "
+              "yozuvlarning o'z tartibi o'zgarmaydi",
+        "en": "Sort the object keys inside every record (Uzbek collation, numbers in natural order); the order of "
+              "the records does not change",
+    },
+    "gui.filetools.split.title": {"uz": "Faylni bo'lish — {name}", "en": "Split file — {name}"},
+    "gui.filetools.split.source.title": {"uz": "Nimani bo'lish", "en": "What to split"},
+    "gui.filetools.split.source.document": {
+        "uz": "Butun fayl ({count} ta yozuv)",
+        "en": "The whole file ({count} records)",
+    },
+    "gui.filetools.split.source.view": {
+        "uz": "Joriy ko'rinish: {label} ({count} ta yozuv)",
+        "en": "The current view: {label} ({count} records)",
+    },
+    "gui.filetools.split.source.view_all": {
+        "uz": "Joriy ko'rinish (barcha {count} ta yozuv)",
+        "en": "The current view (all {count} records)",
+    },
+    "gui.filetools.split.source.node": {"uz": "Tugun: {path}", "en": "Node: {path}"},
+    "gui.filetools.split.source.node.tip": {
+        "uz": "Tugundagi massiv elementlari (yoki obyekt a'zolari) qismlarga bo'linadi; buning uchun fayl shu "
+              "tugun yozuvlar sifatida qayta o'qiladi.",
+        "en": "The elements of the node's array (or the members of its object) are split into parts; for that the "
+              "file is read again with this node as the records.",
+    },
+    "gui.filetools.split.mode.title": {"uz": "Qanday bo'lish", "en": "How to split"},
+    "gui.filetools.split.mode.parts": {"uz": "Qismlar soni:", "en": "Number of parts:"},
+    "gui.filetools.split.mode.records": {"uz": "Har qismdagi yozuvlar:", "en": "Records per part:"},
+    "gui.filetools.split.mode.size": {"uz": "Qism hajmi:", "en": "Part size:"},
+    "gui.filetools.split.balance.bytes": {"uz": "hajmi teng", "en": "equal size"},
+    "gui.filetools.split.balance.records": {"uz": "yozuvlari soni teng", "en": "equal record counts"},
+    "gui.filetools.split.balance.tip": {
+        "uz": "Qismlar hajm (baytlar) yoki yozuvlar soni bo'yicha teng bo'linadi",
+        "en": "The parts are balanced by size (bytes) or by the number of records",
+    },
+    "gui.filetools.split.size.placeholder": {"uz": "masalan: 100 MB", "en": "for example: 100 MB"},
+    "gui.filetools.split.size.tip": {
+        "uz": "Har bir qismning eng katta hajmi. Birliklar: KB, MB, GB (1 MB = 1024 KB); faqat son yozilsa — MB. "
+              "Yozuvning o'zi bundan katta bo'lsa, u alohida qismga yoziladi.",
+        "en": "The largest size of each part. Units: KB, MB, GB (1 MB = 1024 KB); a plain number means MB. A "
+              "record larger than that by itself gets a part of its own.",
+    },
+    "gui.filetools.split.output.title": {"uz": "Natija", "en": "Result"},
+    "gui.filetools.split.folder": {"uz": "&Papka:", "en": "&Folder:"},
+    "gui.filetools.split.folder.title": {"uz": "Qismlar yoziladigan papka", "en": "Folder for the parts"},
+    "gui.filetools.split.name": {"uz": "&Nom andozasi:", "en": "&Name pattern:"},
+    "gui.filetools.split.name.tip": {
+        "uz": "{stem} — fayl nomi, {n} — qism raqami (majburiy), {ext} — kengaytma. Masalan: {stem}_qism{n}{ext}",
+        "en": "{stem} — the file name, {n} — the part number (required), {ext} — the extension. For example: "
+              "{stem}_part{n}{ext}",
+    },
+    "gui.filetools.split.format": {"uz": "F&ormat:", "en": "F&ormat:"},
+    "gui.filetools.split.keep_wrapper": {
+        "uz": "Har bir qismda o'ram (wrapper) saqlansin",
+        "en": "Keep the wrapper in every part",
+    },
+    "gui.filetools.split.keep_wrapper.tip": {
+        "uz": "Yozuvlar massivini o'rab turgan obyekt (masalan, meta) har bir qismga yoziladi. Belgilanmasa, "
+              "qismda faqat yozuvlar bo'ladi.",
+        "en": "The object around the record array (for example meta) is written into every part. Unchecked: the "
+              "parts hold the records only.",
+    },
+    "gui.filetools.split.keep_wrapper.only_wrapped": {
+        "uz": "Faqat yozuvlari obyekt ichida joylashgan fayllar uchun",
+        "en": "Only for files whose records are inside an object",
+    },
+    "gui.filetools.split.drop_broken": {"uz": "Buzuq qatorlarni tashlab yuborish", "en": "Leave out the broken lines"},
+    "gui.filetools.split.drop_broken.tip": {
+        "uz": "Faylda {count} ta buzuq qator bor: belgilansa, ular qismlarga yozilmaydi.",
+        "en": "The file has {count} broken lines: when checked, they are not written to the parts.",
+    },
+    "gui.filetools.split.drop_broken.none": {"uz": "Faylda buzuq qatorlar yo'q", "en": "The file has no broken lines"},
+    "gui.filetools.split.remove_stale": {"uz": "Eski qismlarni o'chirish", "en": "Remove the old parts"},
+    "gui.filetools.split.remove_stale.tip": {
+        "uz": "Belgilansa, papkada oldingi bo'lishdan qolgan qismlar yangi qismlar bilan bir vaqtda o'chiriladi: "
+              "shu nom andozasidagi, raqamlari uzilishsiz davom etadigan fayllar (masalan, fayl avval 12 ta, endi "
+              "10 ta qismga bo'linsa — _11 va _12). Hech qachon o'chirilmaydi: manba fayl, faqat o'qish uchun "
+              "bo'lgan fayllar, dasturda saqlanmagan o'zgarishlari bor fayllar va oldingi bo'lishga o'xshamaydigan "
+              "fayllar (masalan, x_2023.json yoki yolg'iz x_1.json) — ular faqat ogohlantirishda nomlanadi.",
+        "en": "When checked, the parts that an earlier split left in the folder are deleted together with writing "
+              "the new parts: files of the same name pattern whose numbers go on without a gap (for example _11 "
+              "and _12 when a file split into 12 parts is now split into 10). Never deleted: the source file, "
+              "read-only files, files with unsaved changes in this program and files that do not look like an "
+              "earlier split (for example x_2023.json or a lone x_1.json) — those are only named in a warning.",
+    },
+    "gui.filetools.split.edited_note": {
+        "uz": "Hujjatda saqlanmagan o'zgarishlar bor: ular ham qismlarga kiradi (faylning o'zi o'zgarmaydi).",
+        "en": "The document has unsaved changes: the parts include them (the file itself is not changed).",
+    },
+    "gui.filetools.split.plan.title": {"uz": "Reja", "en": "Plan"},
+    "gui.filetools.split.plan.pending": {"uz": "Reja tuzilmoqda…", "en": "Planning…"},
+    "gui.filetools.split.plan.stale": {
+        "uz": "Hujjat o'zgardi — reja qaytadan tuzilmoqda…",
+        "en": "The document changed — planning again…",
+    },
+    "gui.filetools.split.plan.summary": {
+        "uz": "{parts} ta qism · {records} ta yozuv · jami ≈ {size}",
+        "en": "{parts} parts · {records} records · ≈ {size} in all",
+    },
+    "gui.filetools.split.plan.col.n": {"uz": "#", "en": "#"},
+    "gui.filetools.split.plan.col.name": {"uz": "Fayl", "en": "File"},
+    "gui.filetools.split.plan.col.range": {"uz": "Oraliq", "en": "Range"},
+    "gui.filetools.split.plan.col.range.tip": {
+        "uz": "Qismdagi birinchi va oxirgi yozuvning o'rni (0 dan; ko'rinish bo'linganda — ko'rinishdagi o'rni)",
+        "en": "The positions of the part's first and last record (from 0; for a view: its positions in the view)",
+    },
+    "gui.filetools.split.plan.col.records": {"uz": "Yozuvlar", "en": "Records"},
+    "gui.filetools.split.plan.col.size": {"uz": "Hajm", "en": "Size"},
+    "gui.filetools.split.plan.range": {"uz": "#{first} – #{last}", "en": "#{first} – #{last}"},
+    "gui.filetools.split.plan.more": {"uz": "… yana {count} ta qism", "en": "… {count} more parts"},
+    "gui.filetools.split.plan.existing": {
+        "uz": "{count} ta mavjud fayl almashtiriladi: {names}",
+        "en": "{count} existing files will be replaced: {names}",
+    },
+    "gui.filetools.split.plan.space": {
+        "uz": "Diskda joy yetmasligi mumkin: taxminan {need} kerak, bo'sh joy {free}.",
+        "en": "The disk may not have enough space: about {need} is needed, {free} is free.",
+    },
+    "gui.filetools.split.plan_task": {"uz": "Bo'lish rejasi: {name}", "en": "Split plan: {name}"},
+    "gui.filetools.split.run": {"uz": "&Bo'lish", "en": "&Split"},
+    "gui.filetools.split.task": {"uz": "Bo'linmoqda: {name}", "en": "Splitting {name}"},
+    "gui.filetools.split.progress.node": {"uz": "Tugun o'qilmoqda: {path}", "en": "Reading the node {path}"},
+    "gui.filetools.split.overwrite": {
+        "uz": "{count} ta fayl almashtiriladi:\n{names}\n\nDavom etilsinmi?",
+        "en": "{count} files will be replaced:\n{names}\n\nContinue?",
+    },
+    "gui.filetools.split.overwrite_open": {
+        "uz": "{count} ta fayl almashtiriladi:\n{names}\n\nUlardan {open} tasi boshqa tabda ochiq: {tabs}. O'sha "
+              "tablar yangi fayllarni qayta ochadi.\n\nDavom etilsinmi?",
+        "en": "{count} files will be replaced:\n{names}\n\n{open} of them are open in other tabs: {tabs}. Those "
+              "tabs will open the new files again.\n\nContinue?",
+    },
+    "gui.filetools.error.bad_size": {
+        "uz": "Qism hajmi noto'g'ri: «{text}». Misol: 100 MB, 1.5 GB, 500 KB.",
+        "en": "Invalid part size: \"{text}\". For example: 100 MB, 1.5 GB, 500 KB.",
+    },
+    "gui.filetools.error.need_folder": {
+        "uz": "Qismlar uchun papkani ko'rsating.",
+        "en": "Choose the folder for the parts.",
+    },
+    "gui.filetools.error.not_dir": {"uz": "Bu papka emas: {path}", "en": "This is not a folder: {path}"},
+    "gui.filetools.error.not_ready": {
+        "uz": "Fayl hali ochilmoqda yoki indekslanmoqda; tugashini kuting.",
+        "en": "The file is still being opened or indexed; wait until it is done.",
+    },
+    "gui.filetools.error.closed": {"uz": "Fayl yopilgan.", "en": "The file was closed."},
+    "gui.filetools.error.view_busy": {
+        "uz": "Ko'rinish hali hisoblanmoqda (filtr yoki tartiblash); tugashini kuting.",
+        "en": "The view is still being computed (filter or sort); wait until it is done.",
+    },
+    "gui.filetools.error.view_changed": {
+        "uz": "Ko'rinish o'zgarib ketdi; qaytadan urinib ko'ring.",
+        "en": "The view changed meanwhile; try again.",
+    },
+    "gui.filetools.error.node_edited": {
+        "uz": "Tugunni bo'lish uchun avval o'zgarishlarni saqlang: tugun fayldan qayta o'qiladi.",
+        "en": "Save the changes first to split a node: the node is read from the file again.",
+    },
+    "gui.filetools.error.node_kind": {
+        "uz": "«{kind}» faylidagi tugunni alohida bo'lib bo'lmaydi. Butun faylni yoki ko'rinishni bo'ling yoki "
+              "tugunni avval alohida faylga ajrating.",
+        "en": "A node of a \"{kind}\" file cannot be split on its own. Split the whole file or the view, or "
+              "extract the node into a file of its own first.",
+    },
+    "gui.filetools.error.node_scalar": {
+        "uz": "Tugun massiv yoki obyekt emas, uni bo'lib bo'lmaydi: {path}",
+        "en": "The node is not an array or an object, so it cannot be split: {path}",
+    },
+    "gui.filetools.error.node_missing": {
+        "uz": "Tugun faylda topilmadi: {path}",
+        "en": "The node was not found in the file: {path}",
+    },
+    "gui.filetools.error.unexpected": {"uz": "Kutilmagan xato: {error}", "en": "Unexpected error: {error}"},
+    "gui.filetools.hint.single": {
+        "uz": "Daraxtda ichidagi massivni tanlang va uning menyusidan «Shu tugunni qismlarga bo'lish…» ni "
+              "tanlang.",
+        "en": "Select the array inside it in the tree and choose \"Split this node into parts…\" from its menu.",
+    },
+    "gui.filetools.hint.partial": {
+        "uz": "Avval faylni ta'mirlang (Asboblar ▸ Ta'mirlash…), keyin ta'mirlangan faylni bo'ling.",
+        "en": "Repair the file first (Tools ▸ Repair…), then split the repaired file.",
+    },
+    "gui.filetools.hint.broken": {
+        "uz": "Ularsiz bo'lish uchun «Buzuq qatorlarni tashlab yuborish» ni belgilang.",
+        "en": "Check \"Leave out the broken lines\" to split without them.",
+    },
+    "gui.filetools.hint.partial_input": {
+        "uz": "Faylni ta'mirlang yoki «JSON xatosi bor fayllardan xatogacha bo'lgan yozuvlarni olish» ni "
+              "belgilang.",
+        "en": "Repair the file or check \"Take the records before the error from files with a JSON error\".",
+    },
+    "gui.filetools.hint.merge_format": {
+        "uz": "Natijani .json yoki .jsonl faylga yozing, keyin uni Eksport bilan kerakli formatga o'giring.",
+        "en": "Write the result to a .json or .jsonl file, then convert it with Export.",
+    },
+    "gui.filetools.merge.title": {"uz": "Fayllarni birlashtirish", "en": "Merge files"},
+    "gui.filetools.merge.inputs": {
+        "uz": "Birlashtiriladigan fayllar (shu tartibda)",
+        "en": "Files to merge (in this order)",
+    },
+    "gui.filetools.merge.add_files": {"uz": "Fayl &qo'shish…", "en": "&Add files…"},
+    "gui.filetools.merge.add_files.title": {
+        "uz": "Birlashtiriladigan fayllarni tanlang",
+        "en": "Choose the files to merge",
+    },
+    "gui.filetools.merge.add_tabs": {"uz": "Ochiq tablar", "en": "Open tabs"},
+    "gui.filetools.merge.add_tabs.all": {"uz": "Barcha ochiq tablar", "en": "All open tabs"},
+    "gui.filetools.merge.add_tabs.none": {"uz": "Ochiq tab yo'q", "en": "No open tabs"},
+    "gui.filetools.merge.remove": {"uz": "Olib tashlash", "en": "Remove"},
+    "gui.filetools.merge.remove.tip": {
+        "uz": "Tanlangan faylni ro'yxatdan olib tashlash (Delete)",
+        "en": "Remove the selected file from the list (Delete)",
+    },
+    "gui.filetools.merge.up": {"uz": "Yuqoriga", "en": "Move up"},
+    "gui.filetools.merge.up.tip": {
+        "uz": "Tanlangan faylni bitta yuqoriga surish (Alt+↑)",
+        "en": "Move the selected file up (Alt+↑)",
+    },
+    "gui.filetools.merge.down": {"uz": "Pastga", "en": "Move down"},
+    "gui.filetools.merge.down.tip": {
+        "uz": "Tanlangan faylni bitta pastga surish (Alt+↓)",
+        "en": "Move the selected file down (Alt+↓)",
+    },
+    "gui.filetools.merge.files_filter": {
+        "uz": "JSON fayllar ({patterns});;Barcha fayllar (*)",
+        "en": "JSON files ({patterns});;All files (*)",
+    },
+    "gui.filetools.merge.input.probing": {"uz": "{name} — tekshirilmoqda…", "en": "{name} — checking…"},
+    "gui.filetools.merge.input.file": {
+        "uz": "{name} — {kind} · {records} ta yozuv · {size}",
+        "en": "{name} — {kind} · {records} records · {size}",
+    },
+    "gui.filetools.merge.input.partial": {
+        "uz": "{name} — JSON xatosi ({line}-qator): xatogacha {records} ta yozuv bor",
+        "en": "{name} — JSON error (line {line}): {records} records before it",
+    },
+    "gui.filetools.merge.input.failed": {
+        "uz": "{name} — ochib bo'lmadi: {error}",
+        "en": "{name} — cannot be opened: {error}",
+    },
+    "gui.filetools.merge.input.tab": {
+        "uz": "{name} — ochiq tab · {kind} · {records} ta yozuv",
+        "en": "{name} — open tab · {kind} · {records} records",
+    },
+    "gui.filetools.merge.input.tab_dirty": {
+        "uz": "{name} — ochiq tab, saqlanmagan o'zgarishlar bilan · {kind} · {records} ta yozuv",
+        "en": "{name} — open tab with unsaved changes · {kind} · {records} records",
+    },
+    "gui.filetools.merge.input.tab_wait": {
+        "uz": "{name} — ochiq tab (hali indekslanmoqda…)",
+        "en": "{name} — open tab (still being indexed…)",
+    },
+    "gui.filetools.merge.output.title": {"uz": "Natija", "en": "Result"},
+    "gui.filetools.merge.output": {"uz": "&Fayl:", "en": "&File:"},
+    "gui.filetools.merge.output.choose_title": {"uz": "Natija fayli", "en": "Result file"},
+    "gui.filetools.merge.output_filter": {
+        "uz": "JSON (*.json *.json.gz);;JSON Lines (*.jsonl *.ndjson *.jsonl.gz)",
+        "en": "JSON (*.json *.json.gz);;JSON Lines (*.jsonl *.ndjson *.jsonl.gz)",
+    },
+    "gui.filetools.merge.format": {"uz": "Format:", "en": "Format:"},
+    "gui.filetools.merge.keep_wrapper": {
+        "uz": "Birinchi faylning o'rami (wrapper) saqlansin",
+        "en": "Keep the first file's wrapper",
+    },
+    "gui.filetools.merge.keep_wrapper.tip": {
+        "uz": "Birinchi faylning yozuvlari obyekt ichida bo'lsa (masalan, meta bilan), natija ham o'sha obyekt "
+              "ichida yoziladi; boshqa fayllarning o'ramlari tashlab yuboriladi.",
+        "en": "When the first file's records are inside an object (with meta, for example), the result is written "
+              "inside that object too; the wrappers of the other files are dropped.",
+    },
+    "gui.filetools.merge.keep_wrapper.jsonl": {
+        "uz": "JSON Lines faylda o'ram uchun joy yo'q",
+        "en": "A JSON Lines file has no place for a wrapper",
+    },
+    "gui.filetools.merge.allow_partial": {
+        "uz": "JSON xatosi bor fayllardan xatogacha bo'lgan yozuvlarni olish",
+        "en": "Take the records before the error from files with a JSON error",
+    },
+    "gui.filetools.merge.allow_partial.tip": {
+        "uz": "Belgilanmasa, JSON xatosi bor fayl birlashtirilmaydi (avval uni ta'mirlang)",
+        "en": "Unchecked: a file with a JSON error is not merged (repair it first)",
+    },
+    "gui.filetools.merge.dedupe": {"uz": "Takroriy yozuvlarni olib tashlash", "en": "Remove duplicate records"},
+    "gui.filetools.merge.dedupe.key": {"uz": "&Kalit:", "en": "&Key:"},
+    "gui.filetools.merge.dedupe.key.tip": {
+        "uz": "Yozuvlar shu maydon bo'yicha solishtiriladi (masalan, id yoki contact.phone). $ — butun yozuv, "
+              "$key — a'zo kaliti (kalitli fayllarda). Sonlar qiymati bo'yicha, obyektlar esa kalitlar "
+              "tartibidan qat'i nazar solishtiriladi.",
+        "en": "The records are compared by this field (for example id or contact.phone). $ — the whole record, "
+              "$key — the member key (keyed files). Numbers are compared by value, objects whatever the order of "
+              "their keys.",
+    },
+    "gui.filetools.merge.dedupe.whole": {"uz": "Butun yozuv", "en": "The whole record"},
+    "gui.filetools.merge.dedupe.member_key": {
+        "uz": "A'zo kaliti (kalitli fayllar)",
+        "en": "The member key (keyed files)",
+    },
+    "gui.filetools.merge.keep": {"uz": "Qoldirish:", "en": "Keep:"},
+    "gui.filetools.merge.keep.first": {
+        "uz": "birinchisini (oldingi fayl ustun)",
+        "en": "the first (the earlier file wins)",
+    },
+    "gui.filetools.merge.keep.last": {"uz": "oxirgisini", "en": "the last"},
+    "gui.filetools.merge.edited_note": {
+        "uz": "Ochiq tablarning saqlanmagan o'zgarishlari ham birlashtiriladi: {names}",
+        "en": "The unsaved changes of open tabs are merged too: {names}",
+    },
+    "gui.filetools.merge.warn.twice": {
+        "uz": "{name} ro'yxatda bir necha marta bor.",
+        "en": "{name} is listed more than once.",
+    },
+    "gui.filetools.merge.error.no_inputs": {
+        "uz": "Birlashtirish uchun kamida bitta fayl qo'shing.",
+        "en": "Add at least one file to merge.",
+    },
+    "gui.filetools.merge.error.need_output": {"uz": "Natija faylini ko'rsating.", "en": "Choose the result file."},
+    "gui.filetools.merge.error.output_is_input": {
+        "uz": "Natija fayli birlashtiriladigan fayllardan biri bo'la olmaydi: {path}",
+        "en": "The result file cannot be one of the files to merge: {path}",
+    },
+    "gui.filetools.merge.error.input_failed": {
+        "uz": "Faylni ochib bo'lmadi: {name}: {error}",
+        "en": "The file cannot be opened: {name}: {error}",
+    },
+    "gui.filetools.merge.error.tab_not_ready": {
+        "uz": "Ochiq tab hali tayyor emas (indekslanmoqda): {name}",
+        "en": "An open tab is not ready yet (being indexed): {name}",
+    },
+    "gui.filetools.merge.error.need_key": {
+        "uz": "Takroriylarni topish uchun kalitni yozing (masalan, id yoki $).",
+        "en": "Enter the key to find duplicates by (for example id or $).",
+    },
+    "gui.filetools.merge.run": {"uz": "&Birlashtirish", "en": "&Merge"},
+    "gui.filetools.merge.task": {"uz": "Birlashtirilmoqda: {name}", "en": "Merging into {name}"},
+    "gui.filetools.merge.probe_task": {"uz": "Fayl tekshirilmoqda: {name}", "en": "Checking {name}"},
+    "gui.filetools.merge.fields_task": {"uz": "Maydonlar aniqlanmoqda: {name}", "en": "Finding the fields of {name}"},
+    "gui.filetools.merge.progress.open": {"uz": "Ochilmoqda: {name}", "en": "Opening {name}"},
+    "gui.filetools.merge.progress.index": {"uz": "Indekslanmoqda: {name}", "en": "Indexing {name}"},
+    "gui.filetools.merge.overwrite": {
+        "uz": "Fayl allaqachon bor:\n{path}\n\nUning o'rniga yozilsinmi?",
+        "en": "The file already exists:\n{path}\n\nReplace it?",
+    },
+    "gui.filetools.status.running": {"uz": "Bajarilmoqda…", "en": "Running…"},
+    "gui.filetools.status.queued": {
+        "uz": "Navbatda: boshqa og'ir vazifa tugashini kutmoqda…",
+        "en": "Queued: waiting for another heavy task to finish…",
+    },
+    "gui.filetools.status.split_done": {"uz": "Tayyor: {parts} ta qism, {size}.", "en": "Done: {parts} parts, {size}."},
+    "gui.filetools.status.merge_done": {
+        "uz": "Tayyor: {records} ta yozuv, {size}.",
+        "en": "Done: {records} records, {size}.",
+    },
+    "gui.filetools.status.failed": {"uz": "Xato: {error}", "en": "Failed: {error}"},
+    "gui.filetools.status.refused": {"uz": "Bajarilmadi: {error}", "en": "Not done: {error}"},
+    "gui.filetools.status.cancelled": {
+        "uz": "To'xtatildi; hech narsa yozilmadi.",
+        "en": "Stopped; nothing was written.",
+    },
+    "gui.filetools.status.split_done_path": {
+        "uz": "Bo'lish tugadi: {parts} ta qism, {size} → {path}",
+        "en": "Split finished: {parts} parts, {size} → {path}",
+    },
+    "gui.filetools.status.merge_done_path": {
+        "uz": "Birlashtirish tugadi: {records} ta yozuv, {size} → {path}",
+        "en": "Merge finished: {records} records, {size} → {path}",
+    },
+    "gui.filetools.status.cancelled_path": {"uz": "To'xtatildi: {path}", "en": "Stopped: {path}"},
+    "gui.filetools.report.split_title": {"uz": "Bo'lish natijasi", "en": "Split result"},
+    "gui.filetools.report.merge_title": {"uz": "Birlashtirish natijasi", "en": "Merge result"},
+    "gui.filetools.report.split": {
+        "uz": "{parts} ta qism yozildi: {records} ta yozuv, {size}, {seconds} ({rate} MB/s).",
+        "en": "{parts} parts written: {records} records, {size}, {seconds} ({rate} MB/s).",
+    },
+    "gui.filetools.report.source": {"uz": "Manba: {source}", "en": "Source: {source}"},
+    "gui.filetools.report.engine.same": {
+        "uz": "Asl formatda, baytma-bayt nusxa.",
+        "en": "In the original format, byte for byte.",
+    },
+    "gui.filetools.report.engine.export": {"uz": "Format: {fmt}.", "en": "Format: {fmt}."},
+    "gui.filetools.report.edited": {
+        "uz": "Saqlanmagan o'zgarishlar ham yozildi.",
+        "en": "The unsaved changes were written too.",
+    },
+    "gui.filetools.report.edited_tabs": {
+        "uz": "Ochiq tablarning saqlanmagan o'zgarishlari ham kiritildi: {names}",
+        "en": "The unsaved changes of open tabs were included: {names}",
+    },
+    "gui.filetools.report.merge": {
+        "uz": "{records} ta yozuv yozildi: {size}, {seconds} ({rate} MB/s).",
+        "en": "{records} records written: {size}, {seconds} ({rate} MB/s).",
+    },
+    "gui.filetools.report.dupes": {
+        "uz": "{duplicates} ta takroriy yozuv olib tashlandi ({groups} ta guruh).",
+        "en": "{duplicates} duplicate records were removed ({groups} groups).",
+    },
+    "gui.filetools.report.inputs": {"uz": "Kiruvchi fayllar ({count}):", "en": "Input files ({count}):"},
+    "gui.filetools.report.input_line": {
+        "uz": "{name} — {kind}: {records} ta yozuvdan {written} tasi yozildi",
+        "en": "{name} — {kind}: {written} of {records} records written",
+    },
+    "gui.filetools.report.files": {"uz": "Fayllar ({count}):", "en": "Files ({count}):"},
+    "gui.filetools.report.removed": {"uz": "O'chirilgan eski qismlar ({count}):", "en": "Old parts removed ({count}):"},
+    "gui.filetools.report.more_files": {"uz": "… yana {count} ta fayl", "en": "… {count} more files"},
+    "gui.filetools.report.warnings": {"uz": "Ogohlantirishlar ({count}):", "en": "Warnings ({count}):"},
+    "gui.filetools.report.open_folder": {"uz": "Papkani ochish", "en": "Open folder"},
+    "gui.filetools.report.open_first": {"uz": "Birinchi qismni ochish", "en": "Open the first part"},
+    "gui.filetools.report.open_result": {"uz": "Natijani ochish", "en": "Open the result"},
+    # ---- gui.diff ----
+    # side-by-side structural diff (gui/difftree.py, gui/diffview.py)
+    "gui.diff.gap": {"uz": "… {count} ta o'zgarishsiz", "en": "… {count} unchanged"},
+    "gui.diff.unchanged.object": {
+        "uz": "{{…}} {count} ta maydon, o'zgarishsiz",
+        "en": "{{…}} {count} fields, unchanged",
+    },
+    "gui.diff.unchanged.object.one": {
+        "uz": "{{…}} {count} ta maydon, o'zgarishsiz",
+        "en": "{{…}} {count} field, unchanged",
+    },
+    "gui.diff.unchanged.array": {
+        "uz": "[…] {count} ta element, o'zgarishsiz",
+        "en": "[…] {count} elements, unchanged",
+    },
+    "gui.diff.unchanged.array.one": {
+        "uz": "[…] {count} ta element, o'zgarishsiz",
+        "en": "[…] {count} element, unchanged",
+    },
+    "gui.diff.summary.equal": {"uz": "Farq yo'q", "en": "No differences"},
+    "gui.diff.summary.counts": {
+        "uz": "{changed} ta o'zgargan, {added} ta qo'shilgan, {removed} ta o'chirilgan, {moved} ta ko'chirilgan",
+        "en": "{changed} changed, {added} added, {removed} removed, {moved} moved",
+    },
+    "gui.diff.col.key": {"uz": "Kalit", "en": "Key"},
+    "gui.diff.col.a": {"uz": "A: {name}", "en": "A: {name}"},
+    "gui.diff.col.b": {"uz": "B: {name}", "en": "B: {name}"},
+    "gui.diff.empty": {"uz": "Taqqoslash uchun ikki qiymat tanlang.", "en": "Choose two values to compare."},
+    "gui.diff.loading": {"uz": "Taqqoslanmoqda…", "en": "Comparing…"},
+    "gui.diff.cancelled": {"uz": "Taqqoslash bekor qilindi.", "en": "The comparison was cancelled."},
+    "gui.diff.failed": {"uz": "Taqqoslab bo'lmadi: {error}", "en": "Could not compare: {error}"},
+    "gui.diff.unexpected": {
+        "uz": "kutilmagan xato (tafsilotlar log faylida)",
+        "en": "an unexpected error (details are in the log file)",
+    },
+    "gui.diff.task": {"uz": "Taqqoslash: {a} ↔ {b}", "en": "Compare {a} ↔ {b}"},
+    "gui.diff.task.layout": {"uz": "Massiv elementlari joylanmoqda", "en": "Laying out array elements"},
+    "gui.diff.task.text": {"uz": "Matnlar solishtirilmoqda", "en": "Comparing the texts"},
+    "gui.diff.task.copy": {"uz": "Qiymat nusxalanmoqda", "en": "Copying the value"},
+    "gui.diff.match.label": {"uz": "Massivlar:", "en": "Arrays:"},
+    "gui.diff.match.auto": {"uz": "Avto", "en": "Auto"},
+    "gui.diff.match.auto.tip": {
+        "uz": "Elementlar mazmuni bo'yicha tekislanadi: boshiga qo'shilgan element qolganlarini siljitmaydi.",
+        "en": "Elements are aligned by content: an element inserted at the front does not shift the others.",
+    },
+    "gui.diff.match.index": {"uz": "Indeks", "en": "Index"},
+    "gui.diff.match.index.tip": {
+        "uz": "i-element i-element bilan solishtiriladi.",
+        "en": "Element i is compared with element i.",
+    },
+    "gui.diff.match.unordered": {"uz": "Tartibsiz", "en": "Unordered"},
+    "gui.diff.match.unordered.tip": {
+        "uz": "Elementlar tartibi hisobga olinmaydi: bir xil elementlar juftlanadi.",
+        "en": "The order of the elements does not matter: equal elements are paired.",
+    },
+    "gui.diff.match.key": {"uz": "Kalit bo'yicha", "en": "By key"},
+    "gui.diff.match.key.tip": {
+        "uz": "Elementlar shu maydon qiymati bo'yicha juftlanadi; joyi o'zgarganlari «ko'chirilgan» deb ko'rsatiladi "
+              "(YO'L=MAYDON — faqat shu yo'ldagi massivlar uchun).",
+        "en": "Elements are paired by the value of this field; the ones at another place are shown as moved "
+              "(PATH=FIELD: only the arrays at that path).",
+    },
+    "gui.diff.match.key.placeholder": {"uz": "maydon, masalan id", "en": "field, e.g. id"},
+    "gui.diff.match.key_needed": {
+        "uz": "Elementlarni juftlash uchun maydon nomini kiriting (masalan id).",
+        "en": "Enter the field to pair the elements by (for example id).",
+    },
+    "gui.diff.numbers_text": {"uz": "Sonlar yozilishi bo'yicha", "en": "Numbers as written"},
+    "gui.diff.numbers_text.tip": {
+        "uz": "1.10 va 1.1 farqli deb ko'rsatiladi. Odatda sonlar qiymati bo'yicha solishtiriladi: 1 = 1.0, -0 = 0.",
+        "en": "1.10 and 1.1 are shown as different. Numbers are normally compared by value: 1 = 1.0, -0 = 0.",
+    },
+    "gui.diff.only_changes": {"uz": "Faqat farqlar", "en": "Only differences"},
+    "gui.diff.only_changes.tip": {
+        "uz": "O'zgarmagan qismlarni yashirish (har bir guruhi bitta qator bo'lib qoladi).",
+        "en": "Hide the unchanged parts (each run of them becomes one row).",
+    },
+    "gui.diff.only_changes.forced": {
+        "uz": "Qiymatlar katta yoki farqlar juda ko'p: faqat farqlar ko'rsatiladi.",
+        "en": "The values are large or the differences too many: only the differences are shown.",
+    },
+    "gui.diff.prev.tip": {"uz": "Oldingi farq ({key})", "en": "Previous difference ({key})"},
+    "gui.diff.next.tip": {"uz": "Keyingi farq ({key})", "en": "Next difference ({key})"},
+    "gui.diff.expand_all.tip": {
+        "uz": "Farqli qismlarning hammasini ochish (*)",
+        "en": "Expand every part with differences (*)",
+    },
+    "gui.diff.collapse_all.tip": {"uz": "Hammasini yig'ish", "en": "Collapse everything"},
+    "gui.diff.swap.tip": {"uz": "A va B ning o'rnini almashtirish", "en": "Swap A and B"},
+    "gui.diff.text_mode": {"uz": "Matn", "en": "Text"},
+    "gui.diff.text_mode.tip": {
+        "uz": "Ikki qiymat matnini qatorma-qator solishtirish",
+        "en": "Compare the texts of the two values line by line",
+    },
+    "gui.diff.truncated": {
+        "uz": "Faqat birinchi {shown} ta farq ko'rsatildi (jami {total}).",
+        "en": "Only the first {shown} differences are shown ({total} in total).",
+    },
+    "gui.diff.changes_only": {
+        "uz": "Qiymatlar katta: faqat farqli yo'llar ko'rsatildi.",
+        "en": "The values are large: only the paths with differences are shown.",
+    },
+    "gui.diff.capped": {
+        "uz": "Qismlar juda ko'p: hammasi ochilmadi.",
+        "en": "Too many parts: not everything was expanded.",
+    },
+    "gui.diff.no_more": {"uz": "Boshqa farq yo'q", "en": "No more differences"},
+    "gui.diff.status.equal": {"uz": "O'zgarishsiz", "en": "Unchanged"},
+    "gui.diff.status.changed": {"uz": "O'zgargan", "en": "Changed"},
+    "gui.diff.status.added": {"uz": "Qo'shilgan (faqat B tomonda)", "en": "Added (only in B)"},
+    "gui.diff.status.removed": {"uz": "O'chirilgan (faqat A tomonda)", "en": "Removed (only in A)"},
+    "gui.diff.status.moved": {
+        "uz": "Ko'chirilgan (massivda boshqa joyda)",
+        "en": "Moved (at another place in the array)",
+    },
+    "gui.diff.status.contains": {"uz": "Ichida farqlar bor", "en": "Differences inside"},
+    "gui.diff.status.gap": {"uz": "O'zgarmagan qismlar", "en": "Unchanged parts"},
+    "gui.diff.tip.paths": {"uz": "A: {a}\nB: {b}", "en": "A: {a}\nB: {b}"},
+    "gui.diff.tip.changes": {"uz": "{count} ta farq", "en": "{count} differences"},
+    "gui.diff.tip.changes.one": {"uz": "{count} ta farq", "en": "{count} difference"},
+    "gui.diff.tip.kinds": {"uz": "Turi o'zgargan: {a} → {b}", "en": "Type changed: {a} → {b}"},
+    "gui.diff.menu.copy_a": {"uz": "A qiymatini nusxalash", "en": "Copy the A value"},
+    "gui.diff.menu.copy_b": {"uz": "B qiymatini nusxalash", "en": "Copy the B value"},
+    "gui.diff.menu.copy_path": {"uz": "Yo'lni nusxalash", "en": "Copy the path"},
+    "gui.diff.menu.reveal_a": {"uz": "Daraxtda ko'rsatish (A)", "en": "Show in the tree (A)"},
+    "gui.diff.menu.reveal_b": {"uz": "Daraxtda ko'rsatish (B)", "en": "Show in the tree (B)"},
+    "gui.diff.text.lines": {"uz": "{count} ta qator farq qiladi", "en": "{count} lines differ"},
+    "gui.diff.text.lines.one": {"uz": "{count} ta qator farq qiladi", "en": "{count} line differs"},
+    "gui.diff.text.same": {"uz": "Matnlar bir xil", "en": "The texts are the same"},
+    "gui.diff.text.truncated": {
+        "uz": "{side}: matnning faqat boshi ({size} / {total}) ko'rsatildi",
+        "en": "{side}: only the beginning of the text ({size} of {total}) is shown",
+    },
+    "gui.diff.text.uncolored": {
+        "uz": "faqat birinchi {count} ta farqli qator rangda",
+        "en": "only the first {count} differing lines are coloured",
+    },
+    # ---- gui.compare ----
+    # compare windows, the files dialog and the compare mark (gui/comparewindow.py)
+    "gui.compare.menu.files": {"uz": "Ikki faylni taqqoslash…", "en": "Compare two files…"},
+    "gui.compare.menu.files.tip": {
+        "uz": "Ikki faylni (yoki ochiq tablarni) yozuvma-yozuv taqqoslash",
+        "en": "Compare two files (or open tabs) record by record",
+    },
+    "gui.compare.menu.mark": {"uz": "Taqqoslash uchun belgilash", "en": "Mark for comparison"},
+    "gui.compare.menu.with_marked": {"uz": "Belgilangan bilan taqqoslash", "en": "Compare with the marked node"},
+    "gui.compare.menu.with_marked.tip": {"uz": "Belgilangan: {label}", "en": "Marked: {label}"},
+    "gui.compare.menu.with_marked.none": {
+        "uz": "Avval boshqa tugunni «Taqqoslash uchun belgilash» bilan belgilang",
+        "en": "First mark another node with “Mark for comparison”",
+    },
+    "gui.compare.menu.with_marked.same": {
+        "uz": "Shu tugun belgilangan: boshqa tugunni tanlang",
+        "en": "This node is the marked one: choose another node",
+    },
+    "gui.compare.menu.selected": {"uz": "Tanlangan ikkitasini taqqoslash", "en": "Compare the two selected"},
+    "gui.compare.menu.selected.need_two": {
+        "uz": "Taqqoslash uchun aynan ikkita tugunni tanlang",
+        "en": "Select exactly two nodes to compare",
+    },
+    "gui.compare.marked": {"uz": "Taqqoslash uchun belgilandi: {label}", "en": "Marked for comparison: {label}"},
+    "gui.compare.no_mark": {
+        "uz": "Taqqoslash uchun belgilangan tugun yo'q (yoki uning tabi yopilgan)",
+        "en": "No node is marked for comparison (or its tab was closed)",
+    },
+    "gui.compare.title": {"uz": "Taqqoslash: {a} ↔ {b}", "en": "Compare: {a} ↔ {b}"},
+    "gui.compare.header": {"uz": "A: {a}    B: {b}", "en": "A: {a}    B: {b}"},
+    "gui.compare.files.title": {"uz": "Ikki faylni taqqoslash", "en": "Compare two files"},
+    "gui.compare.side.a": {"uz": "A:", "en": "A:"},
+    "gui.compare.side.b": {"uz": "B:", "en": "B:"},
+    "gui.compare.source.tab": {"uz": "Ochiq tab: {name}", "en": "Open tab: {name}"},
+    "gui.compare.source.current": {"uz": "{name} (joriy tab)", "en": "{name} (current tab)"},
+    "gui.compare.source.file": {"uz": "Fayl…", "en": "File…"},
+    "gui.compare.path.placeholder": {"uz": "fayl yo'li", "en": "file path"},
+    "gui.compare.browse": {"uz": "Tanlash…", "en": "Browse…"},
+    "gui.compare.browse.title": {"uz": "Taqqoslanadigan fayl", "en": "File to compare"},
+    "gui.compare.browse.filter": {
+        "uz": "JSON fayllar (*.json *.jsonl *.ndjson *.json.gz *.geojson);;Barcha fayllar (*)",
+        "en": "JSON files (*.json *.jsonl *.ndjson *.json.gz *.geojson);;All files (*)",
+    },
+    "gui.compare.mode": {"uz": "Usul:", "en": "Method:"},
+    "gui.compare.mode.auto": {"uz": "Avto", "en": "Automatic"},
+    "gui.compare.mode.auto.tip": {
+        "uz": "Kalit berilsa — kalit bo'yicha; kalitli hujjatlar — $key bo'yicha; ikki yaxlit hujjat — butunligicha; "
+              "aks holda yozuvlar mazmuni bo'yicha tekislanadi (fayllar chegaradan katta bo'lmasa).",
+        "en": "With a key: by key; keyed documents: by $key; two single documents: as a whole; otherwise the "
+              "records are aligned by content (when the files are within the limit).",
+    },
+    "gui.compare.mode.key": {"uz": "Kalit bo'yicha", "en": "By key"},
+    "gui.compare.mode.key.tip": {
+        "uz": "Yozuvlar kalit maydoni qiymati bo'yicha juftlanadi (har qanday hajmdagi fayllar uchun).",
+        "en": "Records are paired by the value of the key field (files of any size).",
+    },
+    "gui.compare.mode.align": {"uz": "Mazmun bo'yicha tekislash", "en": "Align by content"},
+    "gui.compare.mode.align.tip": {
+        "uz": "Yozuvlar mazmuni bo'yicha tekislanadi: qo'shilgan va o'chirilgan yozuvlar topiladi.",
+        "en": "The records are aligned by content: added and removed records are found.",
+    },
+    "gui.compare.mode.position": {"uz": "Tartib raqami bo'yicha", "en": "By position"},
+    "gui.compare.mode.position.tip": {
+        "uz": "i-yozuv i-yozuv bilan solishtiriladi (har qanday hajm, eng tez).",
+        "en": "Record i is compared with record i (any size, the fastest).",
+    },
+    "gui.compare.mode.document": {"uz": "Butun hujjat", "en": "Whole document"},
+    "gui.compare.mode.document.tip": {
+        "uz": "Ikki hujjat bitta qiymat sifatida taqqoslanadi.",
+        "en": "The two documents are compared as one value each.",
+    },
+    "gui.compare.key": {"uz": "Yozuv kaliti:", "en": "Record key:"},
+    "gui.compare.key.placeholder": {
+        "uz": "masalan id ($key — kalitli hujjatlarda yozuv kaliti)",
+        "en": "e.g. id ($key: the record key of keyed documents)",
+    },
+    "gui.compare.key.tip": {
+        "uz": "Yozuvlar shu maydon qiymati bo'yicha juftlanadi. Bo'sh qolsa — usulga qarab.",
+        "en": "Records are paired by the value of this field. Empty: as the method says.",
+    },
+    "gui.compare.array_match": {"uz": "Massiv elementlari:", "en": "Array elements:"},
+    "gui.compare.array_key.placeholder": {"uz": "maydon, masalan id yoki orders=oid",
+                                          "en": "field, e.g. id or orders=oid"},
+    "gui.compare.run": {"uz": "Taqqoslash", "en": "Compare"},
+    "gui.compare.error.no_source": {"uz": "{side} uchun fayl yoki tab tanlang.", "en": "Choose a file or a tab for {side}."},
+    "gui.compare.error.no_file": {"uz": "Fayl topilmadi: {path}", "en": "File not found: {path}"},
+    "gui.compare.error.not_ready": {
+        "uz": "{name} hali ochilmoqda yoki indekslanmoqda — tayyor bo'lgach qayta urinib ko'ring.",
+        "en": "{name} is still opening or being indexed — try again when it is ready.",
+    },
+    "gui.compare.error.key_needed": {
+        "uz": "Kalit bo'yicha taqqoslash uchun yozuv kalitini kiriting (masalan id).",
+        "en": "Enter the record key to compare by (for example id).",
+    },
+    "gui.compare.error.closed": {
+        "uz": "{name} yopilgan yoki qayta ochilgan: qayta taqqoslang.",
+        "en": "{name} was closed or reopened: compare again.",
+    },
+    "gui.compare.error.results_gone": {
+        "uz": "Taqqoslash natijalari endi mavjud emas: qayta taqqoslang.",
+        "en": "The comparison results are gone: compare again.",
+    },
+    "gui.compare.task": {"uz": "Taqqoslash: {a} ↔ {b}", "en": "Comparing {a} ↔ {b}"},
+    "gui.compare.task.filter": {"uz": "Natijalar saralanmoqda", "en": "Filtering the results"},
+    "gui.compare.task.records": {"uz": "Yozuvlar to'plami tayyorlanmoqda", "en": "Preparing the record set"},
+    "gui.compare.task.export": {"uz": "Farqlar hisoboti: {name}", "en": "Differences report: {name}"},
+    "gui.compare.running": {"uz": "Taqqoslanmoqda…", "en": "Comparing…"},
+    "gui.compare.cancelled": {"uz": "Taqqoslash bekor qilindi.", "en": "The comparison was cancelled."},
+    "gui.compare.failed": {"uz": "Taqqoslab bo'lmadi: {error}", "en": "Could not compare: {error}"},
+    "gui.compare.summary": {
+        "uz": "{changed} ta o'zgargan, {added} ta qo'shilgan, {removed} ta o'chirilgan, {equal} ta bir xil yozuv "
+              "(A: {a}, B: {b}; {seconds} s)",
+        "en": "{changed} changed, {added} added, {removed} removed, {equal} equal records (A: {a}, B: {b}; "
+              "{seconds} s)",
+    },
+    "gui.compare.summary.identical": {
+        "uz": "Farq yo'q: {equal} ta yozuv bir xil ({seconds} s)",
+        "en": "No differences: {equal} records are equal ({seconds} s)",
+    },
+    "gui.compare.method.key": {"uz": "kalit bo'yicha: {key}", "en": "by key: {key}"},
+    "gui.compare.method.align": {"uz": "mazmun bo'yicha tekislandi", "en": "aligned by content"},
+    "gui.compare.method.position": {"uz": "tartib raqami bo'yicha", "en": "by position"},
+    "gui.compare.method.document": {"uz": "butun hujjat", "en": "whole document"},
+    "gui.compare.filter.changed": {"uz": "O'zgargan ({count})", "en": "Changed ({count})"},
+    "gui.compare.filter.added": {"uz": "Qo'shilgan ({count})", "en": "Added ({count})"},
+    "gui.compare.filter.removed": {"uz": "O'chirilgan ({count})", "en": "Removed ({count})"},
+    "gui.compare.col.status": {"uz": "Holat", "en": "Status"},
+    "gui.compare.col.key": {"uz": "Kalit", "en": "Key"},
+    "gui.compare.col.a": {"uz": "A #", "en": "A #"},
+    "gui.compare.col.b": {"uz": "B #", "en": "B #"},
+    "gui.compare.col.changes": {"uz": "Farqlar", "en": "Differences"},
+    "gui.compare.col.path": {"uz": "Birinchi farq", "en": "First difference"},
+    "gui.compare.status.changed": {"uz": "o'zgargan", "en": "changed"},
+    "gui.compare.status.added": {"uz": "qo'shilgan", "en": "added"},
+    "gui.compare.status.removed": {"uz": "o'chirilgan", "en": "removed"},
+    "gui.compare.status.wrapper": {"uz": "o'rovchi", "en": "wrapper"},
+    "gui.compare.wrapper": {"uz": "(o'rovchi)", "en": "(wrapper)"},
+    "gui.compare.wrapper_of": {"uz": "{name} (o'rovchi)", "en": "{name} (wrapper)"},
+    "gui.compare.no_results": {"uz": "Natija yo'q", "en": "No results"},
+    "gui.compare.row_failed": {"uz": "o'qib bo'lmadi", "en": "could not be read"},
+    "gui.compare.open_records": {"uz": "Yozuvlar to'plami sifatida ochish", "en": "Open as a record set"},
+    "gui.compare.open_records.tip": {
+        "uz": "Farqli yozuvlarni A yoki B tabida yozuvlar to'plami sifatida ko'rsatish",
+        "en": "Show the differing records in the tab of A or B as a record set",
+    },
+    "gui.compare.open_records.a": {
+        "uz": "A ({name}): o'zgargan va o'chirilgan yozuvlar",
+        "en": "A ({name}): changed and removed records",
+    },
+    "gui.compare.open_records.b": {
+        "uz": "B ({name}): o'zgargan va qo'shilgan yozuvlar",
+        "en": "B ({name}): changed and added records",
+    },
+    "gui.compare.open_records.no_tab": {"uz": "{name} tabda ochiq emas", "en": "{name} is not open in a tab"},
+    "gui.compare.records_label": {
+        "uz": "Taqqoslash: {count} ta farqli yozuv ({other} bilan)",
+        "en": "Comparison: {count} differing records (with {other})",
+    },
+    "gui.compare.records_label.one": {
+        "uz": "Taqqoslash: {count} ta farqli yozuv ({other} bilan)",
+        "en": "Comparison: {count} differing record (with {other})",
+    },
+    "gui.compare.export": {"uz": "Hisobotni eksport qilish…", "en": "Export the report…"},
+    "gui.compare.export.title": {"uz": "Farqlar hisobotini saqlash", "en": "Save the differences report"},
+    "gui.compare.export.filter": {
+        "uz": "JSON (*.json);;JSON Lines (*.jsonl);;CSV (*.csv)",
+        "en": "JSON (*.json);;JSON Lines (*.jsonl);;CSV (*.csv)",
+    },
+    "gui.compare.export.done": {"uz": "Hisobot saqlandi: {count} ta yozuv → {path}",
+                                "en": "Report saved: {count} records → {path}"},
+    "gui.compare.reveal.a": {"uz": "Daraxtda ko'rsatish (A)", "en": "Show in the tree (A)"},
+    "gui.compare.reveal.b": {"uz": "Daraxtda ko'rsatish (B)", "en": "Show in the tree (B)"},
+    "gui.compare.options": {"uz": "Sozlamalar…", "en": "Options…"},
+    "gui.compare.refresh": {"uz": "Yangilash", "en": "Refresh"},
+    "gui.compare.swap.tip": {"uz": "A va B ning o'rnini almashtirib qayta taqqoslash",
+                             "en": "Swap A and B and compare again"},
+    "gui.compare.match_locked": {
+        "uz": "Fayllar taqqoslashining sozlamasi — «Sozlamalar…» orqali o'zgartiring",
+        "en": "Set by the file comparison: change it with “Options…”",
+    },
+    "gui.compare.stale.changed": {"uz": "{name} o'zgardi.", "en": "{name} changed."},
+    "gui.compare.stale.closed": {"uz": "{name} yopildi.", "en": "{name} was closed."},
+    "gui.compare.stale.hint": {
+        "uz": "Natijalar eskirgan — yangilash uchun qayta taqqoslang.",
+        "en": "The results are out of date — compare again to refresh them.",
+    },
     # ---- gui.settings ----
     "gui.settings.title": {"uz": "Sozlamalar", "en": "Settings"},
     "gui.settings.tab.general": {"uz": "Umumiy", "en": "General"},
@@ -3585,6 +10706,41 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Fayl formatini aniqlash uchun boshidan shuncha bayt o'qiladi.",
         "en": "This many bytes from the start are read to detect the file format.",
     },
+    "gui.settings.diff_align_max_bytes.tip": {
+        "uz": "Ikki fayl kalitsiz (yozuvlarni mazmuni bo'yicha moslab) faqat ikkalasi ham shu hajmdan oshmasa "
+        "to'liq taqqoslanadi. Kattaroq fayllar uchun kalit maydonini tanlang yoki tartib raqami bo'yicha "
+        "taqqoslang. Kattaroq qiymat ko'proq xotira talab qiladi.",
+        "en": "Two files are compared in full without a key (records matched by content) only while both are at "
+        "most this size. For bigger files choose a key field or compare by position. A bigger value needs more "
+        "memory.",
+    },
+    "gui.settings.editing": {"uz": "Tahrirlash", "en": "Editing"},
+    "gui.settings.edits_location.appdata": {"uz": "Dastur papkasida ({path})", "en": "App folder ({path})"},
+    "gui.settings.edits_location.beside": {
+        "uz": "Fayl yonida (<fayl nomi>.jredit)",
+        "en": "Next to the file (<name>.jredit)",
+    },
+    "gui.settings.edits_location.tip": {
+        "uz": "Fayl saqlanmaguncha qilingan o'zgarishlar shu yerda doimiy saqlanib boradi (dastur kutilmaganda "
+        "yopilsa ham yo'qolmaydi). Fayl yonida: fayl bilan birga ko'chadi, lekin u papkaga yozish mumkin "
+        "bo'lishi kerak, aks holda dastur papkasi ishlatiladi. Tanlov yangi tahrirlarga ta'sir qiladi; ikkala "
+        "joydagi saqlanmagan o'zgarishlar ham topiladi.",
+        "en": "Changes made before the file is saved are kept here all the time (they survive a crash). Next to "
+        "the file: they move with the file, but that folder must be writable, otherwise the app folder is used. "
+        "The choice applies to new edits; unsaved changes are found in both places.",
+    },
+    "gui.settings.backup_on_save.tip": {
+        "uz": "Saqlash faylni yangisi bilan almashtirganda, avvalgi holati yonida .bak fayl bo'lib qoladi "
+        "(masalan, data.json.bak). U fayl hajmicha disk joyini egallaydi.",
+        "en": "When Save replaces the file, its previous version stays next to it as a .bak file "
+        "(for example data.json.bak). It takes as much disk space as the file.",
+    },
+    "gui.settings.undo_limit.tip": {
+        "uz": "Ortga qaytarish (Ctrl+Z) necha qadam orqaga bora olishi (kamida 200). Eskiroq qadamlar "
+        "o'zgarishlar bilan birga saqlanib qoladi, faqat ularni endi ortga qaytarib bo'lmaydi.",
+        "en": "How many steps Undo (Ctrl+Z) can go back (at least 200). Older steps stay applied; they just "
+        "can no longer be undone.",
+    },
     # ---- gui.nav ----
     "gui.nav.unexpected": {"uz": "Kutilmagan xato: {error}", "en": "Unexpected error: {error}"},
     "gui.nav.goto.title": {"uz": "Yo'lga o'tish", "en": "Go to"},
@@ -3601,8 +10757,17 @@ MESSAGES: dict[str, dict[str, str]] = {
     "gui.nav.bookmarks.col.location": {"uz": "Joyi", "en": "Location"},
     "gui.nav.bookmarks.col.created": {"uz": "Qo'shilgan", "en": "Added"},
     "gui.nav.bookmarks.empty": {
-        "uz": "Bu faylda xatcho'p yo'q. Tugunni tanlab Ctrl+D bosing.",
-        "en": "This file has no bookmarks. Select a node and press Ctrl+D.",
+        "uz": "Bu faylda xatcho'p yo'q. Tugunni tanlab Ctrl+B bosing.",
+        "en": "This file has no bookmarks. Select a node and press Ctrl+B.",
+    },
+    "gui.nav.bookmarks.deleted": {"uz": "(o'chirilgan)", "en": "(deleted)"},
+    "gui.nav.bookmarks.deleted.tip": {
+        "uz": "Bu xatcho'p ko'rsatgan tugun tahrirda o'chirilgan.",
+        "en": "The node of this bookmark was deleted by an edit.",
+    },
+    "gui.nav.goto.changed": {
+        "uz": "Hujjat qidirish paytida o'zgardi; qaytadan qidirilmoqda.",
+        "en": "The document changed while looking; looking again.",
     },
     "gui.nav.bookmarks.go": {"uz": "O'tish", "en": "Go to"},
     "gui.nav.bookmarks.rename": {"uz": "Nomini o'zgartirish…", "en": "Rename…"},
@@ -3672,6 +10837,7 @@ MESSAGES: dict[str, dict[str, str]] = {
     "gui.doctab.view.text": {"uz": "Matn", "en": "Text"},
     "gui.doctab.view.raw": {"uz": "Xom", "en": "Raw"},
     "gui.doctab.view.schema": {"uz": "Tuzilma", "en": "Structure"},
+    "gui.doctab.view.mapping": {"uz": "Tuzilma quruvchi", "en": "Structure builder"},
     "gui.doctab.view.tip": {"uz": "{view} ({key})", "en": "{view} ({key})"},
     "gui.doctab.no_views": {
         "uz": "Ko'rinishlarni yuklab bo'lmadi (tafsilotlar logda).",
@@ -3732,6 +10898,138 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "gui.doctab.reopen": {"uz": "Qayta ochish", "en": "Reopen"},
     "gui.doctab.ignore": {"uz": "E'tiborsiz qoldirish", "en": "Ignore"},
+    "gui.doctab.changed.save_patch": {
+        "uz": "O'zgarishlarni JSON Patch sifatida saqlash…",
+        "en": "Save the changes as JSON Patch…",
+    },
+    "gui.doctab.changed.detail_dirty": {
+        "uz": "Saqlanmagan o'zgarishlaringiz bor, lekin fayl o'zgargani uchun ularni faylga yozib bo'lmaydi. "
+        "Ularni JSON Patch sifatida saqlab qo'ying, keyin faylni qayta oching.",
+        "en": "You have unsaved changes, but they cannot be written into the file because it changed. "
+        "Save them as a JSON Patch, then reopen the file.",
+    },
+    "gui.doctab.readonly": {
+        "uz": "Bu hujjat hozir faqat ko'rish uchun ochiq.",
+        "en": "This document is open for viewing only right now.",
+    },
+    "gui.doctab.edit_unavailable": {"uz": "Tahrirlash hozir mumkin emas.", "en": "Editing is not available right now."},
+    "gui.doctab.recovery.found": {
+        "uz": "Saqlanmagan o'zgarishlar topildi: {time}, {steps} ta qadam.",
+        "en": "Unsaved changes were found: {time}, {steps} steps.",
+    },
+    "gui.doctab.recovery.found.detail": {
+        "uz": "Oxirgi o'zgarish: {label}. Ular haqida qaror qilmaguningizcha faylni tahrirlab bo'lmaydi.",
+        "en": "Last change: {label}. The file cannot be edited until you decide about them.",
+    },
+    "gui.doctab.recovery.found.detail_nolabel": {
+        "uz": "Ular haqida qaror qilmaguningizcha faylni tahrirlab bo'lmaydi.",
+        "en": "The file cannot be edited until you decide about them.",
+    },
+    "gui.doctab.recovery.restore": {"uz": "Tiklash", "en": "Restore"},
+    "gui.doctab.recovery.discard": {"uz": "O'chirish…", "en": "Discard…"},
+    "gui.doctab.recovery.save_patch": {"uz": "JSON Patch sifatida saqlash…", "en": "Save as JSON Patch…"},
+    "gui.doctab.recovery.delete": {"uz": "O'chirish…", "en": "Delete…"},
+    "gui.doctab.recovery.journal": {
+        "uz": "Bu faylni saqlash tugallanmay qolgan ({time}).",
+        "en": "Saving this file was interrupted ({time}).",
+    },
+    "gui.doctab.recovery.journal.detail": {
+        "uz": "Davom etishdan oldin uzilib qolgan saqlashni yakunlash (yoki orqaga qaytarish) kerak.",
+        "en": "Before going on, the interrupted save has to be finished (or undone).",
+    },
+    "gui.doctab.recovery.journal.finish": {"uz": "Saqlashni yakunlash", "en": "Finish the save"},
+    "gui.doctab.recovery.journal_missing": {
+        "uz": "Bu faylni saqlash tugallanmay qolgan ({time}): fayl o'z joyida yo'q.",
+        "en": "Saving this file was interrupted ({time}): the file is not in its place.",
+    },
+    "gui.doctab.recovery.journal_missing.detail": {
+        "uz": "«Saqlashni yakunlash» saqlashni oxiriga yetkazadi yoki faylni saqlashdan oldingi holatiga "
+        "qaytaradi, so'ng uni qayta ochadi.",
+        "en": "“Finish the save” completes the save or puts the file back as it was before it, then opens it "
+        "again.",
+    },
+    "gui.doctab.recovery.journal_conflict": {
+        "uz": "Uzilib qolgan saqlashni yakunlab ham, orqaga qaytarib ham bo'lmadi ({time}).",
+        "en": "The interrupted save could neither be finished nor undone ({time}).",
+    },
+    "gui.doctab.recovery.journal_conflict.detail": {
+        "uz": "{reason}\nSaqlanmagan o'zgarishlarni JSON Patch sifatida saqlab qo'yishingiz yoki o'chirishingiz "
+        "mumkin; ko'rsatilgan fayllarni qo'lda tekshiring. Fayllarni tuzatgach, yakunlashga yana urinib "
+        "ko'rish mumkin.",
+        "en": "{reason}\nYou can save the unsaved changes as a JSON Patch or delete them; check the files named "
+        "by hand. Once they are fixed, finishing can be tried again.",
+    },
+    "gui.doctab.recovery.journal_conflict.files": {
+        "uz": "Fayllardan saqlash qayergacha yetgani aniq emas. Tegishli fayllar: {files}",
+        "en": "The files do not show how far the save got. Files involved: {files}",
+    },
+    "gui.doctab.recovery.exported": {
+        "uz": "O'zgarishlar JSON Patch sifatida saqlandi ({count} ta amal): {path}",
+        "en": "The changes were saved as a JSON Patch ({count} operations): {path}",
+    },
+    "gui.doctab.recovery.delete_ask": {
+        "uz": "{time} dagi saqlanmagan o'zgarishlar ({steps} ta qadam) butunlay o'chirilsinmi? Ularni qaytarib "
+        "bo'lmaydi.",
+        "en": "Delete the unsaved changes from {time} ({steps} steps) for good? This cannot be undone.",
+    },
+    "gui.doctab.task.journals": {
+        "uz": "Uzilib qolgan saqlash qidirilmoqda",
+        "en": "Looking for an interrupted save",
+    },
+    "gui.doctab.task.roll": {"uz": "{name}: saqlash yakunlanmoqda", "en": "{name}: finishing the save"},
+    "gui.doctab.task.export": {
+        "uz": "{name}: o'zgarishlar JSON Patch sifatida saqlanmoqda",
+        "en": "{name}: saving the changes as a JSON Patch",
+    },
+    "gui.doctab.task.delete": {
+        "uz": "{name}: saqlanmagan o'zgarishlar o'chirilmoqda",
+        "en": "{name}: deleting the unsaved changes",
+    },
+    "gui.doctab.task.sweep": {"uz": "Ortiqcha fayllar tozalanmoqda", "en": "Removing leftover files"},
+    "gui.doctab.recovery.damaged": {
+        "uz": "Saqlanmagan o'zgarishlar ({time}, {steps} ta qadam) shikastlangan, ularni tiklab bo'lmaydi.",
+        "en": "Unsaved changes ({time}, {steps} steps) are damaged and cannot be restored.",
+    },
+    "gui.doctab.recovery.damaged.detail": {
+        "uz": "Sabab: {reason}. Ularni JSON Patch sifatida saqlab olishga urinib ko'ring yoki o'chiring.",
+        "en": "Reason: {reason}. Try to save them as a JSON Patch, or delete them.",
+    },
+    "gui.doctab.recovery.stale": {
+        "uz": "Faylning oldingi versiyasiga tegishli saqlanmagan o'zgarishlar topildi ({time}, {steps} ta qadam).",
+        "en": "Unsaved changes of an earlier version of this file were found ({time}, {steps} steps).",
+    },
+    "gui.doctab.recovery.stale.detail": {
+        "uz": "Fayl o'shandan beri o'zgargani uchun ularni qo'llab bo'lmaydi. Ularni JSON Patch sifatida saqlab "
+        "qo'yishingiz yoki o'chirishingiz mumkin.",
+        "en": "The file has changed since, so they cannot be applied. You can save them as a JSON Patch or "
+        "delete them.",
+    },
+    "gui.doctab.recovery.locked": {
+        "uz": "Bu faylning saqlanmagan o'zgarishlari boshqa oynada ochiq ({time}).",
+        "en": "Unsaved changes of this file are open in another window ({time}).",
+    },
+    "gui.doctab.recovery.locked.detail": {
+        "uz": "O'sha oyna yopilgach, faylni qayta ochsangiz, ularni shu yerda tiklash mumkin bo'ladi.",
+        "en": "Once that window is closed, reopen the file to restore them here.",
+    },
+    "gui.doctab.recovery.more": {
+        "uz": "Yana {count} ta saqlanmagan o'zgarishlar to'plami bor; ular navbat bilan ko'rsatiladi.",
+        "en": "{count} more sets of unsaved changes follow, one after another.",
+    },
+    "gui.doctab.patch.title": {"uz": "JSON Patch sifatida saqlash", "en": "Save as JSON Patch"},
+    "gui.doctab.patch.filter": {
+        "uz": "JSON Patch (*.json);;Barcha fayllar (*)",
+        "en": "JSON Patch (*.json);;All files (*)",
+    },
+    "gui.doctab.view_outdated": {
+        "uz": "Ko'rinish eskirgan: yozuvlar o'zgardi, filtr va tartib natijasi yangilanmadi.",
+        "en": "The view is out of date: records changed and the filter / sort result was not updated.",
+    },
+    "gui.doctab.view_outdated.detail": {
+        "uz": "Hozir barcha yozuvlar ko'rsatilmoqda. Filtr va tartibni qayta hisoblash uchun \"Yangilash\"ni bosing.",
+        "en": "All records are shown now. Press \"Refresh\" to compute the filter and the sort again.",
+    },
+    "gui.doctab.view_outdated.refresh": {"uz": "Yangilash", "en": "Refresh"},
     # ---- gui.status ----
     "gui.status.index_cancelled": {
         "uz": "{text} · indekslash to'xtatildi (to'liq emas)",
@@ -3774,6 +11072,17 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Joriy tugun fayldagi {start}–{end} baytlarda ({size})",
         "en": "The current node is at bytes {start}–{end} of the file ({size})",
     },
+    "gui.status.offset.edited": {"uz": "tahrirlangan", "en": "edited"},
+    "gui.status.offset.edited.tip": {
+        "uz": "Joriy tugun tahrirlangan: u saqlanmagan o'zgarishlarda turibdi, faylda hali joyi yo'q.",
+        "en": "The current node is edited: it lives in the unsaved changes and has no place in the file yet.",
+    },
+    "gui.status.dirty": {"uz": "● {count} o'zgarish", "en": "● {count} changes"},
+    "gui.status.dirty.tip": {
+        "uz": "Saqlanmagan o'zgarishlar bor. Ctrl+S — saqlash, Ctrl+Z — ortga qaytarish.",
+        "en": "There are unsaved changes. Ctrl+S saves them, Ctrl+Z undoes the last one.",
+    },
+    "gui.status.dirty.undo_tip": {"uz": "Oxirgi o'zgarish: {label}", "en": "Last change: {label}"},
     "gui.status.task.offset": {"uz": "Tugun joyi aniqlanmoqda", "en": "Locating the node"},
     "gui.status.task.memory": {"uz": "Xotira ko'rsatkichi tayyorlanmoqda", "en": "Preparing the memory display"},
     "gui.status.memory": {"uz": "RAM {size}", "en": "RAM {size}"},
@@ -3814,17 +11123,25 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Papka ochilmaydi, faqat fayllar: {path}",
         "en": "Folders are not opened, only files: {path}",
     },
-    "gui.main.export_continues": {
-        "uz": "{name} yopildi; uning eksporti fonda davom etmoqda ({count} ta), tugagach hisobot chiqadi.",
-        "en": "{name} was closed; its export goes on in the background ({count}), a report appears when "
-        "it is done.",
+    "gui.main.jobs_continue": {
+        "uz": "{name} yopildi; uning {count} ta ishi (eksport, bo'lish, taqqoslash va h.k.) fonda davom etmoqda, "
+              "tugagach natijasi chiqadi.",
+        "en": "{name} was closed; its {count} background job(s) (export, split, comparison, ...) go on, the result "
+              "appears when they are done.",
     },
-    "gui.main.exports_running.title": {"uz": "Eksport tugamagan", "en": "Export not finished"},
-    "gui.main.exports_running": {
-        "uz": "{count} ta eksport hali tugamagan. Dastur yopilsa ular to'xtatiladi va fayllar yozilmaydi. "
-        "Baribir yopilsinmi?",
-        "en": "{count} exports have not finished yet. Closing the program stops them and their files are not "
-        "written. Close anyway?",
+    "gui.main.jobs_running.title": {"uz": "Ishlar tugamagan", "en": "Jobs not finished"},
+    "gui.main.jobs_running": {
+        "uz": "{count} ta ish (eksport, bo'lish, birlashtirish, ta'mirlash, tekshirish yoki taqqoslash) hali "
+              "tugamagan. Dastur yopilsa ular to'xtatiladi va natijasi yozilmaydi. Baribir yopilsinmi?",
+        "en": "{count} job(s) (export, split, merge, repair, validation or comparison) have not finished yet. "
+              "Closing the program stops them and their results are not written. Close anyway?",
+    },
+    "gui.main.jobs_stop.title": {"uz": "Tekshiruv tugamagan", "en": "Validation not finished"},
+    "gui.main.jobs_stop": {
+        "uz": "{name} hali JSON Schema bo'yicha tekshirilmoqda. Varaq yopilsa tekshiruv to'xtatiladi va natijasi "
+              "yo'qoladi. Baribir yopilsinmi?",
+        "en": "{name} is still being validated against a JSON Schema. Closing the tab stops the validation and "
+              "its result is lost. Close anyway?",
     },
     "gui.main.app_name": {"uz": "JSON Reshape", "en": "JSON Reshape"},
     "gui.main.window_title": {"uz": "{name} — JSON Reshape", "en": "{name} — JSON Reshape"},
@@ -3857,6 +11174,73 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "gui.main.act.close_tab": {"uz": "&Yopish", "en": "&Close"},
     "gui.main.act.quit": {"uz": "&Chiqish", "en": "E&xit"},
+    "gui.main.act.save": {"uz": "&Saqlash", "en": "&Save"},
+    "gui.main.act.save.tip": {
+        "uz": "O'zgarishlarni faylga yozish, uning o'z formatida (Ctrl+S)",
+        "en": "Write the changes into the file, in its own format (Ctrl+S)",
+    },
+    "gui.main.act.save_as": {"uz": "&Boshqacha saqlash…", "en": "Save &As…"},
+    "gui.main.act.save_as.tip": {
+        "uz": "Hujjatni boshqa faylga shu formatda saqlash (Ctrl+Shift+S)",
+        "en": "Save the document to another file in the same format (Ctrl+Shift+S)",
+    },
+    "gui.main.act.undo": {"uz": "&Ortga qaytarish", "en": "&Undo"},
+    "gui.main.act.undo_step": {"uz": "&Ortga qaytarish: {label}", "en": "&Undo: {label}"},
+    "gui.main.act.undo.tip": {"uz": "Oxirgi o'zgarishni ortga qaytarish (Ctrl+Z)", "en": "Undo the last change (Ctrl+Z)"},
+    "gui.main.act.redo": {"uz": "&Qayta bajarish", "en": "&Redo"},
+    "gui.main.act.redo_step": {"uz": "&Qayta bajarish: {label}", "en": "&Redo: {label}"},
+    "gui.main.act.redo.tip": {
+        "uz": "Ortga qaytarilgan o'zgarishni qayta bajarish (Ctrl+Y)",
+        "en": "Do the undone change again (Ctrl+Y)",
+    },
+    "gui.main.view_undo.none": {
+        "uz": "Tuzilma quruvchida ortga qaytariladigan o'zgarish yo'q (hujjat tahrirlarini qaytarish uchun boshqa "
+              "ko'rinishga o'ting).",
+        "en": "Nothing to undo in the structure builder (switch to another view to undo the document's edits).",
+    },
+    "gui.main.view_redo.none": {
+        "uz": "Tuzilma quruvchida qayta bajariladigan o'zgarish yo'q.",
+        "en": "Nothing to redo in the structure builder.",
+    },
+    "gui.main.act.bulk": {"uz": "O&mmaviy amallar…", "en": "&Bulk operations…"},
+    "gui.main.act.bulk.tip": {
+        "uz": "Ko'p yozuvni birdaniga o'zgartirish: almashtirish, kalitni nomlash, maydonni o'chirish… (Ctrl+H)",
+        "en": "Change many records at once: replace, rename keys, delete fields… (Ctrl+H)",
+    },
+    "gui.main.act.patch_import": {"uz": "JSON Patch'ni &qo'llash…", "en": "&Import JSON Patch…"},
+    "gui.main.act.patch_import.tip": {
+        "uz": "RFC 6902 JSON Patch faylidagi o'zgarishlarni hujjatga qo'llash (bitta qadam)",
+        "en": "Apply the changes of an RFC 6902 JSON Patch file to the document (one step)",
+    },
+    "gui.main.act.patch_export": {
+        "uz": "O'zgarishlarni JSON Patch sifatida &saqlash…",
+        "en": "&Export changes as JSON Patch…",
+    },
+    "gui.main.act.patch_export.tip": {
+        "uz": "Saqlanmagan o'zgarishlarni RFC 6902 JSON Patch fayliga yozish",
+        "en": "Write the unsaved changes into an RFC 6902 JSON Patch file",
+    },
+    "gui.main.act.discard": {"uz": "Barcha o'zgarishlarni &tashlab yuborish…", "en": "&Discard all changes…"},
+    "gui.main.act.discard.tip": {
+        "uz": "Saqlanmagan o'zgarishlarni o'chirib, faylni asl holiga qaytarish (avval so'raladi)",
+        "en": "Delete the unsaved changes and show the file as it is (asks first)",
+    },
+    "gui.main.save.nothing": {"uz": "Saqlanmagan o'zgarish yo'q.", "en": "There are no unsaved changes."},
+    "gui.main.save_as.title": {"uz": "Boshqacha saqlash — {name}", "en": "Save as — {name}"},
+    "gui.main.save_as.filter": {"uz": "Hujjat formati ({patterns})", "en": "The document's format ({patterns})"},
+    "gui.main.save_as.other_format.title": {"uz": "Boshqa format", "en": "Another format"},
+    "gui.main.save_as.other_format": {
+        "uz": "\"{ext}\" kengaytmasi {fmt} formatiga tegishli. \"Boshqacha saqlash\" hujjatni o'z formatida "
+        "saqlaydi. Uning o'rniga eksport oynasi ochilsinmi?",
+        "en": "The \"{ext}\" extension belongs to the {fmt} format. \"Save As\" keeps the document's own format. "
+        "Open the export dialog instead?",
+    },
+    "gui.main.patch.import.title": {"uz": "JSON Patch'ni qo'llash", "en": "Import JSON Patch"},
+    "gui.main.patch.export.title": {"uz": "O'zgarishlarni JSON Patch sifatida saqlash", "en": "Export changes as JSON Patch"},
+    "gui.main.patch.filter": {
+        "uz": "JSON Patch (*.json *.json-patch);;Barcha fayllar (*)",
+        "en": "JSON Patch (*.json *.json-patch);;All files (*)",
+    },
     "gui.main.act.copy_value": {"uz": "&Qiymatni nusxalash", "en": "Copy &value"},
     "gui.main.act.copy_path": {"uz": "&Yo'lni nusxalash", "en": "Copy &path"},
     "gui.main.act.second_pane": {"uz": "Ikkinchi panelni ko'rsatish", "en": "Show the second pane"},

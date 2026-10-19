@@ -1,0 +1,11 @@
+{
+ "name": "x_primitive_root",
+ "description": "targeted reference case (batch2)",
+ "case": {"name": "x_primitive_root", "data": 5},
+ "output": 5,
+ "log": [],
+ "tree": {"key": "", "kind": "value", "src": [], "types": ["number"], "count": 1, "pcount": null, "samples": ["5"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": []},
+ "badges": [],
+ "shape": ["(root) value <- (ildiz)"],
+ "preview": [5]
+}

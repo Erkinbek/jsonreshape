@@ -1,0 +1,183 @@
+{
+ "name": "x_preview_limit",
+ "description": "targeted reference case (batch6)",
+ "case": {
+  "name": "x_preview_limit",
+  "records": [
+   {
+    "a": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15,
+     16,
+     17,
+     18,
+     19,
+     20,
+     21,
+     22,
+     23,
+     24,
+     25,
+     26,
+     27,
+     28,
+     29
+    ],
+    "o": [
+     {"v": 0},
+     {"v": 1},
+     {"v": 2},
+     {"v": 3},
+     {"v": 4},
+     {"v": 5},
+     {"v": 6},
+     {"v": 7},
+     {"v": 8},
+     {"v": 9},
+     {"v": 10},
+     {"v": 11},
+     {"v": 12},
+     {"v": 13},
+     {"v": 14},
+     {"v": 15},
+     {"v": 16},
+     {"v": 17},
+     {"v": 18},
+     {"v": 19},
+     {"v": 20},
+     {"v": 21},
+     {"v": 22},
+     {"v": 23},
+     {"v": 24}
+    ]
+   },
+   {"a": [1]}
+  ],
+  "ops": [{"op": "move", "node": "[].o[].v", "target": "[].a", "zone": "after"}]
+ },
+ "output": [
+  {
+   "a": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29
+   ],
+   "v": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
+   "o": [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
+  },
+  {"a": [1]}
+ ],
+ "log": [{"i": 0, "op": "move", "applied": true, "changed": true, "undo": 1, "msg": ""}],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "a", "kind": "array", "src": [null, "a"], "types": ["array"], "count": 2, "pcount": 2, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "value", "src": [null, "a", null], "types": ["number"], "count": 31, "pcount": null, "samples": ["0", "1", "2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []}
+   ]},
+   {"key": "v", "kind": "value", "src": [null, "o", null, "v"], "types": ["number"], "count": 25, "pcount": 25, "samples": ["0", "1", "2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "o", "kind": "array", "src": [null, "o"], "types": ["array"], "count": 1, "pcount": 2, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "o", null], "types": ["object"], "count": 25, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []}
+   ]}
+  ]}
+ ]},
+ "badges": [{"ref": [0, "v"], "badges": ["ko'chirildi", "ro'yxatga yig'iladi"]}],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"a\" array <- [].a",
+  "      [] value <- [].a[]",
+  "    \"v\" value <- [].o[].v",
+  "    \"o\" array <- [].o",
+  "      [] object <- [].o[]"
+ ],
+ "preview": [
+  {
+   "a": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+   "v": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+   "o": [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
+  },
+  {"a": [1]}
+ ],
+ "perRecord": [
+  [
+   {
+    "a": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15,
+     16,
+     17,
+     18,
+     19,
+     20,
+     21,
+     22,
+     23,
+     24,
+     25,
+     26,
+     27,
+     28,
+     29
+    ],
+    "v": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
+    "o": [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}]
+   }
+  ],
+  [{"a": [1]}]
+ ],
+ "perRecordConcatEqualsOutput": true
+}

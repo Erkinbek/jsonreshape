@@ -1,0 +1,61 @@
+{
+ "name": "t06_broadcast_drop",
+ "description": "AGENT_PROMPT §14 test 6 (broadcast): as a mouse drop, records with missing / empty / null orders",
+ "case": {
+  "name": "t06_broadcast_drop",
+  "records": [
+   {"name": "Ali", "orders": [{"oid": 7, "sum": 1}, {"oid": 8}]},
+   {"name": "Vali"},
+   {"name": "G", "orders": []},
+   {"name": "N", "orders": null},
+   {"name": "X", "orders": [{"sum": 2}, {"oid": null}]}
+  ],
+  "ops": [{"op": "drop", "node": "[].name", "target": "[].orders[]", "frac": 0.5}]
+ },
+ "output": [
+  {"orders": [{"oid": 7, "sum": 1, "name": "Ali"}, {"oid": 8, "name": "Ali"}]},
+  {},
+  {"orders": []},
+  {"orders": null},
+  {"orders": [{"sum": 2, "name": "X"}, {"oid": null, "name": "X"}]}
+ ],
+ "log": [
+  {"i": 0, "op": "drop", "applied": true, "changed": true, "undo": 1, "msg": "", "result": {"zone": "inside"}}
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 5, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "orders", "kind": "array", "src": [null, "orders"], "types": ["array", "null"], "count": 4, "pcount": 5, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "orders", null], "types": ["object"], "count": 4, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+     {"key": "oid", "kind": "value", "src": [null, "orders", null, "oid"], "types": ["number", "null"], "count": 3, "pcount": 4, "samples": ["7", "8"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+     {"key": "sum", "kind": "value", "src": [null, "orders", null, "sum"], "types": ["number"], "count": 2, "pcount": 4, "samples": ["1", "2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+     {"key": "name", "kind": "value", "src": [null, "name"], "types": ["string"], "count": 5, "pcount": 5, "samples": ["\"Ali\"", "\"Vali\"", "\"G\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+    ]}
+   ]}
+  ]}
+ ]},
+ "badges": [{"ref": [0, "orders", 0, "name"], "badges": ["ko'chirildi", "har elementga takrorlanadi"]}],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"orders\" array <- [].orders",
+  "      [] object <- [].orders[]",
+  "        \"oid\" value <- [].orders[].oid",
+  "        \"sum\" value <- [].orders[].sum",
+  "        \"name\" value <- [].name"
+ ],
+ "preview": [
+  {"orders": [{"oid": 7, "sum": 1, "name": "Ali"}, {"oid": 8, "name": "Ali"}]},
+  {},
+  {"orders": []},
+  {"orders": null},
+  {"orders": [{"sum": 2, "name": "X"}, {"oid": null, "name": "X"}]}
+ ],
+ "perRecord": [
+  [{"orders": [{"oid": 7, "sum": 1, "name": "Ali"}, {"oid": 8, "name": "Ali"}]}],
+  [{}],
+  [{"orders": []}],
+  [{"orders": null}],
+  [{"orders": [{"sum": 2, "name": "X"}, {"oid": null, "name": "X"}]}]
+ ],
+ "perRecordConcatEqualsOutput": true
+}

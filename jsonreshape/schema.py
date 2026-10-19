@@ -53,6 +53,12 @@ Statistics of a field (one path pattern)
   the number of records.
 * ``types``: occurrences per JSON type (``object array string number bool null``, the
   names of :func:`jsonreshape.codec.json_type`), most frequent first (ties in that order).
+* ``integers`` (stage 5, docs/ARCHITECTURE.md §14.1): the numbers whose value is
+  mathematically integral -- ``int`` / ``JsonInt``, a plain float with ``is_integer()``
+  (``100.0``), a ``JsonFloat`` / ``Decimal`` whose exact decimal value has no fraction
+  (``1e400``, ``1.000``) -- so a generated JSON Schema ``"integer"`` validates its own data.
+  :meth:`FieldInfo.to_dict` writes it as ``"integers"``; :meth:`FieldInfo.from_dict` reads it
+  with ``.get`` (0 for files written before the counter existed).
 * ``examples``: the first ``MAX_EXAMPLES`` (5) distinct example texts in analysis order
   (records in order, each walked in document order), scalars only: JSON text -- strings
   quoted and escaped like ``json.dumps(ensure_ascii=False)``, exact number text,
@@ -63,8 +69,10 @@ Statistics of a field (one path pattern)
 * ``str_len``: (min, max) string length in characters; ``num_range``: (min, max) exact
   number *texts*. Numbers are compared exactly by their decimal value (``int`` as is,
   plain floats as their decimal token, :class:`~jsonreshape.codec.JsonFloat` as
-  ``Decimal(raw)``), so ``1e400`` is above every double and ``0.10000000000000000001`` is
-  above ``0.1``; between equal values the first seen text is kept (``1.10`` vs ``1.1``).
+  ``Decimal(raw)`` -- a token beyond ``Decimal``'s exponent range such as
+  ``1e99999999999999999999`` by its sign, exponent and digits), so ``1e400`` is above every
+  double and ``0.10000000000000000001`` is above ``0.1``; between equal values the first seen
+  text is kept (``1.10`` vs ``1.1``).
   ``arr_len``: (min, max) array length; ``obj_keys``: (min, max) distinct keys. ``None``
   when the field never held that type.
 * Member records (keyed documents; wrapped documents whose record container is an object):
@@ -138,6 +146,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 import threading
 import time
@@ -152,7 +161,7 @@ from typing import Any, Iterable, Iterator
 from . import codec, core
 from .codec import JsonFloat, JsonInt
 from .core import MODE_CONTAINER
-from .errors import JsonReshapeError, UserInputError
+from .errors import EditError, JsonReshapeError, UserInputError
 from .fileio import open_shared, read_range
 from .i18n import get_language, t
 from .paths import Wild, canonical_index, format_path, parse_pattern
@@ -162,6 +171,8 @@ from .tasks import CancelToken, Progress, check
 log = logging.getLogger(__name__)
 
 __all__ = [
+    "DEFAULT_COLUMN_DEPTH",
+    "DEFAULT_COLUMN_LIMIT",
     "DEFAULT_SAMPLE",
     "EXAMPLE_CHARS",
     "KEY_TEXT",
@@ -176,9 +187,14 @@ __all__ = [
     "Schema",
     "STREAM_RECORD_BYTES",
     "SchemaBuilder",
+    "default_columns",
     "example_text",
+    "field_paths",
     "infer_schema",
+    "is_container",
+    "is_integral",
     "sample_positions",
+    "under_array",
 ]
 
 DEFAULT_SAMPLE = 10000
@@ -298,13 +314,124 @@ def example_text(value: Any, limit: int = EXAMPLE_CHARS) -> str | None:
 # ----------------------------------------------------------------------------------
 # exact number comparison
 # ----------------------------------------------------------------------------------
+_TOKEN_PARTS = re.compile(r"(-?)([0-9]+)(?:\.([0-9]+))?(?:[eE]([+-]?[0-9]+))?")
+_EXP_DIGITS_MAX = 4000   # an exponent of more digits counts as +-10**4000 (int() refuses longer digit strings)
+
+
+def _number_parts(raw: str) -> tuple[int, str, int]:
+    """``(sign, digits, adjusted exponent)`` of a JSON number token, exact and without
+    ``Decimal`` (whose exponent range ends near ``10**18``): ``sign`` -1 / 0 / 1, ``digits`` the
+    significant digits without trailing zeros (``""`` for zero), the value is
+    ``0.<digits> * 10**(adjusted + 1)``. An exponent of more than :data:`_EXP_DIGITS_MAX` digits
+    counts as +-``10**_EXP_DIGITS_MAX``."""
+    m = _TOKEN_PARTS.fullmatch(raw)
+    if m is None:
+        raise ValueError(f"not a JSON number token: {raw[:40]!r}")
+    neg, ip, fp, ep = m.groups()
+    fp = fp or ""
+    lead = (ip + fp).lstrip("0")
+    digits = lead.rstrip("0")
+    if not digits:
+        return 0, "", 0
+    e = 0
+    if ep:
+        body = ep.lstrip("+-").lstrip("0")
+        e = 10 ** _EXP_DIGITS_MAX if len(body) > _EXP_DIGITS_MAX else int(body or "0")
+        if ep.startswith("-"):
+            e = -e
+    return (-1 if neg else 1), digits, len(lead) - 1 + e - len(fp)
+
+
+def _key_parts(k: Any) -> tuple[int, str, int]:
+    """:func:`_number_parts` of a comparison key (``int`` / finite ``float`` / ``Decimal`` /
+    :class:`_BeyondDecimal`)."""
+    if isinstance(k, _BeyondDecimal):
+        return k.parts
+    d = Decimal(repr(k)) if isinstance(k, float) else Decimal(k)
+    sign, digs, exp = d.as_tuple()
+    lead = "".join(map(str, digs)).lstrip("0")
+    digits = lead.rstrip("0")
+    if not digits:
+        return 0, "", 0
+    return (-1 if sign else 1), digits, len(lead) - 1 + int(exp)
+
+
+class _BeyondDecimal:
+    """Exact comparison key of a number token ``Decimal`` cannot hold -- an exponent beyond its
+    range, e.g. ``1e99999999999999999999`` (``Decimal(raw)`` raised ``InvalidOperation``: review
+    R5A-X2). Compares with ``int`` / ``float`` / ``Decimal`` keys and with its own kind by sign,
+    adjusted exponent and significant digits."""
+
+    __slots__ = ("parts",)
+
+    def __init__(self, raw: str) -> None:
+        self.parts = _number_parts(raw)
+
+    def _cmp(self, other: Any) -> int:
+        (sa, da, ea), (sb, db, eb) = self.parts, _key_parts(other)
+        if sa != sb:
+            return -1 if sa < sb else 1
+        if not sa or (ea, da) == (eb, db):
+            return 0
+        # digit strings without trailing zeros compare like the fractions 0.<digits>
+        return sa if (ea, da) > (eb, db) else -sa
+
+    def __lt__(self, other: Any) -> bool:
+        return self._cmp(other) < 0
+
+    def __le__(self, other: Any) -> bool:
+        return self._cmp(other) <= 0
+
+    def __gt__(self, other: Any) -> bool:
+        return self._cmp(other) > 0
+
+    def __ge__(self, other: Any) -> bool:
+        return self._cmp(other) >= 0
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, (int, float, Decimal, _BeyondDecimal)) and self._cmp(other) == 0
+
+    __hash__ = None  # type: ignore[assignment]
+
+    # -- what jsonreshape.jschema needs of an exact number (review R5A-3) ------------------
+    def is_finite(self) -> bool:
+        return True
+
+    def __float__(self) -> float:
+        """The nearest double: +-infinity (huge), +-0.0 (tiny) or 0.0."""
+        sign, digits, adj = self.parts
+        if not sign:
+            return 0.0
+        mag = math.inf if adj > 0 else 0.0
+        return -mag if sign < 0 else mag
+
+    def integral(self) -> bool:
+        """No fractional part (exactly)."""
+        sign, digits, adj = self.parts
+        return not sign or adj - (len(digits) - 1) >= 0
+
+    def coef_exp(self) -> tuple[int, int]:
+        """``|x| = c * 10**e`` (``int(Decimal(digits))``: no ``int(str)`` digit limit)."""
+        sign, digits, adj = self.parts
+        if not sign:
+            return 0, 0
+        return int(Decimal(digits)), adj - (len(digits) - 1)
+
+    def adjusted(self) -> int:
+        """The exponent of the first significant digit (like ``Decimal.adjusted``)."""
+        return self.parts[2]
+
+
 def _num_key(v: Any) -> Any:
     """Exactly comparable key of a number value (``None`` for NaN)."""
     tp = type(v)
     if tp is int or tp is float:
         return v if v == v else None
     if tp is JsonFloat:
-        return Decimal(v.raw)
+        try:
+            return Decimal(v.raw)
+        except ArithmeticError:   # an exponent beyond Decimal's range
+            return _BeyondDecimal(v.raw)
     if tp is JsonInt:
         return int(v)
     if isinstance(v, Decimal):
@@ -326,6 +453,35 @@ def _num_lt(a: Any, b: Any) -> bool:
     return a < b
 
 
+def _dec_integral(d: Decimal) -> bool:
+    """A finite Decimal without a fractional part (``1e400``, ``1.000``, ``-0.0``)."""
+    if not d.is_finite():
+        return False
+    return d.as_tuple().exponent >= 0 or d == d.to_integral_value()
+
+
+def is_integral(v: Any) -> bool:
+    """The number ``v`` (``codec.loads`` types, ``Decimal``) is mathematically integral by
+    its EXACT value (the ``integers`` counter, module docstring): ``int`` / ``JsonInt``,
+    ``JsonFloat`` by its token text (``1e400`` yes, ``1.5`` no), a plain float by
+    ``is_integer()``. ``False`` for anything that is not a finite number (``bool`` too)."""
+    if isinstance(v, bool):
+        return False
+    if isinstance(v, int):
+        return True
+    if isinstance(v, JsonFloat):
+        try:
+            return _dec_integral(Decimal(v.raw))
+        except ArithmeticError:   # an exponent beyond Decimal's range: exactly by the token
+            sign, digits, adj = _number_parts(v.raw)
+            return not sign or adj - (len(digits) - 1) >= 0
+    if isinstance(v, Decimal):
+        return _dec_integral(v)
+    if isinstance(v, float):
+        return v.is_integer()
+    return False
+
+
 # ----------------------------------------------------------------------------------
 # accumulator node
 # ----------------------------------------------------------------------------------
@@ -334,7 +490,7 @@ class _Acc:
 
     __slots__ = ("path", "text", "depth", "elem", "is_key", "children", "count", "records", "present",
                  "rec", "unit", "tc", "slo", "shi", "alo", "ahi", "klo", "khi", "nlo", "nhi", "nlo_v", "nhi_v",
-                 "examples", "exfull", "exk")
+                 "examples", "exfull", "exk", "ni")
 
     def __init__(self, path: tuple, text: str, depth: int, *, elem: bool = False, is_key: bool = False) -> None:
         self.path = path
@@ -362,6 +518,7 @@ class _Acc:
         self.examples: list[str] = []
         self.exfull = False
         self.exk: set[str] | None = None
+        self.ni = 0                   # numbers with an integral value (the "integers" counter)
 
 
 _NEW_FIELD: Any = object()   # SchemaBuilder journal entry: (_NEW_FIELD, parent, segment)
@@ -478,7 +635,7 @@ class SchemaBuilder:
                 del entry[1].children[entry[2]]
                 continue
             (_, f.count, f.records, f.present, f.rec, f.unit, f.tc, f.slo, f.shi, f.alo, f.ahi, f.klo, f.khi,
-             f.nlo, f.nhi, f.nlo_v, f.nhi_v, nex, f.exfull, f.exk) = entry
+             f.nlo, f.nhi, f.nlo_v, f.nhi_v, nex, f.exfull, f.exk, f.ni) = entry
             del f.examples[nex:]
         self.scanned, self.truncated, self._nfields = self._saved
 
@@ -489,7 +646,7 @@ class SchemaBuilder:
         assert self._journal is not None
         self._journal.append((f, f.count, f.records, f.present, f.rec, f.unit, f.tc[:], f.slo, f.shi, f.alo, f.ahi,
                               f.klo, f.khi, f.nlo, f.nhi, f.nlo_v, f.nhi_v, len(f.examples), f.exfull,
-                              None if exk is None else set(exk)))
+                              None if exk is None else set(exk), f.ni))
 
     def _enter(self, f: _Acc, own: int) -> None:
         """Count one value at ``f`` (occurrence, record, context); its type is counted by
@@ -550,6 +707,7 @@ class SchemaBuilder:
             self._dict(f, v, kids)
         elif tp is int:
             f.tc[3] += 1
+            f.ni += 1
             lo = f.nlo
             if lo is None:
                 f.nlo = f.nhi = f.nlo_v = f.nhi_v = v
@@ -561,6 +719,8 @@ class SchemaBuilder:
                 _add_example(f, int.__repr__(v))
         elif tp is float:
             f.tc[3] += 1
+            if v.is_integer():
+                f.ni += 1
             if v == v:
                 _number(f, v, v)
             if not f.exfull:
@@ -631,6 +791,8 @@ class SchemaBuilder:
             v = bool(v)
         if isinstance(v, (int, float, Decimal)):
             f.tc[3] += 1
+            if is_integral(v):
+                f.ni += 1
             key = _num_key(v)
             if key is not None:
                 _number(f, key, v)
@@ -784,6 +946,7 @@ class SchemaBuilder:
         for src in srcs:
             for i in range(6):
                 dst.tc[i] += src.tc[i]
+            dst.ni += src.ni
             dst.slo = min(dst.slo, src.slo)
             dst.shi = max(dst.shi, src.shi)
             dst.alo = min(dst.alo, src.alo)
@@ -847,7 +1010,7 @@ def _finish(a: _Acc, base: int, ctx: int) -> FieldInfo:
         presence=(a.present / base) if base else 0.0, types=types, examples=list(a.examples),
         str_len=(a.slo, a.shi) if a.shi >= 0 else None, num_range=num_range,
         arr_len=(a.alo, a.ahi) if a.ahi >= 0 else None, obj_keys=(a.klo, a.khi) if a.khi >= 0 else None,
-        is_key=a.is_key,
+        is_key=a.is_key, integers=a.ni,
     )
     for seg, c in a.children.items():
         fi.children[seg] = _finish(c, ctx, c.count if c.elem else ctx)
@@ -891,18 +1054,19 @@ class FieldInfo:
     * ``examples``: up to 5 distinct example texts;
     * ``str_len``, ``arr_len``, ``obj_keys``: ``(min, max)`` or ``None``;
       ``num_range``: ``(min_text, max_text)`` (exact number texts) or ``None``;
+    * ``integers``: the numbers with an integral value (of ``types["number"]``);
     * ``children``: ``{segment: FieldInfo}`` in first-seen order (``RECORD_KEY`` for
       ``$key``).
     """
 
     __slots__ = ("path", "text", "depth", "count", "records", "present", "base", "presence", "types",
-                 "examples", "str_len", "num_range", "arr_len", "obj_keys", "children", "is_key")
+                 "examples", "str_len", "num_range", "arr_len", "obj_keys", "children", "is_key", "integers")
 
     def __init__(self, path: tuple, text: str, depth: int, *, count: int = 0, records: int = 0, present: int = 0,
                  base: int = 0, presence: float = 0.0, types: dict[str, int] | None = None,
                  examples: list[str] | None = None, str_len: tuple[int, int] | None = None,
                  num_range: tuple[str, str] | None = None, arr_len: tuple[int, int] | None = None,
-                 obj_keys: tuple[int, int] | None = None, is_key: bool = False) -> None:
+                 obj_keys: tuple[int, int] | None = None, is_key: bool = False, integers: int = 0) -> None:
         self.path = tuple(path)
         self.text = text
         self.depth = depth
@@ -919,6 +1083,7 @@ class FieldInfo:
         self.obj_keys = obj_keys
         self.children: dict[Any, FieldInfo] = {}
         self.is_key = is_key
+        self.integers = int(integers)
 
     def __repr__(self) -> str:
         return f"FieldInfo({self.text!r}, count={self.count}, presence={self.presence:.3f}, types={self.types})"
@@ -969,11 +1134,13 @@ class FieldInfo:
             "num_range": None if self.num_range is None else list(self.num_range),
             "arr_len": None if self.arr_len is None else list(self.arr_len),
             "obj_keys": None if self.obj_keys is None else list(self.obj_keys),
+            "integers": self.integers,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> FieldInfo:
-        """Inverse of :meth:`to_dict` (children are attached by :meth:`Schema.from_dict`)."""
+        """Inverse of :meth:`to_dict` (children are attached by :meth:`Schema.from_dict`);
+        ``integers`` is read with ``.get`` (0 when a file written before stage 5 lacks it)."""
         return cls(
             tuple(_seg_from_json(s) for s in data["path"]), str(data["text"]), int(data["depth"]),
             count=int(data["count"]), records=int(data["records"]), present=int(data["present"]),
@@ -982,6 +1149,7 @@ class FieldInfo:
             examples=[str(e) for e in data["examples"]], str_len=_pair(data.get("str_len")),
             num_range=_pair(data.get("num_range")), arr_len=_pair(data.get("arr_len")),
             obj_keys=_pair(data.get("obj_keys")), is_key=bool(data.get("key", False)),
+            integers=int(data.get("integers", 0) or 0),
         )
 
 
@@ -1140,6 +1308,82 @@ class Schema:
 
 
 # ----------------------------------------------------------------------------------
+# field lists (docs/ARCHITECTURE.md §14.1: the core home of the GUI's helpers, so that the
+# CLI -- e.g. ``stats`` without ``--field`` -- never imports jsonreshape.gui; same rules as
+# jsonreshape.gui.fields, which may switch to these)
+# ----------------------------------------------------------------------------------
+DEFAULT_COLUMN_LIMIT = 50     # fields suggested by default_columns at most ...
+DEFAULT_COLUMN_DEPTH = 3      # ... and their maximum depth
+CONTAINER_TYPES = ("object", "array")
+
+
+def is_container(fi: FieldInfo) -> bool:
+    """The field's most frequent type is an object or an array."""
+    return fi.main_type in CONTAINER_TYPES
+
+
+def under_array(fi: FieldInfo) -> bool:
+    """The field lies inside an array element (``orders[*].id``)."""
+    return any(seg is Wild.ANY_INDEX for seg in fi.path)
+
+
+def field_paths(schema: Schema | None, *, containers: bool = True, inside_arrays: bool = True,
+                key_field: bool = True, max_depth: int | None = None) -> list[str]:
+    """Field texts (path syntax of :mod:`jsonreshape.paths`, ``$key`` for member keys) in
+    pre-order, filtered: ``containers`` keeps object/array fields, ``inside_arrays`` keeps
+    fields under ``[*]``, ``key_field`` keeps ``$key``, ``max_depth`` limits the depth.
+    Pooled map keys (``*``) are not addressable fields and never listed."""
+    if schema is None:
+        return []
+    out: list[str] = []
+    for fi in schema.fields():
+        if fi.is_key:
+            if key_field:
+                out.append(fi.text)
+            continue
+        if max_depth is not None and fi.depth > max_depth:
+            continue
+        if not containers and is_container(fi):
+            continue
+        if not inside_arrays and under_array(fi):
+            continue
+        if any(seg is Wild.ANY_KEY for seg in fi.path):
+            continue  # pooled map keys are not addressable fields
+        out.append(fi.text)
+    return out
+
+
+def default_columns(schema: Schema | None, *, limit: int = DEFAULT_COLUMN_LIMIT,
+                    max_depth: int = DEFAULT_COLUMN_DEPTH) -> list[str]:
+    """Columns (fields) suggested for a schema: ``$key`` (member records), then the scalar
+    fields outside arrays up to ``max_depth`` and the arrays of the first level, in schema
+    order, at most ``limit``; records that are not objects get the single column ``$``."""
+    if schema is None:
+        return ["$"]
+    root = schema.root
+    root_is_object = root.main_type == "object"
+    cols: list[str] = []
+    for fi in schema.fields():
+        if len(cols) >= limit:
+            break
+        if fi.is_key:
+            cols.append(fi.text)
+            continue
+        if not root_is_object or fi.depth > max_depth or under_array(fi):
+            continue
+        if any(seg is Wild.ANY_KEY for seg in fi.path):
+            continue
+        if fi.main_type == "object":
+            continue  # its scalar children become columns
+        if fi.main_type == "array" and fi.depth > 1:
+            continue
+        cols.append(fi.text)
+    if not root_is_object:
+        cols.append("$")
+    return cols or ["$"]
+
+
+# ----------------------------------------------------------------------------------
 # table helpers
 # ----------------------------------------------------------------------------------
 def _group(n: int) -> str:
@@ -1291,11 +1535,29 @@ def _check_sample(sample: Any) -> int | None:
 # infer_schema
 # ----------------------------------------------------------------------------------
 def _records_extent(doc: Document) -> tuple[int, int]:
-    """(bytes from the first record's start to the last record's end, records)."""
+    """(bytes from the first record's start to the last record's end, records); an edited
+    document: (``doc.effective_bytes()``, records) -- its first and last records may be
+    edited, moved or new (docs/ARCHITECTURE.md §12.3)."""
     count = doc.record_count
     if not count:
         return 0, 0
+    if getattr(doc, "edited", False):
+        return int(doc.effective_bytes()), count
     return doc.record_span(count - 1)[1] - doc.record_span(0)[0], count
+
+
+def _pin(doc: Any) -> Any:
+    """``doc.pinned()``: the whole inference reads one overlay state (a document-like object
+    without ``pinned`` is used as it is)."""
+    pinned = getattr(doc, "pinned", None)
+    return pinned() if callable(pinned) else doc
+
+
+def _check_scope(doc: Any, source: Any) -> None:
+    """``EditError("edits.error.stale_scope")`` for a source made for another overlay state."""
+    gen = getattr(source, "gen", None) if source is not None else None
+    if gen is not None and gen != getattr(doc, "gen", 0):
+        raise EditError("edits.error.stale_scope")
 
 
 _pool: ThreadPoolExecutor | None = None
@@ -1947,9 +2209,13 @@ def infer_schema(doc: Document, source: Any = None, *, sample: int | None = DEFA
     of record indices; ``sample``: records to analyse (``None`` = every record; must be
     >= 1, else ``UserInputError("schema.bad_sample")``). The GUI passes
     ``doc.settings.sample_size``. Progress is reported in bytes; ``Cancelled`` when
-    ``cancel`` fires.
+    ``cancel`` fires. The document is pinned first (one overlay state for the whole pass;
+    record numbers are its positions); a ``source`` of another state raises
+    ``EditError("edits.error.stale_scope")``.
     """
     started = time.perf_counter()
+    doc = _pin(doc)
+    _check_scope(doc, source)
     sample = _check_sample(sample)
     if progress is not None and not progress.message:
         progress.set_message(t("schema.progress", name=doc.source_path.name))

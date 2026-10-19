@@ -1,0 +1,17 @@
+{
+ "name": "x_sample_drops_unknown_fields",
+ "description": "targeted reference case (batch4)",
+ "case": {"name": "x_sample_drops_unknown_fields", "sample": [{"a": 1}], "records": [{"a": 2, "b": 3}, {"c": 1}]},
+ "output": [{"a": 2}, {}],
+ "log": [],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "a", "kind": "value", "src": [null, "a"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [],
+ "shape": ["(root) array <- (ildiz)", "  [] object <- []", "    \"a\" value <- [].a"],
+ "preview": [{"a": 2}, {}],
+ "perRecord": [[{"a": 2}], [{}]],
+ "perRecordConcatEqualsOutput": true
+}

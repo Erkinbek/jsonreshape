@@ -12,3 +12,4 @@ dist/
 .hypothesis/
 bench/data/
 bench/results/*.tmp
+.claude/

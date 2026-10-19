@@ -6,7 +6,7 @@ Every scenario starts the real application (``jsonreshape.gui.app.main(argv, run
 the real MainWindow with the default view registry and panel factories, GC policy,
 excepthooks, logging) on files generated in ``tmp_path`` and drives it like a user: key
 presses on the focused widget (window shortcuts such as Ctrl+Shift+F, Ctrl+2, Ctrl+G,
-Alt+Left, Ctrl+D, Ctrl+E, Ctrl+W), mouse clicks on tree rows, table headers, buttons and
+Alt+Left, Ctrl+B, Ctrl+E, Ctrl+W), mouse clicks on tree rows, table headers, buttons and
 check boxes, typing into the search / filter / go-to / export fields, a drag & drop of a
 file URL. Results are checked through public state (session view and current node, tree
 rows and key paths, table rows, status bar texts, exported files) against references
@@ -655,7 +655,8 @@ def test_goto_history_and_bookmarks_on_a_wrapped_file(gui, tmp_path) -> None:
     g.wait(lambda: same_node(s.current, NodeRef(7, ())))
     g.wait(lambda: tree.current_keypath() == (7,))
 
-    # Ctrl+D bookmarks the current node (the name is asked)
+    # Ctrl+B bookmarks the current node (the name is asked); stage 3 moved it from Ctrl+D,
+    # which duplicates nodes now (ARCHITECTURE §12.9, AGENT_PROMPT §8.1)
     asked: list[str] = []
 
     def ask_text(title: str, label: str, default: str = "") -> str:
@@ -663,7 +664,7 @@ def test_goto_history_and_bookmarks_on_a_wrapped_file(gui, tmp_path) -> None:
         return "yettinchi"
 
     g.win._ask_text = ask_text
-    g.press(K.Key_D, CTRL)
+    g.press(K.Key_B, CTRL)
     assert asked == ["#7"]
     assert [(b.name, b.record, list(b.path)) for b in s.bookmarks] == [("yettinchi", 7, [])]
     goto("#20.name", NodeRef(20, ("name",)), (20, RECORD_KEYS.index("name")))
@@ -811,6 +812,80 @@ def test_export_dialog_keyed_round_trip(gui, tmp_path) -> None:
     assert dialog.format() == "jsonl"
     assert back.read_bytes() == lines.read_bytes()
     _close_dialogs(g, dialog)
+
+
+# ----------------------------------------------------------------------------------------
+# 6b. the Tools menu (stage 5): statistics, duplicates, JSON Schema, repair, split / merge, compare
+# ----------------------------------------------------------------------------------------
+def test_tools_menu_pass_through_every_stage5_tool(gui, people, tmp_path) -> None:
+    before = sha256(people)
+    g = gui([people])
+    tab = g.ready()
+    s = tab.session
+    g.activate()
+    win = g.win
+    tools = win.menus["tools"]
+    keys = ("compare_files", "stats", "dupes", "schema_generate", "schema_validate", "repair", "split_file",
+            "merge_files")
+    assert all(win.action(k).isEnabled() and win.action(k) in tools.actions() + win.menus["json_schema"].actions()
+               for k in keys)
+    # statistics dock: type a field, Enter computes it
+    win.action("stats").trigger()
+    panel = win.panels["stats"]
+    g.wait(lambda: win.docks["stats"].isVisible())
+    g.type_into(panel.field_combo.lineEdit(), "contact.city")
+    g.press(K.Key_Return, widget=panel.field_combo.lineEdit())
+    g.wait(lambda: panel.status() == "done", timeout=60000)
+    assert panel.result().distinct == len(CITIES) and panel.result().present == N
+    # duplicates by name: one group per name
+    win.action("dupes").trigger()
+    dupes = win.dialogs["dupes"]
+    g.wait(dupes.isVisible)
+    dupes.set_key("name")
+    with g.qtbot.waitSignal(dupes.report_ready, timeout=60000):
+        g.click(dupes.run_button)
+    assert dupes.report.duplicates == N - len(NAMES) and dupes.group_count() == len(NAMES)
+    g.click(dupes.close_button)
+    g.wait(lambda: closed(dupes))
+    # JSON Schema: generate (the window's save asker), then validate the file against it
+    out = tmp_path / "people.schema.json"
+    win._ask_save_path = lambda title, start, filters: str(out)
+    win.action("schema_generate").trigger()
+    gen = win.dialogs["schema_generate"]
+    g.wait(gen.isVisible)
+    g.click(gen.save_button)
+    g.wait(lambda: out.exists() and not gen.running, timeout=60000)
+    schema = json.loads(out.read_text(encoding="utf-8"))
+    assert schema["type"] == "array"
+    gen.close()
+    win.action("schema_validate").trigger()
+    val = win.dialogs["schema_validate"]
+    g.wait(val.isVisible)
+    val.panel.set_schema_path(out)
+    g.click(val.panel.run_button)
+    g.wait(lambda: not val.panel.is_running(s) and val.panel.summary_text(), timeout=60000)
+    assert val.panel.issue_count_shown() == 0
+    val.close()
+    # repair: the tab's file is the source; a check finds nothing to fix
+    win.action("repair").trigger()
+    rep = win.dialogs["repair"]
+    g.wait(rep.isVisible)
+    assert rep.source_path() == str(people)
+    with g.qtbot.waitSignal(rep.run_finished, timeout=60000):
+        g.click(rep.check_button)
+    assert rep.report is not None and rep.report.total == 0
+    g.click(rep.close_button)
+    g.wait(lambda: closed(rep))
+    # split / merge / compare windows open (non-modal) and close again
+    for key in ("split_file", "merge_files", "compare_files"):
+        win.action(key).trigger()
+        name = {"split_file": "split", "merge_files": "merge", "compare_files": "compare"}[key]
+        dialog = win.dialogs[name]
+        g.wait(dialog.isVisible)
+        assert not dialog.isModal()
+        dialog.close()
+        g.wait(lambda d=dialog: closed(d))
+    assert sha256(people) == before                     # no tool touched the source
 
 
 # ----------------------------------------------------------------------------------------

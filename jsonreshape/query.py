@@ -89,7 +89,7 @@ Semantics (§9)
   :class:`~jsonreshape.codec.JsonFloat` its token text is compared exactly
   (:func:`jsonreshape.textmatch.number_key`). ``Decimal`` values, e.g. from ijson, are
   first converted with ``codec.loads(str(d))``. Strings compare exactly; arrays and
-  objects deeply.
+  objects deeply. The equality is public as :func:`json_equal` (``_eq`` is its private alias).
 * Ordering (``< <= > >=`` and ``between``): number–number (exact, as above) or
   string–string (Unicode code point order) only; anything else is false.
 * ``contains``: substring for strings, element (deep equality) for arrays, key for objects.
@@ -215,6 +215,7 @@ __all__ = [
     "builder_from_text",
     "compile_filter",
     "format_expr",
+    "json_equal",
     "op_arity",
     "op_label",
     "parse_filter",
@@ -1193,11 +1194,20 @@ def _deep_eq(a: Any, b: Any) -> bool:
     return True
 
 
-def _eq(a: Any, b: Any) -> bool:
-    """JSON equality: no type coercion, numbers by value, containers deeply."""
+def json_equal(a: Any, b: Any) -> bool:
+    """JSON equality -- the filter language's ``==`` (§9): no type coercion (``1 != "1"``, ``true != 1``,
+    ``null`` only equals ``null``), numbers by their exact value (``1.10 == 1.1``, ``-0 == 0``, ``1e400 ==
+    10e399``, big integers exactly), strings by code points, objects by their members whatever their order
+    (same keys, equal values), arrays element by element, deeply (iterative: any depth).
+
+    Public since fix round L1 for the modules that must agree with the filter (``bulk``'s ``set_field``
+    "unchanged" test, ``jsonpatch``'s ``test`` operation); ``_eq`` stays as the private alias."""
     if isinstance(a, _CONTAINER_TYPES):
         return isinstance(b, _CONTAINER_TYPES) and _deep_eq(a, b)
     return _scalar_eq(a, b)
+
+
+_eq = json_equal
 
 
 _ORDER_OPS = {"<": operator.lt, "<=": operator.le, ">": operator.gt, ">=": operator.ge}
@@ -1435,7 +1445,7 @@ def _to_string(v: Any) -> str:
         return "false"
     if _is_num(v):
         return codec.number_text(_num(v))
-    return codec.dumps(v).decode("utf-8")
+    return codec.dumps_transient(v).decode("utf-8")
 
 
 @lru_cache(maxsize=256)

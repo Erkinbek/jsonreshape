@@ -1,0 +1,52 @@
+{
+ "name": "x_rename_rules",
+ "description": "targeted reference case (batch3)",
+ "case": {
+  "name": "x_rename_rules",
+  "records": [{"a": 1, "b": 2}],
+  "ops": [
+   {"op": "rename", "node": "[].a", "name": "  x  "},
+   {"op": "rename", "node": "[].x", "name": "x"},
+   {"op": "rename", "node": "[].x", "name": "   "},
+   {"op": "rename", "node": "[].x", "name": "﻿y　"},
+   {"op": "rename", "node": "[].y", "name": "\u001cz"},
+   {"op": "rename", "node": "[].b", "name": "\u001cz"},
+   {"op": "rename", "node": "[]", "name": "q"},
+   {"op": "rename", "node": "", "name": "q"}
+  ]
+ },
+ "output": [{"\u001cz": 1, "\u001cz_2": 2}],
+ "log": [
+  {"i": 0, "op": "rename", "applied": true, "changed": true, "undo": 1, "msg": ""},
+  {"i": 1, "op": "rename", "applied": false, "changed": false, "undo": 1, "msg": null},
+  {"i": 2, "op": "rename", "applied": false, "changed": false, "undo": 1, "msg": null},
+  {"i": 3, "op": "rename", "applied": true, "changed": true, "undo": 2, "msg": ""},
+  {"i": 4, "op": "rename", "applied": true, "changed": true, "undo": 3, "msg": ""},
+  {
+   "i": 5,
+   "op": "rename",
+   "applied": true,
+   "changed": true,
+   "undo": 4,
+   "msg": "«\u001cz» band edi, «\u001cz_2» deb nomlandi"
+  },
+  {"i": 6, "op": "rename", "applied": false, "changed": false, "undo": 4, "msg": null},
+  {"i": 7, "op": "rename", "applied": false, "changed": false, "undo": 4, "msg": null}
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "\u001cz", "kind": "value", "src": [null, "a"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "\u001cz_2", "kind": "value", "src": [null, "b"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [{"ref": [0, "\u001cz"], "badges": ["asl nomi: a"]}, {"ref": [0, "\u001cz_2"], "badges": ["asl nomi: b"]}],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"\\u001cz\" value <- [].a",
+  "    \"\\u001cz_2\" value <- [].b"
+ ],
+ "preview": [{"\u001cz": 1, "\u001cz_2": 2}],
+ "perRecord": [[{"\u001cz": 1, "\u001cz_2": 2}]],
+ "perRecordConcatEqualsOutput": true
+}

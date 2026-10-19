@@ -1,19 +1,21 @@
 # jsonreshape
 
 Katta JSON fayllar (100 MB dan bir necha GB gacha) bilan ishlash uchun desktop dastur va CLI:
-ko'rish, qidirish, filtrlash, tartiblash, konvertatsiya, keyinchalik tahrirlash va tuzilmani qayta qurish.
+ko'rish, qidirish, filtrlash, tartiblash, konvertatsiya, tahrirlash, tuzilmani qayta qurish, statistika,
+dublikatlar, JSON Schema, bo'lish/birlashtirish, ta'mirlash va taqqoslash.
 **Fayl hech qachon to'liq xotiraga yuklanmaydi**: u bir marta indekslanadi (har yozuvning bayt chegaralari),
-keyin faqat kerakli bo'laklar o'qiladi.
+keyin faqat kerakli bo'laklar o'qiladi. **Asl fayl hech qachon o'zgartirilmaydi**: tahrirlar alohida qatlamda
+turadi, saqlash yangi faylni atomik almashtiradi (standart bo'yicha `.bak` zaxira nusxasi bilan).
 
-> **Holat: 2-bosqich (ko'ruvchi GUI) tayyor.** 3-bosqich (tahrirlash) tasdiqdan keyin boshlanadi.
+> **Holat: 1–5-bosqichlar tayyor.** 6-bosqich (silliqlash va `.exe`) davom etmoqda.
 
 | # | Bosqich | Holat |
 |---|---|---|
 | 1 | **Yadro**: reader + indeks (Rust yadro va Python fallback), RecordSet, qidiruv, filtr, tartib, writer, CLI (`inspect`, `search`, `filter`, `sort`, `convert`) | ✅ tayyor |
 | 2 | **Ko'ruvchi GUI** (PySide6): daraxt, jadval, matn, xom baytlar, tuzilma, navigatsiya, qidiruv paneli, filtr quruvchi, tartiblash, eksport, fon vazifalari, holat qatori | ✅ tayyor |
-| 3 | Tahrirlash: tugun tahriri, ommaviy amallar, tahrir qatlami (SQLite), saqlash, avtosaqlash | ⏳ |
-| 4 | Tuzilma quruvchi (mapping engine + GUI + `apply`, `flatten`) — etalon: `json-tuzilma.html` | ⏳ |
-| 5 | Asboblar: statistika, dublikatlar, JSON Schema, split/merge, repair, diff | ⏳ |
+| 3 | **Tahrirlash**: tugun tahriri (qiymat, kalit, tur, qo'shish, o'chirish, nusxa, surish, sudrab tashlash), ommaviy amallar (oldindan aniq sanash bilan), JSON Patch, undo/redo, tahrir qatlami (SQLite + segment fayllar, uzluksiz avtosaqlash va tiklash), xavfsiz saqlash, CLI `patch` | ✅ tayyor |
+| 4 | **Tuzilma quruvchi**: mapping engine (`json-tuzilma.html` bilan aynan bir xil natija), GUI (sudrab tashlash, jonli ko'rinish), mapping fayllari, CLI `apply`, `flatten` | ✅ tayyor |
+| 5 | **Asboblar**: maydon statistikasi, dublikatlar, JSON Schema (yaratish va tekshirish), bo'lish / birlashtirish / ajratib olish, ta'mirlash, taqqoslash (diff), "aqlli" qiymatlar; CLI `stats`, `dupes`, `schema`, `validate`, `split`, `merge`, `extract`, `repair`, `diff` | ✅ tayyor |
 | 6 | Silliqlash: buyruqlar palitrasi, sessiya, workspace, mavzular, PyInstaller `.exe` | ⏳ |
 
 ---
@@ -101,6 +103,39 @@ jsonreshape convert data.json jadval.csv --columns "id,name,contact.address.city
 jsonreshape convert data.json jadval.xlsx --array-mode rows --explode orders
 jsonreshape convert data.json baza.sqlite
 jsonreshape convert data.json chiroyli.json --indent 4 --sort-keys --where "active == true" --sort-by -score
+# faqat tanlangan yozuvlar (raqamlar 0 dan: 0:100 = 0..99) yoki bitta tugun
+jsonreshape convert data.json tanlov.csv --select "0:100,500"
+jsonreshape convert data.json buyurtmalar.json --node "#5.orders"
+
+# JSON Patch (RFC 6902): natija yangi faylga, kirish fayli bilan bir xil format va kodirovkada
+jsonreshape patch data.json tuzatish.patch.json natija.json
+# avval data.json.bak; --no-backup
+jsonreshape patch data.json tuzatish.patch.json --in-place
+
+# Tuzilma quruvchida saqlangan mapping'ni butun faylga qo'llash (oqim bilan, parallel jarayonlarda)
+jsonreshape apply tuzilma.mapping.json data.json yangi.json
+# ichma-ich children ro'yxatini daraja raqami (_depth) bilan bitta ro'yxatga tekislash
+jsonreshape flatten data.json tekis.jsonl --children-key children
+
+# Statistika, dublikatlar, JSON Schema
+jsonreshape stats data.json --field contact.address.city
+jsonreshape stats data.json --where "active == true" --json
+jsonreshape dupes data.json --key id --top 10 -o takroriy.jsonl
+jsonreshape schema data.json data.schema.json --strict
+jsonreshape validate data.json --schema data.schema.json --export xatolar.csv
+
+# Bo'lish, birlashtirish, ajratib olish
+# yoki --size 500MB / --records 100000; -o papka
+jsonreshape split data.json --parts 10
+# andozani dastur o'zi ochadi
+jsonreshape merge "qism_*.json" -o hammasi.jsonl --dedupe-by id
+jsonreshape extract katta.json elementlar.json --path data.items
+jsonreshape extract data.json buyurtmalar.jsonl --gather "orders[*]"
+
+# Ta'mirlash (asl fayl o'zgarmaydi) va taqqoslash
+# --check: faqat tekshirish
+jsonreshape repair buzuq.json tuzatilgan.json --report tuzatishlar.csv
+jsonreshape diff eski.json yangi.json --key id --exit-code
 ```
 
 JMESPath'da `` `100` `` kabi literal kerak bo'lsa: PowerShell'da bitta tirnoqli satr
@@ -121,9 +156,15 @@ Chiqish kodlari:
 | `2` | kirish faylida JSON xatosi (qator/ustun/bayt va atrofi ko'rsatiladi) **yoki** fayl ish paytida boshqa dastur tomonidan o'zgartirildi (natija saqlanmaydi) |
 | `3` | bekor qilindi (Ctrl+C / Ctrl+Break) — chala chiqish fayli qolmaydi |
 | `4` | ichki xato (qisqa xabar va log faylining yo'li) |
+| `5` | ma'lumot mos emas: `validate` xato topdi yoki `diff --exit-code` farq topdi |
 
-Asl fayl **hech qachon o'zgartirilmaydi**: barcha natijalar alohida faylga vaqtinchalik nom bilan yoziladi
-va oxirida atomik almashtiriladi. Agar kirish fayli ish davomida o'zgarsa (boshqa dastur qayta yozsa,
+Har bir buyruqning to'liq parametrlari: `jsonreshape BUYRUQ --help` (o'zbekcha; `--lang en` — inglizcha).
+PowerShell va bash'da `$key` ni bitta tirnoqda yozing: `'$key'`.
+
+Asl fayl **o'z-o'zidan hech qachon o'zgartirilmaydi**: barcha natijalar alohida faylga vaqtinchalik nom bilan
+yoziladi va oxirida atomik almashtiriladi; chiqish fayli kirish fayli bo'lsa (boshqa yozilishda, havola orqali
+ham) — rad etiladi. Faylning o'zi faqat aniq so'ralganda almashtiriladi (`patch --in-place`, GUI'da **Saqlash**):
+yangi nusxa tekshirilgandan keyin atomik va standart bo'yicha `.bak` zaxira bilan. Agar kirish fayli ish davomida o'zgarsa (boshqa dastur qayta yozsa,
 o'chirib qayta yaratsa), bu aniqlanadi va buzuq natija yozilmaydi.
 
 <a id="gui"></a>
@@ -183,8 +224,8 @@ fonda qurilayotganda) ko'rinadi, yozuvlar soni jonli yangilanadi.
 ### Navigatsiya
 
 * **Ctrl+G**: `data[120].contact.address`, `$.data[120]`, `/data/120`, `#120`, `#120.contact`.
-* **Alt+← / Alt+→** — tanlash tarixi; **Ctrl+D** — xatcho'p (nomlanadi, saqlanadi), **Ctrl+Shift+D** —
-  xatcho'plar ro'yxati.
+* **Alt+← / Alt+→** — tanlash tarixi; **Ctrl+B** — xatcho'p (nomlanadi, saqlanadi; 3-bosqichdan boshlab — Ctrl+D
+  endi «nusxasini qo'shish»), **Ctrl+Shift+D** — xatcho'plar ro'yxati.
 * Har tugunning kontekst menyusi: qiymatni nusxalash (JSON chiroyli / ixcham, Python, CSV qatori), yo'lni
   nusxalash (nuqtali `a.b[0].c`, JSONPath, JSON Pointer, Python `["a"]["b"][0]`, JavaScript), kalitni
   nusxalash; «Shu qiymat bo'yicha filtr», «Shu maydon bo'yicha tartiblash ↑/↓», «Daraxtda ko'rsatish»,
@@ -209,9 +250,128 @@ fonda qurilayotganda) ko'rinadi, yozuvlar soni jonli yangilanadi.
 ### Eksport (Ctrl+E)
 
 JSON (chekinish 2 / 4 / tab / ixcham, kalitlarni tartiblash, tashqi o'ramani saqlash, kalitli obyektni
-tiklash), JSONL, CSV, XLSX, SQLite. Doira: joriy ko'rinish (filtr + tartib), barcha yozuvlar yoki joriy tugun.
+tiklash), JSONL, CSV, XLSX, SQLite. Doira: joriy ko'rinish (filtr + tartib), barcha yozuvlar, tanlangan yozuvlar,
+joriy tugun (massiv yoki obyekt tugun — CSV/XLSX/SQLite'ga ham) yoki boshqa asbob bergan yozuvlar to'plami
+(masalan, takroriylar). «Tashqi o'ramani saqlash» har formatda ishlaydi; `.gz` nomli chiqish siqiladi.
 Manba faylning o'ziga (boshqa nom yoki havola orqali ham) yozish taqiqlangan. Eksport fonda ishlaydi: dialogni
 yopsangiz ham, faylni qayta ochsangiz ham davom etadi; oxirida hisobot (yozuvlar, fayllar, ogohlantirishlar).
+
+### Tahrirlash (3-bosqich)
+
+Asl fayl tahrir paytida **o'zgartirilmaydi**: har bir o'zgarish alohida *tahrir qatlamiga* yoziladi, fayl faqat
+**Saqlash** bosilganda tekshirilgan yangi nusxa bilan atomik almashtiriladi.
+
+* **Tugun ustida** (daraxt va jadvalda): **Enter** — qiymatni tahrirlash (qisqa qiymat katakning o'zida, uzun matn
+  alohida oynada; son asl yozuvi bilan ochiladi — `1.10` `1.1` ga aylanmaydi); **Shift+Enter** — JSON matn sifatida
+  (jonli tekshiruv, xato qatori va ustuni belgilanadi, «Formatlash»); **F2** — kalitni qayta nomlash; **Ins** —
+  qo'shish (ichiga / oldiga / ortiga: kalit, tur, qiymat); **Del** — o'chirish; **Ctrl+D** — nusxasini qo'shish;
+  **Alt+↑ / Alt+↓** — surish; **Ctrl+V** — buferdagi JSON'ni qo'yish; menyuda «Turini o'zgartirish» (faqat mumkin
+  bo'lgan turlar). Mavjud kalit, noto'g'ri son yoki JSON kabi xatolar tahrir maydonining o'zida yoki holat qatorida
+aytiladi (xato oynasi ochilmaydi). Daraxtda yozuv va
+  elementlarni sichqoncha bilan sudrab ko'chirish mumkin (oldiga / ichiga / ortiga). Bir nechta tanlangan tugun
+  (Shift / Ctrl) bilan o'chirish, nusxalash va surish — 10 000 tagacha, undan ko'pi uchun ommaviy amallar.
+* **Jadvalda** aniq ustun katagi tahrirlanadi (yozuvda yo'q maydon qo'shiladi); `$key` ustunida F2 — kalitli faylda
+  yozuv kalitini o'zgartiradi; `$index` faqat o'qish uchun.
+* **Ortga qaytarish** Ctrl+Z, **qayta bajarish** Ctrl+Y / Ctrl+Shift+Z. Har bir amal (ommaviy amal ham) — bitta
+  qadam, menyuda nomi bilan («Ortga qaytarish: …»); standart 1000 qadam (sozlamada, kamida 200).
+* **Ommaviy amallar** (Ctrl+H): topish va almashtirish (oddiy matn yoki regex, ixtiyoriy yo'l bo'yicha), kalitni
+  qayta nomlash, maydonni o'chirish, maydonga qiymat berish (har doim / yo'q bo'lsa / bor bo'lsa), matnlarni
+  tozalash (chetdagi va ortiqcha bo'shliqlar), turni o'zgartirish, takrorlarni o'chirish (kalit bo'yicha,
+  birinchisi yoki oxirgisi qoladi). Doira: barcha yozuvlar, joriy ko'rinish (filtr / tartib) yoki tanlangan
+  yozuvlar. Avval **«Ko'rib chiqish»**: o'zgaradigan yozuvlarning aniq soni, 5 ta misol (oldin → keyin) va
+  muammolar; keyin **«Qo'llash»** — natija sanalgan son bilan aynan bir xil.
+* **JSON Patch** (RFC 6902): Tahrir → «JSON Patch'ni qo'llash…» (bitta qadam; biror amal bajarilmasa hech narsa
+  o'zgarmaydi) va «O'zgarishlarni JSON Patch sifatida saqlash…» (asl faylga nisbatan sof farq).
+* **Saqlash** (Ctrl+S) fonda ishlaydi. Fayl o'z formatida (massiv, kalitli obyekt, o'rama, JSONL, oqim, bitta
+  qiymat), kodirovkasida (UTF-8, BOM, UTF-16), siqilishida (gzip) va atributlari bilan (yashirin, tizim, NTFS
+  siqish) yoziladi; o'zgarmagan yozuvlar baytma-bayt ko'chiriladi. Yangi fayl avval vaqtinchalik faylga yoziladi va
+  yadro skaneri bilan tekshiriladi (yozuvlar soni ham), keyin bitta atomik amal bilan asl faylning o'rniga
+  qo'yiladi. Eski fayl standart bo'yicha `fayl.json.bak` bo'lib qoladi (sozlamada o'chiriladi). Ochiq tahrir
+  maydonidagi yozilgan qiymat saqlashdan oldin qo'llanadi. Shu fayldan eksport yoki boshqa fon vazifasi ishlayotgan
+  bo'lsa, saqlash ularni kutadi (yoki to'xtatadi — so'raladi). **Boshqacha saqlash** (Ctrl+Shift+S) — boshqa faylga
+  (`.gz` nomi — gzip); boshqa tabda saqlanmagan o'zgarishlar bilan ochiq faylning ustiga yozish rad etiladi.
+* **Avtosaqlash va tiklash.** Har bir qadam darhol diskka yoziladi (SQLite WAL + nazorat yig'indili segment
+  fayllar, fsync): dastur yoki kompyuter o'chib qolsa ham o'zgarishlar yo'qolmaydi. Fayl keyingi ochilishda panel
+  chiqadi: «Saqlanmagan o'zgarishlar (vaqt, N ta qadam)» — tiklash, o'chirish yoki JSON Patch sifatida saqlash.
+  Saqlash o'rtasida uzilgan bo'lsa (hatto fayl yo'qolib qolgan bo'lsa ham) — **«Saqlashni yakunlash»**: qaror
+  dalillarga (fayl identifikatori, vaqti, hajmi, hash'lari) asoslanadi; shubha bo'lsa hech narsa o'chirilmaydi va
+  fayllar nomma-nom aytiladi. Fayl tashqaridan o'zgargan bo'lsa, o'zgarishlarni JSON Patch sifatida saqlash taklif
+  qilinadi (ularni yangi faylga qayta qo'llash mumkin).
+* Qatlam joyi: `%LOCALAPPDATA%\jsonreshape\edits\` (sozlama «fayl yonida» — `fayl.json.jredit\`). Bitta faylni
+  bir vaqtda faqat bitta tab yoki oyna tahrirlaydi (boshqa yozilishdagi yo'l yoki havola orqali ham), qolganlari
+  faqat ko'radi.
+* Tabni yopish, qayta ochish (F5) va chiqishda saqlanmagan o'zgarishlar yoki ishlab turgan saqlash haqida so'raladi.
+  Tab va oyna sarlavhasida `*`, holat qatorida «● N o'zgarish».
+* **Cheklovlar**: 50 MB dan katta bitta yozuv tahrirlanmaydi (ommaviy amallar uni o'tkazib, sanab ko'rsatadi);
+  JSON xatosi bor (qisman ochilgan) fayl faqat o'qish uchun — avval «Ta'mirlash»; `brace_list` fayl JSON massiv
+  sifatida saqlanadi, JSONL'dagi buzuq qatorlar saqlashda olib tashlanadi, gzip oxiridagi ortiqcha ma'lumot
+  (zaxirasiz saqlashda) tashlab yuboriladi — uchalasi ham avval so'raladi.
+
+### Tuzilma quruvchi (4-bosqich, Ctrl+6)
+
+Yozuvlar tuzilmasini sichqoncha bilan qayta quring va natijani butun faylga qo'llang. Etalon — `json-tuzilma.html`
+prototipi: natija u bilan aynan bir xil (1–10 qabul testlari va 4 000 tasodifiy holatda tekshirilgan). Farqlar faqat
+JavaScript cheklovlari bilan bog'liq: sonlar aniq saqlanadi (`1.10`, `1e400`, `12345678901234567890`), kalitlar
+tartibi o'zgarmaydi, qayta bajarish (redo) bor, yozuv raqamlari 0 dan.
+
+* Tuzilma ko'rinishidagi «Tuzilma quruvchi…» tugmasi yoki Ctrl+6. Chapda tuzilma daraxti (namunadan — standart
+  10 000 yozuv — yoki «To'liq skanerlash» bilan barcha yozuvlardan), o'ngda jonli natija («Natija» / «Asl»,
+  `‹ #N ›` yozuv tanlagich).
+* **Sudrab tashlash**: qator o'rtasiga — ichiga, yuqori yoki pastki chetiga — oldiga yoki ortiga. Massiv ichidagi
+  maydonni tashqariga olib chiqish — «ro'yxatga yig'iladi», tashqaridagi maydonni massiv elementi ichiga —
+  «har elementga takrorlanadi». Yangi guruh (Ins), nomini o'zgartirish (F2), olib tashlash (Del), ichidagilarni bir
+  pog'ona yuqoriga chiqarish (Ctrl+Shift+U), rekursiv tekislash (`children` → daraja raqami `_depth` bilan),
+  surish (Alt+↑ / Alt+↓), ko'chirish (Ctrl+X, Ctrl+V); qator menyusida har amal va nega mumkin emasligi.
+* Har o'zgarish nishon bilan ko'rinadi (`ko'chirildi`, `asl nomi`, `yangi guruh`, `rekursiv`, …); Ctrl+Z / Ctrl+Y —
+  quruvchining o'z tarixi; «Asl holat».
+* Mapping'ni faylga saqlash va ochish; **«Mapping bilan eksport»** (Ctrl+E): JSON yoki JSON Lines, butun fayl yoki
+  joriy ko'rinish; fonda, katta fayllarda parallel jarayonlarda. CLI: `jsonreshape apply`, `jsonreshape flatten`.
+* Namunada uchramagan maydonlar natijaga tushmaydi (etalon qoidasi) — eksport hisobotida bunday yozuvlar soni
+  aytiladi; kerak bo'lsa «To'liq skanerlash».
+
+<a id="asboblar"></a>
+### Asboblar (5-bosqich)
+
+Hammasi **Asboblar** menyusida, tugun menyusida va tegishli ko'rinishlarda. Og'ir ishlar fonda (progress va bekor
+qilish bilan); tahrirlangan fayl ko'rsatilgan holatida (saqlanmagan o'zgarishlar bilan) ishlatiladi; natija fayllari
+hech qachon manba fayl yoki boshqa tabda saqlanmagan o'zgarishlar bilan ochiq fayl ustiga yozilmaydi.
+
+* **Maydon statistikasi** (Asboblar → «Maydon statistikasi…»; tugun menyusi, jadval sarlavhasi va Tuzilma
+  ko'rinishida «Statistika»; o'ng panel): mavjudlik (bor / `null` / yo'q), turlar, noyob qiymatlar soni (aniq yoki
+  «≈» — xatolik chegarasi bilan), sonlar uchun min / max / o'rtacha / yig'indi (aniq yozilishida), satr uzunliklari,
+  eng ko'p uchragan 20 qiymat (ulushi; ko'p qiymatli maydonlarda yozuvlar soni ham). Hisoblanayotganda natija har
+  ~1 soniyada yangilanadi. Qiymatni ikki marta bosish — shu qiymat bo'yicha filtr; menyuda `null`, yo'q, tur, uzunlik
+  bo'yicha filtr va «Daraxtda ko'rsatish». Doira: joriy ko'rinish yoki barcha yozuvlar; «Aniq hisoblash».
+* **Takroriy yozuvlar** (Asboblar → «Takroriy yozuvlar…», Tuzilma ko'rinishi): kalit maydon (`$key` — a'zo kaliti,
+  `$` — butun yozuv), birinchisi yoki oxirgisi qoladi; takroriylar soni, 20 ta misol guruh (bosilsa — yozuvga
+  o'tadi; guruh bo'yicha filtr); «Takroriylarni ko'rsatish» (yozuvlar to'plami sifatida), «Eksport…»,
+  «Takroriylarni o'chirish…» (ommaviy amal: avval aniq sanab ko'rsatadi).
+* **JSON Schema** (Asboblar → JSON Schema): «Schema yaratish…» — butun hujjat yoki bitta yozuv uchun, yumshoq yoki
+  qat'iy, tuzilma keshidan yoki to'liq skanerlash bilan; «Schema bo'yicha tekshirish…» — schema fayli, doira,
+  formatlar; xatolar topilishi bilan ro'yxatga tushadi (`#yozuv | yo'l | xabar | kalit so'z`), bosilsa tugunga
+  o'tadi; «Xatoli yozuvlarni ko'rsatish», CSV/JSONL'ga eksport, xulosa (kalit so'zlar va yo'llar bo'yicha).
+* **Ta'mirlash** (Asboblar → «Ta'mirlash…»; JSON xatosi, buzuq qatorlar va `brace_list` panellaridagi tugma):
+  «Tekshirish» (hech narsa yozmaydi) va «Ta'mirlash» — natija yangi faylga; hisobot: tuzatishlar turi bo'yicha
+  (birinchi joyi xom ko'rinishda ochiladi), kesilgan qism, tuzatib bo'lmaydigan joy (qator, ustun va `^` bilan),
+  barcha tuzatishlar jadvali, hisobotni saqlash, «Ta'mirlangan faylni ochish», kerak bo'lsa «Qisman natijani
+  saqlash».
+* **Bo'lish va birlashtirish** (Asboblar menyusi; tugun menyusi → «Shu tugunni qismlarga bo'lish…»). Bo'lish: butun
+  fayl, joriy ko'rinish yoki tugun; qismlar soni, har qismdagi yozuvlar yoki qism hajmi bo'yicha, **jonli reja**
+  (qism nomlari, yozuvlar, hajm); format, nom andozasi, o'ramasiz, eski qismlarni o'chirish. Birlashtirish: fayllar
+  va ochiq tablar (saqlanmagan tahrirlar bilan — ko'rsatilganidek), tartibni o'zgartirish, JSON/JSONL, chekinish,
+  kalitlarni tartiblash, o'ramani saqlash, kalit bo'yicha takrorlarni olib tashlash.
+* **Taqqoslash** (Asboblar → «Ikki faylni taqqoslash…»; tugun menyusi → «Taqqoslash uchun belgilash» / «Belgilangan
+  bilan taqqoslash»; ikkita tanlangan tugun → «Tanlangan ikkitasini taqqoslash»). Fayllar kalit, tekislash yoki o'rin
+  bo'yicha taqqoslanadi: natijalar jadvali (holat, kalit, A#, B#, o'zgarishlar soni, birinchi yo'l) va tanlangan
+  juftning yonma-yon daraxti `Kalit | A | B` — qo'shilgan yashil, o'chirilgan qizil, o'zgargan sariq, ko'chgan ko'k;
+  qisqa satrlarda o'zgargan harflar belgilanadi; **F7 / Shift+F7** — keyingi / oldingi farq; «Faqat farqlar»,
+  massivlarni moslash (indeks / avto / kalit / tartibsiz), A ⇄ B, «Matn» rejimi; farqli yozuvlarni yozuvlar to'plami
+  sifatida ochish; hisobotni eksport qilish.
+* **«Aqlli» qiymatlar** (daraxt, jadval, to'liq qiymat oynasi): unix vaqt va ISO sanalar — Toshkent vaqti va hafta
+  kuni bilan izoh; URL'lar tagiga chizilgan, **Ctrl+bosish** → «Brauzerda ochilsinmi?» → faqat tasdiqdan keyin
+  ochiladi; `#rgb` / `#rrggbb` ranglar — kichik namuna; base64 rasmlar — to'liq qiymat oynasida kichik rasm.
+* **Tuzilma ko'rinishi**: «null / yo'q» ustuni (namuna yoki to'liq skanerlash bo'yicha — sarlavhada aytiladi), butun
+  sonlar ulushi; «Statistika» (ikki marta bosish ham) va «Takroriy yozuvlar…».
 
 ### Sozlamalar va loglar
 
@@ -224,7 +384,9 @@ shrift va o'lchami. Loglar: **Asboblar → Loglar papkasi**; har xato oynasida �
 | Tugma | Amal |
 |---|---|
 | Ctrl+O / Ctrl+W / F5 / Ctrl+Q | ochish / tabni yopish / qayta ochish / chiqish |
-| Ctrl+1 … Ctrl+5 | faol panelda: Daraxt, Jadval, Matn, Xom, Tuzilma |
+| Ctrl+S / Ctrl+Shift+S | saqlash / boshqacha saqlash |
+| Ctrl+Z / Ctrl+Y (Ctrl+Shift+Z) | ortga qaytarish / qayta bajarish (tuzilma quruvchida — uning o'z tarixi) |
+| Ctrl+1 … Ctrl+6 | faol panelda: Daraxt, Jadval, Matn, Xom, Tuzilma, Tuzilma quruvchi |
 | ↑ ↓, PgUp PgDn, Home End | yurish |
 | → / ← / `*` | tugunni ochish / yopish / hammasini ochish (daraxt) |
 | Space | to'liq qiymat oynasi |
@@ -233,8 +395,13 @@ shrift va o'lchami. Loglar: **Asboblar → Loglar papkasi**; har xato oynasida �
 | Ctrl+Shift+F / Ctrl+Shift+L | to'liq qidiruv / filtr paneli |
 | Ctrl+G | yo'lga o'tish |
 | Alt+← / Alt+→ | orqaga / oldinga |
-| Ctrl+D / Ctrl+Shift+D | xatcho'p qo'shish / xatcho'plar |
-| Ctrl+E | eksport |
+| Enter / Shift+Enter / F2 | qiymatni tahrirlash / JSON sifatida tahrirlash / kalitni qayta nomlash |
+| Ins / Del / Ctrl+D | qo'shish / o'chirish / nusxasini qo'shish |
+| Alt+↑ / Alt+↓ | tugunni surish (daraxtda) |
+| Ctrl+V | buferdagi JSON'ni qo'yish |
+| Ctrl+H | ommaviy amallar |
+| Ctrl+B / Ctrl+Shift+D | xatcho'p qo'shish / xatcho'plar |
+| Ctrl+E | eksport (tuzilma quruvchida — mapping bilan eksport) |
 | Ctrl+= / Ctrl+- / Ctrl+0 | shriftni kattalashtirish / kichraytirish / asl holiga |
 | Alt+↓ | jadvalda tezkor filtr qatori |
 
@@ -406,7 +573,12 @@ ikki baravari joy egallaydi.
 * **SQLite**: har massiv uchun alohida jadval, ota-bola bog'lanishi bilan (`_id`, `_parent`, `_idx`);
   jadvalda 1500 dan ortiq ustun bo'lsa, qolgan maydonlar `_extra` (JSON matn) ustuniga yoziladi; "lug'at"
   obyektlar JSON matn sifatida saqlanadi, bola jadvallar soni 200 tagacha (qolgani JSON matn).
-* Faqat tanlangan qism: `filter`/`sort` natijasi yoki `convert --where ... --sort-by ...`.
+* Faqat tanlangan qism: `filter`/`sort` natijasi, `convert --where ... --sort-by ...`, yozuv raqamlari
+  (`--select "0:100,500"`, raqamlar 0 dan) yoki bitta tugun (`convert --node "#5.orders"`).
+* SQLite'da qo'shimcha jadvallar: `_jsonreshape` (jadvallar ro'yxati: nomi, yo'li, otasi, turi, qatorlar soni),
+  `_wrapper` (tashqi o'rama JSON matni), har jadvalda `_ord` (asl tartib); `_parent` — `REFERENCES` bilan.
+* `.json.gz`, `.jsonl.gz`, `.csv.gz` nomli chiqish fayllari gzip bilan siqiladi; `--no-wrapper` har formatda ishlaydi.
+* Bo'lish, birlashtirish va ajratib olish — `split`, `merge`, `extract` ([2-bo'lim](#tez-boshlash-cli), [Asboblar](#asboblar)).
 * Barcha eksportlar fonda, progress bilan; natija vaqtinchalik faylga yozilib, keyin atomik nomlanadi.
   Kirish fayli ish davomida o'zgarsa, natija saqlanmaydi (chiqish kodi 2).
 
@@ -438,6 +610,15 @@ ikki baravari joy egallaydi.
   chegarasi (`memory_limit_bytes`, standart 512 MiB: tartiblash, eksport bloklari, qidiruv va ulkan yozuvlar
   uchun umumiy byudjet), tartiblash xotirasi, eksport standartlari, til. `JSONRESHAPE_HOME` bilan butun papkani
   o'zgartirish mumkin.
+* **Tahrir qatlami** (3-bosqich): `%LOCALAPPDATA%\jsonreshape\edits\<kalit>\` — `layer.sqlite` (qadamlar, WAL),
+  `seg-*.dat` (tahrirlangan yozuvlarning yangi baytlari, nazorat yig'indilari bilan), `layer-*.bin` (ommaviy
+  amallar natijasi). Diskdagi hajmi ≈ o'zgargan yozuvlar hajmi (har qo'llangan ommaviy amal uchun); bo'sh joy
+  ommaviy amaldan oldin va davomida tekshiriladi. Saqlash yoki bekor qilishdan keyin qatlam o'chiriladi (uni hali
+  o'qiyotgan eksport tugaganidan keyin). Sozlamalar: `edits_location` (`appdata` | `beside` — fayl yonidagi
+  `.jredit` papkasi), `backup_on_save` (standart: yoqiq), `undo_limit` (1000, kamida 200).
+* 5-bosqich sozlamalari: `diff_align_max_bytes` (200 MB: shundan katta fayllar kalitsiz taqqoslanmaydi —
+  `--key` yoki `--by-position` kerak); statistika va dublikatlar `memory_limit_bytes` ichida ishlaydi (oshsa —
+  diskka yoki taxminiy hisobga o'tadi, natijada aytiladi).
 
 <a id="xatolar"></a>
 ## 11. Xatolar va loglar
@@ -451,6 +632,12 @@ ikki baravari joy egallaydi.
   xatolari (fayl band, faqat o'qish uchun, disk to'lgan, yo'l topilmadi) ham tarjima qilingan.
 * Loglar: `%LOCALAPPDATA%\jsonreshape\logs\jsonreshape.log` (5 MB × 3 aylanma); ichki xatoda CLI log faylining
   yo'lini ko'rsatadi; log faylini ochib bo'lmasa, dastur ishlashda davom etadi.
+* JSON xatosi bor faylni **ta'mirlash** mumkin (GUI: xato panelidagi «Ta'mirlash…», CLI: `jsonreshape repair`):
+  natija yangi faylga yoziladi, har bir tuzatish joyi (qator, ustun, bayt) va sababi bilan hisobot beriladi
+  ([Asboblar](#asboblar)).
+* Tahrirlangan faylni saqlash uzilib qolsa (elektr o'chishi, jarayon o'ldirilishi), keyingi ochilishda
+  «Saqlashni yakunlash» taklif qilinadi; vaqtinchalik `.jrsave` fayllar 3 daqiqadan eski va hech qaysi jurnal
+  ularga ishora qilmasa, avtomatik tozalanadi (holat qatorida aytiladi).
 
 <a id="arxitektura"></a>
 ## 12. Arxitektura
@@ -474,11 +661,32 @@ jsonreshape/
   textmatch.py        qidiruv rejimlari, casefold, apostroflar, lotin↔kirill
   search.py           to'liq fayl bo'yicha qidiruv (bayt prefiltr + tasdiqlash), eksport, tarix
   schema.py           tuzilma: turlar taqsimoti, mavjudlik foizi, misollar
-  writer.py           oqimli yozuvchilar: JSON, JSONL, CSV, XLSX, SQLite
+  writer.py           oqimli yozuvchilar: JSON, JSONL, CSV, XLSX, SQLite; bir nechta kirish, tugun eksporti
+  overlay.py          tahrir holati (o'zgarmas): piece table, kontent qatlamlari, virtual manzillar, ChangeSet
+  editstore.py        diskdagi tahrir qatlami: SQLite (WAL) qadamlar, segment fayllar, qulf, tiklash
+  editops.py          bayt darajasidagi tahrirlar va formatlash (sof funksiyalar)
+  edits.py            EditSession: barcha tahrir buyruqlari, undo/redo, kalit indeksi
+  bulk.py             ommaviy amallar: oldindan aniq sanash (preview) -> qo'llash
+  dupes.py            dublikatlar: kanonik kalit hash'lari, diskka chiqariladigan saralash
+  saver.py            saqlash: tekshirilgan yangi nusxa, atomik almashtirish, .bak, jurnal va tiklash
+  jsonpatch.py        RFC 6902 / 6901: qo'llash va sof farqni eksport qilish
+  mapping.py          tuzilma quruvchi modeli: daraxt, amallar, undo/redo, mapping fayli
+  engine.py           mapping'ni qo'llash (json-tuzilma.html bilan aynan bir xil, kompilyatsiya, jarayonlar havzasi)
+  stats.py            maydon statistikasi (aniq, kerak bo'lsa HyperLogLog + Misra-Gries)
+  jschema.py          JSON Schema 2020-12: yaratish va o'zimizning tekshiruvchimiz (aniq sonlar, ECMA regex)
+  filetools.py        bo'lish (split), birlashtirish (merge), ajratib olish (extract)
+  repair.py           buzuq JSON'ni ta'mirlash (gibrid: Rust skaner + tokenizator), hisobot
+  diff.py             strukturali taqqoslash: kalit / tekislash / o'rin / hujjat rejimlari
+  smartvalues.py      vaqt, sana, URL, rang, base64 rasmlarni aniqlash (Toshkent vaqti UTC+05:00)
   cli.py              buyruq qatori
   i18n.py             barcha UI matnlari (o'zbekcha asosiy, inglizcha zaxira) — bitta lug'at fayli
-  gui/                PySide6 ko'ruvchi: virtual grid (100 mln+ qator), daraxt/jadval/matn/xom/tuzilma
-                      ko'rinishlari, sessiya (filtr -> tartib -> ko'rinish), fon vazifalari, panellar
+  gui/                PySide6: virtual grid (100 mln+ qator), daraxt/jadval/matn/xom/tuzilma ko'rinishlari,
+                      sessiya (filtr -> tartib -> ko'rinish), fon vazifalari, panellar; tahrir boshqaruvchisi
+                      (editing.py), tahrir oynalari (editors.py), ommaviy amallar (bulkdialog.py), tuzilma
+                      quruvchi (mapview.py, mapmodel.py), statistika (statspanel.py), dublikatlar
+                      (dupesdialog.py), JSON Schema (validatepanel.py), ta'mirlash (repairdialog.py),
+                      bo'lish/birlashtirish (filetoolsdialog.py), taqqoslash (difftree.py, diffview.py,
+                      comparewindow.py)
 tests/                pytest (+ hypothesis) testlari
 bench/                sintetik katta fayllar generatori va benchmark
 ```
@@ -493,8 +701,10 @@ $env:JSONRESHAPE_BACKEND="python"; .venv\Scripts\python -m pytest -q  # sof Pyth
 .venv\Scripts\python -m pytest -q -m gui                           # faqat GUI testlari (ekransiz, pytest-qt)
 ```
 
-To'liq to'plam: 5431 ta test (2-bosqich oxirida, Rust yadro bilan, ~13 daqiqa). GUI testlari ekransiz
-(`QT_QPA_PLATFORM=offscreen`) ishlaydi.
+To'liq to'plam: **12 238 ta test** (5-bosqich oxirida, Rust yadro bilan, ~55 daqiqa; 2-bosqich oxirida 5431 ta
+edi); sof Python yadro bilan GUI'siz qismi — 8 873 ta test (~23 daqiqa). GUI testlari ekransiz
+(`QT_QPA_PLATFORM=offscreen`) ishlaydi. Qulash va xotira testlari alohida jarayonlarda bajariladi (qulash
+pytest'ni to'xtatmaydi, test xato bo'ladi).
 
 AGENT_PROMPT §14 bo'yicha 1-bosqich qabul testlari:
 
@@ -521,6 +731,31 @@ AGENT_PROMPT §14 bo'yicha 1-bosqich qabul testlari:
 | — | virtual grid (10¹² qator), FlatTree (hypothesis model testlari), yuklovchi, sessiya | `test_gui_vgrid.py`, `test_flattree.py`, `test_gui_loader.py`, `test_gui_session.py` |
 | — | ko'rib chiqishda topilgan xatolar uchun regressiya testlari (qulash, xotira oqishi, GIL, katta matn) | `test_gui_fix_*.py`, `test_schema_walk.py`, `test_recordset_locks.py` |
 | 25 (GUI) | katta fayllarda GUI: birinchi yozuvlar, indeks, aylantirish, 1 mln bolali tugun, qidiruv, filtr, tartib, eksport, RAM | `test_bench_gui.py` (`-m bench`), `bench/gui_bench.py` |
+
+3-bosqich (tahrirlash) testlari:
+
+| № | Mazmun | Test fayllari |
+|---|---|---|
+| 19 | tahrirlar bilan saqlash va qayta ochish (barcha 7 format, kodirovkalar, gzip, BOM), asl fayl o'zgarmaydi, undo/redo to'liq qaytaradi | `test_saver*.py` (8 ta fayl), `test_edits*.py`, `test_overlay*.py`, `test_jsonpatch*.py`, `test_cli_patch.py` |
+| 20 | ommaviy amal oldidan berilgan hisob = haqiqiy o'zgarishlar (oddiy etalon bilan solishtirish, tahrirlangan hujjatlarda ham) | `test_bulk.py`, `test_bulk_matrix*.py`, `test_bulk_scopes.py` |
+| 21 | avtosaqlash va qulashdan keyin tiklash: jarayonni saqlash/commit'ning har bosqichida haqiqatan o'ldirib, keyin tiklash; buzilgan qatlam aniqlanadi | `test_edits_crash.py`, `test_editstore_crash.py`, `test_fix3_journal.py`, `test_fix3_layer.py`, `test_gui_editing_recovery.py` |
+| — | GUI tahriri: daraxt, jadval, matn, sudrab tashlash, tahrir oynalari, boshqaruvchi, ko'rib chiqishda topilgan xatolar | `test_gui_*edit*.py`, `test_gui_editors.py`, `test_gui_bulkdialog*.py`, `test_fix3_ctl*.py`, `test_fix3_gui.py` |
+
+4-bosqich (tuzilma quruvchi) testlari:
+
+| № | Mazmun | Test fayllari |
+|---|---|---|
+| 1–9 | identity, rekursiv tekislash, ko'chirish, unwrap, gather, broadcast, guruh, birlashtirish, sudrab tashlash qoidalari | `test_mapping.py`, `test_engine.py`, `test_mapping_golden.py` |
+| 10 | etalon bilan solishtirish: `node` orqali `json-tuzilma.html` engine'i ishga tushirilib golden natijalar yasaladi; Python natijasi aynan bir xil (node bo'lmasa — saqlangan goldenlar bilan) | `test_mapping_golden.py`, `tests/golden/` |
+| — | tasodifiy tahrir skriptlari bilan differensial fuzz (oddiy port, kompilyatsiya qilingan engine, etalon), oqimli qo'llash har format va jarayonlar havzasi bilan, CLI `apply`/`flatten`, GUI quruvchi | `test_mapping_random.py`, `test_engine_apply.py`, `test_mapping_document.py`, `test_cli_mapping.py`, `test_gui_mapview*.py`, `test_gui_mapmodel.py` |
+
+5-bosqich (asboblar) testlari:
+
+| № | Mazmun | Test fayllari |
+|---|---|---|
+| 22 | JSON → JSONL → JSON aylanmasi, CSV/XLSX ustunlari va bo'linishi; bo'lish → birlashtirish aylanmasi qiymatma-qiymat bir xil | `test_writer*.py`, `test_keyed_rebuild.py`, `test_filetools_*.py` |
+| 23 | ta'mirlash: har bir buzilish turi uchun test, hisobot (joyi, sababi, kodlari) to'g'ri, natija doim to'g'ri JSON, har o'zgargan bayt hisobotda | `test_repair.py`, `test_repair_props.py`, `test_cli_repair.py` |
+| — | statistika (oddiy etalon bilan aniqlik, sketch xatolik chegarasi), dublikatlar, JSON Schema (rasmiy test to'plami + `jsonschema` bilan differensial), diff (rejimlar, aniq sonlar), aqlli qiymatlar, CLI buyruqlari, GUI oynalari | `test_stats*.py`, `test_dupes*.py`, `test_jschema*.py`, `test_diff*.py`, `test_smartvalues.py`, `test_cli_*.py`, `test_gui_statspanel.py`, `test_gui_dupesdialog.py`, `test_gui_validatepanel.py`, `test_gui_repairdialog.py`, `test_gui_filetoolsdialog.py`, `test_gui_diffview.py`, `test_gui_comparewindow.py`, `test_fix5_*.py` |
 
 <a id="olchovlar"></a>
 ## 14. O'lchovlar (benchmark)
@@ -628,6 +863,80 @@ p95 3.9 s → 11 ms; 10 mln tartiblashda UI max 457 → ~40 ms; katta tugunni yi
     ishlayotganda to'liq qidiruv boshlanmaydi (natija yarim ko'rinish bo'yicha bo'lib qolmasligi uchun).
 17. **Eksport fonda** ishlaydi va dialog yopilsa ham, fayl qayta ochilsa ham oxirigacha davom etadi.
 
+**3-bosqich — tahrirlash**
+
+18. **Tahrir qatlami** dastur papkasida: `%LOCALAPPDATA%\jsonreshape\edits\` (har doim yozsa bo'ladi); sozlamada
+    «fayl yonida» (`fayl.json.jredit\`) tanlovi bor — u yerga yozib bo'lmasa, dastur papkasi ishlatiladi va aytiladi.
+19. **`.bak` zaxira standart bo'yicha yoqilgan.** U qattiq havola (hard link) bilan bir zumda yaratiladi; diskda
+    eski va yangi nusxa birga turadi (har qanday atomik saqlashdagi kabi). Sozlamada o'chiriladi.
+20. **Enter = tahrirlash** (ochish/yopish → va ← da qoladi); xatcho'p **Ctrl+B** ga ko'chdi, Ctrl+D — «nusxasini
+    qo'shish» (AGENT_PROMPT §8.1).
+21. **Tashqi yozuv raqamlari = tahrirlangan hujjatdagi o'rin** (`#0..N-1`, zich); qatlam ichida yozuvlarning
+    o'zgarmas identifikatorlari bor. Qo'shish/o'chirish/surishdan keyin filtr, tartib, qidiruv natijalari va
+    tanlov yangi o'rinlarga o'tkaziladi.
+22. **Ommaviy amal natijasi «Ko'rib chiqish» paytida hisoblanadi** va «Qo'llash» aynan o'sha natijani qatlamga
+    qo'shadi (AGENT_PROMPT §8.3 dagi «saqlashda qo'llanadi» o'rniga): oldindan sanalgan son qo'llangan o'zgarish
+    bilan doim teng (test 20), ko'rinishlar, qidiruv va filtr natijani darhol ko'radi. Narxi: diskda ≈ o'zgargan
+    yozuvlar hajmi (bo'sh joy oldindan tekshiriladi).
+23. **Saqlash faylning o'z turi, kodirovkasi va siqilishini saqlaydi**; `brace_list` (`{...},{...}`) JSON massiv
+    bo'lib saqlanadi, JSONL'dagi buzuq qatorlar olib tashlanadi, zaxirasiz saqlashda gzip oxiridagi ortiqcha
+    ma'lumot tashlab yuboriladi — har biri avval so'raladi.
+24. **Uzilgan saqlashni yakunlash dalilga asoslanadi** (fayl identifikatori NTFS/ReFS'da, o'zgarish vaqti, hajm,
+    hash'lar); qaror aniq bo'lmasa — «ziddiyat»: hech narsa o'chirilmaydi, tegishli fayllar nomma-nom aytiladi.
+25. **50 MB dan katta bitta yozuv tahrirlanmaydi** (xotirada tahrirlab bo'lmaydi); bunday bitta hujjat yoki
+    o'rama faqat o'qish uchun. Ommaviy amallar bunday yozuvlarni o'tkazib yuborib sanaydi.
+26. **Kutilgan foydalanuvchi xatolari** (mavjud kalit, mumkin bo'lmagan tur o'zgartirish, buferdagi noto'g'ri JSON)
+    xato oynasida emas, tahrir maydonida yoki holat qatorida aytiladi; xato oynasi — haqiqiy nosozliklar uchun.
+
+**4-bosqich — tuzilma quruvchi**
+
+27. **Semantika `json-tuzilma.html` etaloni bilan aynan bir xil** (bog'lash, yig'ish, takrorlash, «yo'q» ≠ `null`,
+    kalit to'qnashuvida `_2`, `_3`, `_depth` qoidalari, har bir amalning shartlari va xabarlari). Ataylab farqlar
+    (JavaScript cheklovlari): sonlar aniq, kalitlar tartibi saqlanadi, redo bor, tarix 1000 qadam, yozuv raqamlari 0
+    dan.
+28. **Kalitli fayllar** (millionlab kalitli obyekt) har bir a'zo bo'yicha qayta quriladi (etalon har kalitga alohida
+    tugun yaratadi — bu katta faylda ishlamaydi); natijada kalitlar tartib bilan saqlanadi.
+29. **Tuzilma namunadan** (standart 10 000 yozuv) yoki «To'liq skanerlash» bilan quriladi; namunada uchramagan
+    maydonlar natijaga tushmaydi (etalon qoidasi) — `apply` hisobotida bunday yozuvlar soni aytiladi.
+30. **Qo'llash tezligi**: 64 MB dan katta fayllar parallel jarayonlarda (`--workers`), natija tartib bilan yoziladi.
+
+**5-bosqich — asboblar**
+
+31. **Statistika**: xotira byudjeti ichida aniq hisob, oshsa noyob qiymatlar soni HyperLogLog (p=14, ±0,8 %),
+    eng ko'p uchraydiganlar Misra–Gries bilan — «≈» belgisi va xatolik chegarasi bilan; «Aniq hisoblash» /
+    `--exact` diskka chiqarib aniq sanaydi. Panelning standart doirasi — joriy ko'rinish.
+32. **JSON Schema**: o'zimizning draft 2020-12 tekshiruvchimiz (aniq sonlar, ECMA-262 regex, tarmoqsiz,
+    `jsonschema` paketidan ~10 baravar tez); `$dynamicRef`, masofaviy `$ref`, maxsus `$vocabulary` aniq xato bilan
+    rad etiladi (jimgina e'tiborsiz qoldirilmaydi). Rasmiy JSON-Schema-Test-Suite — muvofiqlik testi. Yaratilgan
+    schema standart bo'yicha yumshoq; qat'iy cheklovlar (min/max, enum, `additionalProperties: false`, formatlar) —
+    `--strict` bilan.
+33. **Yangi chiqish kodi 5** = «ma'lumot mos emas» (`validate` xato topdi, `diff --exit-code` farq topdi);
+    0–4 ma'nosi o'zgarmadi.
+34. **Bo'lish (split)** har qismda tur, kodirovka, siqilish va o'ramani saqlaydi (`--no-wrapper` — o'ramasiz);
+    `--parts N` hajm bo'yicha teng bo'ladi (`--balance records` — yozuvlar soni bo'yicha); `--size` ikkilik
+    birliklarda (`500MB` = 500 MiB); nomlar `<nom>_<k><kengaytma>` (`k` 1 dan, N ning xonalari soniga qadar nol
+    bilan); hammasi yoki hech narsa (bittasi yozilmasa, eski qismlar tegilmaydi); JSON xatosi bor fayl bo'linmaydi
+    (avval ta'mirlang).
+35. **Birlashtirish (merge)** yozuvchi orqali (qayta formatlanadi, aniq tokenlar): obyekt ildiz — faqat hamma
+    kirishlar kalitli bo'lsa; birinchi kirishning o'ramasi saqlanadi; `--dedupe-by KEY` (`$` — butun yozuv,
+    `$key` — a'zo kaliti), standart bo'yicha birinchisi qoladi.
+36. **Ta'mirlash** hech qachon joyida emas; NaN/Infinity → `null` (`--nan string` — matn); vergul faqat o'zi
+    chegaralangan tokenlar orasida qo'shiladi; qo'shtirnoqsiz kalitlar, Python literallari (`True`, `None`,
+    `'...'`), `undefined` tuzatiladi; qo'shtirnoqsiz satr qiymatlari va mos kelmagan yopuvchi qavslar
+    tuzatilmaydi; noto'g'ri UTF-8 → U+FFFD (1000 tadan oshsa to'xtaydi); natija turi kirish turi bilan bir xil
+    (`brace_list`/oqim → massiv, JSONL — JSONL); tuzatib bo'lmasa hech narsa yozilmaydi (`--allow-partial` —
+    xatogacha bo'lgan qism, tashlab yuborilgani hisobotda).
+37. **Taqqoslash (diff)**: kanonik tenglik — sonlar aniq qiymat bo'yicha (`1` = `1.0`), kalitlar tartibi e'tiborga
+    olinmaydi (`--numbers text` — yozilishi bo'yicha); massivlar standart bo'yicha mazmun bo'yicha tekislanadi (yoki
+    indeks, yoki element kaliti bo'yicha — ko'chishlar bilan); `diff_align_max_bytes` (200 MB) gacha fayllar
+    kalitsiz to'liq taqqoslanadi, kattaroqlariga `--key` (har qanday hajm) yoki `--by-position` kerak; takroriy
+    kalitlar i-chisi i-chisi bilan juftlanadi va ogohlantiriladi.
+38. **«Aqlli» qiymatlar**: unix soniya/millisekund va ISO sanalar Toshkent vaqtida (qat'iy UTC+05:00 — 1992 dan
+    beri aniq, yozgi vaqt yo'q; `tzdata` qo'shilmadi; eski sanalar uchun izohda aytiladi); URL'lar faqat «Brauzerda
+    ochilsinmi?» tasdig'idan keyin ochiladi — dasturning o'zi tarmoqqa hech narsa yubormaydi; `#rgb` / `#rrggbb`
+    ranglar namunasi; base64 rasmlar (PNG/JPEG/GIF/WebP) to'liq qiymat oynasida kichik rasm sifatida.
+39. **XLSX** eksporti `xlsxwriter` bilan qoldi (7–10 MB/s); tezroq o'z yozuvchimiz — 6-bosqichda ixtiyoriy.
+
 ### Ma'lum cheklovlar
 
 * gzip va UTF-16 fayllar birinchi yozuv ko'rinishidan oldin to'liq UTF-8 nusxaga o'giriladi (oqim bilan,
@@ -639,8 +948,16 @@ p95 3.9 s → 11 ms; 10 mln tartiblashda UI max 457 → ~40 ms; katta tugunni yi
 * Bitta juda uzun satr qiymati (yuzlab MB) tekshirilayotganda xotirada ~2 baravar joy oladi.
 * CSV eksport avtomatik ustunlar bilan ~25–30 MB/s (ustunlar uchun to'liq oldindan o'qish + Python'da
   katak qurish); `--columns` bilan tezroq (≈ 60 MB/s).
-* `stats`, `split`, `merge`, `repair`, `diff`, `apply`, `flatten` buyruqlari, tahrirlash, statistika paneli,
-  buyruqlar palitrasi, sessiyani tiklash — keyingi bosqichlarda.
+* Buyruqlar palitrasi, sessiyani tiklash, workspace fayli, `.exe` — 6-bosqichda.
+* Tahrirlash: 50 MB dan katta bitta yozuv va JSON xatosi bor (qisman ochilgan) fayl faqat o'qish uchun; bitta
+  faylning saqlanmagan o'zgarishlari boshqa yozilishdagi yo'l (masalan, qisqa 8.3 nom) bilan ochilganda tiklash
+  uchun taklif qilinmaydi (tahrir esa baribir bir vaqtda faqat bitta joyda mumkin).
+* Tugunni bo'lish yoki tugunni CSV/XLSX/SQLite'ga eksport tahrirlangan va JSONL/oqim fayllarda mumkin emas (avval
+  saqlang); qolgan formatlar va doiralar ishlaydi.
+* `diff --ignore-order` kalitsiz ishlatilganda yozuvlar butun qiymati bo'yicha juftlanadi va bunda massivlar
+  tartibi hisobga olinadi — faqat massiv tartibi farq qiladigan yozuvlar uchun `--key` kerak.
+* Ta'mirlash xatolar zich fayllarda sekinroq (har tuzatish aniq joyi va bekor qilish ma'lumoti bilan yoziladi):
+  1 % buzuq yozuv ~185 MB/s, 10 % ~47 MB/s, JSON5 uslubi ~35 MB/s, hamma satrlar bitta tirnoqda ~2 MB/s.
 * GUI tilini almashtirish to'liq kuchga dastur qayta ishga tushirilgandan keyin kiradi (ochiq oynalardagi
   ba'zi matnlar eski tilda qoladi; sozlamalar oynasi buni aytadi).
 * Tezkor qidiruv (Ctrl+F) faqat yuklangan qismda qidiradi (talab bo'yicha); butun fayl uchun Ctrl+Shift+F.
@@ -656,15 +973,20 @@ p95 3.9 s → 11 ms; 10 mln tartiblashda UI max 457 → ~40 ms; katta tugunni yi
 4. JSONL → JSON aylanmasida kalitli obyektni tiklash kerak — `--as-keyed` (CLI) va eksport oynasidagi
    «Kalitli obyektni tiklash» sifatida qilindi (9-bo'lim; API: `ExportOptions(as_keyed=True)`).
 
-### Ochiq savollar (3-bosqich — tahrirlash — uchun)
+### Javob berilgan savollar (2026-10-18)
 
-1. **Tahrir qatlami (SQLite) qayerda saqlansin?** a) fayl yonida (`fayl.json.jredit`) — fayl bilan birga
-   ko'chadi, lekin faqat o'qiladigan/tarmoq papkalarida ishlamaydi; b) dastur papkasida
-   (`%LOCALAPPDATA%\jsonreshape\edits\`) — har doim ishlaydi. Tavsiya: b), "fayl yonida saqlash" tanlovi bilan.
-2. **Saqlashda `.bak` zaxira** standart bo'yicha yoqilgan bo'lsinmi (katta faylda diskda ikki baravar joy
-   oladi) yoki o'chirilgan bo'lsinmi?
-3. **Enter tugmasi**: hozir daraxtda tugunni ochadi/yopadi; 3-bosqichda §11 bo'yicha "tahrirlash" bo'ladi
-   (ochish/yopish → va ← da qoladi). Shunday bo'lsinmi?
-4. **Tartiblangan eksport xotirasi** (14-bo'lim): "RAM < 300 MB" maqsadini jarayonning xususiy xotirasi
-   bo'yicha hisoblaymizmi (112 MB ✅) yoki indeks fayllari sahifalari ham kirgan RSS bo'yicha (413 MB ❌ — u
-   holda indeksni ochib-yopib o'qish kerak, eksport sekinlashadi)?
+Foydalanuvchi ko'rsatmasi: «savollarga o'zing tavsiya qilgan javoblar bo'yicha davom ettir». Shunga ko'ra:
+
+1. **Tahrir qatlami joyi** — dastur papkasi (`%LOCALAPPDATA%\jsonreshape\edits\`), «fayl yonida» tanlovi bilan
+   (qaror 18).
+2. **`.bak` zaxira** — standart bo'yicha yoqilgan (qaror 19).
+3. **Enter** — tahrirlash; ochish/yopish → va ← da (qaror 20).
+4. **Tartiblangan eksport xotirasi** — «RAM < 300 MB» maqsadi jarayonning xususiy xotirasi bo'yicha hisoblanadi
+   (112 MB ✅); RSS ham o'lchovlarda ko'rsatiladi.
+5. 4–5-bosqichlardagi noaniq joylar (qarorlar 27–39) xuddi shu tartibda — tavsiya qilingan variant bo'yicha
+   hal qilindi; har biri yuqorida yozilgan va o'zgartirish mumkin.
+
+### Ochiq savollar
+
+Hozircha yo'q. 6-bosqichdagi tanlovlar (masalan, `.exe` bitta fayl yoki papka ko'rinishida) ham tavsiya bo'yicha
+qilinadi va shu yerda yoziladi.

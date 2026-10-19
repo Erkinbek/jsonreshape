@@ -44,35 +44,111 @@ Threading: every method is called in the GUI thread **except** the blocking ones
 and index the file. :meth:`~DocSession.record_at` and :meth:`~DocSession.view_len` may be
 called from any thread. The GUI-thread methods only use cheap document calls
 (``record_count``, ``info``, ``record_key`` of an indexed record: one small read).
+
+Editing (docs/ARCHITECTURE.md §12.9)
+===================================
+* ``edit``: the :class:`~jsonreshape.gui.editing.EditController` of the document, created
+  right before ``index_finished`` is emitted (also for partial documents: it then reports
+  ``available=False, reason="partial"``); ``None`` before, for failed opens, after a reopen
+  started and after :meth:`close`. ``edit_changed`` is emitted whenever ``edit`` is replaced
+  and ``edit_state_changed`` forwards the current controller's ``state_changed`` (so a
+  consumer connects once, not once per controller).
+* ``data_gen``: the gen of the overlay state the document shows (0 = none yet: the file as
+  it is; the edit session's unedited initial state is installed lazily by the controller, see
+  :mod:`jsonreshape.gui.editing`, so merely opening never changes ``data_gen``). The
+  controller installs every ChangeSet through :meth:`DocSession._apply_change`, ONE GUI-thread call:
+  ``doc.set_overlay``; ``data_gen``; record sets: a structural step (``cs.remap``) installs
+  the copies of ``_view`` / ``_records`` / ``_stable.*`` the edit worker remapped
+  (:func:`remap_view_sets`, at most :data:`REMAP_INLINE_MAX` positions each; sets the worker
+  did not get are remapped here up to :data:`REMAP_GUI_MAX`), a set that cannot be remapped is
+  never left installed: the view falls back to all records, the specs are kept and
+  :attr:`view_outdated` is set (the tab shows "view outdated -- Refresh" =
+  :meth:`refresh_view`); a content-only step re-tags the sets with the new gen; a reset
+  (restore / discard) goes to all records (specs kept, outdated when there were any) and
+  clears the current node and the history; a running filter/sort pipeline is restarted;
+  ``current`` and the history are remapped with :func:`~jsonreshape.gui.editing.remap_ref`;
+  ``fields.forget`` for bulk / patch / restore / discard / resets / steps without a record
+  list; then ``data_changed(cs)``, ``view_changed`` (only when the view now shows other
+  records), ``count_changed``, ``dirty_changed(bool)`` (when it changed), and last the
+  current node: the selection of ``cs.select`` (without a history entry) when the views did
+  not select it -- or ``current_changed(None, None)`` when the current node was deleted and
+  the step selects nothing (never ``None`` right before the step's own selection). An
+  exception while the session follows the step (a bug in a remap helper) never leaves it
+  half-updated: the step is then followed like a reset (all records, current node and history
+  cleared, the views get a reset ChangeSet), the error is reported and ``True`` returned, so
+  the controller and the session agree (review CL-5). A lease of the edit sets
+  (``_edit_sets``) removes its entries from the held sets when it is released (review CL-11).
+* :meth:`document_users`: the tasks of :meth:`keep_document_for` still reading the document (an
+  in-place save waits for them or asks first: review CL-3); :func:`open_sessions` /
+  :func:`file_users`: the open sessions of the process and those showing one file (Save As and
+  exports never replace a file another tab shows without asking: review S3).
+* The documents of a closed / reopened session are closed by a thread once their tasks ended
+  (:func:`_close_after`); that thread only holds the plain ``threading.Event`` / ``Thread`` each
+  task ends with (``GuiTask.done_event``), never a task ``QObject`` (review CL-8).
+* Record sets carry the gen of their positions; sets computed on the plain file (gen 0) are
+  re-tagged when the document shows an unedited state (identical positions), so filters run
+  before editing became possible stay usable as edit scopes.
+* :meth:`snapshot` = ``(doc.pinned(), view set)`` for tasks that take positions;
+  :meth:`keep_document_for` ``(task, sets, doc=pinned)``; :meth:`pause_change_check` /
+  :meth:`resume_change_check` (save); :meth:`switch_path` (Save As: path, name, bookmarks,
+  table layouts, recent files, ``path_changed``); :meth:`reopen` raises
+  ``EditError("edits.error.dirty")`` while there are unsaved changes unless
+  ``discard_edits=True`` (whatever layer is left is offered for recovery at the next open;
+  ``keep_view=True`` -- the reopen after a save -- keeps the filter/sort, the shown records and
+  the history because a save writes the records in their effective order).
+* Bookmarks hold stable record ids while edits are active (:class:`~jsonreshape.gui.guistate
+  .Bookmark`): :meth:`bookmark_ref` gives the position-based NodeRef of the state shown
+  (``None`` for a deleted record or a record of an edit layer that is not active);
+  a save converts them to positions of the saved file (deleted ones dropped; Save As keeps
+  the file-record bookmarks for the original file), a discard drops the layer's new-record
+  bookmarks. Paths inside a record are not remapped (they address keys, as before).
+* :meth:`close` and every reopen first detach the controller (``edit.detach(timeout=2)``:
+  the running command finishes, the edit session closes -- a layer with steps is kept for
+  recovery); the document is closed only after the edit worker and the controller's tasks
+  ended; ``_close_after`` waits for ``save`` tasks without a time limit, like exports.
+
+Stage 5: :meth:`DocSession.filter_by_condition` ``(cond) -> bool`` ANDs a builder
+:class:`~jsonreshape.query.Condition` to the filter (the statistics panel's and the duplicates dialog's
+clicks on a value; ``s5/map_stats.md`` §5.3); :meth:`~DocSession.filter_by_value` builds ``<path> ==
+value`` and delegates to it.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import os
 import threading
 import time
+import weakref
 from array import array
 from dataclasses import dataclass, field
 from typing import Any, Callable, NamedTuple
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
-from jsonreshape.errors import Cancelled, JsonReshapeError, UserInputError
+from jsonreshape.errors import Cancelled, EditError, JsonReshapeError, UserInputError
 from jsonreshape.gui.guistate import Bookmark
 from jsonreshape.i18n import t
 from jsonreshape.paths import Location, canonical_index, format_path, parse_path
 from jsonreshape.query import Condition, Filter, Group, compile_filter
 from jsonreshape.reader import Document, Node
-from jsonreshape.recordset import RecordSet, filter_records, sort_records
+from jsonreshape.recordset import RecordSet, RecordSetBuilder, filter_records, sort_records
 from jsonreshape.sortkeys import SortKey, describe_keys
 from jsonreshape.tasks import CancelToken, check
 
 log = logging.getLogger(__name__)
 
-__all__ = ["DocSession", "FilterSpec", "NodeRef", "HISTORY_MAX", "find_position", "find_positions"]
+__all__ = ["DocSession", "FilterSpec", "NodeRef", "HISTORY_MAX", "REMAP_GUI_MAX", "REMAP_INLINE_MAX",
+           "file_users", "find_position", "find_positions", "open_sessions", "remap_view_sets"]
 
 HISTORY_MAX = 200
+#: View record sets up to this many positions are remapped (by the edit worker) after a step
+#: that moves records; a bigger one is replaced by all records + "view outdated" (§12.9).
+REMAP_INLINE_MAX = 200_000
+#: Sets the worker did not remap (they appeared meanwhile) are remapped in the GUI thread up
+#: to this size (a few milliseconds); bigger ones take the "view outdated" fallback.
+REMAP_GUI_MAX = 10_000
 _KEEP: Any = object()   # reopen(): keep the current option
 
 
@@ -149,6 +225,134 @@ class _ViewState:
     records_label: str | None = None
     records: RecordSet | None = None           # the shown record set the pipeline starts from
     filter_warnings: list = field(default_factory=list)   # localized warnings of the filter passes
+    outdated: bool = False                     # the view shows all records although specs are set (§12.9)
+
+
+class _Lease:
+    """Keeps record sets from being closed while a worker / task thread still reads them
+    (``thread_alive`` until :meth:`release`; used like a task in ``DocSession._held`` and by
+    :func:`_close_after`). ``on_release``: a ``weakref.WeakMethod`` called with the lease once it
+    is released (the session forgets the lease's entries: review CL-11)."""
+
+    __slots__ = ("_done", "_on_release")
+    kind = "lease"
+
+    def __init__(self, on_release: Any = None) -> None:
+        self._done = threading.Event()
+        self._on_release = on_release
+
+    @property
+    def thread_alive(self) -> bool:
+        return not self._done.is_set()
+
+    @property
+    def done_event(self) -> threading.Event:
+        """Set once released (what :func:`_close_after` waits on)."""
+        return self._done
+
+    def release(self) -> None:
+        if self._done.is_set():
+            return
+        self._done.set()
+        ref, self._on_release = self._on_release, None
+        fn = ref() if ref is not None else None
+        if fn is not None:
+            try:
+                fn(self)
+            except Exception:  # pragma: no cover - defensive
+                log.debug("forgetting a released lease failed", exc_info=True)
+
+    def join(self, timeout: float | None = None) -> bool:
+        return self._done.wait(timeout)
+
+
+def remap_view_sets(sets: Any, remap: Any, gen: int, *, cancel: CancelToken | None = None,
+                    limit: int | None = None) -> dict[int, RecordSet | None]:
+    """Copies of the record sets ``sets`` with their positions mapped through ``remap``
+    (deleted positions dropped, order kept), tagged with ``gen``: ``{id(old): new}``; ``None``
+    for a set larger than ``limit`` (default :data:`REMAP_INLINE_MAX`, read at call time), a
+    closed one or one that failed. Any thread (the edit worker calls it before posting a
+    ChangeSet); ``Cancelled`` propagates (copies made so far are closed)."""
+    if limit is None:
+        limit = REMAP_INLINE_MAX
+    out: dict[int, RecordSet | None] = {}
+    try:
+        for rs in sets or ():
+            if rs is None or id(rs) in out:
+                continue
+            try:
+                if rs.closed or len(rs) > limit:
+                    out[id(rs)] = None
+                    continue
+                builder = RecordSetBuilder(rs.kind, rs.description, gen=gen)
+                try:
+                    for chunk in remap.map_chunks(rs.iter_chunks(), cancel):
+                        builder.extend(chunk)
+                    new = builder.finish()
+                except BaseException:
+                    builder.abort()
+                    raise
+                new.report = rs.report
+                out[id(rs)] = new
+            except Cancelled:
+                raise
+            except Exception:
+                log.warning("remapping a view record set failed", exc_info=True)
+                out[id(rs)] = None
+    except BaseException:
+        _close_sets(out)
+        raise
+    return out
+
+
+#: The sessions of this process that are not closed (GUI thread; review S3).
+_OPEN: weakref.WeakSet[Any] = weakref.WeakSet()
+
+
+def open_sessions() -> list[DocSession]:
+    """The :class:`DocSession` objects of this process that are not closed (any tab, any window)."""
+    return [s for s in list(_OPEN) if not s.closed]
+
+
+def _same_file(a: str | os.PathLike[str], b: str | os.PathLike[str]) -> bool:
+    """``a`` and ``b`` name the same file: the same normalized path, or ``os.path.samefile`` (junctions,
+    shares, hard links) when both exist. Two stat calls at most (GUI thread: like the export dialog's own
+    check of its target)."""
+    from jsonreshape.fileio import long_path, normalize_path
+
+    try:
+        if normalize_path(a) == normalize_path(b):
+            return True
+    except (OSError, ValueError):
+        return False
+    try:
+        return os.path.samefile(long_path(a), long_path(b))
+    except (OSError, ValueError):
+        return False
+
+
+def file_users(path: str | os.PathLike[str], *, exclude: Any = None) -> list[DocSession]:
+    """The open sessions showing the file ``path`` (also under another name), ``exclude`` left out."""
+    return [s for s in open_sessions() if s is not exclude and _same_file(path, s.path)]
+
+
+def _as_reset(cs: Any) -> Any:
+    """``cs`` as a reset ChangeSet: the views reload everything, nothing is remapped (review CL-5)."""
+    try:
+        return dataclasses.replace(cs, reset=True, remap=None, nodes=(), records=None, select=None)
+    except Exception:  # pragma: no cover - not a dataclass (a test double)
+        log.debug("could not turn %r into a reset", cs, exc_info=True)
+        return cs
+
+
+def _close_sets(mapping: Any) -> None:
+    """Close the record sets of a ``{id: RecordSet | None}`` mapping (unused remap results)."""
+    for rs in (mapping or {}).values():
+        if rs is not None:
+            try:
+                rs.close()
+            except Exception:  # pragma: no cover - close never raises
+                log.debug("closing a record set failed", exc_info=True)
 
 
 class _Pipeline:
@@ -307,10 +511,18 @@ class DocSession(QObject):
     warnings_changed = Signal()
     history_changed = Signal()                 # can_back / can_forward may have changed
     bookmarks_changed = Signal()
+    # editing (§12.9)
+    data_changed = Signal(object)              # ChangeSet applied (views invalidate synchronously)
+    dirty_changed = Signal(bool)               # unsaved changes appeared / disappeared
+    edit_changed = Signal()                    # ``edit`` (the EditController) was replaced
+    edit_state_changed = Signal()              # the current controller's state_changed (forwarded)
+    view_outdated_changed = Signal(bool)       # the view shows all records, its specs wait for Refresh
+    path_changed = Signal(str)                 # Save As: the session now shows another file
 
     COUNT_POLL_MS = 200      # live record count / growing view length
     CHANGE_POLL_MS = 3000    # external change check
     RETIRE_DELAY_MS = 5000   # replaced record sets are closed this much later
+    EDIT_DETACH_TIMEOUT = 2.0  # seconds a reopen / close waits for the running edit command
 
     def __init__(self, app: Any, path: str | os.PathLike[str], *, record_path: Any = None,
                  format: str | None = None, use_cache: bool = True, parent: QObject | None = None) -> None:
@@ -358,6 +570,16 @@ class DocSession(QObject):
         self._change_task: Any = None
         self._file_state: str | None = None
         self._last_appended = 0
+        self._change_paused = 0                     # pause_change_check() depth
+        self._change_serial = 0                     # bumped by pause: results of older checks are ignored
+        # editing
+        self.edit: Any = None                       # EditController (created at index_finished)
+        self._edit_connected: Any = None            # the controller this session made and connected
+        self.data_gen = 0                           # gen of the overlay state the document shows
+        self._dirty = False
+        self._view_outdated = False
+        self._edit_warnings: list[str] = []
+        self._layer_key_cache: tuple[Any, str] | None = None
         self._tick_timer = QTimer(self)
         self._tick_timer.setInterval(self.COUNT_POLL_MS)
         self._tick_timer.timeout.connect(self._tick)
@@ -372,6 +594,7 @@ class DocSession(QObject):
         finished = getattr(getattr(app, "tasks", None), "task_finished", None)
         if finished is not None:
             finished.connect(self._on_task_finished)
+        _OPEN.add(self)
 
     def __repr__(self) -> str:
         return f"<DocSession {self.name!r} {self.state}>"
@@ -458,6 +681,8 @@ class DocSession(QObject):
         self._index_done_signals()
 
     def _index_done_signals(self) -> None:
+        if not self._closed and self.edit is None and self.doc is not None and self.doc.index_complete:
+            self._create_edit()
         self.index_finished.emit()
         if self._closed:
             return
@@ -465,6 +690,503 @@ class DocSession(QObject):
         self.warnings_changed.emit()
         if not self._closed:
             self._apply_pending()
+
+    # ================================================================================
+    # editing (§12.9)
+    # ================================================================================
+    def _create_edit(self) -> None:
+        """Create the EditController of the (indexed) document; its worker opens the edit
+        session in the background."""
+        try:
+            from jsonreshape.gui.editing import EditController   # lazy: editing imports the core edit modules
+        except Exception:  # pragma: no cover - a broken install: viewing still works
+            log.exception("editing is not available")
+            return
+        try:
+            edit = EditController(self)
+        except Exception:
+            log.exception("could not create the edit controller of %s", self.name)
+            return
+        self.edit = edit
+        edit.state_changed.connect(self._on_edit_state)
+        self._edit_connected = edit
+        self.edit_changed.emit()
+
+    def _on_edit_state(self) -> None:
+        if not self._closed:
+            self.edit_state_changed.emit()
+
+    def _drop_edit(self) -> list[Any]:
+        """Detach the controller (waiting up to EDIT_DETACH_TIMEOUT for its running command);
+        returns task-like objects whose threads must end before the document is closed."""
+        edit, self.edit = self.edit, None
+        connected, self._edit_connected = self._edit_connected, None
+        if connected is not None and connected is not edit:
+            # ``edit`` was replaced from outside (tests): the controller this session made goes too
+            self._release_controller(connected, [])
+        if edit is None:
+            return []
+        waiters: list[Any] = []
+        self._release_controller(edit, waiters, connected=connected is edit)
+        if not self._closed:
+            self.edit_changed.emit()
+            self.edit_state_changed.emit()
+        return waiters
+
+    def _release_controller(self, edit: Any, waiters: list[Any], *, connected: bool = True) -> None:
+        if connected:
+            try:
+                edit.state_changed.disconnect(self._on_edit_state)
+            except (RuntimeError, TypeError):
+                pass
+        try:
+            get_waiters = getattr(edit, "waiters", None)       # (test doubles may not have them)
+            if callable(get_waiters):
+                waiters.extend(get_waiters())
+            detach = getattr(edit, "detach", None)
+            if callable(detach):
+                detach(timeout=self.EDIT_DETACH_TIMEOUT)
+        except Exception:
+            log.warning("detaching the edit controller of %s failed", self.name, exc_info=True)
+
+    @property
+    def dirty(self) -> bool:
+        """The document shows unsaved changes (the overlay state's head > 0)."""
+        return self._dirty
+
+    @property
+    def file_state(self) -> str | None:
+        """``None``, ``"changed"`` or ``"grown"`` (the last external change seen)."""
+        return self._file_state
+
+    @property
+    def view_outdated(self) -> bool:
+        """The view shows all records although a filter / sort / shown record set is set: an
+        edit moved records and the view could not be remapped (§12.9; :meth:`refresh_view`)."""
+        return self._view_outdated
+
+    def _set_outdated(self, value: bool) -> None:
+        value = bool(value)
+        if value != self._view_outdated:
+            self._view_outdated = value
+            if not self._closed:
+                self.view_outdated_changed.emit(value)
+
+    def _set_dirty(self, value: bool) -> None:
+        value = bool(value)
+        if value != self._dirty:
+            self._dirty = value
+            if not self._closed:
+                self.dirty_changed.emit(value)
+
+    def refresh_view(self) -> None:
+        """Compute the view again from its specs (the "Refresh" of an outdated view); without
+        specs: all records."""
+        if self._closed or self.doc is None:
+            return
+        self._set_outdated(False)
+        if self.doc.kind == "single":
+            return
+        passes = self._try_plan(self.filter, self.quick_filters)
+        if passes is None:
+            return
+        if passes or self.sort_keys:
+            self._apply(passes)
+        elif self._view is not self._base:
+            self.reset_view()
+
+    def snapshot(self) -> tuple[Document | None, RecordSet | None]:
+        """``(pinned document, view record set)`` of the state shown now: a task that takes
+        positions (export, search, schema, bulk preview, patch export) uses both, so edits
+        made while it waits or runs never mix in. ``(None, None)`` before opening."""
+        doc = self.doc
+        if doc is None:
+            return None, None
+        return doc.pinned(), self._view
+
+    def _live_sets(self, *, pipeline: bool = False) -> list[RecordSet]:
+        """The distinct record sets of the view state (without the base set); ``pipeline``:
+        also the sets of the running pipeline."""
+        out: list[RecordSet] = []
+        st = self._stable
+        cands = [self._view, self._records, st.view, st.filtered, st.records]
+        pipe = self._pipe
+        if pipeline and pipe is not None:
+            cands += [pipe.source, pipe.filtered, pipe.partial]
+        for rs in cands:
+            if rs is not None and rs is not self._base and not any(rs is x for x in out):
+                out.append(rs)
+        return out
+
+    def _edit_sets(self) -> tuple[list[RecordSet], _Lease]:
+        """The view's record sets an edit job remaps (leased until the job's result is
+        applied -- or dropped; the lease's entries leave ``_held`` when it is released)."""
+        sets = self._live_sets()
+        lease = _Lease(weakref.WeakMethod(self._drop_lease))
+        for rs in sets:
+            self._held.append((lease, rs))
+        return sets, lease
+
+    def _drop_lease(self, lease: Any) -> None:
+        """A lease of :meth:`_edit_sets` (or one added for it) was released: forget its entries (every content
+        edit would otherwise leave one entry per view set behind: review CL-11)."""
+        if any(x is lease for x, _rs in self._held):
+            self._held = [(x, rs) for x, rs in self._held if x is not lease]
+
+    def _plain_equivalent(self, rs: RecordSet | None) -> None:
+        """Re-tag a set computed on the plain file (gen 0) while the document shows an
+        unedited state: its positions are the same (§12.3)."""
+        doc = self.doc
+        if rs is None or rs is self._base or doc is None or getattr(rs, "gen", None) != 0:
+            return
+        gen = doc.gen
+        if gen and not doc.edited:
+            rs.gen = gen
+
+    def _install_state(self, state: Any) -> bool:
+        """Show the edit session's state without a change of data (its initial state, the
+        file as it is, once a record set of the plain file becomes an edit scope; or a state
+        the controller must show at once). Sets of the plain file are re-tagged."""
+        doc = self.doc
+        if self._closed or doc is None:
+            return False
+        try:
+            doc.set_overlay(state)
+        except Exception as exc:
+            log.exception("installing the edit state of %s failed", self.name)
+            self.app.report_error(exc)
+            return False
+        old = self.data_gen
+        self.data_gen = int(state.gen)
+        for rs in self._live_sets(pipeline=True):
+            if getattr(rs, "gen", None) in (0, old) and not doc.edited:
+                rs.gen = self.data_gen
+        if not doc.edited:
+            # the same data: a filter result computed before stays reusable for a sort-only change
+            st, pipe = self._stable, self._pipe
+            st.filtered_key = self._rekey_gen(st.filtered_key, old)
+            if pipe is not None:
+                pipe.filter_key = self._rekey_gen(pipe.filter_key, old)
+        try:
+            from jsonreshape.gui import fields
+
+            fields.note_same_data(self, old, self.data_gen)
+        except Exception:  # pragma: no cover - defensive
+            log.debug("fields re-tag failed", exc_info=True)
+        self._set_dirty(state.version > 0)
+        return True
+
+    def _rekey_gen(self, key: Any, old: int) -> Any:
+        """A filter key of the data generation ``old`` re-keyed to the current one."""
+        if isinstance(key, tuple) and key and key[0] == ("gen", old):
+            return (("gen", self.data_gen),) + key[1:]
+        return key
+
+    def _apply_change(self, cs: Any, remapped: dict[int, RecordSet | None] | None = None) -> bool:
+        """Apply the ChangeSet ``cs`` (GUI thread, one call; see the module docstring).
+        ``remapped``: ``{id(old set): copy}`` the edit worker made (:func:`remap_view_sets`).
+        Returns False when it could not be applied (closed, or the state was refused)."""
+        from jsonreshape.gui.editing import from_edit_ref, remap_ref
+
+        doc = self.doc
+        mapping = dict(remapped or {})
+        if self._closed or doc is None:
+            _close_sets(mapping)
+            return False
+        try:
+            doc.set_overlay(cs.state)
+        except Exception as exc:
+            log.exception("applying an edit to %s failed", self.name)
+            _close_sets(mapping)
+            self.app.report_error(exc)
+            return False
+        self.data_gen = int(cs.gen)
+        single = doc.kind == "single"
+        old_current = self.current
+        old_history = list(self._history)
+        warnings_before = list(self.view_warnings)
+        outdated_before = self._view_outdated
+        busy_before = self.view_busy
+        # -- state (no signal is emitted before data_changed) ---------------------------------
+        running = self._pipe is not None
+        outdated_fallback = self._has_view_specs() and not running
+        failure: BaseException | None = None
+        try:
+            replaced = self._follow_change(cs, mapping, running=running, single=single, remap=remap_ref)
+        except Exception as exc:
+            # a bug while following the step must not leave the session half-updated (the views would then
+            # disagree with the document and the controller): follow it like a reset (review CL-5)
+            log.exception("following an edit of %s failed; the views are reset", self.name)
+            failure = exc
+            cs = _as_reset(cs)
+            replaced = self._reset_after_failure(mapping, outdated=outdated_fallback)
+        positions_moved = cs.remap is not None or bool(cs.reset)
+        target: NodeRef | None = None
+        if cs.select is not None:
+            try:
+                target = from_edit_ref(self, cs.select)
+            except Exception:  # pragma: no cover - defensive
+                target = None
+        # -- signals ----------------------------------------------------------------------------
+        self.data_changed.emit(cs)
+        if self._closed:
+            return True
+        if replaced:
+            self.view_changed.emit()
+        self._emit_count()
+        if self.view_warnings != warnings_before:
+            self.warnings_changed.emit()
+        if self._view_outdated != outdated_before:
+            self.view_outdated_changed.emit(self._view_outdated)
+        if self._history != old_history:
+            self.history_changed.emit()
+        self._set_dirty(cs.state.version > 0)
+        if positions_moved and self._bookmarks:
+            self.bookmarks_changed.emit()
+        if running and not self._closed:
+            # the filter / sort read the old data: start it again on the new state
+            self._restart_pipeline()
+        elif self.view_busy != busy_before:
+            self.view_busy_changed.emit(self.view_busy)
+            self._ensure_tick()
+        # the current node last, AFTER data_changed (the views have followed the step by then): the step's own
+        # selection -- without a current_changed(None) right before it -- else None when the node was deleted
+        if not self._closed:
+            if target is not None and not same_node(target, self.current):
+                self.select(target, history=False)
+            elif old_current is not None and self.current is None:
+                self.current_changed.emit(None, None)
+        if failure is not None and not self._closed:
+            self.app.report_error(failure)
+        return True
+
+    def _follow_change(self, cs: Any, mapping: dict[int, RecordSet | None], *, running: bool, single: bool,
+                       remap: Callable[..., NodeRef | None]) -> bool:
+        """The state part of :meth:`_apply_change` (no signal): the view's record sets, the current node, the
+        history, the caches. True when the view now shows other records (a remapped copy is the same view)."""
+        if running:
+            self._cancel_pipeline(restore=False)   # restarted on the new state by the caller
+        used: set[int] = set()
+        replaced = False
+        if cs.reset:
+            had = self._has_view_specs()
+            replaced = self._fall_back_to_base(outdated=had and not running)
+            self._clear_position_state()
+        elif cs.remap is not None:
+            had = self._has_view_specs()
+            ok, used = self._remap_sets(cs, mapping)
+            if not ok:
+                replaced = self._fall_back_to_base(outdated=had and not running)
+            self._remap_positions(lambda ref: remap(ref, cs, single=single))
+        else:
+            for rs in self._live_sets():
+                rs.gen = self.data_gen
+            if cs.nodes:
+                self._remap_positions(lambda ref: remap(ref, cs, single=single))
+        _close_sets({k: v for k, v in mapping.items() if k not in used})
+        mapping.clear()
+        self._pos_cache.clear()
+        self._forget_fields(cs)
+        if cs.kind == "discard":
+            self._drop_layer_bookmarks()
+        return replaced
+
+    def _reset_after_failure(self, mapping: dict[int, RecordSet | None], *, outdated: bool) -> bool:
+        """Following a step failed half-way: all records as the view (the specs kept, "outdated" when there
+        were any), no current node / history, the remapped copies not installed are closed, the caches and
+        the schema dropped. True when the view was another record set."""
+        self._cancel_pipeline(restore=False)
+        replaced = self._fall_back_to_base(outdated=outdated)
+        self._clear_position_state()
+        self._close_unused(mapping)
+        self._pos_cache.clear()
+        try:
+            from jsonreshape.gui import fields
+
+            fields.forget(self)
+        except Exception:  # pragma: no cover - defensive
+            log.debug("forgetting the schema failed", exc_info=True)
+        return replaced
+
+    def _close_unused(self, mapping: dict[int, RecordSet | None] | None) -> None:
+        """Close the remapped copies of ``mapping`` the session does not hold (installed or retired ones stay);
+        the mapping is emptied. For a step whose following failed half-way."""
+        if not mapping:
+            return
+        keep = self._live_ids() | {id(rs) for _deadline, rs in self._retired}
+        for rs in list(mapping.values()):
+            if rs is not None and id(rs) not in keep:
+                try:
+                    rs.close()
+                except Exception:  # pragma: no cover - close never raises
+                    log.debug("closing a record set failed", exc_info=True)
+        mapping.clear()
+
+    def _has_view_specs(self) -> bool:
+        return bool(self.filter is not None or self.quick_filters or self.sort_keys or self._records is not None)
+
+    def _fall_back_to_base(self, *, outdated: bool) -> bool:
+        """All records as the view (the specs are kept): the record sets of the view are
+        retired, the shown records dropped. Emits nothing (the caller does, after
+        ``data_changed``). True when the view was another record set."""
+        base = self._base
+        self._view_gen += 1
+        old_view = self._view
+        old_records, old_stable = self._records, self._stable
+        self._records = None
+        self._records_label = None
+        self._stable = _ViewState(view=base, filter=self.filter, quick=dict(self.quick_filters),
+                                  sort=list(self.sort_keys), outdated=outdated)
+        replaced = old_view is not base
+        if replaced:
+            self._view = base
+            self._view_serial += 1
+        for rs in (old_view, old_records, old_stable.view, old_stable.filtered, old_stable.records):
+            self._retire(rs)
+        self.view_warnings = []
+        self._view_outdated = bool(outdated)
+        return replaced
+
+    def _remap_sets(self, cs: Any, mapping: dict[int, RecordSet | None]) -> tuple[bool, set[int]]:
+        """Install the remapped copies of the view's record sets (``mapping``; missing small
+        ones are remapped here). False (nothing changed) when a set could not be remapped."""
+        sets = self._live_sets()
+        for rs in sets:
+            if id(rs) not in mapping and not rs.closed and len(rs) <= REMAP_GUI_MAX:
+                try:
+                    mapping.update(remap_view_sets([rs], cs.remap, cs.gen, limit=REMAP_GUI_MAX))
+                except Exception:  # pragma: no cover - defensive
+                    log.warning("remapping a view record set failed", exc_info=True)
+        if any(mapping.get(id(rs)) is None for rs in sets):
+            return False, set()
+        st = self._stable
+
+        def new(rs: RecordSet | None) -> RecordSet | None:
+            if rs is None or rs is self._base:
+                return rs
+            return mapping[id(rs)]
+
+        self._view = new(self._view)
+        self._records = new(self._records)
+        self._stable = _ViewState(view=new(st.view), filtered=new(st.filtered), filtered_key=None,
+                                  filter=st.filter, quick=dict(st.quick), sort=list(st.sort),
+                                  records_label=st.records_label, records=new(st.records),
+                                  filter_warnings=list(st.filter_warnings), outdated=st.outdated)
+        self._view_serial += 1
+        for rs in sets:
+            self._retire(rs)       # replaced by its copy: closed later (a loader may read it now)
+        return True, {id(rs) for rs in sets}
+
+    def _clear_position_state(self) -> None:
+        """A reset: positions cannot be followed (current node and history are dropped)."""
+        self.current = None
+        self._history.clear()
+        self._hpos = -1
+
+    def _remap_positions(self, fn: Callable[[NodeRef], NodeRef | None]) -> None:
+        """``current`` and the history through ``fn`` (``None``: the node is gone)."""
+        if self.current is not None:
+            self.current = fn(self.current)
+        if not self._history:
+            return
+        keep: list[NodeRef] = []
+        hpos = -1
+        for i, ref in enumerate(self._history):
+            new = fn(ref)
+            if new is None:
+                continue
+            if i <= self._hpos:
+                hpos = len(keep)
+            keep.append(new)
+        self._history = keep
+        self._hpos = hpos if keep else -1
+        if keep and self._hpos < 0:
+            self._hpos = 0
+
+    def _restart_pipeline(self) -> None:
+        """Start the view pipeline again from the current specs (after an edit)."""
+        try:
+            passes = self._plan(self.filter, self.quick_filters)
+        except (JsonReshapeError, ValueError, TypeError):
+            log.debug("the view of %s cannot be computed again", self.name, exc_info=True)
+            self._cancel_pipeline(restore=False)
+            self._set_busy(False)
+            return
+        self._start_pipeline(passes)
+
+    def _forget_fields(self, cs: Any) -> None:
+        if cs.kind in ("bulk", "patch", "restore", "discard") or cs.reset or cs.records is None:
+            try:
+                from jsonreshape.gui import fields
+
+                fields.forget(self)
+            except Exception:  # pragma: no cover - defensive
+                log.debug("forgetting the schema failed", exc_info=True)
+
+    def _layer_key(self) -> str | None:
+        """The key of the document's edit layer (bookmarks of new records carry it)."""
+        edit = self.edit
+        key = getattr(edit, "layer_key", None) if edit is not None else None
+        if key:
+            return key
+        doc = self.doc
+        if doc is None or not doc.index_complete:
+            return None
+        cached = self._layer_key_cache
+        if cached is not None and cached[0] is doc:
+            return cached[1]
+        try:
+            from jsonreshape.editstore import layer_key
+
+            key = layer_key(doc)
+        except Exception:
+            log.debug("layer key of %s unavailable", self.name, exc_info=True)
+            return None
+        self._layer_key_cache = (doc, key)
+        return key
+
+    def pause_change_check(self) -> None:
+        """Stop the external change check (a save is about to replace the file); a check
+        already running is ignored. Nested; :meth:`resume_change_check` undoes one pause."""
+        self._change_paused += 1
+        self._change_serial += 1
+        self._change_timer.stop()
+
+    def resume_change_check(self) -> None:
+        if self._change_paused > 0:
+            self._change_paused -= 1
+        if (self._change_paused == 0 and not self._closed and self.doc is not None
+                and self._file_state != "changed" and not self._change_timer.isActive()):
+            self._change_timer.start(self.CHANGE_POLL_MS)
+
+    def switch_path(self, path: str | os.PathLike[str]) -> None:
+        """The session now shows the file ``path`` (after Save As; reopen it next): path and
+        name, the bookmarks (the session's list is stored for the new path), the table
+        layouts (copied), the recent files; ``path_changed(path)`` lets the tab and the
+        window update titles and tooltips."""
+        new = os.path.abspath(os.fspath(path))
+        old = self.path
+        if os.path.normcase(new) == os.path.normcase(old):
+            return
+        state = self.app.state
+        try:
+            state.copy_table_layout(old, new)
+        except Exception:
+            log.debug("copying the table layout failed", exc_info=True)
+        self.path = new
+        self.name = os.path.basename(new)
+        self._layer_key_cache = None
+        state.set_bookmarks(new, self._bookmarks)
+        try:
+            state.add_recent(new)
+        except Exception:
+            log.debug("could not update the recent files", exc_info=True)
+        save_state = getattr(self.app, "save_state", None)
+        if callable(save_state):
+            save_state()
+        if not self._closed:
+            self.path_changed.emit(new)
+            self.bookmarks_changed.emit()
 
     def _failed(self, exc: BaseException) -> None:
         """Open or index failure (``Cancelled`` included): the tab decides what to show."""
@@ -474,27 +1196,38 @@ class DocSession(QObject):
         if not self._closed:
             self._emit_count()
 
-    def reopen(self, *, record_path: Any = _KEEP, format: Any = _KEEP, use_cache: bool = True) -> None:
+    def reopen(self, *, record_path: Any = _KEEP, format: Any = _KEEP, use_cache: bool = True,
+               discard_edits: bool = False, keep_view: bool = False) -> None:
         """Open the file again (e.g. after it changed, or with another record path /
         format; omitted options keep their current value, ``None`` = automatic). The
         filter/sort specs are re-applied once the new index is ready (when they still
-        compile and the document has records)."""
+        compile and the document has records).
+
+        Unsaved changes: ``EditError("edits.error.dirty")`` unless ``discard_edits`` (the UI
+        asks first with ``edit.ask_close``); the edit session is closed either way and a layer
+        with steps stays for recovery. ``keep_view`` (the reopen after a save, whose file holds
+        the records in their effective order): the filter, sort, shown records and history are
+        kept although the options change."""
         if self._closed:
             return
+        if self._dirty and not discard_edits:
+            raise EditError("edits.error.dirty")
         self._started = True
         new_rp = self.record_path if record_path is _KEEP else record_path
         new_fmt = self.format if format is _KEEP else format
         options_changed = (new_rp, new_fmt) != (self.record_path, self.format)
-        if options_changed or self._records is not None:
+        if not keep_view and (options_changed or self._records is not None):
             # other records (another record path / format), or shown records (search results)
             # that refer to the old record numbers: the specs do not apply any more
             self.filter, self.quick_filters, self.sort_keys = None, {}, []
             self._records = None
             self._records_label = None
+        if keep_view and self._records is not None:
+            self._records.gen = 0          # positions of the saved file (re-tagged once editing opens)
         self._abandon_document()
         self._pending_specs = bool(self.filter is not None or self.quick_filters or self.sort_keys)
         self.record_path, self.format, self.use_cache = new_rp, new_fmt, bool(use_cache)
-        if options_changed:
+        if options_changed and not keep_view:
             self._history.clear()
             self._hpos = -1
             if self.current is not None:
@@ -506,16 +1239,24 @@ class DocSession(QObject):
         self._open()
 
     def _abandon_document(self) -> None:
-        """Detach the session's tasks, stop the timers, retire the view, schedule closing
-        the document(s) once the task threads ended (also the threads of the tasks given to
-        :meth:`keep_document_for`, which go on)."""
-        tasks = self.app.tasks.tasks(owner=self, include_silent=True)
+        """Detach the edit controller and the session's tasks, stop the timers, retire the
+        view, schedule closing the document(s) once the task threads ended (also the threads
+        of the tasks given to :meth:`keep_document_for`, which go on, and the edit worker)."""
+        waiters = self._drop_edit()
+        tasks = self.app.tasks.tasks(owner=self, include_silent=True) + waiters
         users = self._doc_user_tasks()
         self._doc_users = []
         self.app.tasks.detach(self)
         self._change_task = None
+        self._change_paused = 0
+        self._change_serial += 1
         self._tick_timer.stop()
         self._change_timer.stop()
+        self.data_gen = 0
+        self._set_dirty(False)
+        self._set_outdated(False)
+        self._layer_key_cache = None
+        self._edit_warnings = []
         docs = []
         if self._holder is not None:
             unadopted = self._holder.abandon()
@@ -553,18 +1294,27 @@ class DocSession(QObject):
                     self._retire(rs)
             _close_after(tasks, docs)
 
-    def keep_document_for(self, task: Any, sets: Any = ()) -> None:
+    def keep_document_for(self, task: Any, sets: Any = (), doc: Any = None) -> None:
         """Keep the current document (and the record sets of the view) open until the
         worker thread of ``task`` ended, even when the file is reopened or the session is
-        closed meanwhile. For tasks not owned by the session (exports): they are not
+        closed meanwhile. For tasks not owned by the session (exports, saves): they are not
         detached and finish on the document they started with.
 
         ``sets``: record sets of this session the task will read (e.g. the view an export
         writes). They are not closed before the task ended, also when the view is replaced
         meanwhile and the task still waits for its turn (a queued heavy task) -- a lease
-        taken when the task is started, not when its thread runs."""
+        taken when the task is started, not when its thread runs.
+
+        ``doc``: the pinned document the task reads (:meth:`snapshot`); its state's segment
+        readers and array layers belong to the live document, which stays open, so the
+        pinned state stays readable. A pinned view of a document this session no longer
+        shows cannot be kept any more (logged)."""
         if task is None or self._closed:
             return
+        if doc is not None:
+            origin = getattr(doc, "origin", doc)
+            if origin is not self.doc:
+                log.debug("keep_document_for: %r is not the document of %s", doc, self.name)
         self._prune_users()
         self._doc_users.append(task)
         for rs in sets or ():
@@ -577,6 +1327,14 @@ class DocSession(QObject):
 
     def _doc_user_tasks(self) -> list[Any]:
         return [x for x in self._doc_users if getattr(x, "thread_alive", False)]
+
+    def document_users(self) -> list[Any]:
+        """The tasks given to :meth:`keep_document_for` whose threads have not ended (running, or waiting in
+        the heavy-task queue): they read the document as it was when they started, so an in-place save must
+        not replace the file under them (the controller waits for them or asks first: review CL-3)."""
+        if self._closed:
+            return []
+        return self._doc_user_tasks()
 
     def _holder_tasks(self, rs: RecordSet | None = None) -> list[Any]:
         """Alive tasks holding ``rs`` (any held set when ``None``)."""
@@ -615,7 +1373,9 @@ class DocSession(QObject):
         if self._closed:
             return
         self._closed = True
-        tasks = self.app.tasks.tasks(owner=self, include_silent=True)
+        _OPEN.discard(self)
+        waiters = self._drop_edit()
+        tasks = self.app.tasks.tasks(owner=self, include_silent=True) + waiters
         users = self._doc_user_tasks()
         held = [(task, rs) for task, rs in self._held if getattr(task, "thread_alive", False)]
         self._doc_users = []
@@ -676,7 +1436,8 @@ class DocSession(QObject):
 
     def warning_items(self) -> list[tuple[str, str]]:
         """:meth:`warning_texts` with their keys: the reader's i18n key of each document
-        warning (e.g. ``reader.warn.appended``), ``"view"`` for the view's warnings."""
+        warning (e.g. ``reader.warn.appended``), ``"view"`` for the view's warnings, ``"edit"``
+        for notices of the edit layer (e.g. it could not be kept next to the file)."""
         out: list[tuple[str, str]] = []
         doc = self.doc
         if doc is not None:
@@ -685,7 +1446,15 @@ class DocSession(QObject):
             texts = list(info.warning_texts())
             for i, text in enumerate(texts):
                 out.append((str(keys[i]) if i < len(keys) else "", text))
+        out += [("edit", text) for text in self._edit_warnings]
         return out + [("view", text) for text in self.view_warnings]
+
+    def _add_edit_warnings(self, texts: list[str]) -> None:
+        """Notices of the edit layer (shown with the document's warnings)."""
+        new = [str(x) for x in texts if x and str(x) not in self._edit_warnings]
+        if new and not self._closed:
+            self._edit_warnings.extend(new)
+            self.warnings_changed.emit()
 
     def _set_view_warnings(self, texts: list[str]) -> None:
         if texts != self.view_warnings:
@@ -694,18 +1463,22 @@ class DocSession(QObject):
 
     def _check_change(self) -> None:
         doc = self.doc
-        if self._closed or doc is None or self._change_task is not None or self._file_state == "changed":
+        if self._closed or doc is None or self._change_task is not None or self._file_state == "changed" \
+                or self._change_paused:
             return
+        serial = self._change_serial
 
         def fn(ctx: Any) -> tuple[bool, int]:
             return doc.check_changed(), int(doc.appended_bytes)
 
         self._change_task = self._run(fn, title=t("gui.session.task.check", name=self.name), kind="check",
-                                      silent=True, on_done=self._change_checked,
+                                      silent=True, on_done=lambda result: self._change_checked(result, serial),
                                       on_error=self._change_check_failed, on_cancel=self._change_check_cancelled)
 
-    def _change_checked(self, result: tuple[bool, int]) -> None:
+    def _change_checked(self, result: tuple[bool, int], serial: int | None = None) -> None:
         self._change_task = None
+        if self._change_paused or (serial is not None and serial != self._change_serial):
+            return      # paused (a save replaces the file) or the result of a check started before the pause
         changed, appended = result
         if changed:
             self._file_state = "changed"
@@ -930,6 +1703,13 @@ class DocSession(QObject):
         if self._closed:
             rs.close()
             return
+        self._plain_equivalent(rs)
+        gen = getattr(rs, "gen", None)
+        if gen is not None and self.doc is not None and gen != self.doc.gen:
+            # positions of another edit state (e.g. a search started before an edit)
+            rs.close()
+            self.app.report_error(EditError("edits.error.stale_scope"))
+            return
         self._cancel_pipeline(restore=False)
         self._view_gen += 1
         self._pending_specs = False
@@ -944,6 +1724,7 @@ class DocSession(QObject):
             self._retire(old)
         self._set_view_warnings([])
         self._set_busy(False)
+        self._set_outdated(False)
         self._emit_count()
 
     def reset_view(self) -> None:
@@ -964,6 +1745,7 @@ class DocSession(QObject):
             self._retire(old)
         self._set_view_warnings([])
         self._set_busy(False)
+        self._set_outdated(False)
         self._emit_count()
 
     def _apply(self, passes: list[Filter]) -> None:
@@ -993,10 +1775,13 @@ class DocSession(QObject):
     def _start_pipeline(self, passes: list[Filter]) -> None:
         self._cancel_pipeline(restore=True)
         self._view_gen += 1
+        self._set_outdated(False)
         sort = list(self.sort_keys)
         origin = self._records                   # None: the whole document
         fkey = tuple((f.lang, f.text) for f in passes)
-        key = ((("records", id(origin)),) + fkey) if (origin is not None and fkey) else fkey
+        # the data generation is part of the key: after an edit a filter result is never reused
+        key = ((("gen", self.data_gen),) + ((("records", id(origin)),) if origin is not None else ()) + fkey) \
+            if fkey else fkey
         st = self._stable
         source: RecordSet | None = origin
         filtered: RecordSet | None = None
@@ -1038,7 +1823,11 @@ class DocSession(QObject):
             self._finish_pipeline(pipe)
             return
         kind, arg = pipe.steps.pop(0)
-        doc = self.doc
+        live = self.doc
+        # pinned when the step is planned: positions of the source belong to the state shown now
+        # (an edit applied later restarts the pipeline)
+        doc = live.pinned() if live is not None else live
+        self._plain_equivalent(pipe.source)
         src = pipe.source
         if kind == "filter":
             last = not any(k == "filter" for k, _ in pipe.steps)
@@ -1085,6 +1874,7 @@ class DocSession(QObject):
         if pipe is not self._pipe:
             self._retire(rs)
             return
+        self._plain_equivalent(rs)
         pipe.filter_warnings.extend(self._report_warnings(rs))
         old = pipe.source
         pipe.source = rs
@@ -1130,6 +1920,7 @@ class DocSession(QObject):
         if st.view is not None:
             self._install(st.view)
         self._set_busy(False)
+        self._set_outdated(st.outdated)
         self._emit_count()
         if exc is None:
             # cancelled by the user (tasks panel): say why the previous view came back
@@ -1161,6 +1952,7 @@ class DocSession(QObject):
         old = self._view
         if rs is old:
             return
+        self._plain_equivalent(rs)
         self._view = rs
         self._view_serial += 1
         self._pos_cache.clear()
@@ -1492,15 +2284,25 @@ class DocSession(QObject):
     # actions
     # ================================================================================
     def filter_by_value(self, ref: NodeRef, value: Any) -> bool:
-        """AND ``<path> == value`` to the filter: the builder is extended when the
-        current expression filter has one, else ``(<old>) and <cond>``; with a JMESPath
-        main filter it becomes a quick filter keyed by the path. Only for nodes inside a
-        record (else False)."""
+        """AND ``<path> == value`` to the filter (:meth:`filter_by_condition`). Only for nodes
+        inside a record (else False)."""
         doc = self.doc
         if ref is None or ref.record is None or doc is None or doc.kind == "single":
             return False
-        field_text = format_path(tuple(ref.path)) or "$"
-        cond = Condition(field=field_text, op="eq", value=value)
+        return self.filter_by_condition(Condition(field=format_path(tuple(ref.path)) or "$", op="eq", value=value))
+
+    def filter_by_condition(self, cond: Condition) -> bool:
+        """AND the builder condition ``cond`` to the filter (the statistics panel's click on a value,
+        ``filter_by_value``; ``s5/map_stats.md`` §5.3): the builder group is extended when the current
+        expression filter has one (a group that is not a plain AND -- or is negated -- becomes the first
+        item of a new AND group), else ``(<old>) and <cond>``; with a JMESPath main filter it becomes the
+        quick filter keyed by ``cond.field`` (the JMESPath pass stays as it is). False -- nothing changed --
+        for a single document, a session without a document, or a condition the filter language cannot
+        express (``cond.to_text()`` fails: the error is reported)."""
+        doc = self.doc
+        if self._closed or cond is None or doc is None or doc.kind == "single":
+            return False
+        field_text = str(cond.field)
         try:
             cond_text = cond.to_text()
         except (JsonReshapeError, ValueError, TypeError) as exc:
@@ -1545,19 +2347,126 @@ class DocSession(QObject):
     # ================================================================================
     @property
     def bookmarks(self) -> list[Bookmark]:
+        """The bookmarks of the file as stored: ``record`` is a stable record id (the
+        original position of a record of the file; with ``layer`` set the id of a record
+        created by the edits) -- use :meth:`bookmark_ref` / :meth:`bookmark_location` for the
+        position in the state shown."""
         return list(self._bookmarks)
 
-    def bookmark_ref(self, bookmark: Bookmark | int) -> NodeRef:
+    def bookmark_ref(self, bookmark: Bookmark | int) -> NodeRef | None:
+        """The position-based NodeRef of a bookmark in the state shown now; ``None`` when its
+        record was deleted or belongs to an edit layer that is not active (not restored,
+        discarded)."""
         bm = self._bookmarks[bookmark] if isinstance(bookmark, int) else bookmark
-        return NodeRef(bm.record, tuple(bm.path))
+        if bm.record is None:
+            return NodeRef(None, tuple(bm.path))
+        pos = self._rid_position(bm.record, bm.layer)
+        return None if pos is None else NodeRef(pos, tuple(bm.path))
+
+    def bookmark_location(self, bookmark: Bookmark | int) -> str:
+        """``#12.a`` style location of a bookmark in the state shown (a localized "deleted"
+        mark when :meth:`bookmark_ref` is ``None``)."""
+        ref = self.bookmark_ref(bookmark)
+        if ref is None:
+            return t("gui.session.bookmark.gone")
+        return self.location_text(ref)
+
+    def _rid_position(self, rid: int, layer: str | None) -> int | None:
+        """Position of the record id ``rid`` (of ``layer`` when given) in the state shown."""
+        doc = self.doc
+        ov = doc.overlay if doc is not None else None
+        if layer is not None:
+            if ov is None or layer != self._layer_key():
+                return None
+            try:
+                return ov.pieces.pos_of(int(rid))
+            except (IndexError, ValueError):
+                return None
+        if ov is None or not doc.edited:   # type: ignore[union-attr]
+            if doc is not None and doc.index_complete and rid >= doc.record_count:
+                return None
+            return int(rid)
+        if rid >= ov.base_count:
+            return None
+        try:
+            return ov.pieces.pos_of(int(rid))
+        except (IndexError, ValueError):
+            return None
+
+    def _rid_of(self, pos: int) -> tuple[int, str | None]:
+        """``(record id, layer key or None)`` of the record at position ``pos`` now."""
+        doc = self.doc
+        ov = doc.overlay if doc is not None else None
+        if ov is None or not doc.edited:   # type: ignore[union-attr]
+            return int(pos), None
+        try:
+            rid = ov.rid_at(int(pos))
+        except (IndexError, ValueError):
+            return int(pos), None
+        if rid >= ov.base_count:
+            key = self._layer_key()
+            if key is not None:
+                return rid, key
+        return rid, None
 
     def add_bookmark(self, name: str, ref: NodeRef) -> Bookmark:
-        """Bookmark ``ref`` (saved in the GUI state for this file)."""
+        """Bookmark ``ref`` (positions of the state shown; saved in the GUI state for this
+        file by record id, see :attr:`bookmarks`)."""
         name = (name or "").strip() or self.location_text(ref)
-        bm = Bookmark(name=name, record=ref.record, path=list(ref.path))
+        if ref.record is None:
+            bm = Bookmark(name=name, record=None, path=list(ref.path))
+        else:
+            rid, layer = self._rid_of(ref.record)
+            bm = Bookmark(name=name, record=rid, path=list(ref.path), layer=layer)
         self._bookmarks.append(bm)
         self._save_bookmarks()
         return bm
+
+    def _drop_layer_bookmarks(self, key: str | None = None) -> None:
+        """Forget the bookmarks of records created in the edit layer ``key`` (default: the
+        document's): the layer was discarded."""
+        key = key or self._layer_key()
+        if key is None:
+            return
+        keep = [bm for bm in self._bookmarks if bm.layer != key]
+        if len(keep) != len(self._bookmarks):
+            self._bookmarks = keep
+            self._save_bookmarks()
+
+    def _bookmarks_saved(self, positions: dict[int, int | None], layer: str | None, *,
+                         target: str | None = None) -> None:
+        """A save wrote the edited document: the bookmarks become positions of the saved
+        file (``positions``: record id -> position in the saved state; ``None`` = deleted,
+        dropped); bookmarks of other layers are dropped. ``target`` (Save As): the original
+        file keeps its file-record bookmarks (its content is unchanged) and the converted
+        list is stored for ``target`` (:meth:`switch_path` follows)."""
+        converted: list[Bookmark] = []
+        for bm in self._bookmarks:
+            if bm.record is None:
+                converted.append(Bookmark(bm.name, None, list(bm.path), bm.created))
+                continue
+            if bm.layer is not None and bm.layer != layer:
+                continue
+            pos = positions.get(bm.record)
+            if pos is None:
+                continue
+            converted.append(Bookmark(bm.name, int(pos), list(bm.path), bm.created))
+        state = self.app.state
+        if target is not None:
+            state.set_bookmarks(self.path, [bm for bm in self._bookmarks if bm.layer is None])
+            state.set_bookmarks(target, converted)
+        self._bookmarks = converted
+        if target is None:
+            self._save_bookmarks()
+        elif not self._closed:
+            save_state = getattr(self.app, "save_state", None)
+            if callable(save_state):
+                save_state()
+            self.bookmarks_changed.emit()
+
+    def bookmark_rids(self) -> list[int]:
+        """The record ids the bookmarks hold (for :meth:`_bookmarks_saved`)."""
+        return sorted({bm.record for bm in self._bookmarks if bm.record is not None})
 
     def remove_bookmark(self, i: int) -> None:
         del self._bookmarks[i]
@@ -1581,21 +2490,43 @@ class DocSession(QObject):
         self.bookmarks_changed.emit()
 
 
+def _end_waiter(task: Any) -> tuple[Callable[[float | None], Any], float | None, str]:
+    """How the close thread waits for the thread of ``task``: ``(wait(timeout) -> ended, time limit, label)``
+    where ``wait`` belongs to a PLAIN object -- the ``threading.Event`` / ``Thread`` the task ends with -- never
+    to the task itself: a ``GuiTask`` is a ``QObject`` (whose ``owner`` may be the edit controller, a ``QObject``
+    with a timer child), and the close thread must never drop the last reference to one (review CL-8). An export
+    or a save of a big file may take long: they are waited for without a limit (they end on cancel), the others
+    120 s."""
+    limit = None if getattr(task, "kind", "") in ("export", "save") else 120.0
+    label = repr(task)
+    event = getattr(task, "done_event", None)
+    if isinstance(event, threading.Event):
+        return event.wait, limit, label
+    thread = getattr(task, "thread", None)            # the edit worker
+    if isinstance(thread, threading.Thread):
+        def join(timeout: float | None, _thread: threading.Thread = thread) -> bool:
+            _thread.join(timeout)
+            return not _thread.is_alive()
+
+        return join, limit, label
+    return task.join, limit, label                    # a plain task-like object (tests)
+
+
 def _close_after(tasks: list[Any], docs: list[Document], sets: list[RecordSet] | None = None) -> None:
     """Close ``sets`` and ``docs`` once the worker threads of ``tasks`` ended (at once
-    when they did): a document must not be closed under a running build or export."""
+    when they did): a document must not be closed under a running build or export. The
+    closing thread holds only what :func:`_end_waiter` gives (plain events / threads), the
+    documents and the record sets."""
     docs = [d for d in docs if d is not None]
     sets = [rs for rs in (sets or []) if rs is not None]
     if not docs and not sets:
         return
-    alive = [task for task in tasks if task.thread_alive]
+    waits = [_end_waiter(task) for task in tasks if task.thread_alive]
 
     def close_all() -> None:
-        for task in alive:
-            # an export of a big file may take long: wait for it without a limit when it
-            # keeps the document (it ends on cancel), builds get 120 s
-            if not task.join(None if getattr(task, "kind", "") == "export" else 120):
-                log.warning("task %r did not stop; closing its document anyway", task)
+        for wait, limit, label in waits:
+            if not wait(limit):
+                log.warning("task %s did not stop; closing its document anyway", label)
         for rs in sets:
             try:
                 rs.close()
@@ -1607,7 +2538,7 @@ def _close_after(tasks: list[Any], docs: list[Document], sets: list[RecordSet] |
             except Exception:
                 log.exception("closing %r failed", doc)
 
-    if not alive:
+    if not waits:
         close_all()
         return
     threading.Thread(target=close_all, name="jsonreshape-gui-close", daemon=True).start()

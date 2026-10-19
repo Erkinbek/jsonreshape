@@ -29,6 +29,14 @@ move stays pending).
 
 Public API used by the document tab: :meth:`RawView.goto_offset` (JSON error position,
 "open in raw view" of the text view) and :meth:`RawView.goto_line` (1-based).
+
+Edits (docs/ARCHITECTURE.md §12.9 "Raw"): the view always shows the original data file. The
+current node is highlighted (and jumped to) only when its span is a file offset; a node in
+the edit layer (``is_edit_offset``: edited or new) gets the note "edited -- the raw view shows
+the original file" instead. On ``session.data_changed`` the session's (remapped) current node
+is looked up again without moving the view. A node is resolved in the document state pinned
+when it was asked for (:func:`~jsonreshape.gui.widgets.task_doc`), so an edit applied before the
+worker starts never makes it read another state (review CL-9).
 """
 
 from __future__ import annotations
@@ -88,7 +96,17 @@ from jsonreshape.gui.rawdata import (
     rows_back,
     walk_rows,
 )
-from jsonreshape.gui.widgets import InfoBar, ViewBase, format_count, format_size, mono_font, set_clipboard_text
+from jsonreshape.gui.widgets import (
+    InfoBar,
+    ViewBase,
+    edited_span,
+    format_count,
+    format_size,
+    mono_font,
+    set_clipboard_text,
+    task_doc,
+    task_node,
+)
 from jsonreshape.i18n import t
 from jsonreshape.tasks import CancelToken
 
@@ -1374,6 +1392,7 @@ class RawView(ViewBase):
         self._find_whole = False
         self._counting_shown = False
         self._follow_jump = True              # the next resolved current node is scrolled into view
+        self._edited_note = False             # the info bar shows the "edited node" note
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -1459,6 +1478,9 @@ class RawView(ViewBase):
         session.view_changed.connect(self._sync_doc)       # reopen: the document is replaced
         session.index_finished.connect(self._on_index_finished)
         session.state_changed.connect(self._on_state_changed)
+        data_changed = getattr(session, "data_changed", None)
+        if data_changed is not None:
+            data_changed.connect(self._on_data_changed)
         settings_changed = getattr(session.app, "settings_changed", None)
         if settings_changed is not None:
             settings_changed.connect(self._on_settings_changed)
@@ -1498,6 +1520,7 @@ class RawView(ViewBase):
         self._refresh_error()
         self._refresh_lines_button()
         self.info_bar.setVisible(False)
+        self._edited_note = False
         self._update_position()
         if self.isVisible():
             self._resume()
@@ -1854,6 +1877,31 @@ class RawView(ViewBase):
         if self.isVisible():
             self._resolve_node()
 
+    def _on_data_changed(self, cs: Any) -> None:
+        """Edits were applied: the current node (remapped by the session) may now lie in the
+        edit layer, or back in the file after an undo -- look it up again, without jumping."""
+        if self._dead:
+            return
+        self._pending_ref = getattr(self.session, "current", None)
+        self._ref_dirty = True
+        self._follow_jump = False
+        if self.isVisible():
+            self._resolve_node()
+
+    def _set_edited_note(self, on: bool) -> None:
+        """Show / hide the note for a current node that lies in the edit layer."""
+        if on:
+            self._edited_note = True
+            self.show_message("info", t("gui.raw.edited_note"))
+        elif self._edited_note:
+            self._edited_note = False
+            if self.info_bar.message() == t("gui.raw.edited_note"):
+                self.info_bar.setVisible(False)
+
+    def edited_note_shown(self) -> bool:
+        """The "edited node" note is shown (tests)."""
+        return self._edited_note and self.info_bar.isVisibleTo(self)
+
     def _resolve_node(self) -> None:
         self._ref_dirty = False
         ref = self._pending_ref
@@ -1862,12 +1910,16 @@ class RawView(ViewBase):
             self._node_task = None
         if ref is None or self._doc is None:
             self.area.set_node_span(None)
+            self._set_edited_note(False)
             return
         session, gen = self.session, self._gen
         moves = self.area.moves
+        # the state ``ref`` belongs to, pinned NOW: a ChangeSet applied before the worker starts must not make it
+        # resolve the ref in another state (review CL-9; None while indexing: the live document)
+        doc = task_doc(session)
 
         def work(ctx: Any) -> tuple[int, int] | None:
-            node = session.node(ref, ctx.cancel)
+            node = task_node(session, ref, ctx.cancel, doc=doc)
             if getattr(node, "is_virtual", False) or not tuple(getattr(node, "path", ())):
                 return None       # the document root: tinting the whole file says nothing
             return int(node.start), int(node.end)
@@ -1876,6 +1928,10 @@ class RawView(ViewBase):
             if gen != self._gen or self._pending_ref is not ref:
                 return
             self._node_task = None
+            edited = span is not None and edited_span(span[0])
+            self._set_edited_note(edited)
+            if edited:
+                span = None       # no bytes in the data file: nothing to tint or jump to
             self.area.set_node_span(span)
             # jump to the node unless the user (or an explicit goto) moved meanwhile
             if span is not None and self.isVisible() and self._follow_jump and self.area.moves == moves:
@@ -1886,6 +1942,7 @@ class RawView(ViewBase):
             log.debug("raw view: node %r not resolved: %r", ref, exc)
             if gen == self._gen:
                 self.area.set_node_span(None)
+                self._set_edited_note(False)
 
         self._node_task = session.app.tasks.run(work, title=t("gui.raw.task.node"), kind="raw", owner=self,
                                                 silent=True, on_done=done, on_error=failed,
@@ -2107,6 +2164,12 @@ class RawView(ViewBase):
         if settings_changed is not None:
             try:
                 settings_changed.disconnect(self._on_settings_changed)
+            except (RuntimeError, TypeError):
+                pass
+        data_changed = getattr(self.session, "data_changed", None)
+        if data_changed is not None:
+            try:
+                data_changed.disconnect(self._on_data_changed)
             except (RuntimeError, TypeError):
                 pass
         super().shutdown()

@@ -1,0 +1,72 @@
+{
+ "name": "ex14_flatten_foreign",
+ "description": "engine analysis worked example: flatten re-infers; foreign nodes, _depth_2, duplicate keys",
+ "case": {
+  "name": "ex14_flatten_foreign",
+  "records": [{"x": "outer", "kids": [{"n": 1, "_depth": "d", "kids": [{"n": 2, "x": "inner"}, "prim"]}]}],
+  "ops": [
+   {"op": "rename", "node": "[].kids[].n", "name": "N"},
+   {"op": "move", "node": "[].x", "target": "[].kids[]", "zone": "inside"},
+   {"op": "flatten", "node": "[].kids"}
+  ]
+ },
+ "output": [
+  {
+   "kids": [{"_depth_2": 1, "n": 1, "_depth": "d", "x": "outer"}, {"_depth_2": 2, "n": 2, "x": "outer"}, "prim"]
+  }
+ ],
+ "log": [
+  {"i": 0, "op": "rename", "applied": true, "changed": true, "undo": 1, "msg": ""},
+  {"i": 1, "op": "move", "applied": true, "changed": true, "undo": 2, "msg": ""},
+  {
+   "i": 2,
+   "op": "flatten",
+   "applied": true,
+   "changed": true,
+   "undo": 3,
+   "msg": "«kids» ichidagi barcha darajalar bitta massivga yig'ildi: 3 ta element"
+  }
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "kids", "kind": "array", "src": [null, "kids"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "kids", null], "types": ["object"], "count": 3, "pcount": null, "samples": [], "synthetic": false, "rec_key": "kids", "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+     {"key": "_depth_2", "kind": "value", "src": null, "types": ["number"], "count": 0, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": "depth", "ctx": [null, "kids", null], "open": false, "is_elem": false, "is_root": false, "children": []},
+     {"key": "n", "kind": "value", "src": [null, "kids", null, "n"], "types": ["number"], "count": 2, "pcount": 2, "samples": ["1", "2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []},
+     {"key": "_depth", "kind": "value", "src": [null, "kids", null, "_depth"], "types": ["string"], "count": 1, "pcount": 2, "samples": ["\"d\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []},
+     {"key": "x", "kind": "value", "src": [null, "kids", null, "x"], "types": ["string"], "count": 1, "pcount": 2, "samples": ["\"inner\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []},
+     {"key": "x", "kind": "value", "src": [null, "x"], "types": ["string"], "count": 1, "pcount": 1, "samples": ["\"outer\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+    ]}
+   ]}
+  ]}
+ ]},
+ "badges": [
+  {"ref": [0, "kids", 0], "badges": ["rekursiv · kids"]},
+  {"ref": [0, "kids", 0, "_depth_2"], "badges": ["daraja raqami"]},
+  {"ref": [0, "kids", 0, 4], "badges": ["ko'chirildi", "har elementga takrorlanadi"]}
+ ],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"kids\" array <- [].kids",
+  "      [] object [recKey=kids] <- [].kids[]",
+  "        \"_depth_2\" value [computed=depth ctx=[].kids[]]",
+  "        \"n\" value <- [].kids[].n",
+  "        \"_depth\" value <- [].kids[]._depth",
+  "        \"x\" value <- [].kids[].x",
+  "        \"x\" value <- [].x"
+ ],
+ "preview": [
+  {
+   "kids": [{"_depth_2": 1, "n": 1, "_depth": "d", "x": "outer"}, {"_depth_2": 2, "n": 2, "x": "outer"}, "prim"]
+  }
+ ],
+ "perRecord": [
+  [
+   {
+    "kids": [{"_depth_2": 1, "n": 1, "_depth": "d", "x": "outer"}, {"_depth_2": 2, "n": 2, "x": "outer"}, "prim"]
+   }
+  ]
+ ],
+ "perRecordConcatEqualsOutput": true
+}

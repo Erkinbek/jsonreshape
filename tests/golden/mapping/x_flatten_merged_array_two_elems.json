@@ -1,0 +1,76 @@
+{
+ "name": "x_flatten_merged_array_two_elems",
+ "description": "targeted reference case (batch5)",
+ "case": {
+  "name": "x_flatten_merged_array_two_elems",
+  "records": [{"a": [{"n": "a", "a": [{"n": "aa", "a": []}]}], "b": [{"m": "b", "b": [{"m": "bb"}]}]}],
+  "ops": [{"op": "merge", "node": "[].b", "target": "[].a"}, {"op": "flatten", "node": "[].a"}]
+ },
+ "output": [
+  {
+   "a": [{"_depth": 1, "n": "a"}, {"_depth": 2, "n": "aa"}, {"_depth": 1, "m": "b"}, {"_depth": 2, "m": "bb"}]
+  }
+ ],
+ "log": [
+  {
+   "i": 0,
+   "op": "merge",
+   "applied": true,
+   "changed": true,
+   "undo": 1,
+   "msg": "«b» elementlari «a» massiviga qo'shildi"
+  },
+  {
+   "i": 1,
+   "op": "flatten",
+   "applied": true,
+   "changed": true,
+   "undo": 2,
+   "msg": "«b» ichidagi barcha darajalar bitta massivga yig'ildi: 4 ta element"
+  }
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "a", "kind": "array", "src": [null, "a"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "a", null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": "a", "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+     {"key": "_depth", "kind": "value", "src": null, "types": ["number"], "count": 0, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": "depth", "ctx": [null, "a", null], "open": false, "is_elem": false, "is_root": false, "children": []},
+     {"key": "n", "kind": "value", "src": [null, "a", null, "n"], "types": ["string"], "count": 2, "pcount": 2, "samples": ["\"a\"", "\"aa\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []}
+    ]},
+    {"key": "", "kind": "object", "src": [null, "b", null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": "b", "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+     {"key": "_depth", "kind": "value", "src": null, "types": ["number"], "count": 0, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": "depth", "ctx": [null, "b", null], "open": false, "is_elem": false, "is_root": false, "children": []},
+     {"key": "m", "kind": "value", "src": [null, "b", null, "m"], "types": ["string"], "count": 2, "pcount": 2, "samples": ["\"b\"", "\"bb\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []}
+    ]}
+   ]}
+  ]}
+ ]},
+ "badges": [
+  {"ref": [0, "a", 0], "badges": ["rekursiv · a"]},
+  {"ref": [0, "a", 0, "_depth"], "badges": ["daraja raqami"]},
+  {"ref": [0, "a", 1], "badges": ["rekursiv · b", "manba: [].b"]},
+  {"ref": [0, "a", 1, "_depth"], "badges": ["daraja raqami"]}
+ ],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"a\" array <- [].a",
+  "      [] object [recKey=a] <- [].a[]",
+  "        \"_depth\" value [computed=depth ctx=[].a[]]",
+  "        \"n\" value <- [].a[].n",
+  "      [] object [recKey=b] <- [].b[]",
+  "        \"_depth\" value [computed=depth ctx=[].b[]]",
+  "        \"m\" value <- [].b[].m"
+ ],
+ "preview": [
+  {
+   "a": [{"_depth": 1, "n": "a"}, {"_depth": 2, "n": "aa"}, {"_depth": 1, "m": "b"}, {"_depth": 2, "m": "bb"}]
+  }
+ ],
+ "perRecord": [
+  [
+   {
+    "a": [{"_depth": 1, "n": "a"}, {"_depth": 2, "n": "aa"}, {"_depth": 1, "m": "b"}, {"_depth": 2, "m": "bb"}]
+   }
+  ]
+ ],
+ "perRecordConcatEqualsOutput": true
+}

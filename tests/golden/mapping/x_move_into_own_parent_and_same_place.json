@@ -1,0 +1,37 @@
+{
+ "name": "x_move_into_own_parent_and_same_place",
+ "description": "targeted reference case (batch3)",
+ "case": {
+  "name": "x_move_into_own_parent_and_same_place",
+  "records": [{"a": 1, "b": 2, "c": 3}],
+  "ops": [
+   {"op": "move", "node": "[].a", "target": "[]", "zone": "inside"},
+   {"op": "move", "node": "[].b", "target": "[].c", "zone": "before"},
+   {"op": "move", "node": "[].b", "target": "[].c", "zone": "bogus"}
+  ]
+ },
+ "output": [{"b": 2, "c": 3, "a": 1}],
+ "log": [
+  {"i": 0, "op": "move", "applied": true, "changed": true, "undo": 1, "msg": ""},
+  {"i": 1, "op": "move", "applied": true, "changed": false, "undo": 2, "msg": ""},
+  {"i": 2, "op": "move", "applied": true, "changed": false, "undo": 3, "msg": ""}
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "b", "kind": "value", "src": [null, "b"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "c", "kind": "value", "src": [null, "c"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["3"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "a", "kind": "value", "src": [null, "a"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"b\" value <- [].b",
+  "    \"c\" value <- [].c",
+  "    \"a\" value <- [].a"
+ ],
+ "preview": [{"b": 2, "c": 3, "a": 1}],
+ "perRecord": [[{"b": 2, "c": 3, "a": 1}]],
+ "perRecordConcatEqualsOutput": true
+}

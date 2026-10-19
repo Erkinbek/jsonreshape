@@ -548,7 +548,9 @@ def test_huge_records_are_streamed(open_doc, out_dir: Path, fmt: str) -> None:
         assert (out_dir / "b.out").read_bytes() == (out_dir / "c.out").read_bytes()
         export(huge, out_dir / "d.out", opts)
         assert (out_dir / "d.out").read_bytes() == (out_dir / "a.out").read_bytes()
-        assert rep.warnings == []
+        # JSON Lines has no place for a wrapper: said in a notice (docs/ARCHITECTURE.md §14.4, G5)
+        notice = ["writer.note.wrapper_not_written"] if fmt == "wrapped" and opts.fmt == "jsonl" else []
+        assert rep.warning_keys == notice and len(rep.warnings) == len(notice)
     rep = export(huge, out_dir / "s.json", ExportOptions("json", indent=None, sort_keys=True))
     assert rep.warning_keys == ["writer.warn.huge_unsorted"]
     raw = (out_dir / "s.json").read_bytes()
@@ -1035,9 +1037,11 @@ def test_sqlite_keyed_and_selection(open_doc, out_dir: Path, lang_en) -> None:
     doc = open_doc(recs=recs, fmt="keyed", keys=[f"key{i}" for i in range(6)])
     db = out_dir / "k.db"
     rep = export(doc, db, ExportOptions("sqlite"), source=[4, 1, 4, 0])
-    assert columns_of(db, "records") == ["_id", "$key", "v"]
+    # a selection in another order than the file's keeps its order in "_ord" (§14.4, S3)
+    assert columns_of(db, "records") == ["_id", "_ord", "$key", "v"]
     assert q(db, 'select _id, "$key", v from records order by _id') == [(0, "key0", 0), (1, "key1", 1),
                                                                         (4, "key4", 4)]
+    assert q(db, "select _id from records order by _ord") == [(4,), (1,), (0,)]
     assert q(db, "select _parent, value from arr order by _id") == [(4, 4), (4, 5), (1, 1), (1, 2), (0, 0), (0, 1)]
     assert rep.warning_keys == ["writer.warn.duplicates"] and rep.records == 3
     assert rep.warnings[0].startswith("1 ")
@@ -1367,3 +1371,30 @@ def test_stepped_ranges(open_doc, out_dir: Path, source: range) -> None:
     doc = open_doc(recs=recs, fmt="array")
     export(doc, out_dir / "r.json", ExportOptions("json", indent=None), source=source)
     assert (out_dir / "r.json").read_bytes() == dumps([recs[i] for i in source])
+
+
+def test_base_set_of_the_live_document_means_all_records_of_a_pinned_state(open_doc, out_dir: Path,
+                                                                           tmp_path: Path) -> None:
+    """The base RecordSet of the live document follows the live record count; exported with a pinned view
+    of another state it stands for "all records" of THAT state (docs/ARCHITECTURE.md §12.3), never for the
+    first ``len(base set)`` of them."""
+    from jsonreshape.recordset import RecordSet
+    from overlay_helpers import OverlayBuilder
+
+    recs = jsongen.records(12, seed=301)
+    doc = open_doc(recs=recs, fmt="array")
+    base_set = RecordSet.base(doc)
+    file_view = doc.pinned(None)                       # the file as it is: 12 records
+    ob = OverlayBuilder(doc, tmp_path / "layer")
+    ob.delete(0, 1, 2)                                 # the live document now shows 9 records
+    doc.set_overlay(ob.state())
+    assert len(base_set) == 9
+    export(file_view, out_dir / "all.json", ExportOptions("json", indent=None), source=base_set)
+    assert (out_dir / "all.json").read_bytes() == dumps(recs)
+    export(doc, out_dir / "live.json", ExportOptions("json", indent=None), source=base_set)
+    assert (out_dir / "live.json").read_bytes() == dumps(recs[3:])
+    ob2 = OverlayBuilder(doc, tmp_path / "layer2")
+    ob2.insert(12, b'{"new": 1}')                      # a longer state, pinned before the live one changes
+    longer = doc.pinned(ob2.state())
+    report = export(longer, out_dir / "longer.json", ExportOptions("json", indent=None), source=base_set)
+    assert report.records == 13 and (out_dir / "longer.json").read_bytes() == dumps([*recs, {"new": 1}])

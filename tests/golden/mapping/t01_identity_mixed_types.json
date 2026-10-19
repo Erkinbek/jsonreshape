@@ -1,0 +1,32 @@
+{
+ "name": "t01_identity_mixed_types",
+ "description": "AGENT_PROMPT §14 test 1 (identity): a field of several types; objects and arrays pass through",
+ "case": {
+  "name": "t01_identity_mixed_types",
+  "records": [{"f": {"x": 1}}, {"f": "str"}, {"g": [1, 2]}, {"g": {"k": 1}}, {"g": 7}]
+ },
+ "output": [{"f": {"x": 1}}, {"f": "str"}, {"g": [1, 2]}, {"g": {"k": 1}}, {"g": 7}],
+ "log": [],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 5, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "f", "kind": "object", "src": [null, "f"], "types": ["object", "string"], "count": 2, "pcount": 5, "samples": ["\"str\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "x", "kind": "value", "src": [null, "f", "x"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+   ]},
+   {"key": "g", "kind": "array", "src": [null, "g"], "types": ["object", "array", "number"], "count": 3, "pcount": 5, "samples": ["7"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "value", "src": [null, "g", null], "types": ["number"], "count": 2, "pcount": null, "samples": ["1", "2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []}
+   ]}
+  ]}
+ ]},
+ "badges": [],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"f\" object <- [].f",
+  "      \"x\" value <- [].f.x",
+  "    \"g\" array <- [].g",
+  "      [] value <- [].g[]"
+ ],
+ "preview": [{"f": {"x": 1}}, {"f": "str"}, {"g": [1, 2]}, {"g": {"k": 1}}, {"g": 7}],
+ "perRecord": [[{"f": {"x": 1}}], [{"f": "str"}], [{"g": [1, 2]}], [{"g": {"k": 1}}], [{"g": 7}]],
+ "perRecordConcatEqualsOutput": true
+}

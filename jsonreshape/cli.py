@@ -8,21 +8,49 @@
     search   INPUT TEXT [--keys|--values] [--regex|--number] [--case-sensitive] [--whole-word]
              [--translit] [--path P] [--limit N] [--count] [--export FILE.csv|FILE.json] [--max-hits N]
     filter   INPUT OUTPUT (--where EXPR | --jmespath EXPR | --preset NAME) [--save-preset NAME]
-             [output options]
+             [--select SPEC] [output options]
     sort     INPUT OUTPUT --by FIELD [--by -FIELD ...] [--nulls first|last]
              [--collation uz|simple|unicode] [--no-natural] [--case-sensitive] [--memory-limit SIZE]
-             [output options]
+             [--select SPEC] [output options]
     convert  INPUT OUTPUT [--where EXPR | --jmespath EXPR | --preset NAME] [--save-preset NAME]
-             [--sort-by FIELD ...] [sort options] [output options]
+             [--select SPEC] [--sort-by FIELD ...] [sort options] [output options]
+    convert  INPUT OUTPUT --node LOCATION [--jsonl] [--compact | --indent 2|4|tab]
+    patch    INPUT PATCH (OUTPUT | --in-place [--no-backup])
+    apply    MAPPING INPUT OUTPUT [--jsonl] [--compact | --indent 2|4|tab] [--skip-huge] [--workers N]
+    flatten  INPUT OUTPUT --children-key KEY [--depth-field NAME] [--mode nested|records]
+             [--sample N | --full-scan] [--jsonl] [--compact | --indent 2|4|tab] [--skip-huge] [--workers N]
+    stats    INPUT [--field F ...] [--top N] [--exact] [--sample N] [--memory-limit SIZE] [--json]
+             [record scope]
+    dupes    INPUT --key KEY [--keep first|last|none] [--top N] [--examples N] [--memory-limit SIZE]
+             [-o FILE [output options]] [--json] [record scope]
+    schema   INPUT [OUTPUT | -o OUTPUT] [--sample N | --full] [--strict] [--record | --document]
+             [--title TEXT] [--compact | --indent 2|4|tab]
+    validate INPUT --schema SCHEMA [--scope auto|record|document] [--formats] [--max-issues N]
+             [--max-per-record N] [--export FILE.jsonl|FILE.json|FILE.csv] [--json] [record scope]
+    split    INPUT (--parts N | --records N | --size SIZE) [--balance bytes|records] [-o DIR]
+             [--name PATTERN] [--force] [--remove-stale] [--drop-broken] [--no-wrapper] [output options]
+             [record scope]
+    merge    INPUT... -o OUTPUT [--dedupe-by KEY [--keep first|last]] [--memory-limit SIZE]
+             [--to json|jsonl | --jsonl] [--compact | --indent 2|4|tab] [--sort-keys [alpha|codepoint]]
+             [--no-wrapper]
+    extract  INPUT [OUTPUT | -o OUTPUT] [--path RECORD_PATH | --node LOCATION | --gather PATTERN]
+             [output options] [record scope]
+    repair   INPUT [OUTPUT | -o OUTPUT] [--check] [--nan null|string] [--jsonl] [--allow-partial]
+             [--report FILE.csv|FILE.json|FILE.jsonl] [--json] [--format F] [--record-path P]
+    diff     A B [--key KEY | --by-position | --align] [--array-key [PATH=]FIELD ...]
+             [--numbers value|exact|text] [--ignore-order] [--max-changes N] [--limit N] [--summary]
+             [--json] [-o FILE.json|FILE.jsonl|FILE.csv] [--exit-code] [--memory-limit SIZE]
     presets  [--delete NAME] [--json]
 
-    input options (every command but presets): --record-path P,
-        --format auto|array|jsonl|brace_list|wrapped|keyed|single|stream, --allow-partial, --no-cache
+    input options (every command but presets and repair): --record-path P,
+        --format auto|array|jsonl|brace_list|wrapped|keyed|single|stream, --allow-partial (not split),
+        --no-cache
     output options: --to json|jsonl|csv|xlsx|sqlite (default: from the OUTPUT extension, see
         writer.format_for_path), --jsonl (= --to jsonl), --compact, --indent 2|4|tab,
         --sort-keys [alpha|codepoint], --no-wrapper, --as-keyed, --columns a,b.c,
         --array-mode join|rows, --explode PATH, --sep ";", --delimiter "," (also "tab"), --no-bom,
         --xlsx-split sheets|files
+    record scope: [--where EXPR | --jmespath EXPR | --preset NAME] [--save-preset NAME] [--select SPEC]
 
 The global options may also be given after the command (``jsonreshape inspect a.json --lang en``).
 :func:`main` is the entry point of ``python -m jsonreshape`` and of the ``jsonreshape`` console
@@ -49,7 +77,11 @@ script; it returns the exit code:
   (:class:`~jsonreshape.errors.FileChangedError`: nothing is saved, run it again);
 * 3 -- cancelled (Ctrl+C or Ctrl+Break, or an injected :class:`~jsonreshape.tasks.CancelToken`);
 * 4 -- internal error: a short localized message and the log file path; the traceback is
-  written to the log (and to stderr with ``-vv``).
+  written to the log (and to stderr with ``-vv``);
+* 5 -- the data does not match (docs/ARCHITECTURE.md §14.0): ``validate`` found issues or could
+  not validate every record (not shown to match), ``diff --exit-code`` found differences.
+  ``repair --check`` uses 2 for "the file has problems" (its JSON-error meaning), ``repair`` 2 for
+  an unrepairable file.
 
 Start-up order
 ==============
@@ -198,8 +230,52 @@ Decisions (documented deviations / interpretations)
   detail line. An existing read-only OUTPUT is refused before any work
   (``fileio.error.read_only``).
 * ``--by -id``: argparse would read ``-id`` as an option, so a value starting with a single
-  ``-`` right after ``--by`` / ``--sort-by`` is joined to it (``--by=-id``) before parsing.
+  ``-`` right after ``--by`` / ``--sort-by`` (and ``--children-key`` / ``--depth-field``, whose
+  value is a key) is joined to it (``--by=-id``) before parsing.
 * ``convert`` also accepts the sort options of ``sort`` for its ``--sort-by`` keys.
+* ``patch`` (docs/ARCHITECTURE.md §12.8): the JSON Patch is applied through an edit session whose layer lives
+  in a temporary folder of the work folder (deleted at the end); the result is written with
+  :func:`jsonreshape.saver.save` in INPUT's kind and encoding (OUTPUT: Save As, compressed iff it ends in
+  ``.gz``; ``--in-place``: atomic replacement with ``INPUT.bak`` unless ``--no-backup``; a patch that changes
+  nothing leaves an in-place INPUT untouched). Exit 1 for every patch problem (unreadable patch, invalid
+  operation, a failed ``test``, a path that does not exist ...), a file with unsaved changes of the program
+  (``edits.error.pending``) or one being edited elsewhere (``edits.error.locked``); 2 for a JSON error in
+  INPUT. ``--allow-partial`` also allows dropping the broken lines of a JSON Lines INPUT when it is saved.
+  Exactly one of OUTPUT / ``--in-place`` must be given (exit 1); ``--no-backup`` needs ``--in-place``.
+* ``apply`` (docs/ARCHITECTURE.md §13.4): the mapping file is loaded and validated before INPUT is opened
+  (:func:`jsonreshape.mapping.load_mapping`; every ``mapping.error.*`` names the JSON pointer of the bad node;
+  exit 1). OUTPUT may be neither INPUT nor the mapping file. The result is JSON or JSON Lines only: ``--jsonl``
+  or an OUTPUT named ``.jsonl`` / ``.ndjson`` writes JSON Lines; an OUTPUT named like another export format
+  (``.csv``, ``.xlsx``, ``.sqlite``) or ``.gz`` is refused (exit 1: the engine writes plain JSON; convert the
+  result afterwards); the indent defaults to the "export indent" setting; ``--compact`` / ``--indent`` with
+  JSON Lines are ignored with a warning. A mapping made for an array inside an object opens INPUT with the
+  record path stored in it (``input.record_path``) unless ``--record-path`` is given, ``--format`` names
+  another kind, or INPUT is detected as JSON Lines / several values (a record path is refused there); a stored
+  record path INPUT does not have is exit 1 (``cli.error.mapping_record_path``, with the arrays found). A
+  mapping made for another kind of document is exit 1 (``engine.error.kind_mismatch``; when the mapping was
+  made from a keyed, single-value or wrapped file the hint names the ``--format`` / ``--record-path`` that
+  reads INPUT the same way). Printed: the engine's warnings (except its partial / broken-lines ones, given
+  after indexing already) and a summary "records -> items -> OUTPUT (size, time, input MB/s; passes,
+  processes)". ``--skip-huge`` and ``--workers N`` are :class:`jsonreshape.engine.ApplyOptions` fields.
+* ``flatten`` (docs/ARCHITECTURE.md §13.4): the default tree is inferred from ``--sample N`` records
+  (:func:`jsonreshape.schema.sample_positions`; default ``Settings.sample_size``) or from every record
+  (``--full-scan``), read from the pinned document one block at a time and read again for the flatten's
+  re-inference (never kept in memory; huge records are left out of the inference -- the apply then stops at
+  them or skips them with ``--skip-huge``). Then one recursive flatten (``Designer.plan_flatten`` +
+  ``flatten(plan=)``) and :func:`jsonreshape.engine.apply`. ``--mode nested`` (default) flattens the array field
+  KEY of the records: the record element of an array / JSON Lines / stream / brace-list document, of the
+  record array of a wrapped one, the member value of a keyed one, the value (or, for an array, its element) of
+  a single one. ``--mode records`` flattens the record array itself; a keyed document or a single value that
+  is not an array has none (exit 1). KEY must be a record field (else exit 1 naming the record's array fields)
+  that is an array of objects (records) whose items hold a nested KEY array of objects (nested); otherwise
+  exit 1 "KEY is not a recursive array of objects here" with the reason, and for a sample the advice to try
+  ``--full-scan``; every flattened element must use KEY (``FlattenPlan.entries[i][1] == KEY``). Deviation
+  (``--mode records``): the reference ``findRec`` picks the FIRST recursive array of the record (or one named
+  like the record array), so the record's other recursive arrays are removed from the tree before planning;
+  the flatten re-infers every field of the record from all levels, so the result only differs in the key
+  that is flattened. ``--depth-field NAME`` renames the computed level node (default ``_depth``): a name the
+  data already uses gets ``NAME_2`` (``_3`` ..., as every rename) with a warning, the default included. An
+  input without records is written unchanged with a warning. ``--skip-huge`` / ``--workers`` as for ``apply``.
 * Output options that do not apply to the chosen format (``--columns`` for JSON, ``--indent``
   for CSV, ...) are ignored with a warning -- except ``--as-keyed`` (rebuild one keyed object
   from ``{"key": value}`` records, ``writer.ExportOptions.as_keyed``): it changes what the
@@ -211,6 +287,107 @@ Decisions (documented deviations / interpretations)
   and POSIX shells: expressions in double quotes, texts inside them in single quotes, no
   backtick inside double quotes (PowerShell's escape character), no double quote inside a
   single-quoted argument (Windows PowerShell 5.1 drops it).
+
+Stage 5 (docs/ARCHITECTURE.md §14.8; the tools' own module docstrings are authoritative)
+========================================================================================
+* Record scope (``--where`` / ``--jmespath`` / ``--preset``, ``--select SPEC``): the selection
+  :func:`jsonreshape.filetools.parse_select` reads -- 0-based ``N``, ``A:B`` (``A`` .. ``B-1``), ``A:``,
+  ``:B``, comma lists, kept in the given order -- is taken first, then the filter runs over it (source
+  order), then ``sort`` / ``convert --sort-by`` sort the result. Its syntax is checked before INPUT is
+  read (positions beyond the end only once it is indexed). ``stats``, ``dupes``, ``validate``,
+  ``split`` and ``extract`` take the same scope (the task's ``--filter EXPR`` of ``stats`` / ``split``
+  is ``--where EXPR``: one spelling for every command).
+* ``--no-wrapper`` applies to every output format (the writer honours ``keep_wrapper`` for JSON
+  Lines, CSV, XLSX and SQLite too; it also silences ``writer.note.wrapper_not_written``), so it is
+  never "ignored" with a warning any more.
+* ``convert --node LOCATION`` (``#5.orders``, ``/data/5/orders``, ``data[5].orders``) writes one node
+  (:func:`jsonreshape.filetools.extract`, JSON or JSON Lines); it cannot be combined with a filter,
+  ``--select`` or ``--sort-by`` (exit 1). Output options a node ignores (``--sort-keys``, the CSV
+  options ...) are named in a warning.
+* Commands writing ONE named file take it as the positional OUTPUT (``filter`` ... ``flatten``, and
+  ``schema`` / ``extract`` / ``repair``, where ``-o OUTPUT`` is accepted as well -- giving both is exit
+  1) or as ``-o FILE`` (``merge``, ``dupes``, ``diff``; ``split -o DIR`` is the folder of the parts).
+  Every output (also ``--report``, ``--export``, ``-o``) is checked before any work: never an input
+  (any spelling: case, relative path, a hard link), never the schema file, never a folder or a
+  read-only file, in a folder that exists, and never a file with unsaved edits in this program
+  (fix round L1: a tab or another instance edits it, or its edits are kept for recovery --
+  ``filetools.error.part_open_edited``, exit 1; the writer refuses it again right before its commit).
+* ``stats``: without ``--field`` the fields are :func:`jsonreshape.schema.default_columns` of a sample
+  schema of the scope (``Settings.sample_size`` records). Text: :func:`jsonreshape.stats.format_stats`;
+  ``--json``: ``{"file", "records", "scope", "elapsed", "fields": [FieldStats.to_dict()]}`` (every JSON
+  output of the stage-5 commands is written with :func:`jsonreshape.codec.dumps`: exact numbers).
+* Commands with several inputs (``merge``, ``diff``) open each with the input options and name it
+  before its warnings (``FILE: ...``) and before its JSON error (``Fayl: FILE`` / ``File: FILE``); the
+  tools' own copies of the CLI's partial / broken-line notes (``diff.warn.*``, ``jschema.warn.*``)
+  and validate's "only the first N issues were kept" are not repeated.
+* ``--memory-limit SIZE`` of ``stats`` / ``dupes`` / ``merge`` / ``diff`` follows the sort rule
+  (a plain number means MB; at least :data:`MIN_MEMORY_LIMIT`, at most half of
+  ``Settings.memory_limit_bytes``, both with a warning); without it the tool's own default is used.
+* ``dupes``: counts, the first ``--examples N`` groups (0-based record numbers) and, with ``--top N``,
+  the largest groups; ``-o FILE`` exports the records marked as duplicates (``--keep first``: every
+  record of a group but the first, ``last``: but the last, ``none``: every record of a group) with the
+  writer and the output options. "Distinct values" = records with the key - group members + groups.
+* ``schema``: a full scan by default (the GUI's default, and the only way ``required`` is exact: a
+  schema from a sample may refuse records of its own file); ``--sample N`` is faster and warns;
+  ``--full`` is accepted (the default). Without OUTPUT the schema goes to stdout. A ``.gz`` OUTPUT is
+  compressed.
+* ``validate``: the schema file is read and compiled before INPUT is opened (schema errors: exit 1).
+  Issues are printed as ``#record [key] path: message (keyword)`` (``(hujjat)`` / ``(document)`` for
+  issues of the document itself), at most ``--max-issues N`` (default 100; 0 = the summary only);
+  ``--max-per-record 0`` = no limit. ``--export`` writes EVERY collected issue (JSON Lines, a JSON
+  array or CSV with a BOM per the CSV settings) in the same pass (``validate(on_issues=)``, one
+  atomic write; the task's ``iter_issues`` would read the file twice). Exit 5 when an issue was found.
+  Records the validator could not check (``ValidationReport.skipped``: larger than its parse limit,
+  unreadable by the decoder, nested too deeply -- each kind named in a warning with its first record)
+  are "not shown to match": with no issue found the summary says so ("not confirmed: N checked without
+  issues, but M could not be checked") instead of "valid", and the exit code is 5 as well (fix round
+  L1: a script must not take an unchecked file for a valid one); with issues an extra line counts
+  them. Exit 0 only when every record in scope was validated and no issue was found; ``--json``
+  ``ok`` is that verdict (``skipped`` holds the count).
+* ``split``: parts that already exist are refused unless ``--force`` (exit 1 naming them; the GUI asks
+  the same question) -- the part names are generated, so an existing file of that name may be the
+  user's own. The names are :func:`jsonreshape.filetools.part_names` (exactly the files ``split``
+  writes, for every scope). A part with unsaved edits in this program (a tab or another instance edits
+  it, or its edits are kept for recovery) is never replaced, not even with ``--force``: exit 1 with
+  ``filetools.error.part_open_edited`` before anything is written. ``--remove-stale``
+  (``SplitOptions.remove_stale``) deletes, in the same all-or-nothing commit, the files of the name
+  pattern that are the rest of an earlier split (filetools decision 11: never the input, a read-only
+  file or one with unsaved edits); each removed file is named on stderr (also with ``-q``: files were
+  deleted). Without it, stale files are only named in a warning, with the hint to use
+  ``--remove-stale``. ``--size`` is at least 1 MiB; ``--balance`` only applies to ``--parts`` (else a
+  warning). Partial documents cannot be split: a JSON error is exit 2 with the advice to repair the
+  file (``split`` has no ``--allow-partial``); JSON Lines broken lines need ``--drop-broken``. The
+  written parts are listed on stdout, one path per line.
+* ``merge``: ``merge INPUT... -o OUTPUT`` (AGENT_PROMPT §13; the task's ``merge OUT INPUT...`` would
+  differ from the requirement). An INPUT with ``*``, ``?`` or ``[`` that is not an existing file is a
+  pattern expanded here (cmd.exe and PowerShell pass it unexpanded), matches sorted naturally
+  (``qism_2`` before ``qism_10``); a pattern without matches is exit 1; OUTPUT itself is never taken
+  from a pattern (a warning says it was skipped), but an INPUT naming OUTPUT is exit 1. The output
+  format is ``--to`` / ``--jsonl`` / the OUTPUT extension (JSON or JSON Lines only).
+* ``extract``: ``--path RECORD_PATH`` writes the records of the container at that path without the
+  wrapper (any export format; the same as ``--record-path``), ``--node LOCATION`` one node and
+  ``--gather PATTERN`` the values of a record-relative pattern from every record (JSON / JSON Lines);
+  without any of them the records of the document (its detected record array) are written.
+* ``repair`` takes no index options and never opens INPUT as a document (it is broken). Exit codes
+  (s5/map_repair_diff.md §3.7 + §14.0): 0 written (also "nothing to repair": an unchanged copy);
+  ``--check``: 0 when nothing would change, else 2; an unrepairable file: 2 (nothing written; the
+  report, the place with its context and the ``--allow-partial`` advice are shown); with
+  ``--allow-partial`` the records before the problem are written and the exit code is 0 (the problem
+  and truncation lines are shown; "no problems found" is never printed then); a failed output
+  check (``repair.error.invalid_output``): 4. ``--report FILE`` writes every fix (CSV / JSON / JSON
+  Lines by the extension), also for ``--check`` and for an unrepairable file.
+* ``diff``: ``--key`` -> key mode, ``--by-position`` / ``--align`` the other modes, else auto.
+  ``--ignore-order``: arrays compare as multisets and, without ``--key`` / ``--by-position`` /
+  ``--align``, records are matched by their whole value (key ``$``: member order and number spelling do
+  not matter, but array order does for that match -- the canonical form of :mod:`jsonreshape.dupes`; a
+  changed record is one removed and one added record; give ``--key`` to pair records whose arrays only
+  differ in order). Text output: ``~`` changed, ``+`` added, ``-`` removed, ``>`` moved, values as
+  compact JSON cut to :data:`DIFF_VALUE_CHARS` characters, colours on a terminal only; at most
+  ``--limit N`` records (default 100, 0 = all; the others are counted); ``--summary`` prints the counts
+  only; ``--json`` prints JSON Lines (``record_dict`` per record, then ``{"summary": ...}``); ``-o FILE``
+  writes every difference (``write_diff``, by the extension) in the same pass; the compared files and
+  their data copies (gzip / UTF-16 inputs) are passed as ``sources=``, so such a target is refused
+  before the diff runs (fix round L1). Exit 0, or with ``--exit-code`` 5 when the files differ.
 """
 
 from __future__ import annotations
@@ -219,6 +396,7 @@ import argparse
 import contextlib
 import difflib
 import errno
+import glob
 import inspect
 import json
 import logging
@@ -255,6 +433,7 @@ log = logging.getLogger(__name__)
 __all__ = [
     "ARGPARSE_MESSAGES",
     "EXIT_CANCELLED",
+    "EXIT_DIFFERENT",
     "EXIT_INTERNAL",
     "EXIT_JSON",
     "EXIT_OK",
@@ -269,6 +448,7 @@ EXIT_USER = 1
 EXIT_JSON = 2
 EXIT_CANCELLED = 3
 EXIT_INTERNAL = 4
+EXIT_DIFFERENT = 5        # the data does not match: validate issues, diff --exit-code differences
 
 PROG = "jsonreshape"
 BACKENDS = ("auto", "rust", "python")
@@ -281,7 +461,12 @@ DEFAULT_MAX_HITS = 100000
 BROKEN_SHOWN = 5          # broken JSON Lines lines listed in warnings and in the inspect report
 BROKEN_JSON_MAX = 100     # broken lines listed by inspect --json
 CANDIDATES_SHOWN = 5      # record-path candidates listed in the inspect text report (--json: all)
-DASH_VALUE_OPTIONS = ("--by", "--sort-by")
+DASH_VALUE_OPTIONS = ("--by", "--sort-by", "--children-key", "--depth-field")
+DEFAULT_DEPTH_FIELD = "_depth"   # flatten: the computed level node (mapping.Designer.flatten)
+#: engine report warnings the CLI gave already after indexing (_check_index)
+ENGINE_SHOWN_WARNINGS = ("engine.warn.partial", "engine.warn.broken_lines")
+#: mapping input kinds whose file can be read "the same way" with --format (cli.hint.mapping_kind)
+MAPPING_FORMAT_KINDS = ("keyed", "single", "wrapped")
 MiB = 1 << 20
 MIN_MEMORY_LIMIT = 16 * MiB   # smallest sort memory (--memory-limit below it is raised to it)
 WRAPPER_READ_MAX = MiB        # each part of a wrapper (before/after the records) read by inspect
@@ -297,6 +482,33 @@ CLI_HINT_ATTR = "cli_hint"
 #: about this run that keep changing while it runs (reader.APPENDED_WARNING: the input grew
 #: after it was opened -- only the snapshot taken at open is used)
 END_WARNINGS = ("reader.warn.appended",)
+# -- stage 5 --------------------------------------------------------------------------------
+GLOB_CHARS = "*?["                 # merge: an INPUT with these (and no such file) is a pattern
+KEEP_CHOICES = ("first", "last", "none")    # dupes.KEEP_CHOICES
+MERGE_KEEPS = ("first", "last")             # filetools.KEEPS
+SPLIT_BALANCES = ("bytes", "records")       # filetools.BALANCES
+SCHEMA_SCOPES = ("auto", "record", "document")
+REPAIR_NANS = ("null", "string")
+DIFF_NUMBERS = ("value", "exact", "text")
+ISSUE_EXPORT_FORMATS = ("jsonl", "json", "csv")
+DIFF_OUT_FORMATS = ("json", "jsonl", "csv")
+REPAIR_REPORT_FORMATS = ("csv", "json", "jsonl")
+MIN_SPLIT_SIZE = MiB              # split --size: at least 1 MiB (a CLI rule)
+DEFAULT_ISSUES = 100              # validate --max-issues
+DEFAULT_PER_RECORD = 10           # validate --max-per-record (jschema's default)
+DEFAULT_EXAMPLES = 20             # dupes --examples (dupes.EXAMPLE_GROUPS)
+DEFAULT_DIFF_LIMIT = 100          # diff --limit (records printed)
+DIFF_VALUE_CHARS = 100            # diff text output: values cut to this many characters
+POSITIONS_SHOWN = 20              # dupes: record numbers listed per group (dupes.EXAMPLE_POSITIONS)
+NAMES_SHOWN = 5                   # file names listed in one message
+LINE_KINDS = ("jsonl", "stream")  # kinds whose records are written as JSON Lines by default
+#: warnings of the tools' reports the CLI has given already in its own words (after indexing: the JSON
+#: error with --allow-partial and the broken lines; the "only the first N issues" note of validate)
+VALIDATE_SHOWN_WARNINGS = ("jschema.warn.partial", "jschema.warn.broken_lines", "jschema.warn.issues_truncated")
+DIFF_SHOWN_WARNINGS = ("diff.warn.partial", "diff.warn.broken_lines")
+DIFF_MARKS = {"changed": "~", "added": "+", "removed": "-", "moved": ">"}
+DIFF_COLORS = {"changed": "\x1b[33m", "added": "\x1b[32m", "removed": "\x1b[31m", "moved": "\x1b[36m"}
+ARROW = "\N{RIGHTWARDS ARROW}"
 
 HIGHLIGHT_ON = "\x1b[1;33m"     # bold yellow
 HIGHLIGHT_OFF = "\x1b[0m"
@@ -492,6 +704,15 @@ def _memory_size_value(text: str) -> int:
     return n
 
 
+def _split_size_value(text: str) -> int:
+    """``split --size``: a size read like ``--memory-limit`` (binary units; a plain number means
+    megabytes), at least :data:`MIN_SPLIT_SIZE`."""
+    n = _memory_size_value(text)
+    if n < MIN_SPLIT_SIZE:
+        raise argparse.ArgumentTypeError(t("cli.argerr.split_size", value=text, minimum=_mem_text(MIN_SPLIT_SIZE)))
+    return n
+
+
 def _delimiter_value(text: str) -> str:
     if text.strip().lower() in ("tab", "\\t"):
         return "\t"
@@ -515,11 +736,14 @@ def _add_global_options(parser: argparse.ArgumentParser, *, repeated: bool) -> N
     target.add_argument("-v", "--verbose", action="count", default=zero, help=t("cli.help.verbose"))
 
 
-def _add_input_options(parser: argparse.ArgumentParser) -> None:
+def _add_input_options(parser: argparse.ArgumentParser, *, partial: bool = True) -> None:
+    """``--record-path --format --allow-partial --no-cache`` (``partial=False``: a command that cannot
+    work with the records before a JSON error -- ``split`` -- has no ``--allow-partial``)."""
     g = parser.add_argument_group(t("cli.group.input"))
     g.add_argument("--record-path", metavar="P", default=None, help=t("cli.help.record_path"))
     g.add_argument("--format", choices=INPUT_FORMATS, default="auto", help=t("cli.help.format"))
-    g.add_argument("--allow-partial", action="store_true", help=t("cli.help.allow_partial"))
+    if partial:
+        g.add_argument("--allow-partial", action="store_true", help=t("cli.help.allow_partial"))
     g.add_argument("--no-cache", action="store_true", help=t("cli.help.no_cache"))
 
 
@@ -543,13 +767,32 @@ def _add_output_options(parser: argparse.ArgumentParser) -> None:
     g.add_argument("--xlsx-split", choices=("sheets", "files"), default=None, help=t("cli.help.xlsx_split"))
 
 
-def _add_filter_options(parser: argparse.ArgumentParser, *, required: bool) -> None:
+def _add_filter_options(parser: argparse.ArgumentParser, *, required: bool, select: bool = False) -> None:
+    """``--where | --jmespath | --preset``, ``--save-preset`` (and ``--select SPEC`` with ``select``:
+    the record scope of docs/ARCHITECTURE.md §14.4)."""
     g = parser.add_argument_group(t("cli.group.filter"))
     mx = g.add_mutually_exclusive_group(required=required)
     mx.add_argument("--where", metavar="EXPR", default=None, help=t("cli.help.where"))
     mx.add_argument("--jmespath", metavar="EXPR", default=None, help=t("cli.help.jmespath"))
     mx.add_argument("--preset", metavar="NAME", default=None, help=t("cli.help.preset"))
     g.add_argument("--save-preset", metavar="NAME", default=None, help=t("cli.help.save_preset"))
+    if select:
+        _add_select_option(g)
+
+
+def _add_select_option(group: Any) -> None:
+    group.add_argument("--select", metavar="SPEC", default=None, help=t("cli.help.select"))
+
+
+def _add_memory_option(group: Any, help_key: str) -> None:
+    group.add_argument("--memory-limit", metavar="SIZE", type=_memory_size_value, default=None, help=t(help_key))
+
+
+def _add_json_layout_options(group: Any) -> None:
+    """``--compact | --indent N`` (JSON layout of commands without the full output options)."""
+    mx = group.add_mutually_exclusive_group()
+    mx.add_argument("--compact", action="store_true", help=t("cli.help.compact"))
+    mx.add_argument("--indent", metavar="N", type=_indent_value, default=None, help=t("cli.help.indent"))
 
 
 def _add_sort_options(parser: argparse.ArgumentParser, flag: str, *, required: bool) -> None:
@@ -564,9 +807,192 @@ def _add_sort_options(parser: argparse.ArgumentParser, flag: str, *, required: b
                    help=t("cli.help.memory_limit"))
 
 
+def _add_apply_options(parser: argparse.ArgumentParser) -> None:
+    """Output and engine options of ``apply`` / ``flatten`` (:class:`jsonreshape.engine.ApplyOptions`)."""
+    g = parser.add_argument_group(t("cli.group.output"))
+    g.add_argument("--jsonl", action="store_true", help=t("cli.help.mapping_jsonl"))
+    mx = g.add_mutually_exclusive_group()
+    mx.add_argument("--compact", action="store_true", help=t("cli.help.compact"))
+    mx.add_argument("--indent", metavar="N", type=_indent_value, default=None, help=t("cli.help.indent"))
+    g = parser.add_argument_group(t("cli.group.apply"))
+    g.add_argument("--skip-huge", action="store_true", help=t("cli.help.skip_huge"))
+    g.add_argument("--workers", metavar="N", type=_positive_int, default=None, help=t("cli.help.workers"))
+
+
 def _add_command(sub: Any, name: str, short_help: str, description: str, epilog: str) -> argparse.ArgumentParser:
     return sub.add_parser(name, help=short_help, description=description, epilog=epilog, formatter_class=_formatter,
                           allow_abbrev=False, **_PARSER_EXTRA)
+
+
+def _tool_command(sub: Any, name: str) -> argparse.ArgumentParser:
+    return _add_command(sub, name, t(f"cli.cmd.{name}.help"), t(f"cli.cmd.{name}.description"),
+                        t(f"cli.cmd.{name}.epilog"))
+
+
+def _add_output_file_option(group: Any, dest: str, help_key: str) -> None:
+    """``-o FILE`` (also ``--output`` / ``--out``) of the stage-5 commands."""
+    group.add_argument("-o", "--output", "--out", dest=dest, metavar="FILE", default=None, help=t(help_key))
+
+
+def _add_merge_output_options(parser: argparse.ArgumentParser) -> None:
+    """The output options that apply to a merge (JSON / JSON Lines; another ``--to`` is refused by
+    :class:`jsonreshape.filetools.MergeOptions` with its own message)."""
+    g = parser.add_argument_group(t("cli.group.output"))
+    g.add_argument("--to", choices=OUTPUT_FORMATS, default=None, help=t("cli.help.merge_to"))
+    g.add_argument("--jsonl", action="store_true", help=t("cli.help.jsonl"))
+    _add_json_layout_options(g)
+    g.add_argument("--sort-keys", nargs="?", const="alpha", choices=SORT_KEY_ORDERS, default=None,
+                   metavar="alpha|codepoint", help=t("cli.help.sort_keys"))
+    g.add_argument("--no-wrapper", action="store_true", help=t("cli.help.merge_no_wrapper"))
+
+
+def _add_tool_commands(sub: Any) -> None:
+    """The stage-5 commands (docs/ARCHITECTURE.md §14.8): stats, dupes, schema, validate, split, merge,
+    extract, repair, diff."""
+    p = _tool_command(sub, "stats")
+    p.add_argument("input", metavar="INPUT", help=t("cli.help.input"))
+    g = p.add_argument_group(t("cli.group.stats"))
+    g.add_argument("--field", dest="fields", action="append", metavar="PATH", default=None, help=t("cli.help.field"))
+    g.add_argument("--top", metavar="N", type=_non_negative_int, default=20, help=t("cli.help.stats_top"))
+    g.add_argument("--exact", action="store_true", help=t("cli.help.exact"))
+    g.add_argument("--sample", metavar="N", type=_positive_int, default=None, help=t("cli.help.stats_sample"))
+    _add_memory_option(g, "cli.help.stats_memory")
+    g.add_argument("--json", action="store_true", help=t("cli.help.stats_json"))
+    _add_filter_options(p, required=False, select=True)
+    _add_input_options(p)
+    _add_global_options(p, repeated=True)
+
+    p = _tool_command(sub, "dupes")
+    p.add_argument("input", metavar="INPUT", help=t("cli.help.input"))
+    g = p.add_argument_group(t("cli.group.dupes"))
+    g.add_argument("--key", metavar="KEY", required=True, help=t("cli.help.dupes_key"))
+    g.add_argument("--keep", choices=KEEP_CHOICES, default="first", help=t("cli.help.dupes_keep"))
+    g.add_argument("--examples", metavar="N", type=_non_negative_int, default=DEFAULT_EXAMPLES,
+                   help=t("cli.help.dupes_examples"))
+    g.add_argument("--top", metavar="N", type=_non_negative_int, default=0, help=t("cli.help.dupes_top"))
+    _add_output_file_option(g, "out", "cli.help.dupes_out")
+    _add_memory_option(g, "cli.help.dupes_memory")
+    g.add_argument("--json", action="store_true", help=t("cli.help.dupes_json"))
+    _add_filter_options(p, required=False, select=True)
+    _add_output_options(p)
+    _add_input_options(p)
+    _add_global_options(p, repeated=True)
+
+    p = _tool_command(sub, "schema")
+    p.add_argument("input", metavar="INPUT", help=t("cli.help.input"))
+    p.add_argument("output", metavar="OUTPUT", nargs="?", default=None, help=t("cli.help.schema_output"))
+    g = p.add_argument_group(t("cli.group.schema"))
+    _add_output_file_option(g, "output_opt", "cli.help.output_opt")
+    mx = g.add_mutually_exclusive_group()
+    mx.add_argument("--sample", metavar="N", type=_positive_int, default=None, help=t("cli.help.schema_sample"))
+    mx.add_argument("--full", action="store_true", help=t("cli.help.schema_full"))
+    g.add_argument("--strict", action="store_true", help=t("cli.help.schema_strict"))
+    mx = g.add_mutually_exclusive_group()
+    mx.add_argument("--document", action="store_true", help=t("cli.help.schema_document"))
+    mx.add_argument("--record", action="store_true", help=t("cli.help.schema_record"))
+    g.add_argument("--title", metavar="TEXT", default=None, help=t("cli.help.schema_title"))
+    _add_json_layout_options(g)
+    _add_input_options(p)
+    _add_global_options(p, repeated=True)
+
+    p = _tool_command(sub, "validate")
+    p.add_argument("input", metavar="INPUT", help=t("cli.help.input"))
+    g = p.add_argument_group(t("cli.group.validate"))
+    g.add_argument("--schema", metavar="SCHEMA", required=True, help=t("cli.help.validate_schema"))
+    g.add_argument("--scope", choices=SCHEMA_SCOPES, default="auto", help=t("cli.help.validate_scope"))
+    g.add_argument("--formats", action="store_true", help=t("cli.help.validate_formats"))
+    g.add_argument("--max-issues", metavar="N", type=_non_negative_int, default=DEFAULT_ISSUES,
+                   help=t("cli.help.max_issues"))
+    g.add_argument("--max-per-record", metavar="N", type=_non_negative_int, default=DEFAULT_PER_RECORD,
+                   help=t("cli.help.max_per_record"))
+    g.add_argument("--export", metavar="FILE", default=None, help=t("cli.help.validate_export"))
+    g.add_argument("--json", action="store_true", help=t("cli.help.validate_json"))
+    _add_filter_options(p, required=False, select=True)
+    _add_input_options(p)
+    _add_global_options(p, repeated=True)
+
+    p = _tool_command(sub, "split")
+    p.add_argument("input", metavar="INPUT", help=t("cli.help.input"))
+    g = p.add_argument_group(t("cli.group.split"))
+    mx = g.add_mutually_exclusive_group(required=True)
+    mx.add_argument("--parts", metavar="N", type=_positive_int, default=None, help=t("cli.help.parts"))
+    mx.add_argument("--records", metavar="N", type=_positive_int, default=None, help=t("cli.help.records_per_part"))
+    mx.add_argument("--size", metavar="SIZE", type=_split_size_value, default=None, help=t("cli.help.part_size"))
+    g.add_argument("--balance", choices=SPLIT_BALANCES, default=None, help=t("cli.help.balance"))
+    g.add_argument("-o", "--out-dir", dest="out_dir", metavar="DIR", default=None, help=t("cli.help.out_dir"))
+    g.add_argument("--name", metavar="PATTERN", default=None, help=t("cli.help.part_name"))
+    g.add_argument("--force", action="store_true", help=t("cli.help.force"))
+    g.add_argument("--remove-stale", action="store_true", help=t("cli.help.remove_stale"))
+    g.add_argument("--drop-broken", action="store_true", help=t("cli.help.drop_broken"))
+    _add_filter_options(p, required=False, select=True)
+    _add_output_options(p)
+    _add_input_options(p, partial=False)
+    _add_global_options(p, repeated=True)
+
+    p = _tool_command(sub, "merge")
+    p.add_argument("inputs", metavar="INPUT", nargs="+", help=t("cli.help.merge_inputs"))
+    g = p.add_argument_group(t("cli.group.merge"))
+    g.add_argument("-o", "--output", "--out", dest="output", metavar="OUTPUT", required=True,
+                   help=t("cli.help.merge_output"))
+    g.add_argument("--dedupe-by", metavar="KEY", default=None, help=t("cli.help.dedupe_by"))
+    g.add_argument("--keep", choices=MERGE_KEEPS, default=None, help=t("cli.help.merge_keep"))
+    _add_memory_option(g, "cli.help.merge_memory")
+    _add_merge_output_options(p)
+    _add_input_options(p)
+    _add_global_options(p, repeated=True)
+
+    p = _tool_command(sub, "extract")
+    p.add_argument("input", metavar="INPUT", help=t("cli.help.input"))
+    p.add_argument("output", metavar="OUTPUT", nargs="?", default=None, help=t("cli.help.extract_output"))
+    g = p.add_argument_group(t("cli.group.extract"))
+    _add_output_file_option(g, "output_opt", "cli.help.output_opt")
+    mx = g.add_mutually_exclusive_group()
+    mx.add_argument("--path", metavar="RECORD_PATH", default=None, help=t("cli.help.extract_path"))
+    mx.add_argument("--node", metavar="LOCATION", default=None, help=t("cli.help.node"))
+    mx.add_argument("--gather", metavar="PATTERN", default=None, help=t("cli.help.gather"))
+    _add_filter_options(p, required=False, select=True)
+    _add_output_options(p)
+    _add_input_options(p)
+    _add_global_options(p, repeated=True)
+
+    p = _tool_command(sub, "repair")
+    p.add_argument("input", metavar="INPUT", help=t("cli.help.repair_input"))
+    p.add_argument("output", metavar="OUTPUT", nargs="?", default=None, help=t("cli.help.repair_output"))
+    g = p.add_argument_group(t("cli.group.repair"))
+    _add_output_file_option(g, "output_opt", "cli.help.output_opt")
+    g.add_argument("--check", action="store_true", help=t("cli.help.repair_check"))
+    g.add_argument("--nan", choices=REPAIR_NANS, default="null", help=t("cli.help.repair_nan"))
+    g.add_argument("--jsonl", action="store_true", help=t("cli.help.repair_jsonl"))
+    g.add_argument("--allow-partial", action="store_true", help=t("cli.help.repair_partial"))
+    g.add_argument("--report", metavar="FILE", default=None, help=t("cli.help.repair_report"))
+    g.add_argument("--json", action="store_true", help=t("cli.help.repair_json"))
+    g = p.add_argument_group(t("cli.group.input"))
+    g.add_argument("--format", choices=INPUT_FORMATS, default="auto", help=t("cli.help.repair_format"))
+    g.add_argument("--record-path", metavar="P", default=None, help=t("cli.help.record_path"))
+    _add_global_options(p, repeated=True)
+
+    p = _tool_command(sub, "diff")
+    p.add_argument("a", metavar="A", help=t("cli.help.diff_a"))
+    p.add_argument("b", metavar="B", help=t("cli.help.diff_b"))
+    g = p.add_argument_group(t("cli.group.diff"))
+    mx = g.add_mutually_exclusive_group()
+    mx.add_argument("--key", metavar="KEY", default=None, help=t("cli.help.diff_key"))
+    mx.add_argument("--by-position", action="store_true", help=t("cli.help.by_position"))
+    mx.add_argument("--align", action="store_true", help=t("cli.help.align"))
+    g.add_argument("--array-key", dest="array_keys", action="append", metavar="FIELD", default=None,
+                   help=t("cli.help.array_key"))
+    g.add_argument("--numbers", choices=DIFF_NUMBERS, default="value", help=t("cli.help.numbers"))
+    g.add_argument("--ignore-order", action="store_true", help=t("cli.help.ignore_order"))
+    g.add_argument("--max-changes", metavar="N", type=_non_negative_int, default=None, help=t("cli.help.max_changes"))
+    g.add_argument("--limit", metavar="N", type=_non_negative_int, default=DEFAULT_DIFF_LIMIT,
+                   help=t("cli.help.diff_limit"))
+    g.add_argument("--summary", action="store_true", help=t("cli.help.diff_summary"))
+    g.add_argument("--json", action="store_true", help=t("cli.help.diff_json"))
+    _add_output_file_option(g, "out", "cli.help.diff_out")
+    g.add_argument("--exit-code", action="store_true", help=t("cli.help.exit_code"))
+    _add_memory_option(g, "cli.help.diff_memory")
+    _add_input_options(p)
+    _add_global_options(p, repeated=True)
 
 
 def build_parser() -> _ArgumentParser:
@@ -614,7 +1040,7 @@ def build_parser() -> _ArgumentParser:
                      t("cli.cmd.filter.epilog"))
     p.add_argument("input", metavar="INPUT", help=t("cli.help.input"))
     p.add_argument("output", metavar="OUTPUT", help=t("cli.help.output"))
-    _add_filter_options(p, required=True)
+    _add_filter_options(p, required=True, select=True)
     _add_output_options(p)
     _add_input_options(p)
     _add_global_options(p, repeated=True)
@@ -623,6 +1049,7 @@ def build_parser() -> _ArgumentParser:
     p.add_argument("input", metavar="INPUT", help=t("cli.help.input"))
     p.add_argument("output", metavar="OUTPUT", help=t("cli.help.output"))
     _add_sort_options(p, "--by", required=True)
+    _add_select_option(p.add_argument_group(t("cli.group.select")))
     _add_output_options(p)
     _add_input_options(p)
     _add_global_options(p, repeated=True)
@@ -631,11 +1058,50 @@ def build_parser() -> _ArgumentParser:
                      t("cli.cmd.convert.epilog"))
     p.add_argument("input", metavar="INPUT", help=t("cli.help.input"))
     p.add_argument("output", metavar="OUTPUT", help=t("cli.help.output"))
-    _add_filter_options(p, required=False)
+    _add_filter_options(p, required=False, select=True)
+    p.add_argument_group(t("cli.group.node")).add_argument("--node", metavar="LOCATION", default=None,
+                                                           help=t("cli.help.node"))
     _add_sort_options(p, "--sort-by", required=False)
     _add_output_options(p)
     _add_input_options(p)
     _add_global_options(p, repeated=True)
+
+    p = _add_command(sub, "patch", t("cli.cmd.patch.help"), t("cli.cmd.patch.description"),
+                     t("cli.cmd.patch.epilog"))
+    p.add_argument("input", metavar="INPUT", help=t("cli.help.input"))
+    p.add_argument("patch", metavar="PATCH", help=t("cli.help.patch"))
+    p.add_argument("output", metavar="OUTPUT", nargs="?", default=None, help=t("cli.help.patch_output"))
+    g = p.add_argument_group(t("cli.group.patch"))
+    g.add_argument("--in-place", action="store_true", help=t("cli.help.in_place"))
+    g.add_argument("--no-backup", action="store_true", help=t("cli.help.no_backup"))
+    _add_input_options(p)
+    _add_global_options(p, repeated=True)
+
+    p = _add_command(sub, "apply", t("cli.cmd.apply.help"), t("cli.cmd.apply.description"),
+                     t("cli.cmd.apply.epilog"))
+    p.add_argument("mapping", metavar="MAPPING", help=t("cli.help.mapping"))
+    p.add_argument("input", metavar="INPUT", help=t("cli.help.input"))
+    p.add_argument("output", metavar="OUTPUT", help=t("cli.help.mapping_output"))
+    _add_apply_options(p)
+    _add_input_options(p)
+    _add_global_options(p, repeated=True)
+
+    p = _add_command(sub, "flatten", t("cli.cmd.flatten.help"), t("cli.cmd.flatten.description"),
+                     t("cli.cmd.flatten.epilog"))
+    p.add_argument("input", metavar="INPUT", help=t("cli.help.input"))
+    p.add_argument("output", metavar="OUTPUT", help=t("cli.help.mapping_output"))
+    g = p.add_argument_group(t("cli.group.flatten"))
+    g.add_argument("--children-key", metavar="KEY", required=True, help=t("cli.help.children_key"))
+    g.add_argument("--depth-field", metavar="NAME", default=None, help=t("cli.help.depth_field"))
+    g.add_argument("--mode", choices=("nested", "records"), default="nested", help=t("cli.help.flatten_mode"))
+    mx = g.add_mutually_exclusive_group()
+    mx.add_argument("--sample", metavar="N", type=_positive_int, default=None, help=t("cli.help.mapping_sample"))
+    mx.add_argument("--full-scan", action="store_true", help=t("cli.help.full_scan"))
+    _add_apply_options(p)
+    _add_input_options(p)
+    _add_global_options(p, repeated=True)
+
+    _add_tool_commands(sub)
 
     p = _add_command(sub, "presets", t("cli.cmd.presets.help"), t("cli.cmd.presets.description"),
                      t("cli.cmd.presets.epilog"))
@@ -673,7 +1139,8 @@ def _scan_option(argv: Sequence[str], name: str) -> str | None:
 
 
 def _join_dash_values(argv: Sequence[str]) -> list[str]:
-    """``--by -id`` -> ``--by=-id`` (argparse reads a lone ``-id`` as an unknown option);
+    """``--by -id`` -> ``--by=-id`` (argparse reads a lone ``-id`` as an unknown option; the same
+    for every option of :data:`DASH_VALUE_OPTIONS`);
     ``--sort-keys`` followed by an argument that is neither ``alpha``/``codepoint`` nor an
     option -> ``--sort-keys=alpha`` (its optional value must never swallow a positional
     argument: ``--sort-keys in.json out.json``)."""
@@ -1203,10 +1670,10 @@ class _Ctx:
         self.cancel = cancel
         self.settings = get_settings()
         self.started = time.perf_counter()
-        # warnings of the input document (doc.info.warnings, see _doc_warnings): printed
-        # already, and those it had when it was opened (printed by the command or never)
-        self.warnings_printed: set[tuple[str, str]] = set()
-        self.warnings_at_open: set[tuple[str, str]] = set()
+        # warnings of the input documents (doc.info.warnings, see _doc_warnings): printed
+        # already, and those they had when they were opened (printed by the command or never)
+        self.warnings_printed: set[tuple[str, str, str]] = set()
+        self.warnings_at_open: set[tuple[str, str, str]] = set()
 
     def stage(self, label: str) -> Progress | None:
         return self.console.progress.stage(label)
@@ -1250,9 +1717,13 @@ def _same_file(a: str, b: str) -> bool:
 
 def _check_output(input_path: str, output_path: str) -> None:
     """Refuse an output that is the input itself (AGENT_PROMPT §1.4: the source is never
-    modified), a folder, an existing read-only file, or a path in a folder that does not
-    exist -- before any work."""
+    modified), a folder, an existing read-only file, a path in a folder that does not
+    exist, or a file with unsaved edits in this program (a tab or another instance edits
+    it, or its edits are kept for recovery: replacing it would make them impossible to save;
+    ``filetools.error.part_open_edited``, :func:`jsonreshape.writer.edited_targets`) --
+    before any work."""
     from .fileio import long_path
+    from .writer import refuse_edited_targets
 
     if _same_file(input_path, output_path):
         raise UserInputError("writer.error.same_file", path=output_path)
@@ -1263,6 +1734,7 @@ def _check_output(input_path: str, output_path: str) -> None:
     parent = os.path.dirname(os.path.abspath(output_path))
     if parent and not os.path.isdir(long_path(parent)):
         raise UserInputError("writer.error.no_dir", path=parent)
+    refuse_edited_targets([output_path])
 
 
 def _input_changed(doc: Any) -> bool:
@@ -1274,34 +1746,35 @@ def _input_changed(doc: Any) -> bool:
         return False
 
 
-def _refuse_record_path_on_values(ctx: _Ctx) -> None:
+def _refuse_record_path_on_values(ctx: _Ctx, path: str) -> None:
     """``--record-path`` selects the records inside ONE JSON document: an input detected
     (``--format auto``, without the record path) as JSON Lines or as several JSON values
     one after another is refused before any work -- exit 1, like a forced
     ``--format jsonl --record-path``."""
     from .reader import detect_format
 
-    args = ctx.args
-    info = detect_format(args.input, settings=ctx.settings, progress=ctx.stage(t("cli.stage.preparing")),
+    info = detect_format(path, settings=ctx.settings, progress=ctx.stage(t("cli.stage.preparing")),
                          cancel=ctx.cancel)
     ctx.end_stage()
     if info.kind in ("jsonl", "stream"):
-        raise UserInputError("cli.error.record_path_values", path=_display_text(str(args.record_path)),
+        raise UserInputError("cli.error.record_path_values", path=_display_text(str(ctx.args.record_path)),
                              format=info.label)
 
 
-def _doc_warnings(doc: Any) -> list[tuple[tuple[str, str], str]]:
+def _doc_warnings(doc: Any) -> list[tuple[tuple[str, str, str], str]]:
     """``(identity, text)`` of the document's warnings in order. A warning is identified by
-    its key and ``path`` parameter; one added more than once (e.g. with a newer byte count)
-    appears once, at its first position, with its latest parameters."""
+    its key, ``path`` parameter and document (commands with several inputs); one added more
+    than once (e.g. with a newer byte count) appears once, at its first position, with its
+    latest parameters."""
     info = doc.info
     keys = list(info.warnings)
     params = list(info.warning_params)
     texts = info.warning_texts()   # never shorter than keys (warnings are only appended)
-    latest: dict[tuple[str, str], int] = {}
+    source = str(getattr(doc, "source_path", ""))
+    latest: dict[tuple[str, str, str], int] = {}
     for i, key in enumerate(keys):
         p = params[i] if i < len(params) and isinstance(params[i], dict) else {}
-        latest[(key, str(p.get("path", "")))] = i
+        latest[(key, str(p.get("path", "")), source)] = i
     return [(ident, texts[i]) for ident, i in latest.items()]
 
 
@@ -1317,24 +1790,27 @@ def _shown_now(ctx: _Ctx, doc: Any) -> list[str]:
     return out
 
 
-def _late_warnings(ctx: _Ctx, doc: Any) -> None:
+def _late_warnings(ctx: _Ctx, doc: Any, label: str | None = None) -> None:
     """At the end of the command: print the warnings the document gained while it ran and
     the :data:`END_WARNINGS` (with their latest values), each once; a warning it had when
-    it was opened but that the command never showed (it failed before) stays unprinted."""
+    it was opened but that the command never showed (it failed before) stays unprinted.
+    ``label``: the input's name, put before the texts (commands with several inputs)."""
+    prefix = "" if label is None else _display_text(label) + ": "
     for ident, text in _doc_warnings(doc):
         if ident in ctx.warnings_printed or ident in ctx.warnings_at_open:
             continue
         ctx.warnings_printed.add(ident)
-        ctx.warn(text)
+        ctx.warn(prefix + text)
 
 
 @contextlib.contextmanager
-def _document(ctx: _Ctx, *, build: bool = True) -> Iterator[Any]:
-    """INPUT opened (and indexed unless ``build`` is false or a complete cached index
-    exists), closed when the block ends. An error other than a cancellation raised while
-    the document is open becomes :class:`FileChangedError` when another program changed the
-    file meanwhile: that is the real cause, not the garbled data it produced. Warnings the
-    document gains while the block runs are printed when it ends (:func:`_late_warnings`).
+def _document(ctx: _Ctx, *, build: bool = True, path: str | None = None) -> Iterator[Any]:
+    """INPUT (``path``: another input of a command with several -- ``merge``, ``diff``) opened with
+    the input options and indexed unless ``build`` is false or a complete cached index exists,
+    closed when the block ends. An error other than a cancellation raised while the document is
+    open becomes :class:`FileChangedError` when another program changed the file meanwhile: that
+    is the real cause, not the garbled data it produced. Warnings the document gains while the
+    block runs are printed when it ends (:func:`_late_warnings`).
 
     ``--record-path``: refused on an input detected as JSON Lines / several values
     (:func:`_refuse_record_path_on_values`); a syntax error in it gets record-path
@@ -1342,20 +1818,22 @@ def _document(ctx: _Ctx, *, build: bool = True) -> Iterator[Any]:
     from .reader import Document
 
     args = ctx.args
-    _check_input(args.input)
-    fmt = None if args.format in (None, "auto") else args.format
+    source = args.input if path is None else path
+    _check_input(source)
+    fmt = None if getattr(args, "format", None) in (None, "auto") else args.format
+    record_path = getattr(args, "record_path", None)
     try:
-        if args.record_path is not None and fmt is None:
-            _refuse_record_path_on_values(ctx)
-        doc = Document.open(args.input, record_path=args.record_path, format=fmt, settings=ctx.settings,
-                            use_cache=not args.no_cache, progress=ctx.stage(t("cli.stage.preparing")),
-                            cancel=ctx.cancel)
+        if record_path is not None and fmt is None:
+            _refuse_record_path_on_values(ctx, source)
+        doc = Document.open(source, record_path=record_path, format=fmt, settings=ctx.settings,
+                            use_cache=not getattr(args, "no_cache", False),
+                            progress=ctx.stage(t("cli.stage.preparing")), cancel=ctx.cancel)
     except QuerySyntaxError as exc:
-        if args.record_path is not None:  # the only path parsed while opening
+        if record_path is not None:  # the only path parsed while opening
             _set_hint(exc, t("cli.hint.record_path_syntax"))
         raise
     try:
-        ctx.warnings_at_open = {ident for ident, _ in _doc_warnings(doc) if ident[0] not in END_WARNINGS}
+        ctx.warnings_at_open |= {ident for ident, _ in _doc_warnings(doc) if ident[0] not in END_WARNINGS}
         ctx.end_stage()
         if build and not doc.index_complete:
             doc.build_index(progress=ctx.stage(t("cli.stage.indexing")), cancel=ctx.cancel)
@@ -1370,7 +1848,7 @@ def _document(ctx: _Ctx, *, build: bool = True) -> Iterator[Any]:
         raise
     finally:
         try:
-            _late_warnings(ctx, doc)
+            _late_warnings(ctx, doc, path)   # an input of several (path given) is named
         except Exception:  # pragma: no cover - a warning must never hide the command's own result
             log.debug("could not show the document's late warnings", exc_info=True)
         finally:
@@ -1444,7 +1922,7 @@ def _format_hint(ctx: _Ctx, doc: Any, err: JsonSyntaxError) -> str | None:
     kind = _several_values(doc, err)
     if kind is None:
         return None
-    if ctx.args.record_path is not None:
+    if getattr(ctx.args, "record_path", None) is not None:
         return t("cli.hint.record_path_values")
     return t("cli.hint.format_jsonl") if kind == "jsonl" else t("cli.hint.format_stream")
 
@@ -1475,7 +1953,8 @@ def _record_path_hint(doc: Any, shown: str) -> str:
 def _record_path_error(ctx: _Ctx, doc: Any, err: JsonSyntaxError) -> JsonReshapeError:
     """A record path that matches nothing / a scalar: a user error (exit 1) listing the
     record arrays found at the start of the file -- not a JSON error of the file."""
-    shown = ctx.args.record_path if ctx.args.record_path is not None else (doc.info.record_path_text or "$")
+    given = getattr(ctx.args, "record_path", None)
+    shown = given if given is not None else (doc.info.record_path_text or "$")
     shown = _display_text(str(shown))
     hint = _record_path_hint(doc, shown)
     if err.code == "target_not_found":
@@ -1483,39 +1962,47 @@ def _record_path_error(ctx: _Ctx, doc: Any, err: JsonSyntaxError) -> JsonReshape
     return _HintedError("cli.error.record_path_not_container", hint=hint, path=shown)
 
 
-def _start_warnings(ctx: _Ctx, doc: Any) -> None:
+def _start_warnings(ctx: _Ctx, doc: Any, label: str | None = None) -> None:
     """Format notes of the opened document (automatic record path, non-standard JSON, ...);
     the ones it gains later and the :data:`END_WARNINGS` are printed at the end
-    (:func:`_late_warnings`)."""
+    (:func:`_late_warnings`). ``label``: the input's name, put before the texts."""
+    prefix = "" if label is None else _display_text(label) + ": "
     for text in _shown_now(ctx, doc):
-        ctx.warn(text)
+        ctx.warn(prefix + text)
 
 
-def _check_index(ctx: _Ctx, doc: Any) -> int | None:
+def _check_index(ctx: _Ctx, doc: Any, *, broken: bool = True, json_hint: str | None = None,
+                 label: str | None = None) -> int | None:
     """After indexing: the file must be unchanged; a record path that leads nowhere is a
     user error; a JSON error gives exit code 2 unless ``--allow-partial`` (then a warning);
-    broken JSON Lines lines give a warning."""
+    broken JSON Lines lines give a warning (``broken=False``: the command reports them itself).
+    ``json_hint``: the advice after a JSON error of a command that cannot use ``--allow-partial``
+    (default: ``--allow-partial`` with the records before the error). ``label``: the input as
+    named on the command line, shown with these messages (commands with several inputs)."""
+    prefix = "" if label is None else _display_text(label) + ": "
     doc.ensure_unchanged()
     err = doc.error
     if err is not None:
         if err.code in RECORD_PATH_CODES:
             raise _record_path_error(ctx, doc, err)
         hint = _format_hint(ctx, doc, err)
-        if not ctx.args.allow_partial:
-            ctx.console.error(err, hint=hint or _partial_hint(doc))
+        if not getattr(ctx.args, "allow_partial", False):
+            if label is not None:
+                ctx.console.err(t("cli.error.in_file", path=_display_text(label)))
+            ctx.console.error(err, hint=hint or json_hint or _partial_hint(doc))
             return EXIT_JSON
-        ctx.warn(_tn("cli.warn.partial", doc.record_count, line=err.line, column=err.column,
-                     count=_num(doc.record_count)))
+        ctx.warn(prefix + _tn("cli.warn.partial", doc.record_count, line=err.line, column=err.column,
+                              count=_num(doc.record_count)))
         if hint:
             ctx.console.hint(hint)
-    if doc.broken_count:
-        ctx.warn(_broken_lines_text(doc))
+    if broken and doc.broken_count:
+        ctx.warn(prefix + _broken_lines_text(doc))
     return None
 
 
-def _check_document(ctx: _Ctx, doc: Any) -> int | None:
-    _start_warnings(ctx, doc)
-    return _check_index(ctx, doc)
+def _check_document(ctx: _Ctx, doc: Any, **kwargs: Any) -> int | None:
+    _start_warnings(ctx, doc, kwargs.get("label"))
+    return _check_index(ctx, doc, **kwargs)
 
 
 # ==================================================================================
@@ -1942,12 +2429,13 @@ def _cmd_search(ctx: _Ctx) -> int:
 # ==================================================================================
 # filter / sort / convert
 # ==================================================================================
-#: output option -> the formats it applies to
+#: output option -> the formats it applies to (``--no-wrapper``: every format -- the writer honours
+#: ``keep_wrapper`` for JSON Lines, CSV, XLSX and SQLite too and then gives no wrapper notice)
 _FORMAT_OPTIONS: dict[str, tuple[str, ...]] = {
     "--compact": ("json",),
     "--indent": ("json",),
     "--sort-keys": ("json", "jsonl"),
-    "--no-wrapper": ("json",),
+    "--no-wrapper": OUTPUT_FORMATS,
     "--as-keyed": ("json",),
     "--columns": ("csv", "xlsx"),
     "--array-mode": ("csv", "xlsx"),
@@ -1959,18 +2447,21 @@ _FORMAT_OPTIONS: dict[str, tuple[str, ...]] = {
 }
 
 
-def _output_format(args: argparse.Namespace) -> str:
+def _output_format(args: argparse.Namespace, path: str | None = None) -> str:
+    """``--jsonl`` / ``--to``, else the format of the output's extension (``path``, default OUTPUT)."""
     from .writer import format_for_path
 
-    if args.jsonl:
-        if args.to not in (None, "jsonl"):
-            raise UserInputError("cli.error.jsonl_conflict", fmt=args.to)
+    to = getattr(args, "to", None)
+    if getattr(args, "jsonl", False):
+        if to not in (None, "jsonl"):
+            raise UserInputError("cli.error.jsonl_conflict", fmt=to)
         return "jsonl"
-    if args.to is not None:
-        return args.to
-    fmt = format_for_path(args.output)
+    if to is not None:
+        return to
+    output = args.output if path is None else path
+    fmt = format_for_path(output)
     if fmt is None:
-        raise UserInputError("cli.error.output_format", path=args.output)
+        raise UserInputError("cli.error.output_format", path=output)
     return fmt
 
 
@@ -2012,53 +2503,66 @@ def _split_columns(text: str) -> list[str]:
 
 
 def _given_output_options(args: argparse.Namespace) -> list[str]:
+    """The output options given on the command line (a command may have only some of them)."""
+    def value(name: str) -> Any:
+        return getattr(args, name, None)
+
     given = {
-        "--compact": args.compact,
-        "--indent": args.indent is not None,
-        "--sort-keys": args.sort_keys is not None,
-        "--no-wrapper": args.no_wrapper,
-        "--as-keyed": args.as_keyed,
-        "--columns": args.columns is not None,
-        "--array-mode": args.array_mode is not None,
-        "--explode": args.explode is not None,
-        "--sep": args.sep is not None,
-        "--delimiter": args.delimiter is not None,
-        "--no-bom": args.no_bom,
-        "--xlsx-split": args.xlsx_split is not None,
+        "--compact": bool(value("compact")),
+        "--indent": value("indent") is not None,
+        "--sort-keys": value("sort_keys") is not None,
+        "--no-wrapper": bool(value("no_wrapper")),
+        "--as-keyed": bool(value("as_keyed")),
+        "--columns": value("columns") is not None,
+        "--array-mode": value("array_mode") is not None,
+        "--explode": value("explode") is not None,
+        "--sep": value("sep") is not None,
+        "--delimiter": value("delimiter") is not None,
+        "--no-bom": bool(value("no_bom")),
+        "--xlsx-split": value("xlsx_split") is not None,
     }
     return [name for name, on in given.items() if on]
+
+
+def _ignored_for_format(args: argparse.Namespace, fmt: str) -> list[str]:
+    """The given output options that do not apply to the format ``fmt``."""
+    return [name for name in _given_output_options(args) if fmt not in _FORMAT_OPTIONS[name]]
 
 
 def _export_options(ctx: _Ctx, fmt: str) -> Any:
     from .writer import ExportOptions
 
     args = ctx.args
+
+    def value(name: str) -> Any:
+        return getattr(args, name, None)
+
     overrides: dict[str, Any] = {}
-    if args.compact:
+    if value("compact"):
         overrides["indent"] = None
-    elif args.indent is not None:
+    elif value("indent") is not None:
         overrides["indent"] = args.indent
-    if args.sort_keys is not None:
+    if value("sort_keys") is not None:
         overrides["sort_keys"] = args.sort_keys
-    if args.no_wrapper:
+    if value("no_wrapper"):
         overrides["keep_wrapper"] = False
-    if args.as_keyed:
+    if value("as_keyed"):
         if fmt != "json":   # a user error, not an option that is ignored with a warning
             raise UserInputError("cli.error.as_keyed_format", fmt=fmt)
         overrides["as_keyed"] = True
-    if args.columns is not None:
+    if value("columns") is not None:
         overrides["columns"] = _split_columns(args.columns)
-    if args.array_mode is not None:
+    if value("array_mode") is not None:
         overrides["array_mode"] = args.array_mode
-    if args.explode is not None:
+    if value("explode") is not None:
         overrides["explode"] = args.explode
-    if args.sep is not None:
+    if value("sep") is not None:
         overrides["join_sep"] = args.sep
-    if args.delimiter is not None:
+    if value("delimiter") is not None:
         overrides["csv_delimiter"] = args.delimiter
-    if args.no_bom:
+    if value("no_bom"):
         overrides["csv_bom"] = False
-    if args.xlsx_split is not None:
+    if value("xlsx_split") is not None:
         overrides["xlsx_split"] = args.xlsx_split
     try:
         return ExportOptions.from_settings(fmt, ctx.settings, **overrides)
@@ -2177,17 +2681,154 @@ def _sort_memory(ctx: _Ctx) -> int:
     return given
 
 
+SELECT_CHECK_COUNT = 1 << 62   # a record count no file has: --select syntax checked before INPUT is read
+
+
+def _check_select(args: argparse.Namespace) -> None:
+    """``--select SPEC`` checked before any work (a typo must not wait for the index of a big file):
+    each comma item alone (one item gives a ``range``, never a materialized list); positions beyond the
+    end of the file can only be told once it is indexed (:func:`_scope_source`)."""
+    from .filetools import parse_select
+
+    spec = getattr(args, "select", None)
+    if spec is None:
+        return
+    items = spec.split(",")
+    if not spec.strip() or any(not item.strip() for item in items):
+        raise UserInputError("filetools.error.select_syntax", spec=spec.strip(), item="")
+    for item in items:
+        parse_select(item, SELECT_CHECK_COUNT)
+
+
+def _compile_scope(ctx: _Ctx) -> Any:
+    """The record scope of a command: ``--select`` checked, the filter compiled (``None`` without one)."""
+    _check_select(ctx.args)
+    return _compile_filter(ctx)
+
+
+def _scope_source(ctx: _Ctx, doc: Any, flt: Any, sets: list[Any]) -> Any:
+    """The records a command works on: ``--select SPEC`` (:func:`jsonreshape.filetools.parse_select`:
+    0-based, in the given order), then the filter over them (a RecordSet in that order, appended to
+    ``sets`` -- the caller closes it); ``None`` = every record."""
+    from .filetools import parse_select
+    from .recordset import filter_records
+
+    source: Any = None
+    spec = getattr(ctx.args, "select", None)
+    if spec is not None:
+        source = parse_select(spec, int(doc.record_count))
+    if flt is not None:
+        rs = filter_records(doc, flt, source, progress=ctx.stage(t("cli.stage.filtering")), cancel=ctx.cancel)
+        sets.append(rs)
+        ctx.end_stage()
+        for text in rs.report.warning_texts():
+            ctx.warn(text)
+        source = rs
+    return source
+
+
+def _scope_size(doc: Any, source: Any) -> int:
+    return int(doc.record_count) if source is None else len(source)
+
+
+def _close_all(sets: Iterable[Any]) -> None:
+    for rs in sets:
+        try:
+            rs.close()
+        except Exception:  # pragma: no cover - a record set that cannot be released must not hide the result
+            log.debug("could not close a record set", exc_info=True)
+
+
+def _export_warnings(ctx: _Ctx, report: Any) -> None:
+    """The writer's warnings, except the partial / broken-line ones given after indexing already."""
+    for key, text in zip(report.warning_keys, report.warnings):
+        if key not in ("writer.warn.partial", "writer.warn.broken_lines"):
+            ctx.warn(text)
+
+
+def _check_values_format(fmt: str) -> None:
+    """``--node`` / ``--gather`` write JSON or JSON Lines only: refused before INPUT is opened."""
+    from .writer import FORMAT_NAMES
+
+    if fmt not in ("json", "jsonl"):
+        raise UserInputError("filetools.error.extract_format", fmt=FORMAT_NAMES.get(fmt, fmt))
+
+
+def _values_export_options(ctx: _Ctx, fmt: str, mode: str) -> Any:
+    """Writer options for values (``--node`` / ``--gather``): only the JSON layout (``--gather``: and
+    ``--sort-keys``) applies; other output options given are named in a warning."""
+    from .writer import ExportOptions
+
+    args = ctx.args
+    applicable = {"--compact", "--indent"} if fmt == "json" else set()
+    if mode == "--gather":
+        applicable.add("--sort-keys")
+    ignored = [name for name in _given_output_options(args) if name not in applicable]
+    if ignored:
+        ctx.warn(t("cli.warn.ignored_mode", options=", ".join(ignored), mode=mode, format=fmt))
+    overrides: dict[str, Any] = {}
+    if fmt == "json":
+        if getattr(args, "compact", False):
+            overrides["indent"] = None
+        elif getattr(args, "indent", None) is not None:
+            overrides["indent"] = args.indent
+    if "--sort-keys" in applicable and getattr(args, "sort_keys", None) is not None:
+        overrides["sort_keys"] = args.sort_keys
+    return ExportOptions.from_settings(fmt, ctx.settings, **overrides)
+
+
+def _write_node(ctx: _Ctx, doc: Any, output: str, opts: Any, location: str) -> Any:
+    """One node of ``doc`` (a location text) -> ``output`` (:func:`jsonreshape.filetools.extract`)."""
+    from .filetools import extract
+
+    doc.ensure_unchanged()
+    report = extract(doc, output, opts, node=location, progress=ctx.stage(t("cli.stage.extracting")),
+                     cancel=ctx.cancel)
+    ctx.end_stage()
+    _export_warnings(ctx, report)
+    ctx.info(t("cli.summary.node", node=_display_text(location), output=output,
+               size=format_bytes(report.bytes_written), seconds=format_duration(ctx.elapsed())))
+    log.info("%s: node %s -> %s (%d bytes) in %.2f s", ctx.args.command, location, output, report.bytes_written,
+             ctx.elapsed())
+    return report
+
+
+def _export_node(ctx: _Ctx) -> int:
+    """``convert INPUT OUTPUT --node LOCATION``: one node of INPUT (JSON / JSON Lines); a filter,
+    ``--select`` or ``--sort-by`` cannot be combined with it."""
+    args = ctx.args
+    combined = [name for name, given in (("--where", args.where), ("--jmespath", args.jmespath),
+                                         ("--preset", args.preset), ("--save-preset", args.save_preset),
+                                         ("--select", args.select), ("--sort-by", args.sort_fields))
+                if given is not None]
+    if combined:
+        raise UserInputError("cli.error.node_combined", options=", ".join(combined))
+    _check_output(args.input, args.output)
+    fmt = _output_format(args)
+    _check_values_format(fmt)
+    opts = _values_export_options(ctx, fmt, "--node")
+    with _document(ctx) as doc:
+        rc = _check_document(ctx, doc)
+        if rc is not None:
+            return rc
+        _write_node(ctx, doc, args.output, opts, args.node)
+    return EXIT_OK
+
+
 def _cmd_export(ctx: _Ctx) -> int:
-    """filter / sort / convert: [filter] -> [sort] -> export, with a summary line."""
-    from .recordset import filter_records, sort_records
+    """filter / sort / convert: [select] -> [filter] -> [sort] -> export, with a summary line;
+    ``convert --node``: one node (:func:`_export_node`)."""
+    from .recordset import sort_records
     from .writer import export
 
     args = ctx.args
+    if getattr(args, "node", None) is not None:
+        return _export_node(ctx)
     _check_output(args.input, args.output)
     fmt = _output_format(args)
     opts = _export_options(ctx, fmt)
-    ignored = [name for name in _given_output_options(args) if fmt not in _FORMAT_OPTIONS[name]]
-    flt = _compile_filter(ctx)
+    ignored = _ignored_for_format(args, fmt)
+    flt = _compile_scope(ctx)
     keys = _sort_keys(args) if args.command in ("sort", "convert") else []
     memory = _sort_memory(ctx) if keys else None
     if ignored:
@@ -2200,16 +2841,9 @@ def _cmd_export(ctx: _Ctx) -> int:
         if rc is not None:
             return rc
         total = doc.record_count
-        selection: Any = None
         sets: list[Any] = []
         try:
-            if flt is not None:
-                selection = filter_records(doc, flt, None, progress=ctx.stage(t("cli.stage.filtering")),
-                                           cancel=ctx.cancel)
-                sets.append(selection)
-                ctx.end_stage()
-                for text in selection.report.warning_texts():
-                    ctx.warn(text)
+            selection = _scope_source(ctx, doc, flt, sets)
             if keys:
                 selection = sort_records(doc, keys, selection, memory_limit=memory,
                                          progress=ctx.stage(t("cli.stage.sorting")), cancel=ctx.cancel)
@@ -2222,26 +2856,1518 @@ def _cmd_export(ctx: _Ctx) -> int:
                             cancel=ctx.cancel)
             ctx.end_stage()
         finally:
-            for rs in sets:
-                rs.close()
+            _close_all(sets)
         # the partial/broken-line warnings were already given after indexing
+        _export_warnings(ctx, report)
+        _export_summary(ctx, report, total, fmt, args.output)
+    return EXIT_OK
+
+
+def _export_summary(ctx: _Ctx, report: Any, total: int, fmt: str, output: str) -> None:
+    """``{selected} / {total} records -> OUTPUT (size, time)`` (+ rows of a table format, files)."""
+    shown = str(report.files[0]) if len(report.files) > 1 else output
+    # "{selected} / {total} records": the noun goes with the total
+    summary = _tn("cli.summary.export", total, selected=_num(report.records), total=_num(total), output=shown,
+                  size=format_bytes(report.bytes_written), seconds=format_duration(ctx.elapsed()))
+    extra = []
+    if fmt in ("csv", "xlsx", "sqlite") and report.rows != report.records:
+        extra.append(_tn("cli.summary.rows", report.rows, rows=_num(report.rows)))
+    if len(report.files) > 1:
+        extra.append(_tn("cli.summary.files", len(report.files), count=_num(len(report.files))))
+    if extra:
+        summary += "; " + ", ".join(extra)
+    ctx.info(summary)
+    log.info("%s: %d of %d records -> %s (%s, %d bytes) in %.2f s", ctx.args.command, report.records, total, shown,
+             fmt, report.bytes_written, ctx.elapsed())
+
+
+# ==================================================================================
+# patch
+# ==================================================================================
+def _cmd_patch(ctx: _Ctx) -> int:
+    """patch: apply a JSON Patch (RFC 6902) to INPUT and save the result in INPUT's kind and encoding --
+    to OUTPUT, or in place (``--in-place``, ``.bak`` unless ``--no-backup``). The edit layer of the run lives
+    in a temporary folder under the work folder (never the user's pending layers), deleted at the end."""
+    import secrets as _secrets
+
+    from .appdirs import work_dir
+    from .fileio import long_path
+
+    args = ctx.args
+    if bool(args.in_place) == (args.output is not None):
+        raise UserInputError("cli.error.patch_output")
+    if args.no_backup and not args.in_place:
+        raise UserInputError("cli.error.no_backup")
+    _check_input(args.patch)
+    if args.output is not None:
+        _check_output(args.input, args.output)
+    elif _read_only_file(args.input):
+        raise UserInputError("fileio.error.read_only", path=args.input)
+    layer_dir = work_dir(ctx.settings.cache_dir) / f"patch-{os.getpid()}-{_secrets.token_hex(4)}"
+    try:
+        with _document(ctx) as doc:
+            rc = _check_document(ctx, doc)
+            if rc is not None:
+                return rc
+            if doc.error is not None:            # --allow-partial: the records before the error cannot be patched
+                from .errors import EditError
+
+                ctx.console.error(EditError("edits.error.partial"))
+                return EXIT_JSON
+            return _patch_document(ctx, doc, layer_dir)
+    finally:
+        # after the document closed its handles on the layer's files
+        shutil.rmtree(long_path(layer_dir), ignore_errors=True)
+
+
+def _patch_document(ctx: _Ctx, doc: Any, layer_dir: Any) -> int:
+    """The patch run on the opened, indexed INPUT (see :func:`_cmd_patch`)."""
+    from . import jsonpatch
+    from .edits import EditSession
+    from .editstore import EditStore, LayerLock
+
+    args = ctx.args
+    lock = LayerLock.for_doc(doc)
+    lock.acquire()
+    try:
+        session = EditSession.open(doc, settings=ctx.settings, lock=lock, restore=False)
+    except BaseException:
+        lock.release()                       # a lock given to a failing open stays ours
+        raise
+    try:
+        session.store = EditStore.open(doc, settings=ctx.settings, dir=layer_dir, lock=lock)
+        stats: dict[str, Any] = {}
+        jsonpatch.apply_patch(session, args.patch, progress=ctx.stage(t("cli.stage.patching")), cancel=ctx.cancel,
+                              stats=stats)
+        ctx.end_stage()
+        ops = int(stats.get("ops", 0))
+        if args.in_place and not stats.get("changed"):
+            ctx.info(_tn("cli.summary.patch_unchanged", ops, ops=_num(ops), output=args.input))
+            return EXIT_OK
+        try:
+            report = session.save(None if args.in_place else args.output, backup=not args.no_backup,
+                                  drop_broken=bool(args.allow_partial), progress=ctx.stage(t("cli.stage.writing")),
+                                  cancel=ctx.cancel)
+        except JsonReshapeError as exc:
+            if exc.key == "saver.error.broken_lines":
+                _set_hint(exc, t("cli.hint.patch_broken_lines"))
+            raise
+        ctx.end_stage()
+        for text in report.warnings:
+            ctx.warn(text)
+        ctx.info(_tn("cli.summary.patch", ops, ops=_num(ops), output=str(report.target),
+                     size=format_bytes(report.bytes_written), seconds=format_duration(ctx.elapsed())))
+        if report.backup is not None:
+            ctx.info(t("cli.summary.backup", path=str(report.backup)))
+        log.info("patch: %d operations, %d records written -> %s (%d bytes) in %.2f s", ops,
+                 int(stats.get("records", 0)), report.target, report.bytes_written, ctx.elapsed())
+        return EXIT_OK
+    finally:
+        if not session.closed:
+            try:
+                session.discard()            # the temporary layer is deleted
+            finally:
+                session.close()
+
+
+# ==================================================================================
+# apply / flatten (structure builder, docs/ARCHITECTURE.md §13.4)
+# ==================================================================================
+def _apply_options(ctx: _Ctx) -> Any:
+    """The :class:`jsonreshape.engine.ApplyOptions` of ``apply`` / ``flatten``: JSON Lines with ``--jsonl`` or an
+    OUTPUT named ``.jsonl`` / ``.ndjson``; the indent of ``--compact`` / ``--indent``, else the "export indent"
+    setting (JSON Lines are compact: the two options are ignored with a warning); ``--skip-huge``; ``--workers``.
+    An OUTPUT named like another export format (``.csv``, ``.xlsx``, ``.sqlite``) or ``.gz`` is refused: the
+    engine writes plain JSON."""
+    from .engine import ApplyOptions
+    from .writer import format_for_path, gzip_path
+
+    args = ctx.args
+    if gzip_path(args.output):
+        raise UserInputError("cli.error.mapping_gzip", path=args.output)
+    fmt = format_for_path(args.output)
+    if fmt not in (None, "json", "jsonl"):
+        raise UserInputError("cli.error.mapping_output_format", path=args.output, fmt=fmt)
+    jsonl = bool(args.jsonl) or fmt == "jsonl"
+    indent: Any
+    if jsonl:
+        ignored = [name for name, given in (("--compact", args.compact), ("--indent", args.indent is not None))
+                   if given]
+        if ignored:
+            ctx.warn(t("cli.warn.ignored_options", options=", ".join(ignored), format="jsonl"))
+        indent = None
+    elif args.compact:
+        indent = None
+    elif args.indent is not None:
+        indent = args.indent
+    else:
+        indent = ctx.settings.export_indent
+    return ApplyOptions(jsonl=jsonl, indent=indent, skip_huge=bool(args.skip_huge), workers=args.workers)
+
+
+def _stored_record_path(rp: Any) -> tuple | None:
+    """``input.record_path`` of a mapping file as a record path (keys and indexes), or ``None``."""
+    if not isinstance(rp, list) or not rp:
+        return None
+    for seg in rp:
+        if isinstance(seg, bool) or not isinstance(seg, (str, int)) or (isinstance(seg, int) and seg < 0):
+            return None
+    return tuple(rp)
+
+
+def _mapping_record_path(ctx: _Ctx, tree: Any, info: dict) -> bool:
+    """``apply`` without ``--record-path``: a mapping made for an array inside an object stores where its records
+    were (``input.record_path``), and INPUT is opened with that record path -- unless ``--format`` names another
+    kind or INPUT is detected as JSON Lines / several values (where a record path is refused; the kind check
+    then says what does not fit). Returns whether the stored record path is used."""
+    from .paths import format_path
+    from .reader import detect_format
+
+    args = ctx.args
+    if args.record_path is not None or getattr(tree, "root_kind", None) != "wrapped":
+        return False
+    if args.format not in (None, "auto", "wrapped"):
+        return False
+    rp = _stored_record_path(info.get("record_path"))
+    if rp is None:
+        return False
+    if args.format in (None, "auto"):
+        detected = detect_format(args.input, settings=ctx.settings, progress=ctx.stage(t("cli.stage.preparing")),
+                                 cancel=ctx.cancel)
+        ctx.end_stage()
+        if detected.kind in ("jsonl", "stream"):
+            return False
+    args.record_path = format_path(rp)
+    log.info("apply: INPUT is opened with the record path stored in the mapping: %s", args.record_path)
+    return True
+
+
+def _check_mapping_kind(doc: Any, tree: Any, info: dict) -> None:
+    """:func:`jsonreshape.engine.check_kind` (the mapping was made for another kind of document: exit 1); when the
+    mapping was made from a keyed, single-value or wrapped file, the hint names the ``--format`` (and
+    ``--record-path``) that reads INPUT the same way."""
+    from . import engine
+    from .mapping import MappingError
+    from .paths import format_path
+
+    try:
+        engine.check_kind(doc, tree)
+    except MappingError as exc:
+        kind = info.get("kind")
+        if isinstance(kind, str) and kind in MAPPING_FORMAT_KINDS and kind != doc.kind:
+            option = f"--format {kind}"
+            rp = _stored_record_path(info.get("record_path"))
+            if kind == "wrapped" and rp is not None:
+                option += " --record-path " + _display_text(format_path(rp))
+            _set_hint(exc, t("cli.hint.mapping_kind", label=t(f"reader.kind.{kind}"), option=option))
+        raise
+
+
+def _run_apply(ctx: _Ctx, doc: Any, tree: Any, opts: Any) -> Any:
+    """:func:`jsonreshape.engine.apply` of ``tree`` to ``doc`` -> OUTPUT, with the progress line."""
+    from .engine import apply
+
+    doc.ensure_unchanged()  # nothing is written from a file that changed meanwhile (apply checks again at the end)
+    report = apply(doc, tree, ctx.args.output, opts, progress=ctx.stage(t("cli.stage.applying")), cancel=ctx.cancel)
+    ctx.end_stage()
+    return report
+
+
+def _report_apply(ctx: _Ctx, report: Any, *, unmapped_hint: str | None = None) -> None:
+    """The engine's warnings (not those given after indexing already; ``unmapped_hint`` after the unmapped-fields
+    one) and the summary line: records -> items -> OUTPUT (size, time, input MB/s; passes, processes)."""
+    for key, text in zip(report.warning_keys, report.warnings):
+        if key in ENGINE_SHOWN_WARNINGS:
+            continue
+        ctx.warn(text)
+        if key == "engine.warn.unmapped" and unmapped_hint:
+            ctx.console.hint(unmapped_hint)
+    ctx.info(t("cli.summary.apply",
+               records=_tn("cli.count.records", report.records_in, count=_num(report.records_in)),
+               items=_tn("cli.count.items", report.items_out, count=_num(report.items_out)),
+               output=ctx.args.output, size=format_bytes(report.bytes_written),
+               seconds=format_duration(ctx.elapsed()), rate=f"{report.mb_per_s:.1f}",
+               passes=_tn("cli.count.passes", report.passes, count=_num(report.passes)),
+               workers=_tn("cli.count.workers", report.workers, count=_num(report.workers))))
+    log.info("%s: %d records -> %d items -> %s (%d bytes, %d pass(es), %d process(es)) in %.2f s", ctx.args.command,
+             report.records_in, report.items_out, ctx.args.output, report.bytes_written, report.passes, report.workers,
+             ctx.elapsed())
+
+
+def _cmd_apply(ctx: _Ctx) -> int:
+    """apply: the mapping file MAPPING over the whole INPUT -> OUTPUT (JSON or JSON Lines), streamed."""
+    from .mapping import load_mapping
+
+    args = ctx.args
+    _check_input(args.mapping)
+    _check_input(args.input)
+    _check_output(args.input, args.output)
+    if _same_file(args.mapping, args.output):
+        raise UserInputError("cli.error.output_is_mapping", path=args.output)
+    opts = _apply_options(ctx)
+    tree, info = load_mapping(args.mapping)
+    from_mapping = _mapping_record_path(ctx, tree, info)
+    with _document(ctx) as doc:
+        try:
+            rc = _check_document(ctx, doc)
+        except _HintedError as exc:
+            if from_mapping and exc.key in ("cli.error.record_path_not_found", "cli.error.record_path_not_container"):
+                raise _HintedError("cli.error.mapping_record_path", hint=exc.hint, **exc.params) from exc
+            raise
+        if rc is not None:
+            return rc
+        _check_mapping_kind(doc, tree, info)
+        report = _run_apply(ctx, doc, tree, opts)
+        _report_apply(ctx, report)
+    return EXIT_OK
+
+
+class _Inferred:
+    """The default mapping of INPUT for ``flatten``: the designer over the inferred tree, the number of record
+    values the tree was inferred from, the number of records, and whether every record was read."""
+
+    __slots__ = ("designer", "values", "total", "full")
+
+    def __init__(self, designer: Any, values: int, total: int, full: bool) -> None:
+        self.designer = designer
+        self.values = values
+        self.total = total
+        self.full = full
+
+
+def _record_values(ctx: _Ctx, doc: Any, source: Any, label: str) -> Iterator[Any]:
+    """The parsed values of the records ``source`` (positions; ``None``: every record) of the pinned ``doc``
+    (:func:`mapping.document_values`: keyed documents the member values; exact numbers; huge records left out)
+    under the progress line ``label`` (bytes of the records read)."""
+    from .mapping import document_values
+
+    progress = ctx.stage(label)
+    if progress is not None and source is not None:
+        progress.set_total(sum(e - s for s, e in map(doc.record_span, source)))
+    try:
+        yield from document_values(doc, source, progress=progress, cancel=ctx.cancel)
+    finally:
+        ctx.end_stage()
+
+
+def _infer_designer(ctx: _Ctx, doc: Any) -> _Inferred:
+    """The default tree of INPUT (docs/ARCHITECTURE.md §13.0 "Tree source"; :func:`mapping.infer_document`, the
+    same inference as the GUI's structure builder) in a :class:`mapping.Designer` whose recursive flatten
+    re-infers from the same records: ``--sample N`` records at :func:`jsonreshape.schema.sample_positions`
+    (default ``Settings.sample_size``) or every record (``--full-scan``). Wrapped documents add the wrapper (parsed
+    with an empty record array), keyed ones map the member values, a single document its value (at most
+    ``Settings.large_node_bytes``)."""
+    from . import mapping
+
+    args = ctx.args
+    pdoc = doc.pinned()
+    sample = None if args.full_scan else (args.sample if args.sample is not None else int(ctx.settings.sample_size))
+    progress = ctx.stage(t("cli.stage.inferring"))
+    try:
+        inferred = mapping.infer_document(pdoc, sample=sample, progress=progress, cancel=ctx.cancel)
+    finally:
+        ctx.end_stage()
+    source = inferred.source
+
+    def population() -> Iterator[Any]:
+        return _record_values(ctx, pdoc, source, t("cli.stage.flattening"))
+
+    designer = mapping.Designer(inferred.tree, population=population, wrapper=inferred.wrapper,
+                                record_path=inferred.record_path)
+    return _Inferred(designer, inferred.values, inferred.total, inferred.full)
+
+
+def _record_array(tree: Any) -> Any:
+    """The array node of the records (what ``--mode records`` flattens): the root of a records tree or of a
+    single value that is an array, the record array of a wrapped tree; ``None`` otherwise (keyed)."""
+    root = tree.root
+    if tree.root_kind == "records" or (tree.root_kind == "value" and root.kind == "array"):
+        return root
+    if tree.root_kind == "wrapped" and tree.record_src is not None:
+        want = tuple(tree.record_src)
+        for n in tree.iter_nodes():
+            if n.kind == "array" and not n.is_elem and n.src is not None and tuple(n.src) == want:
+                return n
+    return None
+
+
+def _record_level(tree: Any) -> list[Any]:
+    """The nodes that stand for one record (``--mode nested`` looks for KEY among their children): the element
+    nodes of the record array, else the root (the member value of a keyed tree, a single value)."""
+    arr = _record_array(tree)
+    if arr is not None:
+        return list(arr.children)
+    return [] if tree.root_kind == "wrapped" else [tree.root]
+
+
+def _record_field(level: Sequence[Any], key: str) -> Any:
+    """The node of ``level`` read from the record field ``key`` (by its source path), or ``None``."""
+    for r in level:
+        if r.kind != "object" or r.src is None:
+            continue
+        base = tuple(r.src)
+        for c in r.children:
+            if not c.is_elem and c.src is not None and len(c.src) == len(base) + 1 and tuple(c.src[:-1]) == base \
+                    and c.src[-1] == key:
+                return c
+    return None
+
+
+def _types_text(types: Iterable[str]) -> str:
+    names = [t(f"mapping.type.{ty}") for ty in types if has(f"mapping.type.{ty}")]
+    return ", ".join(names) if names else t("mapping.type.empty")
+
+
+def _sample_hint(inf: _Inferred) -> str | None:
+    """For a tree inferred from a sample: the advice to infer it from every record (``--full-scan``)."""
+    if inf.full:
+        return None
+    return _tn("cli.hint.flatten_sample", inf.total, count=_num(inf.values), total=_num(inf.total))
+
+
+def _not_recursive(inf: _Inferred, key: str, reason: str) -> JsonReshapeError:
+    return _HintedError("cli.error.not_recursive", hint=_sample_hint(inf), key=_display_text(key),
+                        reason=reason.rstrip(". "))
+
+
+def _missing_field(inf: _Inferred, level: Sequence[Any], key: str) -> JsonReshapeError:
+    """KEY is not a field of the records: the hint names their array fields (and ``--full-scan`` for a sample)."""
+    objects = [r for r in level if r.kind == "object"]
+    if not objects:
+        parts = [t("cli.hint.records_not_objects")]
+    else:
+        arrays = list(dict.fromkeys(_display_text(c.key) for r in objects for c in r.children
+                                    if c.kind == "array" and not c.is_elem))
+        parts = [t("cli.hint.record_arrays", fields=", ".join(arrays)) if arrays else t("cli.hint.record_no_arrays")]
+    sample = _sample_hint(inf)
+    if sample:
+        parts.append(sample)
+    return _HintedError("cli.error.children_key_missing", hint=" ".join(parts), key=_display_text(key))
+
+
+def _flatten_target(ctx: _Ctx, doc: Any, inf: _Inferred, key: str) -> Any:
+    """The array node ``flatten`` flattens, checked (see the module docstring): ``--mode nested`` -- the record
+    field KEY, whose items must hold a nested KEY array of objects; ``--mode records`` -- the record array, KEY
+    being a record field that is an array of objects (the record's other recursive arrays are removed first so
+    that the reference ``findRec`` picks KEY; the flatten re-infers them)."""
+    from .mapping import find_rec
+
+    d = inf.designer
+    tree = d.tree
+    records_mode = ctx.args.mode == "records"
+    if records_mode:
+        target = _record_array(tree)
+        if target is None:
+            raise UserInputError("cli.error.flatten_records_mode", format=doc.info.label)
+        level = list(target.children)
+    else:
+        target = None
+        level = _record_level(tree)
+    field = _record_field(level, key)
+    if field is None:
+        raise _missing_field(inf, level, key)
+    if field.kind != "array":
+        raise _not_recursive(inf, key, t("cli.reason.not_array", types=_types_text(field.types)))
+    if not any(e.kind == "object" for e in field.children):
+        types = [ty for e in field.children for ty in e.types]
+        if not types:
+            raise _not_recursive(inf, key, t("cli.reason.always_empty"))
+        raise _not_recursive(inf, key, t("cli.reason.items_not_objects", types=_types_text(dict.fromkeys(types))))
+    if not records_mode:
+        recs = [find_rec(field, e) for e in field.children]
+        if not any(c is not None for c in recs) or any(c is not None and c.src[-1] != key for c in recs):
+            raise _not_recursive(inf, key, t("cli.reason.no_nested", key=_display_text(key)))
+        return field
+    assert target is not None
+    tid = target.id
+    for eid in [e.id for e in target.children]:
+        while True:
+            c = find_rec(tree.find(tid), tree.find(eid))
+            if c is None or c.src[-1] == key:
+                break
+            log.info("flatten: the recursive array %r is removed before flattening by %r", c.key, key)
+            if not d.delete(c).applied:  # pragma: no cover - an ordinary field can always be removed
+                break
+    return tree.find(tid)
+
+
+def _depth_field_name(args: argparse.Namespace) -> str:
+    """``--depth-field`` trimmed like a rename (ECMAScript white space); empty: exit 1."""
+    from .mapping import js_trim
+
+    if args.depth_field is None:
+        return DEFAULT_DEPTH_FIELD
+    name = js_trim(args.depth_field)
+    if not name:
+        raise UserInputError("cli.error.depth_field_empty")
+    return name
+
+
+def _flatten_tree(ctx: _Ctx, inf: _Inferred, target: Any, key: str, depth_name: str) -> list[str]:
+    """One recursive flatten of ``target`` by KEY (every flattened element must use KEY), then the level node
+    renamed to ``depth_name`` (a name the data uses gets ``_2`` ... with a warning). Returns the level names."""
+    d = inf.designer
+    plan = d.plan_flatten(target, cancel=ctx.cancel)
+    if plan is None or not plan.entries or any(entry[1] != key for entry in plan.entries):
+        raise _not_recursive(inf, key, t("cli.reason.no_nested", key=_display_text(key)))
+    res = d.flatten(target, plan=plan)
+    if not res.applied:
+        raise _not_recursive(inf, key, res.reason or t("mapping.why.not_flattenable"))
+    log.info("flatten: %s", res.message)
+    names: list[str] = []
+    for entry in plan.entries:
+        elem = d.tree.find(entry[0].id)
+        if elem is None:  # pragma: no cover - the flattened element stays in the tree
+            continue
+        level = next((c for c in elem.children if c.computed == "depth" and c.ctx == tuple(elem.src)), None)
+        if level is None:  # pragma: no cover - flatten always adds it
+            continue
+        if level.key != depth_name:
+            d.rename(level.id, depth_name)
+            level = d.tree.find(level.id)
+        if level.key != depth_name:
+            ctx.warn(t("cli.warn.depth_field_taken", name=_display_text(depth_name), new=_display_text(level.key)))
+        names.append(level.key)
+    return names
+
+
+def _cmd_flatten(ctx: _Ctx) -> int:
+    """flatten: the default tree of INPUT with one recursive flatten by KEY, applied to the whole INPUT."""
+    from . import engine
+
+    args = ctx.args
+    key = args.children_key
+    _check_input(args.input)
+    _check_output(args.input, args.output)
+    depth_name = _depth_field_name(args)
+    opts = _apply_options(ctx)
+    with _document(ctx) as doc:
+        rc = _check_document(ctx, doc)
+        if rc is not None:
+            return rc
+        inf = _infer_designer(ctx, doc)
+        done = None
+        if inf.values == 0:
+            if inf.total == 0:   # (records that are all huge: the apply stops at them or skips them)
+                ctx.warn(t("cli.warn.flatten_no_records"))
+        else:
+            target = _flatten_target(ctx, doc, inf, key)
+            names = _flatten_tree(ctx, inf, target, key, depth_name)
+            done = _tn("cli.flatten.done_full" if inf.full else "cli.flatten.done_sample", inf.total,
+                       key=_display_text(key), field=", ".join(_display_text(n) for n in dict.fromkeys(names)),
+                       count=_num(inf.values), total=_num(inf.total))
+        tree = inf.designer.tree
+        engine.check_kind(doc, tree)
+        report = _run_apply(ctx, doc, tree, opts)
+        if done is not None:     # said once the result is written
+            ctx.info(done)
+        _report_apply(ctx, report, unmapped_hint=None if inf.full else t("cli.hint.full_scan"))
+    return EXIT_OK
+
+
+# ==================================================================================
+# stage 5: shared helpers of the tool commands
+# ==================================================================================
+def _json_text(data: Any) -> str:
+    """``--json`` output of the stage-5 commands: exact numbers (:func:`jsonreshape.codec.dumps`),
+    non-ASCII unescaped, indented."""
+    from . import codec
+
+    return codec.dumps(data, indent=2).decode("utf-8", "replace")
+
+
+def _json_line(data: Any) -> str:
+    from . import codec
+
+    return codec.dumps(data).decode("utf-8", "replace")
+
+
+def _filter_warnings(ctx: _Ctx, flt: Any) -> None:
+    if flt is not None:
+        for text in flt.warnings:
+            ctx.warn(text)
+
+
+def _report_warnings(ctx: _Ctx, keys: Sequence[str], texts: Sequence[str], shown: Sequence[str]) -> None:
+    """A report's warnings (``texts`` parallel to ``keys``) except those of ``shown`` (the CLI gave them
+    already in its own words)."""
+    for key, text in zip(keys, texts):
+        if key not in shown:
+            ctx.warn(text)
+
+
+def _scope_data(ctx: _Ctx, flt: Any, size: int) -> dict[str, Any]:
+    """The record scope of a ``--json`` report: records in scope, ``--select``, the filter."""
+    return {"records": int(size), "select": getattr(ctx.args, "select", None),
+            "filter": None if flt is None else {"text": flt.text, "lang": flt.lang}}
+
+
+def _memory_option(ctx: _Ctx) -> int | None:
+    """``--memory-limit`` of stats / dupes / merge / diff: ``None`` (the tool's own default) when not
+    given; else at least :data:`MIN_MEMORY_LIMIT` and at most half of ``Settings.memory_limit_bytes``
+    (each with a warning, like the sort's)."""
+    given = getattr(ctx.args, "memory_limit", None)
+    if given is None:
+        return None
+    limit = int(ctx.settings.memory_limit_bytes)
+    budget = max(MIN_MEMORY_LIMIT, limit // 2)
+    if given < MIN_MEMORY_LIMIT:
+        ctx.warn(t("cli.warn.memory_limit_min", value=_mem_text(given), minimum=_mem_text(MIN_MEMORY_LIMIT)))
+        given = MIN_MEMORY_LIMIT
+    if given > budget:
+        ctx.warn(t("cli.warn.memory_limit_cap_tool", value=_mem_text(given), cap=_mem_text(budget),
+                   limit=_mem_text(limit), setting=t("settings.field.memory_limit_bytes")))
+        given = budget
+    return given
+
+
+def _one_output(args: argparse.Namespace, *, required: bool = False) -> str | None:
+    """The output file given as the positional OUTPUT or as ``-o FILE`` (not both)."""
+    positional = getattr(args, "output", None)
+    option = getattr(args, "output_opt", None)
+    if positional is not None and option is not None:
+        raise UserInputError("cli.error.output_twice", first=positional, second=option)
+    output = positional if positional is not None else option
+    if output is None and required:
+        raise UserInputError("cli.error.output_missing")
+    return output
+
+
+def _ext_format(path: str, formats: Sequence[str], key: str) -> str:
+    """The format named by the extension of ``path`` (``.gz`` not allowed): one of ``formats``,
+    else ``UserInputError(key)``."""
+    ext = os.path.splitext(path)[1].lower().lstrip(".")
+    if ext == "ndjson" and "jsonl" in formats:
+        ext = "jsonl"
+    if ext not in formats:
+        raise UserInputError(key, path=path, formats=", ".join("." + f for f in formats))
+    return ext
+
+
+def _write_bytes(path: str, data: bytes) -> None:
+    """``data`` written atomically to ``path`` (gzip-compressed when the name ends with ``.gz``)."""
+    from .fileio import atomic_write
+    from .writer import gzip_path
+
+    if gzip_path(path):
+        import gzip as _gzip
+
+        data = _gzip.compress(data, compresslevel=6, mtime=0)
+    with atomic_write(path) as f:
+        f.write(data)
+
+
+def _names_text(paths: Sequence[Any], shown: int = NAMES_SHOWN) -> str:
+    names = [_display_text(os.path.basename(str(p))) for p in paths]
+    text = ", ".join(names[:shown])
+    if len(names) > shown:
+        text += ", " + ELLIPSIS
+    return text
+
+
+def _path_text(path: tuple | None) -> str:
+    """A path inside a value for one-line output (``$`` for the value itself)."""
+    from .paths import format_path
+
+    if not path:
+        return "$"
+    return _display_text(format_path(path))
+
+
+def _value_text(value: Any, limit: int = DIFF_VALUE_CHARS) -> str:
+    """A value as compact JSON on one line, cut to ``limit`` characters."""
+    from . import codec
+    from .diff import Omitted
+    from .paths import MISSING
+
+    if value is MISSING:
+        return ""
+    if isinstance(value, Omitted):    # a value too large to hold: its kind and size
+        return _display_text(value.text())
+    try:
+        text = codec.dumps(value).decode("utf-8", "replace")
+    except (TypeError, ValueError):  # pragma: no cover - codec values
+        text = repr(value)
+    return _shorten(_display_text(text), limit)
+
+
+# ==================================================================================
+# stats (docs/ARCHITECTURE.md §14.1)
+# ==================================================================================
+def _cmd_stats(ctx: _Ctx) -> int:
+    """stats: per-field statistics of the records in scope (:func:`jsonreshape.stats.field_stats`);
+    without ``--field`` the default columns of a sample schema of the scope."""
+    from .schema import default_columns, infer_schema
+    from .stats import field_stats, format_stats
+
+    args = ctx.args
+    flt = _compile_scope(ctx)
+    memory = _memory_option(ctx)
+    _filter_warnings(ctx, flt)
+    with _document(ctx) as doc:
+        rc = _check_document(ctx, doc)
+        if rc is not None:
+            return rc
+        sets: list[Any] = []
+        try:
+            source = _scope_source(ctx, doc, flt, sets)
+            size = _scope_size(doc, source)
+            fields = list(args.fields or [])
+            if not fields:
+                schema = infer_schema(doc, source, sample=int(ctx.settings.sample_size),
+                                      progress=ctx.stage(t("cli.stage.schema")), cancel=ctx.cancel)
+                ctx.end_stage()
+                fields = default_columns(schema)
+                ctx.info(_tn("cli.stats.default_fields", len(fields), count=_num(len(fields))))
+            results = field_stats(doc, fields, source, top=args.top, exact=bool(args.exact), sample=args.sample,
+                                  memory_limit=memory, progress=ctx.stage(t("cli.stage.stats")), cancel=ctx.cancel)
+            ctx.end_stage()
+        finally:
+            _close_all(sets)
+        if args.json:
+            data = {"file": str(doc.source_path), "records": int(doc.record_count),
+                    "scope": dict(_scope_data(ctx, flt, size), sample=args.sample),
+                    "elapsed": round(ctx.elapsed(), 6), "fields": [fs.to_dict() for fs in results]}
+            ctx.console.out(_json_text(data))
+        else:
+            ctx.console.out(format_stats(results))
+        examined = max((int(fs.scanned) for fs in results), default=0)
+        ctx.info(t("cli.summary.stats", fields=_tn("cli.count.fields", len(results), count=_num(len(results))),
+                   records=_records_text(examined, _num(examined)), seconds=format_duration(ctx.elapsed())))
+        log.info("stats of %s: %d field(s) over %d records in %.2f s", doc.source_path.name, len(results), examined,
+                 ctx.elapsed())
+    return EXIT_OK
+
+
+# ==================================================================================
+# dupes (docs/ARCHITECTURE.md §14.2)
+# ==================================================================================
+def _distinct_values(rep: Any) -> int:
+    """Distinct key values among the records with the key: every record not in a group counts once,
+    every group once (``keep="none"`` marks every member of a group, the others all but one)."""
+    if rep.keep == "none":
+        return int(rep.records_with_key) - int(rep.duplicates) + int(rep.groups)
+    return int(rep.records_with_key) - int(rep.duplicates)
+
+
+def _group_lines(groups: Sequence[tuple[str, list[int]]], sizes: Sequence[int], *, numbered: bool) -> list[str]:
+    out = []
+    for i, (text, positions) in enumerate(groups):
+        size = int(sizes[i]) if i < len(sizes) else len(positions)
+        listed = list(positions)[:POSITIONS_SHOWN]
+        shown = ", ".join(f"#{p}" for p in listed)
+        if size > len(listed):
+            shown += ", " + ELLIPSIS
+        head = f"  {i + 1:>3}. " if numbered else "  "
+        out.append(head + t("cli.dupes.group", key=_display_text(text), records=_records_text(size, _num(size)),
+                            positions=shown))
+    return out
+
+
+def _dupes_lines(rep: Any) -> list[str]:
+    lines = [t("cli.dupes.key", key=_display_text(rep.key)),
+             t("cli.dupes.counts", groups=_num(rep.groups), duplicates=_num(rep.duplicates),
+               keep=t(f"cli.dupes.keep.{rep.keep}")),
+             t("cli.dupes.records", with_key=_num(rep.records_with_key), missing=_num(rep.missing),
+               skipped=_num(rep.skipped), distinct=_num(_distinct_values(rep)))]
+    if not rep.groups:
+        lines.append(t("cli.dupes.none"))
+        return lines
+    if rep.examples:
+        lines.append(_tn("cli.dupes.examples", len(rep.examples), count=_num(len(rep.examples))))
+        lines.extend(_group_lines(rep.examples, rep.example_sizes, numbered=False))
+    if rep.top_groups:
+        lines.append(_tn("cli.dupes.top", len(rep.top_groups), count=_num(len(rep.top_groups))))
+        lines.extend(_group_lines(rep.top_groups, rep.top_sizes, numbered=True))
+    return lines
+
+
+def _groups_data(groups: Sequence[tuple[str, list[int]]], sizes: Sequence[int]) -> list[dict[str, Any]]:
+    return [{"key": text, "size": int(sizes[i]) if i < len(sizes) else len(positions), "positions": list(positions)}
+            for i, (text, positions) in enumerate(groups)]
+
+
+def _cmd_dupes(ctx: _Ctx) -> int:
+    """dupes: the records whose KEY value occurs more than once (:func:`jsonreshape.dupes.find_duplicates`):
+    counts, example groups, the largest groups; ``-o FILE`` exports the records marked as duplicates."""
+    from .dupes import find_duplicates, parse_key
+    from .writer import export
+
+    args = ctx.args
+    out = args.out
+    fmt = opts = None
+    if out is not None:
+        _check_output(args.input, out)
+        fmt = _output_format(args, out)
+        opts = _export_options(ctx, fmt)
+        ignored = _ignored_for_format(args, fmt)
+        if ignored:
+            ctx.warn(t("cli.warn.ignored_options", options=", ".join(ignored), format=fmt))
+    else:
+        unused = _given_output_options(args) + [name for name, on in (("--to", args.to), ("--jsonl", args.jsonl)) if on]
+        if unused:
+            ctx.warn(t("cli.warn.output_options_unused", options=", ".join(unused)))
+    parse_key(args.key)              # a bad key is refused before INPUT is read
+    flt = _compile_scope(ctx)
+    memory = _memory_option(ctx)
+    _filter_warnings(ctx, flt)
+    with _document(ctx) as doc:
+        rc = _check_document(ctx, doc)
+        if rc is not None:
+            return rc
+        sets: list[Any] = []
+        try:
+            source = _scope_source(ctx, doc, flt, sets)
+            size = _scope_size(doc, source)
+            rep = find_duplicates(doc, args.key, source, keep=args.keep, memory_limit=memory, top=args.top,
+                                  examples=args.examples, progress=ctx.stage(t("cli.stage.dupes")), cancel=ctx.cancel)
+            ctx.end_stage()
+            try:
+                written = None
+                if out is not None:
+                    doc.ensure_unchanged()   # nothing is written from a file that changed meanwhile
+                    written = export(doc, out, opts, source=rep.records, progress=ctx.stage(t("cli.stage.writing")),
+                                     cancel=ctx.cancel)
+                    ctx.end_stage()
+                for text in rep.warning_texts():
+                    ctx.warn(text)
+                if args.json:
+                    data = {"file": str(doc.source_path), "key": rep.key, "keep": rep.keep,
+                            "records": int(doc.record_count), "scope": _scope_data(ctx, flt, size),
+                            "scanned": int(rep.scanned), "groups": int(rep.groups), "duplicates": int(rep.duplicates),
+                            "records_with_key": int(rep.records_with_key), "missing": int(rep.missing),
+                            "skipped": int(rep.skipped), "distinct": _distinct_values(rep),
+                            "examples": _groups_data(rep.examples, rep.example_sizes),
+                            "top": _groups_data(rep.top_groups, rep.top_sizes),
+                            "warnings": rep.warning_texts(), "elapsed": round(float(rep.elapsed), 6),
+                            "output": None if written is None else {
+                                "file": str(out), "records": int(written.records),
+                                "bytes": int(written.bytes_written)}}
+                    ctx.console.out(_json_text(data))
+                else:
+                    ctx.console.out_lines(_dupes_lines(rep))
+                if written is not None:
+                    _export_warnings(ctx, written)
+                    ctx.info(_tn("cli.summary.dupes_out", written.records, count=_num(written.records), output=out,
+                                 size=format_bytes(written.bytes_written)))
+                scanned = int(rep.scanned)
+                log.info("dupes of %s by %s: %d groups, %d duplicates of %d records in %.2f s", doc.source_path.name,
+                         rep.key, rep.groups, rep.duplicates, scanned, ctx.elapsed())
+            finally:
+                rep.close()
+        finally:
+            _close_all(sets)
+        ctx.info(t("cli.summary.dupes", records=_records_text(scanned, _num(scanned)),
+                   seconds=format_duration(ctx.elapsed())))
+    return EXIT_OK
+
+
+# ==================================================================================
+# schema / validate (docs/ARCHITECTURE.md §14.3)
+# ==================================================================================
+def _cmd_schema(ctx: _Ctx) -> int:
+    """schema: a JSON Schema (draft 2020-12) of INPUT (:func:`jsonreshape.jschema.generate_schema` over
+    :func:`jsonreshape.schema.infer_schema`; every record by default) -> OUTPUT or stdout."""
+    from .jschema import dump_schema, generate_schema
+    from .schema import infer_schema
+
+    args = ctx.args
+    output = _one_output(args)
+    if output is not None:
+        _check_output(args.input, output)
+    indent: int | str | None = None if args.compact else (args.indent if args.indent is not None else 2)
+    with _document(ctx) as doc:
+        rc = _check_document(ctx, doc)
+        if rc is not None:
+            return rc
+        schema = infer_schema(doc, sample=args.sample, progress=ctx.stage(t("cli.stage.schema")), cancel=ctx.cancel)
+        ctx.end_stage()
+        progress = ctx.stage(t("cli.stage.schema_strict")) if args.strict else None
+        value = generate_schema(schema, doc=doc, document=not args.record, strict=bool(args.strict), title=args.title,
+                                progress=progress, cancel=ctx.cancel)
+        ctx.end_stage()
+        data = dump_schema(value, indent=indent)
+        doc.ensure_unchanged()   # the schema describes the file as it still is
+        if output is None:
+            ctx.console.out(data.decode("utf-8", "replace").rstrip("\n"))
+        else:
+            _write_bytes(output, data)
+        if not schema.complete:
+            ctx.warn(_tn("cli.warn.schema_sample", schema.total_records, count=_num(schema.scanned),
+                         total=_num(schema.total_records)))
+        n_fields = len(schema.fields())
+        fields = _tn("cli.count.fields", n_fields, count=_num(n_fields))
+        records = _records_text(schema.scanned, _num(schema.scanned))
+        if output is None:
+            ctx.info(t("cli.summary.schema_stdout", fields=fields, records=records,
+                       seconds=format_duration(ctx.elapsed())))
+        else:
+            ctx.info(t("cli.summary.schema", output=output, fields=fields, records=records,
+                       seconds=format_duration(ctx.elapsed())))
+        log.info("schema of %s: %d fields from %d records -> %s in %.2f s", doc.source_path.name, n_fields,
+                 schema.scanned, output or "stdout", ctx.elapsed())
+    return EXIT_OK
+
+
+class _IssueSink:
+    """Writes validation issues (``validate(on_issues=)``) to an open binary file: JSON Lines (one
+    ``Issue.to_dict()`` per line), a JSON array, or CSV (``record, key, path, keyword, schema_path,
+    message, params``; BOM and delimiter of the CSV settings)."""
+
+    def __init__(self, f: Any, fmt: str, settings: Any) -> None:
+        self.f = f
+        self.fmt = fmt
+        self.count = 0
+        self.text: Any = None
+        self.rows: Any = None
+        if fmt == "csv":
+            import csv
+            import io
+
+            self.text = io.TextIOWrapper(f, encoding="utf-8-sig" if settings.csv_bom else "utf-8", newline="")
+            self.rows = csv.writer(self.text, delimiter=settings.csv_delimiter, lineterminator="\r\n")
+            self.rows.writerow(["record", "key", "path", "keyword", "schema_path", "message", "params"])
+        elif fmt == "json":
+            f.write(b"[")
+
+    def add(self, issues: list[Any]) -> None:
+        from . import codec
+
+        for issue in issues:
+            d = issue.to_dict()
+            if self.fmt == "jsonl":
+                self.f.write(codec.dumps(d) + b"\n")
+            elif self.fmt == "json":
+                self.f.write((b"\n" if self.count == 0 else b",\n") + codec.dumps(d))
+            else:
+                self.rows.writerow(["" if d["record"] is None else d["record"], "" if d["key"] is None else d["key"],
+                                    d["path"], d["keyword"], d["schema_path"], d["message"],
+                                    codec.dumps(d["params"]).decode("utf-8", "replace")])
+            self.count += 1
+
+    def finish(self) -> None:
+        if self.fmt == "json":
+            self.f.write(b"\n]\n" if self.count else b"]\n")
+        elif self.text is not None:
+            self.text.flush()
+            self.text.detach()
+
+
+def _issue_line(issue: Any) -> str:
+    """``#record [key] path: message (keyword)``; ``(hujjat)`` for an issue of the document itself."""
+    where = f"#{issue.record}" if issue.record is not None else t("cli.validate.document")
+    key = f" [{_display_text(str(issue.key))}]" if issue.key is not None else ""
+    return f"{where}{key} {_display_text(issue.path_text)}: {_display_text(issue.message)} ({issue.keyword})"
+
+
+def _validate_data(ctx: _Ctx, doc: Any, report: Any, flt: Any, size: int, exported: int | None,
+                   ok: bool) -> dict[str, Any]:
+    """``validate --json``; ``ok``: the verdict of the exit code -- no issue found AND every record in scope
+    validated (``skipped`` = 0)."""
+    args = ctx.args
+    return {
+        "file": str(doc.source_path), "schema": str(args.schema), "scope": report.scope,
+        "records": int(doc.record_count), "selection": _scope_data(ctx, flt, size), "ok": bool(ok),
+        "scanned": int(report.scanned), "invalid": int(report.invalid), "issue_count": int(report.issue_count),
+        "document_issues": int(report.document_issues), "counts": dict(report.counts),
+        "top_paths": [{"path": p, "count": int(n)} for p, n in report.top_paths],
+        "skipped": int(report.skipped), "too_large": int(report.too_large), "unreadable": int(report.unreadable),
+        "too_deep": int(report.too_deep), "limited_records": int(report.limited_records),
+        "truncated": bool(report.truncated), "formats": bool(report.formats),
+        "elapsed": round(float(report.elapsed), 6),
+        "warnings": report.warning_texts(), "issues": [issue.to_dict() for issue in report.issues],
+        "exported": None if exported is None else {"file": str(args.export), "issues": int(exported)},
+    }
+
+
+def _cmd_validate(ctx: _Ctx) -> int:
+    """validate: INPUT against a JSON Schema (:func:`jsonreshape.jschema.validate`); exit 5 when an issue
+    was found."""
+    from .fileio import atomic_write
+    from .jschema import compile_schema, load_schema, validate
+
+    args = ctx.args
+    _check_input(args.schema)
+    export_fmt = None
+    if args.export is not None:
+        _check_output(args.input, args.export)
+        if _same_file(args.schema, args.export):
+            raise UserInputError("cli.error.output_is_schema", path=args.export)
+        export_fmt = _ext_format(args.export, ISSUE_EXPORT_FORMATS, "cli.error.issues_format")
+    flt = _compile_scope(ctx)
+    compiled = compile_schema(load_schema(args.schema), formats=bool(args.formats))   # schema errors first
+    max_per_record = args.max_per_record or None
+    _filter_warnings(ctx, flt)
+    with _document(ctx) as doc:
+        rc = _check_document(ctx, doc)
+        if rc is not None:
+            return rc
+        sets: list[Any] = []
+        exported: int | None = None
+        try:
+            source = _scope_source(ctx, doc, flt, sets)
+            size = _scope_size(doc, source)
+            kwargs: dict[str, Any] = {"scope": args.scope, "max_per_record": max_per_record,
+                                      "max_issues": args.max_issues, "formats": bool(args.formats),
+                                      "progress": ctx.stage(t("cli.stage.validating")), "cancel": ctx.cancel}
+            if args.export is None:
+                report = validate(doc, compiled, source, **kwargs)
+            else:
+                report = None
+                try:
+                    with atomic_write(args.export) as f:
+                        sink = _IssueSink(f, str(export_fmt), ctx.settings)
+                        report = validate(doc, compiled, source, on_issues=sink.add, **kwargs)
+                        sink.finish()
+                except BaseException:
+                    if report is not None:
+                        report.close()
+                    raise
+                exported = sink.count
+            ctx.end_stage()
+        finally:
+            _close_all(sets)
+        try:
+            issues = int(report.issue_count)
+            skipped = int(report.skipped)      # records not validated: too large, unreadable, too deep
+            ok = issues == 0 and skipped == 0
+            _report_warnings(ctx, report.warnings, report.warning_texts(), VALIDATE_SHOWN_WARNINGS)
+            if args.json:
+                ctx.console.out(_json_text(_validate_data(ctx, doc, report, flt, size, exported, ok)))
+            elif report.issues:
+                ctx.console.out_lines(_issue_line(issue) for issue in report.issues)
+            seconds = format_duration(ctx.elapsed())
+            checked = _records_text(report.scanned, _num(report.scanned))
+            unchecked = _records_text(skipped, _num(skipped))
+            if ok:
+                ctx.info(_tn("cli.validate.ok", report.scanned, records=checked, seconds=seconds))
+            elif issues == 0:          # nothing found, but not every record was checked: not shown to match
+                ctx.info(t("cli.validate.unchecked", records=checked, skipped=unchecked, seconds=seconds))
+            else:
+                ctx.info(t("cli.validate.failed", invalid=_num(report.invalid), records=checked,
+                           issues=_tn("cli.count.issues", issues, count=_num(issues)), seconds=seconds))
+                ctx.info(t("cli.validate.keywords",
+                           items=", ".join(f"{kw} {_num(n)}" for kw, n in report.counts.items())))
+                if skipped:
+                    ctx.info(t("cli.validate.skipped", skipped=unchecked))
+                if not args.json and args.max_issues and issues > len(report.issues):
+                    ctx.info(_tn("cli.validate.more", len(report.issues), shown=_num(len(report.issues)),
+                                 total=_num(issues)))
+            if exported is not None:
+                ctx.info(_tn("cli.validate.exported", exported, count=_num(exported), path=args.export))
+            log.info("validate %s against %s: %d records, %d invalid, %d issues, %d not validated (scope %s) "
+                     "in %.2f s", doc.source_path.name, args.schema, report.scanned, report.invalid, issues, skipped,
+                     report.scope, ctx.elapsed())
+        finally:
+            report.close()
+    return EXIT_OK if ok else EXIT_DIFFERENT
+
+
+# ==================================================================================
+# split / merge / extract (docs/ARCHITECTURE.md §14.4)
+# ==================================================================================
+def _split_export(ctx: _Ctx, doc: Any) -> Any:
+    """The writer options of a split: ``None`` (the parts keep the document's own kind, byte for byte)
+    unless ``--to`` / ``--jsonl`` / ``--compact`` / ``--indent`` / ``--sort-keys`` is given (other output
+    options without ``--to`` are named in a warning)."""
+    args = ctx.args
+    given = _given_output_options(args)
+    own = "jsonl" if doc.kind in LINE_KINDS else "json"
+    fmt: str | None = None
+    if args.jsonl:
+        if args.to not in (None, "jsonl"):
+            raise UserInputError("cli.error.jsonl_conflict", fmt=args.to)
+        fmt = "jsonl"
+    elif args.to is not None:
+        fmt = args.to
+    if fmt is None and not ({"--compact", "--indent", "--sort-keys"} & set(given)):
+        ignored = [name for name in given if name != "--no-wrapper"]
+        if ignored:
+            ctx.warn(t("cli.warn.ignored_options", options=", ".join(ignored), format=own))
+        return None
+    fmt = fmt or own
+    ignored = _ignored_for_format(args, fmt)
+    if ignored:
+        ctx.warn(t("cli.warn.ignored_options", options=", ".join(ignored), format=fmt))
+    return _export_options(ctx, fmt)
+
+
+def _cmd_split(ctx: _Ctx) -> int:
+    """split: INPUT (or the records in scope) into parts (:func:`jsonreshape.filetools.split`); existing
+    part files only with ``--force``, never one with unsaved edits; ``--remove-stale`` deletes the rest of
+    an earlier split in the same commit; the parts written are listed on stdout, the files removed on
+    stderr."""
+    import dataclasses
+
+    from .fileio import long_path
+    from .filetools import SplitOptions, part_names, plan_split, split
+    from .writer import refuse_edited_targets
+
+    args = ctx.args
+    out_dir = args.out_dir
+    if out_dir is not None and not os.path.isdir(long_path(out_dir)):
+        if os.path.exists(long_path(out_dir)):
+            raise UserInputError("cli.error.out_dir_file", path=out_dir)
+        raise UserInputError("filetools.error.no_dir", path=out_dir)
+    base = SplitOptions(parts=args.parts, size=args.size, records=args.records, balance=args.balance or "bytes",
+                        out_dir=out_dir, name=args.name, keep_wrapper=not args.no_wrapper,
+                        drop_broken=bool(args.drop_broken),
+                        remove_stale=bool(args.remove_stale))         # bad values refused before INPUT is read
+    if args.balance is not None and args.parts is None:
+        ctx.warn(t("cli.warn.balance_parts"))
+    flt = _compile_scope(ctx)
+    _filter_warnings(ctx, flt)
+    with _document(ctx) as doc:
+        rc = _check_document(ctx, doc, broken=False, json_hint=t("cli.hint.repair_first"))
+        if rc is not None:
+            return rc
+        opts = dataclasses.replace(base, export=_split_export(ctx, doc))
+        sets: list[Any] = []
+        try:
+            source = _scope_source(ctx, doc, flt, sets)
+            plan = plan_split(doc, opts, source, cancel=ctx.cancel)
+            names = part_names(doc, opts, source, count=len(plan))     # exactly the files split writes
+            refuse_edited_targets(names)      # unsaved edits: not even --force replaces such a part
+            existing = [p for p in names if os.path.lexists(long_path(p))]
+            if existing and not args.force:
+                raise _HintedError("cli.error.parts_exist", hint=t("cli.hint.force"), count=_num(len(existing)),
+                                   names=_names_text(existing))
+            doc.ensure_unchanged()   # nothing is written from a file that changed meanwhile
+            report = split(doc, opts, source, progress=ctx.stage(t("cli.stage.splitting")), cancel=ctx.cancel)
+            ctx.end_stage()
+        finally:
+            _close_all(sets)
         for key, text in zip(report.warning_keys, report.warnings):
-            if key not in ("writer.warn.partial", "writer.warn.broken_lines"):
+            if key != "filetools.warn.stale_removed":       # (every removed file is listed below)
                 ctx.warn(text)
-        output = str(report.files[0]) if len(report.files) > 1 else args.output
-        # "{selected} / {total} records": the noun goes with the total
-        summary = _tn("cli.summary.export", total, selected=_num(report.records), total=_num(total), output=output,
-                      size=format_bytes(report.bytes_written), seconds=format_duration(ctx.elapsed()))
-        extra = []
-        if fmt in ("csv", "xlsx", "sqlite") and report.rows != report.records:
-            extra.append(_tn("cli.summary.rows", report.rows, rows=_num(report.rows)))
-        if len(report.files) > 1:
-            extra.append(_tn("cli.summary.files", len(report.files), count=_num(len(report.files))))
-        if extra:
-            summary += "; " + ", ".join(extra)
+        if report.stale and not args.remove_stale:
+            ctx.console.hint(t("cli.hint.remove_stale"))
+        # the parts in the folder as the user named it (-o DIR, else the input's folder)
+        folder = out_dir if out_dir is not None else os.path.dirname(args.input)
+        for p in report.removed:      # always shown (-q too): files were deleted
+            ctx.console.err(t("cli.split.removed", path=_display_path(os.path.join(folder, p.name))))
+        ctx.console.out_lines(_display_path(os.path.join(folder, p.path.name)) for p in report.parts)
+        ctx.info(t("cli.summary.split", records=_records_text(report.records, _num(report.records)),
+                   parts=_tn("cli.count.parts", len(report.parts), count=_num(len(report.parts))),
+                   folder=_display_path(folder or os.curdir), size=format_bytes(report.bytes_written),
+                   seconds=format_duration(ctx.elapsed())))
+        log.info("split %s: %d records into %d parts (%s) in %.2f s", doc.source_path.name, report.records,
+                 len(report.parts), report.engine, ctx.elapsed())
+    return EXIT_OK
+
+
+def _natural_key(path: str) -> tuple[bytes, str]:
+    """Natural order of file names (``qism_2`` before ``qism_10``), Uzbek collation, case-insensitive."""
+    from .sortkeys import collation_key
+
+    return collation_key(path, "uz", natural=True), path
+
+
+def _expand_inputs(ctx: _Ctx, items: Sequence[str], output: str) -> list[str]:
+    """``merge`` INPUTs with ``*`` / ``?`` / ``[`` that are not existing files are patterns expanded
+    here (cmd.exe and PowerShell pass them unexpanded), files only, sorted naturally; a pattern
+    without a match is exit 1; OUTPUT itself is skipped (a warning)."""
+    from .fileio import long_path
+
+    out: list[str] = []
+    for item in items:
+        if not any(ch in item for ch in GLOB_CHARS) or os.path.lexists(long_path(item)):
+            out.append(item)
+            continue
+        matches = [m for m in glob.glob(item, recursive=True) if os.path.isfile(long_path(m))]
+        skipped = [m for m in matches if _same_file(m, output)]
+        if skipped:
+            ctx.warn(t("cli.warn.output_matched", path=output, pattern=item))
+        matches = sorted((m for m in matches if not _same_file(m, output)), key=_natural_key)
+        if not matches:
+            raise UserInputError("cli.error.no_glob_match", pattern=item)
+        out.extend(matches)
+    return out
+
+
+def _cmd_merge(ctx: _Ctx) -> int:
+    """merge: several inputs into ONE JSON / JSON Lines file (:func:`jsonreshape.filetools.merge`),
+    optionally without duplicates (``--dedupe-by KEY``)."""
+    from .dupes import parse_key
+    from .filetools import MergeOptions, merge
+
+    args = ctx.args
+    out = args.output
+    inputs = _expand_inputs(ctx, args.inputs, out)
+    for path in inputs:
+        _check_input(path)
+        _check_output(path, out)
+    fmt = _output_format(args, out)
+    opts = MergeOptions(export=_export_options(ctx, fmt), dedupe_by=args.dedupe_by, keep=args.keep or "first",
+                        allow_partial=bool(args.allow_partial), memory_limit=_memory_option(ctx))
+    ignored = _ignored_for_format(args, fmt)
+    if ignored:
+        ctx.warn(t("cli.warn.ignored_options", options=", ".join(ignored), format=fmt))
+    if args.dedupe_by is not None:
+        parse_key(args.dedupe_by)    # a bad key is refused before the inputs are read
+    elif args.keep is not None:
+        ctx.warn(t("cli.warn.keep_without_dedupe"))
+    with contextlib.ExitStack() as stack:
+        docs = []
+        for path in inputs:
+            doc = stack.enter_context(_document(ctx, path=path))
+            rc = _check_document(ctx, doc, label=path)
+            if rc is not None:
+                return rc
+            docs.append(doc)
+        for doc in docs:
+            doc.ensure_unchanged()   # nothing is written from a file that changed meanwhile
+        report = merge(docs, out, opts, progress=ctx.stage(t("cli.stage.merging")), cancel=ctx.cancel)
+        ctx.end_stage()
+        _export_warnings(ctx, report)
+        for given, (_path, _kind, records, written) in zip(inputs, report.inputs):   # as the user named them
+            ctx.info(_tn("cli.merge.input", records, path=_display_path(given), written=_num(written),
+                         records=_num(records)))
+        summary = t("cli.summary.merge", inputs=_tn("cli.count.files", len(docs), count=_num(len(docs))), output=out,
+                    records=_records_text(report.records, _num(report.records)),
+                    size=format_bytes(report.report.bytes_written), seconds=format_duration(ctx.elapsed()))
+        if args.dedupe_by is not None:
+            summary += "; " + _tn("cli.summary.merge_dupes", report.duplicates, count=_num(report.duplicates),
+                                  groups=_num(report.groups))
         ctx.info(summary)
-        log.info("%s: %d of %d records -> %s (%s, %d bytes) in %.2f s", args.command, report.records, total, output,
-                 fmt, report.bytes_written, ctx.elapsed())
+        log.info("merge of %d inputs -> %s: %d records, %d duplicates removed in %.2f s", len(docs), out,
+                 report.records, report.duplicates, ctx.elapsed())
+    return EXIT_OK
+
+
+def _cmd_extract(ctx: _Ctx) -> int:
+    """extract: the records of the container at ``--path`` (or the detected one) without the wrapper,
+    one node (``--node``) or the values of a pattern gathered from every record (``--gather``)."""
+    from .filetools import extract
+
+    args = ctx.args
+    output = _one_output(args, required=True)
+    assert output is not None
+    _check_output(args.input, output)
+    if args.path is not None:
+        if args.record_path is not None and args.record_path != args.path:
+            raise UserInputError("cli.error.extract_path_twice", path=args.path, record_path=args.record_path)
+        args.record_path = args.path
+    fmt = _output_format(args, output)
+    if args.node is not None:
+        combined = [name for name, given in (("--where", args.where), ("--jmespath", args.jmespath),
+                                             ("--preset", args.preset), ("--save-preset", args.save_preset),
+                                             ("--select", args.select)) if given is not None]
+        if combined:
+            raise UserInputError("cli.error.node_combined", options=", ".join(combined))
+        _check_values_format(fmt)
+        opts = _values_export_options(ctx, fmt, "--node")
+        with _document(ctx) as doc:
+            rc = _check_document(ctx, doc)
+            if rc is not None:
+                return rc
+            _write_node(ctx, doc, output, opts, args.node)
+        return EXIT_OK
+    if args.gather is not None:
+        _check_values_format(fmt)
+        opts = _values_export_options(ctx, fmt, "--gather")
+    else:
+        opts = _export_options(ctx, fmt)
+        ignored = _ignored_for_format(args, fmt)
+        if ignored:
+            ctx.warn(t("cli.warn.ignored_options", options=", ".join(ignored), format=fmt))
+    flt = _compile_scope(ctx)
+    _filter_warnings(ctx, flt)
+    with _document(ctx) as doc:
+        rc = _check_document(ctx, doc)
+        if rc is not None:
+            return rc
+        sets: list[Any] = []
+        try:
+            source = _scope_source(ctx, doc, flt, sets)
+            doc.ensure_unchanged()   # nothing is written from a file that changed meanwhile
+            report = extract(doc, output, opts, path=args.gather, source=source,
+                             progress=ctx.stage(t("cli.stage.extracting")), cancel=ctx.cancel)
+            ctx.end_stage()
+        finally:
+            _close_all(sets)
+        _export_warnings(ctx, report)
+        if args.gather is None:
+            _export_summary(ctx, report, int(doc.record_count), fmt, output)
+        else:
+            ctx.info(_tn("cli.summary.extract", report.records, values=_num(report.records), output=output,
+                         size=format_bytes(report.bytes_written), seconds=format_duration(ctx.elapsed())))
+            log.info("extract %s of %s: %d values -> %s in %.2f s", args.gather, doc.source_path.name,
+                     report.records, output, ctx.elapsed())
+    return EXIT_OK
+
+
+# ==================================================================================
+# repair (docs/ARCHITECTURE.md §14.5)
+# ==================================================================================
+def _show_repair(ctx: _Ctx, rep: Any, *, skip: str | None = None) -> None:
+    """The repair report: ``--json`` (stdout), the headline and the summary lines (stderr; ``skip``: a
+    line the error message repeats), "no problems found" only when nothing was fixed, cut or stopped,
+    the data-changing fixes and the warnings (always shown), ``--report``."""
+    args = ctx.args
+    if args.report is not None:
+        rep.write(args.report, _ext_format(args.report, REPAIR_REPORT_FORMATS, "cli.error.report_format"))
+    if args.json:
+        ctx.console.out(_json_text(rep.to_dict()))
+    ctx.info(rep.headline())
+    for line in rep.summary_lines():
+        if line != skip:
+            ctx.info(line)
+    if rep.total == 0 and rep.problem is None and rep.truncated is None:
+        ctx.info(t("repair.summary.none_check" if rep.check_only else "repair.summary.none"))
+    data = rep.data_changes_line()
+    if data:
+        ctx.warn(data)
+    if rep.problem is not None and rep.written:
+        ctx.warn(t("cli.warn.repair_partial", line=rep.problem.line, column=rep.problem.column))
+    for text in rep.warning_texts():
+        ctx.warn(text)
+    if args.report is not None:
+        ctx.info(_tn("cli.summary.repair_report", rep.total, count=_num(rep.total), path=args.report))
+    elif rep.total:
+        ctx.info(t("cli.hint.repair_report"))
+
+
+def _cmd_repair(ctx: _Ctx) -> int:
+    """repair: a broken JSON / JSON Lines file -> a valid copy with a report of every fix
+    (:func:`jsonreshape.repair.repair_file`); never in place; ``--check`` writes nothing."""
+    from .repair import RepairOptions, UnrepairableError, repair_file
+
+    args = ctx.args
+    _check_input(args.input)
+    output = _one_output(args)
+    if args.check:
+        if output is not None:
+            ctx.warn(t("cli.warn.check_output", path=output))
+            output = None
+    else:
+        if output is None:
+            raise UserInputError("cli.error.repair_output")
+        _check_output(args.input, output)
+    if args.report is not None:
+        _check_output(args.input, args.report)
+        if output is not None and _same_file(output, args.report):
+            raise UserInputError("cli.error.report_is_output", path=args.report)
+        _ext_format(args.report, REPAIR_REPORT_FORMATS, "cli.error.report_format")
+    fmt = None if args.format in (None, "auto") else args.format
+    opts = RepairOptions(nan=args.nan, format=fmt, record_path=args.record_path,
+                         output_kind="jsonl" if args.jsonl else None, allow_partial=bool(args.allow_partial))
+    label = t("cli.stage.checking" if args.check else "cli.stage.repairing")
+    try:
+        rep = repair_file(args.input, output, opts, check_only=bool(args.check), settings=ctx.settings,
+                          progress=ctx.stage(label), cancel=ctx.cancel)
+    except UnrepairableError as exc:
+        ctx.end_stage()
+        rep = exc.report
+        try:
+            p = rep.problem
+            skip = None if p is None else t("repair.summary.problem", reason=p.reason, line=p.line, column=p.column)
+            _show_repair(ctx, rep, skip=skip)
+            lines = [t("cli.error.prefix", message=exc.message)]
+            if p is not None:
+                lines.extend("  " + _same_width_text(line) for line in p.context().split("\n"))
+            kept = rep.truncated.kept_records if rep.truncated is not None else 0
+            lines.append(t("cli.error.hint", hint=_tn("cli.hint.repair_partial", kept, count=_num(kept))))
+            ctx.console.err("\n".join(lines))
+            log.info("repair of %s: unrepairable (%s)", args.input, p.code if p is not None else "?")
+        finally:
+            rep.close()
+        return EXIT_JSON
+    except JsonReshapeError as exc:
+        ctx.end_stage()
+        if exc.key == "repair.error.invalid_output":   # a bug guard: nothing was written
+            log.error("repair: the repaired output failed its check: %s", exc.message)
+            ctx.console.error(exc)
+            return EXIT_INTERNAL
+        raise
+    ctx.end_stage()
+    try:
+        _show_repair(ctx, rep)
+        problems = bool(rep.total) or rep.problem is not None or rep.truncated is not None
+    finally:
+        rep.close()
+    if args.check and problems:
+        return EXIT_JSON
+    return EXIT_OK
+
+
+# ==================================================================================
+# diff (docs/ARCHITECTURE.md §14.6)
+# ==================================================================================
+class _DiffPrinter:
+    """Shows the record diffs while :func:`jsonreshape.diff.iter_record_diffs` finds them (text lines
+    or JSON Lines on stdout) and keeps the generator's report."""
+
+    def __init__(self, ctx: _Ctx, key: str | None, *, limit: int, json_lines: bool, quiet: bool) -> None:
+        self.ctx = ctx
+        self.key = key
+        self.limit = limit
+        self.json_lines = json_lines
+        self.quiet = quiet
+        self.color = ctx.console.color
+        self.report: Any = None
+        self.total = 0
+        self.printed = 0
+
+    def tee(self, records: Any) -> Iterator[Any]:
+        """``records`` passed through, each shown; returns (as a generator) the report."""
+        try:
+            while True:
+                try:
+                    rd = next(records)
+                except StopIteration as stop:
+                    self.report = stop.value
+                    return stop.value
+                self.show(rd)
+                yield rd
+        finally:
+            records.close()
+
+    def show(self, rd: Any) -> None:
+        from .diff import record_dict
+
+        self.total += 1
+        if self.quiet:
+            return
+        if self.json_lines:
+            self.ctx.console.out(_json_line(record_dict(rd)))
+            return
+        if self.limit and self.printed >= self.limit:
+            return
+        self.printed += 1
+        self.ctx.console.out_lines(self.lines(rd))
+
+    def paint(self, op: str, text: str) -> str:
+        return DIFF_COLORS[op] + text + HIGHLIGHT_OFF if self.color else text
+
+    def change_line(self, c: Any, indent: str) -> str:
+        if c.op == "changed":
+            body = f"{_path_text(c.path)}: {_value_text(c.a)} {ARROW} {_value_text(c.b)}"
+        elif c.op == "added":
+            body = f"{_path_text(c.path)}: {_value_text(c.b)}"
+        elif c.op == "removed":
+            body = f"{_path_text(c.path)}: {_value_text(c.a)}"
+        else:   # moved
+            body = f"{_path_text(c.a_path)} {ARROW} {_path_text(c.b_path)}"
+        return indent + self.paint(c.op, f"{DIFF_MARKS.get(c.op, '?')} {body}")
+
+    def lines(self, rd: Any) -> list[str]:
+        from .paths import MISSING
+
+        diff = rd.diff
+        changes = list(diff.changes) if diff is not None else []
+        if rd.scope == "document":
+            out = [self.change_line(c, "") for c in changes]
+            indent = ""
+        else:
+            if rd.scope == "wrapper":
+                head = f"{DIFF_MARKS[rd.status]} {t('cli.diff.wrapper')}"
+            else:
+                parts = []
+                if rd.key is not MISSING and self.key not in (None, "$"):
+                    parts.append(f"{_display_text(self.key)}={_value_text(rd.key)}")
+                where = [f"A #{rd.a_index}" if rd.a_index is not None else "",
+                         f"B #{rd.b_index}" if rd.b_index is not None else ""]
+                parts.append("(" + ", ".join(w for w in where if w) + ")")
+                head = f"{DIFF_MARKS[rd.status]} " + "  ".join(parts)
+            out = [self.paint(rd.status, head)]
+            indent = "    "
+            if rd.status != "changed":
+                return out          # an added / removed record: its value is in --json / -o
+            out.extend(self.change_line(c, indent) for c in changes)
+        if diff is not None and diff.truncated:
+            more = int(diff.total) - len(changes)
+            out.append(indent + _tn("cli.diff.more_changes", more, count=_num(more)))
+        return out
+
+
+def _diff_summary(report: Any, key: str | None, seconds: str) -> str:
+    if report.mode == "key" and key == "$":
+        mode = t("cli.diff.mode.unordered")
+    else:
+        mode = t(f"cli.diff.mode.{report.mode}", key=_display_text(str(report.key or key or "")))
+    a = _num(report.a_records)
+    b = _num(report.b_records)
+    if report.identical:
+        return t("cli.diff.identical", a=a, b=b, mode=mode, seconds=seconds)
+    text = t("cli.diff.summary", changed=_num(report.changed), removed=_num(report.removed), added=_num(report.added),
+             equal=_num(report.equal), a=a, b=b, mode=mode, seconds=seconds)
+    if report.wrapper is not None:
+        text += "; " + t("cli.diff.wrapper_differs")
+    if report.moved:
+        text += "; " + _tn("cli.diff.moved", report.moved, count=_num(report.moved))
+    return text
+
+
+def _cmd_diff(ctx: _Ctx) -> int:
+    """diff: the differences of two files record by record (:func:`jsonreshape.diff.iter_record_diffs`);
+    ``--exit-code``: exit 5 when they differ."""
+    from .diff import DiffOptions, iter_record_diffs, summary_dict, write_diff
+    from .dupes import parse_key
+
+    args = ctx.args
+    _check_input(args.a)
+    _check_input(args.b)
+    out = args.out
+    out_fmt = None
+    if out is not None:
+        _check_output(args.a, out)
+        _check_output(args.b, out)
+        out_fmt = _ext_format(out, DIFF_OUT_FORMATS, "cli.error.diff_format")
+    key = args.key
+    mode = "key" if key is not None else "position" if args.by_position else "align" if args.align else "auto"
+    if args.ignore_order and mode == "auto":
+        key, mode = "$", "key"        # records are matched by their whole value
+    if key is not None:
+        parse_key(key)                # a bad key is refused before the files are read
+    options: dict[str, Any] = {"array_match": "unordered" if args.ignore_order else "auto",
+                               "array_keys": tuple(args.array_keys or ()), "numbers": args.numbers}
+    if args.max_changes is not None:
+        options["max_changes"] = args.max_changes
+    opts = DiffOptions(**options)
+    memory = _memory_option(ctx)
+    quiet = bool(args.summary)
+    detailed = out is not None or (args.json and not quiet)
+    max_details = None if detailed else (0 if quiet else (args.limit or None))
+    with _document(ctx, path=args.a) as doc_a, _document(ctx, path=args.b) as doc_b:
+        for doc, label in ((doc_a, args.a), (doc_b, args.b)):
+            rc = _check_document(ctx, doc, label=label)
+            if rc is not None:
+                return rc
+        printer = _DiffPrinter(ctx, key, limit=args.limit, json_lines=bool(args.json), quiet=quiet)
+        records = iter_record_diffs(doc_a, doc_b, key=key, mode=mode, opts=opts, max_details=max_details,
+                                    memory_limit=memory, progress=ctx.stage(t("cli.stage.comparing")),
+                                    cancel=ctx.cancel)
+        written = None
+        stream = printer.tee(records)
+        try:
+            if out is not None:
+                # the printer's generator hides the run from write_diff: name the compared files (sources
+                # and data copies), so a target that is one of them is refused before the diff runs
+                written = write_diff(stream, out, str(out_fmt),
+                                     sources=(doc_a.source_path, doc_a.data_path, doc_b.source_path, doc_b.data_path))
+            else:
+                for _rd in stream:
+                    pass
+        finally:
+            ctx.end_stage()
+        report = printer.report
+        try:
+            if args.json:
+                ctx.console.out(_json_line({"summary": summary_dict(report)}))
+            _report_warnings(ctx, report.warnings, report.warning_texts(), DIFF_SHOWN_WARNINGS)
+            ctx.info(_diff_summary(report, key, format_duration(ctx.elapsed())))
+            if not quiet and not args.json and args.limit and printer.total > printer.printed:
+                ctx.info(_tn("cli.diff.more", printer.printed, shown=_num(printer.printed), total=_num(printer.total)))
+            if written is not None:
+                ctx.info(_tn("cli.diff.written", written, count=_num(written), path=out))
+            log.info("diff %s / %s (%s): %d changed, %d added, %d removed, %d equal in %.2f s", args.a, args.b,
+                     report.mode, report.changed, report.added, report.removed, report.equal, ctx.elapsed())
+            identical = bool(report.identical)
+        finally:
+            report.close()
+    if args.exit_code and not identical:
+        return EXIT_DIFFERENT
     return EXIT_OK
 
 
@@ -2298,6 +4424,18 @@ _COMMANDS: dict[str, Callable[[_Ctx], int]] = {
     "filter": _cmd_export,
     "sort": _cmd_export,
     "convert": _cmd_export,
+    "patch": _cmd_patch,
+    "apply": _cmd_apply,
+    "flatten": _cmd_flatten,
+    "stats": _cmd_stats,
+    "dupes": _cmd_dupes,
+    "schema": _cmd_schema,
+    "validate": _cmd_validate,
+    "split": _cmd_split,
+    "merge": _cmd_merge,
+    "extract": _cmd_extract,
+    "repair": _cmd_repair,
+    "diff": _cmd_diff,
     "presets": _cmd_presets,
 }
 

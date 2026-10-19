@@ -23,6 +23,8 @@ Roles (keys of :func:`colors`):
 ``key``            object keys                  ``object array string number bool null``
 ``match``          search hit background        ``current_match``  the current hit
 ``badge_text``     glyph on a *filled* badge (type badges are tinted, see below)
+``diff_added``     diff row tints: added        ``diff_removed``  removed
+``diff_changed``   changed                      ``diff_moved``  moved (array key matching)
 =================  ==============================================================
 
 ``boolean`` is accepted as an alias of ``bool`` everywhere.
@@ -54,6 +56,8 @@ _TABLE: dict[str, dict[str, str]] = {
         "bool": "#8344ad", "null": "#77808f",
         "key": "#2c3a56", "match": "#ffe48f", "current_match": "#ffbb4d",
         "badge_text": "#ffffff",
+        # row tints of the structural diff (text in any type color stays readable on them)
+        "diff_added": "#dcf3e2", "diff_removed": "#fbe2e2", "diff_changed": "#fcefcf", "diff_moved": "#d8eff8",
     },
     "dark": {
         "bg": "#0e1117", "panel": "#151a22", "panel_alt": "#1a2029", "line": "#29303c",
@@ -65,6 +69,8 @@ _TABLE: dict[str, dict[str, str]] = {
         "bool": "#c79cf0", "null": "#8b94a5",
         "key": "#c3cee4", "match": "#5e4a12", "current_match": "#8a4b00",
         "badge_text": "#0e1117",
+        # row tints of the structural diff (text in any type color stays readable on them)
+        "diff_added": "#17382a", "diff_removed": "#43222a", "diff_changed": "#3b3016", "diff_moved": "#14344a",
     },
 }
 _ALIASES = {"error": "danger", "link": "accent", "boolean": "bool"}

@@ -81,8 +81,13 @@ def wait_tasks(app) -> None:
 def test_menu_structure(host, session, lang_uz) -> None:
     menu = node_menu(host, session, Ref(0, ("addr", "city")))
     top = [a.text() for a in menu.actions() if not a.isSeparator()]
-    assert top == ["Nusxalash", "Shu qiymat bo'yicha filtr", "Shu maydon bo'yicha tartiblash", "To'liq ko'rish",
-                   "Daraxtda ko'rsatish", "Yangi tabda ochish"]
+    assert top == ["Nusxalash", "Shu qiymat bo'yicha filtr", "Shu maydon bo'yicha tartiblash",
+                   "Taqqoslash uchun belgilash", "Belgilangan bilan taqqoslash", "Statistika",
+                   "Shu tugunni qismlarga bo'lish…", "To'liq ko'rish", "Daraxtda ko'rsatish", "Yangi tabda ochish"]
+    # stage 5 (tests/test_gui_roundb_shell.py): nothing marked yet; a host without a statistics dock
+    assert not act(menu, "compare_with_marked").isEnabled() and not act(menu, "stats").isEnabled()
+    for name in ("compare_with_marked", "stats"):
+        act(menu, name).setObjectName("")
     copy_menu = menu.findChild(QMenu, "copy_menu")
     names = [a.objectName() for a in copy_menu.actions() if not a.isSeparator()]
     assert names == [f"copy_value_{f}" for f in COPY_FORMATS] + [f"copy_path_{s}" for s in PATH_STYLES] + ["copy_key"]
@@ -353,7 +358,8 @@ def test_extra_items(host, session, lang_uz) -> None:
     texts = [a.text() for a in menu.actions() if not a.isSeparator()]
     assert texts == ["Nusxalash", "Shu qiymat bo'yicha filtr", "Shu maydon bo'yicha tartiblash",
                      "Hammasini ochish", "Yopish", "Mumkin emas", "Maslahat", "Darajagacha ochish",
-                     "To'liq ko'rish", "Daraxtda ko'rsatish", "Yangi tabda ochish"]
+                     "Taqqoslash uchun belgilash", "Belgilangan bilan taqqoslash", "Statistika",
+                     "Shu tugunni qismlarga bo'lish…", "To'liq ko'rish", "Daraxtda ko'rsatish", "Yangi tabda ochish"]
     by_text = {a.text(): a for a in menu.actions()}
     by_text["Yopish"].trigger()
     assert hits == ["collapse"]

@@ -820,7 +820,7 @@ def _decode_escaped_string(raw: bytes) -> str:
 
 
 def _container_payload(value: Any) -> bytes:
-    return codec.dumps(value) + b"\x00"
+    return codec.dumps_transient(value) + b"\x00"     # the concatenation is the compact copy that is kept
 
 
 class _FieldEncoder:

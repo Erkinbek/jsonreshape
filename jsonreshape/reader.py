@@ -53,7 +53,10 @@ whitespace-only file raises :class:`~jsonreshape.errors.FileFormatError`
    or a string followed by ``,`` or ``}`` -- gives ``brace_list`` with the warning
    ``reader.warn_brace_list``. Any root other than ``{`` gives ``single``.
 5. **Object root.** ``ijson.basic_parse`` runs over the head (a truncated head simply
-   ends the analysis). Candidates are arrays at depth 1..3 reachable through object
+   ends the analysis) -- or, for a head ijson's yajl2_c backend would mishandle (a digit run
+   longer than 640 digits: an integer it cannot convert crashed the process; a lone surrogate
+   escape: it reads ``"?"`` or fails), the exact parser :func:`jsonreshape.stream.exact_events`
+   (``_analyze_object_head``). Candidates are arrays at depth 1..3 reachable through object
    keys only (``("data",)``, ``("result", "items")``; the first occurrence of a path
    wins, like the scanner's target), each with ``closed_in_head``, ``items_in_head``,
    ``objects_in_head`` and ``values_in_head`` (all values inside it, any depth). Since
@@ -235,6 +238,65 @@ from the main index, never rescanned); for wrapped documents the ancestors of th
 record container are expanded by scanning their bytes with the record container
 replaced by the placeholder ``[]`` (so a multi-GB record array is never rescanned).
 
+Edits (docs/ARCHITECTURE.md §12.0, §12.3)
+=========================================
+:meth:`Document.set_overlay` makes the live document show an immutable
+:class:`~jsonreshape.overlay.OverlayState` (piece table of record ids, content layers, an
+edited wrapper). Then every public API works on **positions** -- the records' places in the
+edited document, ``0 .. record_count-1`` -- and on the *virtual address space*: offsets below
+``data_size`` are the data file, offsets from ``EDIT_BASE`` are the edit layer's segment files.
+``record_span`` of an edited record is an edit offset; :meth:`Document._read` (every Node read,
+``record_bytes``...), :meth:`Document.open_data` (a :class:`VirtualReader`; every consumer that
+reads spans itself uses it: stream.py, search, sort, schema, writer) and
+:meth:`Document.node_chunks` read both spaces; a read never crosses them, and bytes of the edit
+layer that are not what their span promises raise ``EditError("edits.error.layer_corrupt")``
+(never ``FileChangedError``). ``flags`` OR's in the state's flags; :attr:`Document.gen`,
+:attr:`Document.edited`, :attr:`Document.base_record_count`, :meth:`Document.record_rid` and
+:meth:`Document.effective_bytes` describe the state.
+
+* **Pinned views.** :meth:`Document.pinned` returns a :class:`PinnedDocument` bound to one
+  state (or ``None``, the file as it is): long tasks read a view and never see a later state.
+  All overlay-dependent code reads the state once per public call through ``_ov()``, which the
+  view overrides; generators (``iter_blocks``, ``node_chunks``) read it when they are called.
+* **iter_blocks** (edited state): ``runs()`` of the piece table are walked; a pure run (base
+  records no layer overrides) of at least :data:`PURE_CONTIGUOUS_MIN` bytes becomes contiguous
+  blocks of the file range (``_range_blocks``, indices rewritten to positions); shorter pure
+  runs and edited/new records are gathered into scattered blocks up to ``block_bytes`` (file
+  pieces fetched like any scattered block -- in file order, mapped or with coalesced reads,
+  never with an edit offset --, segment pieces read once per neighbouring group); a record
+  whose span (in either space) exceeds ``large_node_bytes`` is a huge block. Arbitrary sources
+  map positions to record ids in batches; a block is ``contiguous`` only over consecutive pure
+  base records (its gaps hold separators only). The handle is checked once per block.
+* **Composite nodes** (the node holding the records, its ancestors, the virtual root;
+  :attr:`Node.is_composite`): on an edited document ``value()``, ``raw()``, ``scalar_text()``
+  and ``size`` are built from the effective records (:meth:`Document.node_chunks`; ``size`` is
+  an estimate from :meth:`Document.effective_bytes`), and the children of the records node are
+  read child by child (in windows of one address space), never as one file range. Wrapped
+  documents with an edited wrapper: ``root()`` is the ancestor over W' (the edited wrapper
+  text, an edit span), ``_container_bounds()`` is the hole (the placeholder of the record
+  container inside W'), ``wrapper_spans()`` the prefix/suffix of W' around the hole.
+* **Child caches** stay keyed by ``node.start`` for base offsets (base bytes never change); an
+  edit offset is combined with the ``uid`` of the segment reader of the state read
+  (:meth:`Document._children_key`), so a pinned view of an older edit layer (e.g. a running export
+  after "Discard all changes") and the live document never share an entry even if their offsets
+  were equal; the persistent child-index cache is never used for nodes of the edit layer (their
+  lists stay in memory, or in a temporary index deleted by :meth:`Document.close`).
+* **Member keys**: ``doc.key_index`` (a hook the edit session attaches; ``find(key)`` = position
+  of the last record with that key) serves key lookups of the state it describes (its ``gen``
+  attribute, when present, must equal the state's; without one it serves the state the live
+  document shows); otherwise the effective keys are scanned (the last match wins).
+* A forced ``jsonl``/``stream`` format opens a whitespace-only (or empty) file with 0 records
+  (a saved empty document reopens), instead of ``reader.empty_file``.
+
+Decisions where §12.3 leaves room: ``edited`` is ``OverlayState.edited`` (dirty) OR "the state
+changes what the document shows"; a state equivalent to the file (initial / fully undone)
+takes the unchanged code paths; :meth:`Document.node_chunks` joins records with ``,``
+(original separators kept inside unchanged runs of comma-separated kinds) instead of the
+document's record separator; ``Node.member_span()`` of a node that is not a member is its
+value span; the composite ``size`` is ``effective_bytes() + 2`` (+ the ancestor's own text),
+not the exact length of the text; ``set_overlay`` needs the complete index and a state of the
+same base record count (``ValueError``) and the live document (``TypeError`` on a view).
+
 Known limitations (Stage 1; the GUI stage revisits both)
 =========================================================
 * gzip and UTF-16 inputs are prepared (decompressed / transcoded) completely in
@@ -257,20 +319,24 @@ import mmap
 import operator
 import os
 import re
+import secrets
 import sys
 import threading
 import time
 from array import array
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from dataclasses import dataclass, field
+from itertools import accumulate, compress, islice, repeat
+from operator import add, gt, itemgetter, sub
 from pathlib import Path
-from typing import Any, Callable, Iterable, Iterator, Union
+from typing import Any, BinaryIO, Callable, Iterable, Iterator, Union
 
 import ijson
 
 from . import codec, core
 from .core import FLAG_ESCAPES, MODE_BRACE_LIST, MODE_CONTAINER, MODE_LINES, MODE_SINGLE, MODE_STREAM
 from .errors import (
+    EditError,
     FileChangedError,
     FileFormatError,
     JsonReshapeError,
@@ -305,8 +371,10 @@ from .index import (
     index_path,
     lock_path,
 )
+from .overlay import EDIT_BASE, SEG_SHIFT, ArrayLayer, DatReader, OverlayState, split_edit_offset
 from .paths import canonical_index, format_path, parse_path
 from .settings import Settings, get_settings
+from .stream import exact_events, needs_exact
 from .tasks import BackgroundTask, CancelToken, Progress, check, format_bytes
 
 log = logging.getLogger(__name__)
@@ -317,12 +385,15 @@ Path_ = tuple[Union[str, int], ...]
 __all__ = [
     "BLOCK_BYTES",
     "KINDS",
+    "PURE_CONTIGUOUS_MIN",
     "Block",
     "BrokenLine",
     "Document",
     "FormatInfo",
     "Node",
+    "PinnedDocument",
     "RecordPathCandidate",
+    "VirtualReader",
     "detect_format",
     "set_scanner_backend",
     "split_member",
@@ -370,6 +441,12 @@ WAIT_POLL_SECONDS = 0.1           # waiting for another process's build of the s
 CHANGE_RETRY_SECONDS = 1.0        # check_changed(): a source locked by another program is retried this long
 GROWTH_RECHECK_SECONDS = 1.0      # a growing source: handle checks hash its original range at most this often
 APPENDED_WARNING = "reader.warn.appended"   # info.warnings key: the source grew after it was opened
+PURE_CONTIGUOUS_MIN = 256 * KiB   # edited documents: a pure run this big is read as contiguous file ranges
+OV_WINDOW = 65536                 # edited documents: positions whose runs are fetched together
+OV_CLUSTER_GAP = 4096             # ... record ids this close are fetched with one index read / spans_in
+EFF_CACHE_STATES = 8              # edited documents: per-state summaries (effective bytes) kept
+EFF_EXACT_MAX = 100_000           # Node.size of a composite node: estimated beyond this many pieces + overrides
+_CURRENT: Any = object()          # Document.pinned(): "the state the document shows now"
 _WS = b" \t\r\n"
 _CONT_BYTES = bytes(range(0x80, 0xC0))   # UTF-8 continuation bytes
 _NOT_ASTRAL_LEADS = bytes(b for b in range(256) if not 0xF0 <= b <= 0xF4)   # deleted: 4-byte UTF-8 leads stay
@@ -520,6 +597,55 @@ def _norm_record_path(record_path: Any) -> Path_ | None:
 
 def _path_text(path: Path_) -> str:
     return format_path(path) if path else "$"
+
+
+def _layer_corrupt(detail: str = "", path: object = "") -> EditError:
+    """``EditError("edits.error.layer_corrupt")``: bytes of the edit layer (offsets >= ``EDIT_BASE``) are
+    not what the overlay state promises (never ``FileChangedError``: the data file is fine)."""
+    log.warning("edit layer damaged: %s (%s)", path or "-", detail or "-")
+    return EditError("edits.error.layer_corrupt", path=str(path), detail=detail)
+
+
+def _edited_state(ov: OverlayState | None) -> bool:
+    """``ov`` changes what the document shows: content overrides, another record order or count, an
+    edited wrapper. ``None``, an initial state and a fully undone one read exactly like the base file
+    (positions = record indices of the file), so every base code path applies to them unchanged."""
+    if ov is None:
+        return False
+    if ov.wrapper is not None or ov.count != ov.base_count:
+        return True
+    pieces = ov.pieces
+    if pieces.npieces > 1 or (pieces.npieces == 1 and pieces.rid_at(0) != 0):
+        return True
+    return any(len(layer) for layer in ov.layers)
+
+
+def _put(target: list, indices: Iterable[int], values: Iterable[Any]) -> None:
+    """``target[i] = v`` for the pairs of ``indices`` and ``values`` (a C-level loop)."""
+    deque(map(target.__setitem__, indices, values), maxlen=0)
+
+
+def _first_unlike(pieces: list[bytes], member: bool) -> int:
+    """Index of the first piece that does not look like a record (:func:`_looks_like_record`), else -1: the
+    first and last bytes of all pieces are checked at once."""
+    try:
+        firsts = bytes(map(itemgetter(0), pieces))
+        lasts = bytes(map(itemgetter(-1), pieces))
+    except IndexError:          # an empty piece
+        pass
+    else:
+        starts_ok = b'"' if member else _VALUE_START_BYTES
+        if not lasts.translate(None, _VALUE_END_BYTES) and not firsts.translate(None, starts_ok):
+            return -1
+    for k, p in enumerate(pieces):
+        if not _looks_like_record(p, member):
+            return k
+    return -1   # pragma: no cover - the batch check failed for a reason found above
+
+
+def _segment_of(offset: int) -> int:
+    """Segment number of an edit offset (``offset >= EDIT_BASE``)."""
+    return (offset - EDIT_BASE) >> SEG_SHIFT
 
 
 # ----------------------------------------------------------------------------------
@@ -972,11 +1098,42 @@ def _segment_matches(path_seg: str | int, target_seg: str | int) -> bool:
     return isinstance(target_seg, str) and path_seg == target_seg
 
 
+class _InexactHead(Exception):
+    """Internal: ijson's yajl2_c backend failed on a value of the head (a lone low surrogate
+    escape, a number beyond ``Decimal``'s exponent range): the head is analysed again exactly."""
+
+
 def _analyze_object_head(head: _Head, target: Path_ | None = None) -> _Analysis:
-    """Rule 5: walk the head with ``ijson.basic_parse`` collecting record-path candidates
-    and root-member statistics (the analysis ends at the end of the head or at the first
-    syntax error). With ``target``, the kind of the first value seen at each prefix of it
-    (``prefix_kinds``; canonical-index ``str`` segments match array elements too)."""
+    """Rule 5: walk the head collecting record-path candidates and root-member statistics
+    (the analysis ends at the end of the head or at the first syntax error). With ``target``,
+    the kind of the first value seen at each prefix of it (``prefix_kinds``; canonical-index
+    ``str`` segments match array elements too).
+
+    The events come from ``ijson.basic_parse`` -- unless the head holds something ijson's
+    yajl2_c backend mishandles (:func:`jsonreshape.stream.needs_exact`: a digit run longer than
+    Python always converts -- an integer token of more than ``sys.get_int_max_str_digits()``
+    digits made yajl2_c crash the process, review R5A-X1 -- or a lone surrogate escape, which
+    yajl2_c reads as ``"?"`` so that a key on the record path would not match, or fails on), or
+    yajl2_c fails on a value anyway: then they come from the exact pure-Python parser
+    :func:`jsonreshape.stream.exact_events` (keys decoded like the scanner's, values unused)."""
+    exact = needs_exact(head.data)
+    try:
+        return _analyze_events(_head_events(head.data, exact), target, retry=not exact)
+    except _InexactHead:
+        return _analyze_events(_head_events(head.data, True), target, retry=False)
+
+
+def _head_events(data: bytes, exact: bool) -> Iterator[tuple[str, Any]]:
+    """The events :func:`_analyze_object_head` walks (see there)."""
+    if exact:
+        return exact_events(data, convert=False)
+    # use_float=False: with floats yajl rejects big integers and 1e400 ("overflow")
+    return ijson.basic_parse(io.BytesIO(data), use_float=False, buf_size=1 << 20)
+
+
+def _analyze_events(events: Iterator[tuple[str, Any]], target: Path_ | None, retry: bool) -> _Analysis:
+    """:func:`_analyze_object_head` over ``events``; ``retry``: a value yajl2_c failed on
+    raises :class:`_InexactHead` (the caller starts again with exact events)."""
     cands: dict[Path_, list[Any]] = {}       # path -> [closed, items, objects, values, arrays]
     order: list[Path_] = []
     # stack frames: [is_map, path, key, count, candidate_path_or_None]
@@ -1017,8 +1174,7 @@ def _analyze_object_head(head: _Head, target: Path_ | None = None) -> _Analysis:
         return path
 
     try:
-        # use_float=False: with floats yajl rejects big integers and 1e400 ("overflow")
-        for event, value in ijson.basic_parse(io.BytesIO(head.data), use_float=False, buf_size=1 << 20):
+        for event, value in events:
             if event == "map_key":
                 stack[-1][2] = value
             elif event == "start_map":
@@ -1041,9 +1197,13 @@ def _analyze_object_head(head: _Head, target: Path_ | None = None) -> _Analysis:
                     active = None
             else:
                 value_start("scalar")
+    except (UnicodeDecodeError, ArithmeticError):
+        # yajl2_c failed on a value (a lone low surrogate escape; decimal.InvalidOperation of an
+        # exponent beyond Decimal's range): the head is analysed again, exactly
+        if retry:
+            raise _InexactHead() from None
     except (ijson.JSONError, ValueError, SystemError):
-        # a truncated head, a syntax error (the scanner reports it) or an integer
-        # longer than Python's int-from-string limit: the analysis ends here
+        # a truncated head or a syntax error (the scanner reports it): the analysis ends here
         pass
     out = [RecordPathCandidate(p, bool(cands[p][0]), cands[p][1], cands[p][2], cands[p][3], cands[p][4])
            for p in order]
@@ -1140,7 +1300,18 @@ def _detect(prepared: PreparedFile, data_size: int, source: StrPath, settings: S
     for w in prepared.warnings:
         info.add_warning(w)
     with open_shared(prepared.data_path, "rb") as f:
-        head = _read_head(f, data_start, data_size, settings.head_bytes, source, cancel)
+        try:
+            head = _read_head(f, data_start, data_size, settings.head_bytes, source, cancel)
+        except FileFormatError as exc:
+            if exc.key != "reader.empty_file" or fmt not in ("jsonl", "stream") or record_path is not None:
+                raise
+            # a forced JSON Lines / stream document without values: 0 records (a saved empty
+            # document is reopened this way, docs/ARCHITECTURE.md §12.3)
+            info.kind = fmt
+            info.auto = False
+            info.root_start = data_size
+            info.head_complete = True
+            return info
         src = _Source(lambda s, e: read_range(f, s, min(e, data_size)), data_size, settings.head_bytes)
         _detect_kind(info, head, src, source, record_path, fmt, scanner_cls, cancel)
     return info
@@ -1350,12 +1521,14 @@ class _DiskChildren(_Children):
 
 
 class _RecordChildren(_Children):
-    """The records of the document (main index)."""
+    """The records of the document: the main index, or -- with an edited overlay state ``ov`` -- the
+    effective records by position (spans in either address space, in position order)."""
 
-    __slots__ = ("doc",)
+    __slots__ = ("doc", "ov")
 
-    def __init__(self, doc: Document) -> None:
+    def __init__(self, doc: Document, ov: OverlayState | None = None) -> None:
         self.doc = doc
+        self.ov = ov if _edited_state(ov) else None
 
     @property
     def member(self) -> bool:  # type: ignore[override]
@@ -1363,16 +1536,24 @@ class _RecordChildren(_Children):
 
     @property
     def count(self) -> int:
-        return self.doc.record_count
+        ov = self.ov
+        return ov.count if ov is not None else self.doc.base_record_count
 
     def get(self, i: int) -> tuple[int, int]:
-        return self.doc.record_span(i)
+        ov = self.ov
+        return self.doc._base_span(i) if ov is None else self.doc._pos_span(ov, operator.index(i))
 
     def get_many(self, i: int, n: int) -> array:
-        return _pairs(self.doc._spans_bytes(i, n))
+        ov = self.ov
+        if ov is None:
+            return _pairs(self.doc._spans_bytes(i, n))
+        return self.doc._eff_spans(ov, i, n)
 
     def scan_many(self, i: int, n: int) -> array:
-        return _pairs(self.doc._spans_bytes(i, n, sequential=True))
+        ov = self.ov
+        if ov is None:
+            return _pairs(self.doc._spans_bytes(i, n, sequential=True))
+        return self.doc._eff_spans(ov, i, n)
 
 
 # ----------------------------------------------------------------------------------
@@ -1408,6 +1589,133 @@ class _ReadHandle:
     def close(self) -> None:
         with self.lock:
             self.raw.close()
+
+
+class VirtualReader:
+    """What :meth:`Document.open_data` returns: a read-only, seekable file-like object over the
+    document's *virtual address space* (docs/ARCHITECTURE.md §12.0, §12.3).
+
+    Offsets below ``data_size`` read the data file through a shared-read handle checked against the
+    document's identity when it was opened (reads stop at ``data_size``: the snapshot opened, also
+    when the file grew since); offsets from ``EDIT_BASE`` on read the edit layer's segment files
+    through the overlay state's :class:`~jsonreshape.overlay.DatReader`; offsets in between read as
+    end of file. A read in the segment space never returns fewer bytes than asked for: bytes beyond
+    the published end of a segment raise ``EditError("edits.error.layer_corrupt")`` (``read()`` /
+    ``read(-1)`` read to that end). ``seek(0, 2)`` goes to ``data_size``. ``fileno()`` raises
+    :class:`io.UnsupportedOperation` (nothing may map or fstat a virtual file). Use one object per
+    thread (like any file object); a context manager closes it."""
+
+    mode = "rb"
+
+    def __init__(self, data: BinaryIO, data_size: int, segments: DatReader | None, name: str = "") -> None:
+        self._f = data
+        self._size = int(data_size)
+        self._segments = segments
+        self._pos = 0
+        self.name = name or getattr(data, "name", "")
+
+    # -- file protocol ---------------------------------------------------------------
+    @property
+    def closed(self) -> bool:
+        return self._f.closed
+
+    def close(self) -> None:
+        self._f.close()
+
+    def __enter__(self) -> VirtualReader:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
+
+    def __repr__(self) -> str:
+        return f"<VirtualReader {self.name!r} pos={self._pos}{' closed' if self.closed else ''}>"
+
+    def readable(self) -> bool:
+        return True
+
+    def seekable(self) -> bool:
+        return True
+
+    def writable(self) -> bool:
+        return False
+
+    def fileno(self) -> int:
+        raise io.UnsupportedOperation("a virtual reader has no file descriptor")
+
+    def flush(self) -> None:
+        pass
+
+    def tell(self) -> int:
+        return self._pos
+
+    def seek(self, pos: int, whence: int = 0) -> int:
+        pos = operator.index(pos)
+        if whence == 1:
+            pos += self._pos
+        elif whence == 2:
+            pos += self._size
+        elif whence != 0:
+            raise ValueError(f"invalid whence ({whence})")
+        if pos < 0:
+            raise ValueError(f"negative seek position {pos}")
+        self._pos = pos
+        return pos
+
+    def readinto(self, buf: Any) -> int:
+        view = memoryview(buf).cast("B")
+        data = self.read(len(view))
+        view[:len(data)] = data
+        return len(data)
+
+    def read(self, n: int | None = -1) -> bytes:
+        if self._f.closed:
+            raise ValueError("I/O operation on closed file")
+        pos = self._pos
+        if pos >= EDIT_BASE:
+            data = self._read_segment(pos, n)
+        elif pos >= self._size:
+            data = b""
+        else:
+            stop = self._size if n is None or n < 0 else min(self._size, pos + n)
+            data = self._read_data(pos, stop)
+        self._pos = pos + len(data)
+        return data
+
+    # -- the two spaces ----------------------------------------------------------------
+    def _read_data(self, pos: int, stop: int) -> bytes:
+        """Bytes ``[pos, stop)`` of the data file (fewer when the file is shorter now)."""
+        f = self._f
+        f.seek(pos)
+        want = stop - pos
+        data = f.read(want)
+        if data is None:
+            data = b""
+        if len(data) >= want:
+            return data
+        parts = [data]
+        got = len(data)
+        while got < want:
+            more = f.read(want - got)
+            if not more:
+                break
+            parts.append(more)
+            got += len(more)
+        return b"".join(parts)
+
+    def _read_segment(self, pos: int, n: int | None) -> bytes:
+        reader = self._segments
+        if reader is None:
+            raise _layer_corrupt(f"no edit layer to read offset {pos}", self.name)
+        try:
+            seg, off = split_edit_offset(pos)
+        except ValueError as exc:
+            raise _layer_corrupt(str(exc), self.name) from exc
+        if n is None or n < 0:
+            n = reader.published(seg) - off      # read(): to the published end of the segment
+        if n <= 0:
+            return b""
+        return reader.read(pos, pos + n)         # beyond the published end: layer_corrupt
 
 
 # ----------------------------------------------------------------------------------
@@ -1447,7 +1755,7 @@ class Document:
         self.error: JsonSyntaxError | None = None
         self.broken_lines: list[BrokenLine] = []
         self.broken_count = 0
-        self.flags = 0
+        self._flags = 0                              # core FLAG_* of the file (the ``flags`` property adds the overlay's)
         self.container_span: tuple[int, int] | None = None
         self.member_records = info.kind == "keyed" or (info.kind == "wrapped" and info.container_kind == "object")
         self._member_known = info.kind != "wrapped" or info.container_kind is not None
@@ -1484,6 +1792,13 @@ class Document:
         self._growth_seen: tuple[int, int] | None = None   # (size, mtime_ns) last verified as append-only
         self._growth_at = 0.0                        # time.monotonic() of that verification
         self._appended_params: dict[str, Any] | None = None   # params of the reader.warn.appended warning
+        # edit overlay (docs/ARCHITECTURE.md §12.3; module docstring "Edits")
+        self._overlay: OverlayState | None = None    # the state this (live) document shows
+        self._ov_lock = threading.Lock()             # _ov_owned, _eff_cache, _temp_indexes
+        self._ov_owned: dict[int, Any] = {}          # DatReaders / ArrayLayers of the states shown (closed by close())
+        self._eff_cache: OrderedDict[int, int] = OrderedDict()   # state gen -> effective_bytes()
+        self._temp_indexes: list[Path] = []          # child indexes of edit-offset nodes (deleted by close())
+        self.key_index: Any = None                   # hook: key_index.find(key) -> position | None (member records)
 
     @classmethod
     def open(cls, path: StrPath, *, record_path: Any = None, format: str | None = None,
@@ -1546,9 +1861,30 @@ class Document:
 
     @property
     def record_count(self) -> int:
-        """Records indexed so far (grows live while the index is built)."""
+        """Records indexed so far (grows live while the index is built); with an overlay state the
+        number of effective records (positions ``0 .. record_count-1``)."""
+        ov = self._ov()
+        if ov is not None:
+            return ov.count
         src = self._spans
         return src.count if src is not None else 0
+
+    @property
+    def base_record_count(self) -> int:
+        """Records of the file (the index count; live while the index is built)."""
+        src = self._spans
+        return src.count if src is not None else 0
+
+    @property
+    def flags(self) -> int:
+        """Core ``FLAG_*`` bits of the whole file, OR'ed with those of the edited content of the
+        overlay state (so byte-mode search needles stay sound)."""
+        ov = self._ov()
+        return (self._flags | ov.flags) if ov is not None else self._flags
+
+    @flags.setter
+    def flags(self, value: int) -> None:
+        self._flags = int(value)
 
     @property
     def closed(self) -> bool:
@@ -1557,8 +1893,155 @@ class Document:
     def __repr__(self) -> str:
         state = "complete" if self._complete else "indexing" if self._pending_builds else "not indexed"
         rp = f" {self.info.record_path_text}" if self.info.record_path else ""
-        return (f"<Document {self.source_path.name!r} {self.info.kind}{rp} records={self.record_count} "
+        ov = self._ov()
+        edit = f" gen={ov.gen}" if ov is not None else ""
+        return (f"<Document {self.source_path.name!r} {self.info.kind}{rp} records={self.record_count}{edit} "
                 f"{state}{' partial' if self.partial else ''}{' closed' if self._closed else ''}>")
+
+    # -- overlay (docs/ARCHITECTURE.md §12.3) ----------------------------------------------
+    def _ov(self) -> OverlayState | None:
+        """The overlay state this object reads. Every overlay-dependent public call reads it ONCE
+        (a :class:`PinnedDocument` returns its frozen state)."""
+        return self._overlay
+
+    @property
+    def overlay(self) -> OverlayState | None:
+        """The overlay state this object reads (``None``: the file as it is)."""
+        return self._ov()
+
+    @property
+    def origin(self) -> Document:
+        """The live document (a pinned view returns the document it was made from)."""
+        return self
+
+    @property
+    def gen(self) -> int:
+        """The gen of the overlay state read (0 = no overlay state)."""
+        ov = self._ov()
+        return ov.gen if ov is not None else 0
+
+    @property
+    def edited(self) -> bool:
+        """The overlay state is dirty (``OverlayState.edited``) or changes what the document shows."""
+        ov = self._ov()
+        return ov is not None and (ov.edited or _edited_state(ov))
+
+    def set_overlay(self, state: OverlayState | None) -> None:
+        """Show ``state`` (``None``: the file as it is). Live document only (``TypeError`` on a pinned
+        view); the index must be complete and ``state.base_count`` must equal the record count of the
+        file (``ValueError``). The state's ``DatReader`` and array layers are registered: the document
+        closes them in :meth:`close`. Pinned views keep the state they were made with.
+
+        A state whose segment reader differs from the last one shown belongs to another edit layer: every
+        child cache keyed by an edit offset is dropped then to free memory (the keys hold the reader's uid,
+        so entries of two layers never mix anyway; temporary child indexes stay registered until
+        :meth:`close`, since a reader of an older state may still use them)."""
+        if self.origin is not self:
+            raise TypeError("set_overlay() changes the live document, not a pinned view")
+        self._check_open()
+        if state is not None:
+            self._check_state(state)
+            stale = False
+            with self._ov_lock:
+                for res in (state.reader, *state.layers):
+                    if isinstance(res, (DatReader, ArrayLayer)):
+                        self._ov_owned.setdefault(id(res), res)
+                        res.owned = True         # the edit store defers deleting files its states read
+                reader = state.reader
+                if reader is not None:
+                    prev = getattr(self, "_ov_last_reader", None)
+                    stale = prev is not None and prev is not reader
+                    self._ov_last_reader = reader
+            if stale:
+                with self._children_lock:
+                    for start in [s for s in self._mem_children if s >= EDIT_BASE]:
+                        self._mem_children_bytes -= self._mem_children.pop(start).nbytes
+                    retired = [self._node_readers.pop(s) for s in [s for s in self._node_readers if s >= EDIT_BASE]]
+                if retired:
+                    with self._ov_lock:
+                        for res in retired:
+                            self._ov_owned.setdefault(id(res), res)
+        self._overlay = state
+        log.debug("%s: overlay state %s", self.source_path.name, "none" if state is None else state.gen)
+
+    def _check_state(self, state: Any) -> None:
+        if not isinstance(state, OverlayState):
+            raise TypeError(f"expected an OverlayState, not {type(state).__name__}")
+        if not self._complete:
+            raise ValueError("an overlay state needs the complete index")
+        if state.base_count != self.base_record_count:
+            raise ValueError(f"the overlay state is for {state.base_count} records; the file has "
+                             f"{self.base_record_count}")
+
+    def pinned(self, state: Any = _CURRENT) -> PinnedDocument:
+        """A read-only view bound to ONE overlay state: the state shown now (default), another state, or
+        ``None`` (the file as it is). Always a :class:`PinnedDocument` (also without an overlay, so a task
+        started before the first edit never sees it); a pinned view with the same state returns itself.
+        Views are cheap: two attributes; everything else is shared with the live document."""
+        if state is _CURRENT:
+            state = self._ov()
+        elif state is not None:
+            if not isinstance(state, OverlayState):
+                raise TypeError(f"expected an OverlayState or None, not {type(state).__name__}")
+            if self._complete and state.base_count != self.base_record_count:
+                raise ValueError(f"the overlay state is for {state.base_count} records; the file has "
+                                 f"{self.base_record_count}")
+        return PinnedDocument._make(self, state)
+
+    def record_rid(self, pos: int) -> tuple[int, bool]:
+        """``(rid, content overridden)`` of the record at position ``pos`` (without an overlay: the
+        record index itself and ``False``); ``IndexError`` outside ``0 .. record_count-1``."""
+        pos = operator.index(pos)
+        ov = self._ov()
+        if ov is None:
+            self._base_span(pos)
+            return pos, False
+        if pos < 0 or pos >= ov.count:
+            self._check_open()
+            raise IndexError(f"record {pos} out of range ({ov.count} records)")
+        rid = ov.rid_at(pos)
+        return rid, not ov.is_pure(rid)
+
+    def effective_bytes(self) -> int:
+        """Bytes of the effective records: pure runs counted from the first record's start to the last
+        one's end (separators inside included), edited / new records by their content size. Without
+        edits: the extent of the records in the file (0 without records). Cached per state."""
+        ov = self._ov()
+        if not _edited_state(ov):
+            return self._base_extent()
+        assert ov is not None
+        return self._eff_bytes(ov)
+
+    def _base_extent(self) -> int:
+        n = self.base_record_count
+        if n <= 0:
+            return 0
+        return self._base_span(n - 1)[1] - self._base_span(0)[0]
+
+    def _eff_bytes(self, ov: OverlayState, exact: bool = True) -> int:
+        """:meth:`effective_bytes` of ``ov`` (cached per state). ``exact=False`` (a node's ``size``,
+        which the GUI may ask for on its own thread): a state with more than :data:`EFF_EXACT_MAX`
+        pieces and overrides that was not measured yet gets the file's record extent scaled by the
+        record counts instead of a pass over its runs."""
+        with self._ov_lock:
+            hit = self._eff_cache.get(ov.gen)
+        if hit is not None:
+            return hit
+        if not exact and ov.pieces.npieces + sum(len(layer) for layer in ov.layers) > EFF_EXACT_MAX:
+            return self._base_extent() * ov.count // max(1, ov.base_count)
+        total = 0
+        count = ov.count
+        layers = [layer for layer in ov.layers if len(layer)]     # oldest first
+        w = 0
+        while w < count:
+            w1 = min(count, w + OV_WINDOW)
+            total += _EffWindow(self, ov, w, w1, layers).effective_bytes()
+            w = w1
+        with self._ov_lock:
+            self._eff_cache[ov.gen] = total
+            while len(self._eff_cache) > EFF_CACHE_STATES:
+                self._eff_cache.popitem(last=False)
+        return total
 
     def __enter__(self) -> Document:
         return self
@@ -1573,6 +2056,46 @@ class Document:
     # -- file access -------------------------------------------------------------------
     def _changed(self) -> FileChangedError:
         return FileChangedError(path=str(self.source_path))
+
+    def _damaged(self, start: int) -> JsonReshapeError:
+        """The error for bytes at ``start`` that are not what their span promises: the data file
+        changed (``FileChangedError``), or -- an edit offset -- the edit layer is damaged."""
+        if start >= EDIT_BASE:
+            return _layer_corrupt(f"bytes at edit offset {start} are not a JSON value", self.source_path.name)
+        return self._changed()
+
+    def _segments(self, ov: OverlayState | None = None) -> DatReader | None:
+        """The segment reader of ``ov`` (default: the state read), else one the live document
+        registered (an offset of an earlier state of the same layer), else ``None``."""
+        if ov is None:
+            ov = self._ov()
+        if ov is not None and ov.reader is not None:
+            return ov.reader
+        with self._ov_lock:
+            owned = list(self._ov_owned.values())
+        for res in reversed(owned):
+            if isinstance(res, DatReader):
+                return res
+        return None
+
+    def _seg_read(self, start: int, end: int, ov: OverlayState | None = None) -> bytes:
+        """Bytes of the edit-layer span ``[start, end)`` (offsets >= ``EDIT_BASE``)."""
+        self._check_open()
+        if end < start:
+            raise ValueError(f"invalid byte range [{start}, {end})")
+        reader = self._segments(ov)
+        if reader is None:
+            raise _layer_corrupt(f"no edit layer for the span ({start}, {end})", self.source_path.name)
+        return reader.read(start, end)
+
+    def _vread(self, start: int, end: int, ov: OverlayState | None) -> bytes:
+        """``_read`` in the virtual address space with the segments of ``ov`` (a read never crosses
+        the two spaces: a span reaching from the data file into the edit layer is damaged)."""
+        if start >= EDIT_BASE:
+            return self._seg_read(start, end, ov)
+        if end > self.data_size and end >= EDIT_BASE:
+            raise _layer_corrupt(f"span ({start}, {end}) crosses the address spaces", self.source_path.name)
+        return self._read(start, end)
 
     def _verify_handle(self, raw: Any) -> None:
         """``fstat`` of an open handle on the data file against the version opened:
@@ -1642,18 +2165,20 @@ class Document:
             log.info("%s grew by %d bytes after it was opened; the appended data is not read",
                      self.source_path.name, n)
 
-    def open_data(self, buffering: int = -1) -> Any:
-        """A new shared-read handle on the data file (``open_shared``), checked against
-        the version this document opened (:class:`FileChangedError` otherwise). The
-        caller owns and closes it."""
+    def open_data(self, buffering: int = -1) -> VirtualReader:
+        """A new :class:`VirtualReader` over the document's virtual address space: the data file
+        through a new shared-read handle (``open_shared``, ``buffering`` as given), checked against
+        the version this document opened (:class:`FileChangedError` otherwise), and the edit
+        layer's segments of the overlay state read. The caller owns and closes it."""
         self._check_open()
+        segments = self._segments()
         f = open_shared(self.data_path, "rb", buffering=buffering)
         try:
             self._verify_handle(f)
         except BaseException:
             f.close()
             raise
-        return f
+        return VirtualReader(f, self.data_size, segments, str(self.data_path))
 
     def _fh(self) -> _ReadHandle:
         """This thread's handle on the data file (opened on first use and checked against
@@ -1693,8 +2218,13 @@ class Document:
         inside them are served from memory (what the buffered reader did for every read).
         ``exact``: never fetch ahead (the caller planned its reads: :meth:`_read_pieces`).
         Every :data:`VERIFY_READS` reads the handle is checked against the identity.
+        Offsets from ``EDIT_BASE`` on read the edit layer (the overlay state's segments).
         """
         if end > self.data_size:
+            if start >= EDIT_BASE:
+                return self._seg_read(start, end)
+            if end >= EDIT_BASE:
+                raise _layer_corrupt(f"span ({start}, {end}) crosses the address spaces", self.source_path.name)
             raise FileChangedError(path=str(self.source_path))
         h = self._fh()
         with h.lock:
@@ -2313,24 +2843,26 @@ class Document:
 
     def _wait_records(self, n: int, cancel: CancelToken | None) -> int:
         """Wait until at least ``n`` records are indexed or the index is final; builds the
-        index (blocking) when nobody is building it. Returns the current count."""
+        index (blocking) when nobody is building it. Returns the current count (of the index:
+        records of the file)."""
         while True:
-            count = self.record_count
+            count = self.base_record_count
             if count >= n or self._complete:
                 return count
             if self._pending_builds == 0:
                 self.build_index(cancel=cancel)
                 continue
             with self._cond:
-                if self.record_count < n and not self._complete and self._pending_builds:
+                if self.base_record_count < n and not self._complete and self._pending_builds:
                     self._cond.wait(0.05)
             check(cancel)
 
     # -- records -----------------------------------------------------------------------
     def _spans_bytes(self, i: int, n: int, sequential: bool = False) -> bytes:
-        """Spans ``i .. i+n-1`` (u64 LE pairs). ``sequential``: a batch of a scan over
-        many records -- read from the final index file with an ordinary read, so the
-        scanned index pages do not accumulate in this process's working set."""
+        """Spans of the FILE's records ``i .. i+n-1`` (u64 LE pairs; record indices of the
+        index, never positions of an overlay). ``sequential``: a batch of a scan over many
+        records -- read from the final index file with an ordinary read, so the scanned index
+        pages do not accumulate in this process's working set."""
         src = self._spans
         if src is None:
             return b""
@@ -2338,15 +2870,47 @@ class Document:
             return src.read_many(i, n)
         return src.get_many(i, n)
 
-    def record_span(self, i: int) -> tuple[int, int]:
-        """Absolute ``(start, end)`` of record ``i`` (``IndexError`` when not indexed)."""
+    def _base_span(self, i: int) -> tuple[int, int]:
+        """Data-file span of the file's record ``i`` (``IndexError`` when not indexed)."""
         i = operator.index(i)
         src = self._spans
         if src is None or i < 0 or i >= src.count:
             self._check_open()
-            raise IndexError(f"record {i} out of range ({self.record_count} records)")
+            raise IndexError(f"record {i} out of range ({self.base_record_count} records)")
         s, e = src.get(i)
         return int(s), int(e)
+
+    def _pos_span(self, ov: OverlayState, i: int) -> tuple[int, int]:
+        """Span of the record at position ``i`` of ``ov`` (its content span, else its file span)."""
+        if i < 0 or i >= ov.count:
+            self._check_open()
+            raise IndexError(f"record {i} out of range ({ov.count} records)")
+        rid = ov.rid_at(i)
+        span = ov.content(rid)
+        if span is None:
+            if rid >= ov.base_count:
+                raise _layer_corrupt(f"record id {rid} has no content", self.source_path.name)
+            return self._base_span(rid)
+        return int(span[0]), int(span[1])
+
+    def _eff_spans(self, ov: OverlayState, pos: int, n: int) -> array:
+        """Flat ``(start, end)`` pairs of positions ``pos .. pos+n-1`` of ``ov`` (clipped)."""
+        out = array("Q")
+        for _p, rid, k, pure in ov.runs(max(0, pos), pos + n):
+            if pure:
+                out.frombytes(self._spans_bytes(rid, k))
+            else:
+                out.extend(ov.contents(rid, k))
+        return out
+
+    def record_span(self, i: int) -> tuple[int, int]:
+        """Absolute ``(start, end)`` of record ``i`` (``IndexError`` when not indexed). With an
+        overlay state ``i`` is a position and the span is in the virtual address space (an edited
+        record's span is an edit offset; read it through :meth:`open_data`)."""
+        ov = self._ov()
+        if ov is None:
+            return self._base_span(i)
+        return self._pos_span(ov, operator.index(i))
 
     def is_huge(self, i: int) -> bool:
         """Record ``i`` is larger than ``Settings.large_node_bytes``."""
@@ -2357,13 +2921,14 @@ class Document:
         """Raw bytes of record ``i`` (member records: ``"key": value``).
         :class:`TooLargeError` above ``Settings.large_node_bytes``;
         :class:`FileChangedError` when the bytes at the record's span cannot be a record
-        any more (the file changed: see the module docstring)."""
+        any more (the file changed: see the module docstring) -- for edited content
+        ``EditError("edits.error.layer_corrupt")``."""
         s, e = self.record_span(i)
         if e - s > self.settings.large_node_bytes:
             raise TooLargeError(size=format_bytes(e - s))
         buf = self._read(s, e)
         if not _looks_like_record(buf, self.member_records):
-            raise self._changed()
+            raise self._damaged(s)
         return buf
 
     def record(self, i: int) -> Any:
@@ -2429,7 +2994,21 @@ class Document:
         (:attr:`Block.selected_bytes`), so a total computed from the spans is never
         exceeded. Every block is checked against changes of the file
         (:class:`FileChangedError`, see "Changes while reading").
+
+        With an edited overlay state (read once, when this is called) ``source`` holds
+        positions and ``Block.indices`` are positions (module docstring, "Edits"): pure runs
+        of at least :data:`PURE_CONTIGUOUS_MIN` bytes are contiguous file ranges, everything
+        else (short pure runs, edited and new records, in either address space) is gathered
+        into scattered blocks; ``contiguous`` only for consecutive pure base records.
         """
+        ov = self._ov()
+        if _edited_state(ov):
+            return self._ov_blocks(ov, source, block_bytes, progress, cancel)   # type: ignore[arg-type]
+        return self._base_blocks(source, block_bytes, progress, cancel)
+
+    def _base_blocks(self, source: Any, block_bytes: int, progress: Progress | None,
+                     cancel: CancelToken | None) -> Iterator[Block]:
+        """:meth:`iter_blocks` of the file's records (no edits)."""
         self._check_open()
         block_bytes = max(1, int(block_bytes))
         large = self.settings.large_node_bytes
@@ -2487,14 +3066,16 @@ class Document:
                 raise self._changed()
         self._verify_fh()
 
-    def _huge_block(self, i: int, s: int, e: int) -> Block:
-        """A huge record's block: its first and last byte are checked (two tiny reads)."""
+    def _huge_block(self, i: int, s: int, e: int, ov: OverlayState | None = None) -> Block:
+        """A huge record's block: its first and last byte are checked (two tiny reads; an
+        edited record's in its segment)."""
         member = self.member_records
-        first = self._read(s, s + 1)
-        last = self._read(e - 1, e)
+        first = self._vread(s, s + 1, ov)
+        last = self._vread(e - 1, e, ov)
         if last[0] not in _VALUE_END or (first[0] != _QUOTE if member else first[0] not in _VALUE_START):
-            raise self._changed()
-        self._verify_fh()
+            raise self._damaged(s)
+        if s < EDIT_BASE:
+            self._verify_fh()
         return Block(b"", array("Q", (i,)), array("Q", (s, e)).tobytes(), False, True)
 
     def _range_blocks(self, i0: int, i1: int, block_bytes: int, large: int, tracker: _ByteProgress,
@@ -2549,11 +3130,11 @@ class Document:
         i = operator.index(i)
         if i < 0:
             raise IndexError(f"record {i} out of range")
-        if i >= self.record_count:
+        if i >= self.base_record_count:
             count = self._wait_records(i + 1, cancel)
             if i >= count:
                 raise IndexError(f"record {i} out of range ({count} records)")
-        return self.record_span(i)
+        return self._base_span(i)
 
     def _index_blocks(self, indices: Iterable[int], block_bytes: int, large: int, tracker: _ByteProgress,
                       cancel: CancelToken | None) -> Iterator[Block]:
@@ -2739,6 +3320,257 @@ class Document:
                     mm.close()
         return pieces
 
+    # -- blocks of an edited document (module docstring, "Edits") ---------------------------
+    def _ov_blocks(self, ov: OverlayState, source: Any, block_bytes: int, progress: Progress | None,
+                   cancel: CancelToken | None) -> Iterator[Block]:
+        """:meth:`iter_blocks` of the effective records of ``ov`` (positions in, positions out)."""
+        self._check_open()
+        block_bytes = max(1, int(block_bytes))
+        large = self.settings.large_node_bytes
+        tracker = _ByteProgress(progress)
+        count = ov.count
+        if source is None or (isinstance(source, range) and source.step == 1):
+            if source is None:
+                p0, p1 = 0, count
+                if progress is not None and progress.total is None:
+                    progress.set_total(self._eff_bytes(ov))
+            elif not len(source):
+                p0 = p1 = 0
+            else:
+                p0, p1 = source.start, source.stop
+                if p0 < 0:
+                    raise IndexError(f"record {p0} out of range")
+                if p1 > count:
+                    raise IndexError(f"record {p1 - 1} out of range ({count} records)")
+            yield from self._ov_run_blocks(ov, p0, p1, block_bytes, large, tracker, cancel)
+        else:
+            yield from self._ov_index_blocks(ov, self._iter_indices(source), block_bytes, large, tracker, cancel)
+        tracker.finish()
+
+    def _ov_run_blocks(self, ov: OverlayState, p0: int, p1: int, block_bytes: int, large: int,
+                       tracker: _ByteProgress, cancel: CancelToken | None) -> Iterator[Block]:
+        """Positions ``p0 .. p1-1`` in order, in windows of :data:`OV_WINDOW` positions whose spans are
+        computed at once (:class:`_EffWindow`; the runs of ``ov.runs()``): a pure run of at least
+        :data:`PURE_CONTIGUOUS_MIN` bytes becomes contiguous blocks of the file range
+        (:meth:`_range_blocks`, indices rewritten to positions); shorter pure runs and the
+        edited/new records are gathered into scattered blocks by size."""
+        pending = _Scattered(self, ov, block_bytes, large, tracker)
+        layers = [layer for layer in ov.layers if len(layer)]     # oldest first
+        w = p0
+        while w < p1:
+            w1 = min(p1, w + OV_WINDOW)
+            check(cancel)
+            win = _EffWindow(self, ov, w, w1, layers)    # the window's spans in a few batch reads
+            spans = win.spans
+            a = 0                                         # window offset of the first position not yet given
+            for ra, rb, rid in win.pure_runs(PURE_CONTIGUOUS_MIN):
+                if ra > a:
+                    yield from pending.add(w + a, spans[2 * a:2 * ra])
+                if pending:
+                    yield pending.flush()
+                shift = w + ra - rid
+                for blk in self._range_blocks(rid, rid + rb - ra, block_bytes, large, tracker, cancel):
+                    if shift:
+                        blk.indices = array("Q", map(add, blk.indices, repeat(shift)))
+                    yield blk
+                a = rb
+            if a < w1 - w:
+                yield from pending.add(w + a, spans[2 * a:])
+            w = w1
+        if pending:
+            yield pending.flush()
+
+    def _ov_index_blocks(self, ov: OverlayState, indices: Iterable[int], block_bytes: int, large: int,
+                         tracker: _ByteProgress, cancel: CancelToken | None) -> Iterator[Block]:
+        """Arbitrary positions (any order, repeats allowed), mapped to rids in batches: like
+        :meth:`_index_blocks`, but a contiguous block only grows over CONSECUTIVE pure base
+        records (its gaps then hold separators only, never an edited, moved or deleted record);
+        everything else is scattered (:meth:`_mixed_block`)."""
+        count = ov.count
+        layers = [layer for layer in reversed(ov.layers) if len(layer)]   # newest first
+        base = ov.base_count
+        src = self._spans
+        view = src._spans if isinstance(src, IndexReader) else None
+        idx: list[int] = []
+        spans: list[int] = []      # absolute pairs (either address space)
+        mode = 0                   # 0 = one record, 1 = contiguous, 2 = scattered
+        pure_blk = True            # mode 0: the record is a pure base record
+        blk_start = blk_end = 0
+        selected = 0
+        scatter_bytes = 0
+        dense = DENSE_MIN
+        small_gap = CONTIGUOUS_GAP
+        last_rid = -2
+        last_pure = False
+
+        def flush() -> Block:
+            if mode == 2 or not pure_blk:
+                return self._mixed_block(ov, idx, spans[0::2], spans[1::2], tracker)
+            data = self._read(blk_start, blk_end)
+            self._check_contiguous(data, blk_start, spans, 0, len(idx))
+            tracker.add(selected)
+            rel = array("Q", [v - blk_start for v in spans])
+            return Block(data, array("Q", idx), rel.tobytes(), True, False, blk_start)
+
+        it = iter(indices)
+        while True:
+            batch = [operator.index(i) for i in islice(it, SPAN_BATCH)]
+            if not batch:
+                break
+            check(cancel)
+            lo, hi = min(batch), max(batch)
+            if lo < 0:
+                raise IndexError(f"record {lo} out of range")
+            if hi >= count:
+                raise IndexError(f"record {hi} out of range ({count} records)")
+            rids = ov.rids_at(array("Q", batch))
+            for k, i in enumerate(batch):
+                rid = rids[k]
+                span = None
+                for layer in layers:
+                    span = layer.get(rid)
+                    if span is not None:
+                        break
+                if span is None:
+                    if rid >= base:
+                        raise _layer_corrupt(f"record id {rid} has no content", self.source_path.name)
+                    pure = True
+                    if view is not None:
+                        s = view[2 * rid]
+                        e = view[2 * rid + 1]
+                    else:   # pragma: no cover - an overlay needs the complete (mapped) index
+                        s, e = self._base_span(rid)
+                else:
+                    pure = False
+                    s, e = span
+                size = e - s
+                if size > large:
+                    if idx:
+                        yield flush()
+                        idx, spans, mode = [], [], 0
+                    tracker.add(size)
+                    yield self._huge_block(i, s, e, ov)
+                    last_pure = False
+                    continue
+                if idx:
+                    gap = s - blk_end
+                    if mode != 2 and pure and last_pure and rid == last_rid + 1 and gap >= 0 \
+                            and e - blk_start <= block_bytes and (
+                                gap <= small_gap or (gap <= SCATTER_GAP and selected + size >= dense * (e - blk_start))):
+                        idx.append(i)
+                        spans += (s, e)
+                        blk_end = e
+                        selected += size
+                        mode = 1
+                        last_rid = rid
+                        continue
+                    if mode != 1 and scatter_bytes + 1 + size <= block_bytes:
+                        idx.append(i)
+                        spans += (s, e)
+                        scatter_bytes += 1 + size
+                        mode = 2
+                        last_rid = rid
+                        last_pure = pure
+                        continue
+                    yield flush()
+                    idx, spans = [], []
+                idx.append(i)
+                spans += (s, e)
+                mode = 0
+                pure_blk = pure
+                blk_start, blk_end = s, e
+                selected = size
+                scatter_bytes = size
+                last_rid = rid
+                last_pure = pure
+        if idx:
+            yield flush()
+
+    def _mixed_block(self, ov: OverlayState, positions: list[int], starts: Any, ends: Any,
+                     tracker: _ByteProgress) -> Block:
+        """The records at ``positions`` (spans in either address space) joined with ``b"\\n"`` in
+        this order (``contiguous=False``): file pieces fetched in file order (:meth:`_file_pieces`,
+        never with an edit offset), segment pieces coalesced per segment (:meth:`_unit_pieces`).
+        Every record is checked to still look like one (``FileChangedError`` for the file,
+        ``EditError("edits.error.layer_corrupt")`` for the edit layer); the data handle is
+        checked once when file pieces were read."""
+        n = len(positions)
+        starts = list(starts)
+        ends = list(ends)
+        files = True
+        if max(starts) < EDIT_BASE:
+            pieces = self._file_pieces(starts, ends)
+        elif min(starts) >= EDIT_BASE:
+            pieces = self._unit_pieces(ov, starts, ends)
+            files = False
+        else:
+            in_file = list(map(EDIT_BASE.__gt__, starts))
+            fk = list(compress(range(n), in_file))
+            ek = list(compress(range(n), map(operator.not_, in_file)))
+            pieces = [b""] * n
+            _put(pieces, fk, self._file_pieces([starts[k] for k in fk], [ends[k] for k in fk]))
+            _put(pieces, ek, self._unit_pieces(ov, [starts[k] for k in ek], [ends[k] for k in ek]))
+        bad = _first_unlike(pieces, self.member_records)
+        if bad >= 0:
+            raise self._damaged(starts[bad])
+        if files:
+            self._verify_fh()
+        lens = list(map(len, pieces))
+        offs = list(accumulate(map(add, lens, repeat(1)), initial=0))[:n]
+        rel = array("Q", bytes(16 * n))
+        rel[0::2] = array("Q", offs)
+        rel[1::2] = array("Q", map(add, offs, lens))
+        tracker.add(sum(ends) - sum(starts))
+        return Block(b"\n".join(pieces), array("Q", positions), rel.tobytes(), False, False, -1)
+
+    def _file_pieces(self, starts: list[int], ends: list[int]) -> list[bytes]:
+        """Data-file pieces ``starts[k]:ends[k]`` fetched in file order (like :meth:`_scatter_block`)."""
+        n = len(starts)
+        if not n:
+            return []
+        order = sorted(range(n), key=starts.__getitem__)
+        pieces = self._map_pieces(starts, ends, order) if MAP_SCATTERED and n >= MAP_MIN_RECORDS else None
+        if pieces is None:
+            pieces = self._read_pieces(starts, ends, order)
+        return pieces
+
+    def _unit_pieces(self, ov: OverlayState, starts: list[int], ends: list[int]) -> list[bytes]:
+        """Edit-layer pieces ``starts[k]:ends[k]`` (``k`` order): neighbours in one segment at most
+        :data:`SCATTER_GAP` apart are read together, in ranges of at most :data:`SCATTER_GROUP`
+        bytes (units of one step lie side by side, so most groups are one read)."""
+        n = len(starts)
+        if not n:
+            return []
+        if all(map(operator.le, starts, islice(starts, 1, None))):     # the usual: units in position order
+            order = None
+            ss, es = starts, ends
+        else:
+            order = sorted(range(n), key=starts.__getitem__)
+            ss = [starts[k] for k in order]
+            es = [ends[k] for k in order]
+        top = list(accumulate(es, max))                                 # running maximum of the ends
+        segs = list(map(operator.rshift, map(sub, ss, repeat(EDIT_BASE)), repeat(SEG_SHIFT)))
+        # a group ends before a gap of more than SCATTER_GAP after the ends so far, or a new segment
+        gaps = map(sub, islice(ss, 1, None), top)
+        cuts = list(compress(range(1, n), map(operator.or_, map(gt, gaps, repeat(SCATTER_GAP)),
+                                               map(operator.ne, islice(segs, 1, None), segs))))
+        out: list[bytes] = []
+        for a, b in zip([0, *cuts], [*cuts, n]):
+            while a < b:
+                lo = ss[a]
+                j = bisect.bisect_right(top, lo + SCATTER_GROUP, a, b)   # ranges of at most SCATTER_GROUP bytes
+                if j <= a:
+                    j = a + 1
+                hi = max(es[a:j])
+                data = self._seg_read(lo, hi, ov)
+                out += [data[s - lo:e - lo] for s, e in zip(ss[a:j], es[a:j])]
+                a = j
+        if order is None:
+            return out
+        pieces = [b""] * n
+        _put(pieces, order, out)
+        return pieces
+
     def iter_records(self, source: Any = None, *, include_huge: bool = False, block_bytes: int = BLOCK_BYTES,
                      progress: Progress | None = None, cancel: CancelToken | None = None) -> Iterator[tuple[int, Any]]:
         """``(index, value)`` for each record (member records: the value). Huge records
@@ -2781,9 +3613,16 @@ class Document:
         -- the bytes before and after the record container (brackets excluded from both:
         the prefix ends at the container's ``[``/``{``, the suffix starts after its
         closing bracket). Builds the index when needed. ``None`` for other kinds and when
-        the container never closed (a partial document)."""
+        the container never closed (a partial document). With an edited wrapper (overlay
+        state ``wrapper``/``wrapper_hole``): the virtual prefix ``(W'.start, hole.start)`` and
+        suffix ``(hole.end, W'.end)`` -- W' covers ``[root_start, trimmed_end)`` of the
+        wrapper text, so the whitespace outside the root value is not part of them."""
         if self.info.kind != "wrapped":
             return None
+        ov = self._ov()
+        if ov is not None and ov.wrapper is not None and ov.wrapper_hole is not None:
+            (ws, we), (hs, he) = ov.wrapper, ov.wrapper_hole
+            return (ws, hs), (he, we)
         self._ensure_complete(progress, cancel)
         span = self.container_span
         if span is None:
@@ -2907,6 +3746,23 @@ class Document:
                 f.close()
             except OSError:  # pragma: no cover
                 pass
+        # the edit layer's readers and array layers of the states shown, the temporary child
+        # indexes of edited nodes
+        with self._ov_lock:
+            owned, self._ov_owned = list(self._ov_owned.values()), {}
+            temps, self._temp_indexes = self._temp_indexes, []
+            self._overlay = None
+            self._eff_cache.clear()
+        for res in owned:
+            try:
+                res.close()
+            except Exception:  # pragma: no cover - best effort
+                log.debug("closing %r failed", res, exc_info=True)
+        for p in temps:
+            try:
+                os.remove(long_path(p))
+            except OSError:
+                log.debug("could not remove the temporary child index %s", p, exc_info=True)
         if getattr(self, "_retained_prepared", False):
             self._retained_prepared = False
             release_prepared(self.prepared.data_path)
@@ -2922,18 +3778,24 @@ class Document:
 
     def record_node(self, i: int) -> Node:
         """The :class:`Node` of record ``i`` (path ``(i,)``; keyed ``(key,)``; wrapped
-        ``record_path + (i,)`` / ``+ (key,)``; single: the root value ``()``)."""
+        ``record_path + (i,)`` / ``+ (key,)``; single: the root value ``()``). Member records
+        carry their member start (``mstart``)."""
         s, e = self.record_span(i)
         if self.info.kind == "single":
             return Node(self, (), s, e, self._value_kind_at(s), None)
         if self.member_records:
             key, vo = self._member_prefix(s, e)
             vs = s + vo
-            return Node(self, self._record_base_path() + (key,), vs, e, self._value_kind_at(vs), key)
+            return Node(self, self._record_base_path() + (key,), vs, e, self._value_kind_at(vs), key, mstart=s)
         return Node(self, self._record_base_path() + (i,), s, e, self._value_kind_at(s), i)
 
     def _container_bounds(self) -> tuple[int, int] | None:
-        """Record container span; for a container that never closed: (start, data end)."""
+        """Record container span; for a container that never closed: (start, data end); with an
+        edited wrapper: the hole (the placeholder of the record container inside W')."""
+        if self.info.kind == "wrapped":
+            ov = self._ov()
+            if ov is not None and ov.wrapper_hole is not None:
+                return ov.wrapper_hole
         if self.container_span is not None:
             return self.container_span
         if self.info.kind != "wrapped" or not self._complete:
@@ -2943,8 +3805,8 @@ class Document:
         return self._open_bounds[0]
 
     def _find_open_container(self) -> tuple[int, int] | None:
-        if self.record_count:
-            first = self.record_span(0)[0]
+        if self.base_record_count:
+            first = self._base_span(0)[0]
             pos = first
             while pos > self.info.data_start:
                 lo = max(self.info.data_start, pos - 4096)
@@ -2992,6 +3854,11 @@ class Document:
         if kind == "single" and self._complete and self.record_count:
             s, e = self.record_span(0)
             return Node(self, (), s, e, self._value_kind_at(s), None)
+        if kind == "wrapped":
+            ov = self._ov()
+            if ov is not None and ov.wrapper is not None:   # the edited wrapper text W'
+                ws, we = ov.wrapper
+                return Node(self, (), ws, we, _kind_of(self._vread(ws, ws + 1, ov)[0]), None, role=_ROLE_ANCESTOR)
         end = self._trimmed_end()
         role = _ROLE_ANCESTOR if kind == "wrapped" else None
         return Node(self, (), start, end, _kind_of(ord(self.info.root_char or "n")), None, role=role)
@@ -3034,23 +3901,147 @@ class Document:
 
     def _find_record_index(self, seg: str | int, cancel: CancelToken | None) -> int | None:
         """Number of the record addressed by path segment ``seg`` (index, or member key:
-        the last record with that key), ``None`` when there is none."""
+        the last record with that key), ``None`` when there is none. With an overlay state:
+        a position; a member key is looked up in :attr:`key_index` when one is attached for
+        this state (see :meth:`_key_index_for`), else the effective keys are scanned."""
+        ov = self._ov()
         if not self._member_known:
             self._wait_records(1, cancel)  # the container kind is known with the first record
         if self.member_records:
             if not isinstance(seg, str):
                 return None
+            ki = self._key_index_for(ov)
+            if ki is not None:
+                return ki.find(seg)
             return self._find_record_by_key(seg, cancel)
         if isinstance(seg, bool):
             return None
         idx = seg if isinstance(seg, int) else canonical_index(seg)
         if idx is None or idx < 0:
             return None
+        if ov is not None:
+            return idx if idx < ov.count else None
         try:
             self._span_wait(idx, cancel)
         except IndexError:
             return None
         return idx
+
+    def _key_index_for(self, ov: OverlayState | None) -> Any:
+        """The attached :attr:`key_index` when it describes the state ``ov``: its ``gen`` attribute
+        (when it has one) equals the state's gen (0 = no overlay); one without ``gen`` serves the
+        state the live document shows only (a view of an older state scans the keys)."""
+        ki = self.key_index
+        if ki is None:
+            return None
+        kgen = getattr(ki, "gen", None)
+        if kgen is not None:
+            return ki if kgen == (ov.gen if ov is not None else 0) else None
+        return ki if ov is self.origin._overlay else None
+
+    # -- effective text of nodes (composite nodes, docs/ARCHITECTURE.md §12.3) ------------------
+    def _note_temp_index(self, path: StrPath) -> None:
+        with self._ov_lock:
+            self._temp_indexes.append(Path(path))
+
+    def _bounds_for(self, start: int) -> tuple[int, int] | None:
+        """The record container's bounds in the address space of a node starting at ``start``: the
+        hole of an edited wrapper for W' nodes, the file's container for nodes of the file."""
+        bounds = self._container_bounds()
+        if bounds is not None and (bounds[0] >= EDIT_BASE) != (start >= EDIT_BASE):
+            bounds = self.container_span
+        return bounds
+
+    def node_chunks(self, node: Node, *, chunk: int = MiB, cancel: CancelToken | None = None) -> Iterator[bytes]:
+        """The effective JSON text of ANY node in pieces of at most ``chunk`` bytes: a plain node's
+        bytes ``[start, end)`` read in the virtual address space; a composite node
+        (:attr:`Node.is_composite`) of an edited document built from the effective records --
+        ``[``/``{`` + records + ``]``/``}`` for the node holding the records, the wrapper text
+        around it for its ancestors -- and the virtual root of jsonl/stream/brace_list documents
+        always as a JSON array. Records follow each other with ``,`` (consecutive unchanged records
+        of comma-separated kinds keep the original separators between them). The overlay state is
+        read once, when this is called."""
+        chunk = max(1, int(chunk))
+        ov = self._ov()
+        return self._node_chunks(ov, node, chunk, cancel)
+
+    def _node_chunks(self, ov: OverlayState | None, node: Node, chunk: int,
+                     cancel: CancelToken | None) -> Iterator[bytes]:
+        self._check_open()
+        role = node.role
+        if role == _ROLE_VIRTUAL:
+            yield b"["
+            yield from self._records_text(ov, self.info.kind == "brace_list", chunk, cancel)
+            yield b"]"
+            return
+        if role not in (_ROLE_RECORDS, _ROLE_ANCESTOR) or not _edited_state(ov):
+            yield from self._span_chunks(node.start, node.end, chunk, cancel, ov)
+            return
+        open_b, close_b = (b"{", b"}") if self.member_records else (b"[", b"]")
+        if role == _ROLE_RECORDS:
+            yield open_b
+            yield from self._records_text(ov, True, chunk, cancel)
+            yield close_b
+            return
+        bounds = self._bounds_for(node.start)
+        if bounds is None or not (node.start <= bounds[0] and bounds[1] <= node.end):
+            yield from self._span_chunks(node.start, node.end, chunk, cancel, ov)
+            return
+        yield from self._span_chunks(node.start, bounds[0], chunk, cancel, ov)
+        yield open_b
+        yield from self._records_text(ov, True, chunk, cancel)
+        yield close_b
+        yield from self._span_chunks(bounds[1], node.end, chunk, cancel, ov)
+
+    def _span_chunks(self, start: int, end: int, chunk: int, cancel: CancelToken | None,
+                     ov: OverlayState | None) -> Iterator[bytes]:
+        pos = start
+        while pos < end:
+            check(cancel)
+            stop = min(end, pos + chunk)
+            yield self._vread(pos, stop, ov)
+            pos = stop
+
+    def _records_text(self, ov: OverlayState | None, comma_kind: bool, chunk: int,
+                      cancel: CancelToken | None) -> Iterator[bytes]:
+        """The effective records joined with ``,`` (``comma_kind``: contiguous blocks keep their
+        original separators -- array/keyed/wrapped/brace_list gaps are ``,`` + whitespace)."""
+        if _edited_state(ov):
+            assert ov is not None
+            blocks = self._ov_blocks(ov, None, BLOCK_BYTES, None, cancel)
+        else:
+            blocks = self._base_blocks(None, BLOCK_BYTES, None, cancel)
+        first = True
+        for blk in blocks:
+            if blk.huge:
+                if not first:
+                    yield b","
+                s, e = blk.span(0)
+                yield from self._span_chunks(s, e, chunk, cancel, ov)
+            else:
+                if comma_kind and blk.contiguous:
+                    body = blk.data
+                else:
+                    sp = _pairs(blk.spans)
+                    data = blk.data
+                    body = b",".join([data[sp[2 * k]:sp[2 * k + 1]] for k in range(len(blk.indices))])
+                if not first:
+                    body = b"," + body
+                for p in range(0, len(body), chunk):
+                    yield body[p:p + chunk]
+            first = False
+
+    def _composite_size(self, node: Node, ov: OverlayState, exact: bool = False) -> int:
+        """Size of a composite node of an edited document: :meth:`effective_bytes` of the records
+        plus the brackets (an ancestor: plus its own text around the record container). An estimate
+        of the length of :meth:`node_chunks` (separators are not counted exactly); ``exact=False``
+        may scale the file's extent instead of measuring a big state (:meth:`_eff_bytes`)."""
+        size = self._eff_bytes(ov, exact=exact) + 2
+        if node.role == _ROLE_ANCESTOR:
+            bounds = self._bounds_for(node.start)
+            if bounds is not None and node.start <= bounds[0] and bounds[1] <= node.end:
+                size += (bounds[0] - node.start) + (node.end - bounds[1])
+        return size
 
     def _find_record_by_key(self, key: str, cancel: CancelToken | None) -> int | None:
         """Index of the LAST record whose member key equals ``key`` (dict semantics)."""
@@ -3088,18 +4079,31 @@ class Document:
     def _node_index_key(self, start: int) -> str:
         return cache_key(self.identity, self.info.kind, self.info.record_path, extra=f"node:{start}")
 
+    def _children_key(self, start: int) -> int:
+        """Key of the child caches (``_mem_children`` / ``_node_readers``) for a node at ``start``: base offsets
+        as they are; an edit offset combined with the :attr:`~jsonreshape.overlay.DatReader.uid` of the segment
+        reader of the state read (``start | uid << 64``, still ``>= EDIT_BASE``), so the same virtual offset in
+        two edit layers -- a pinned view of a discarded layer and the live document -- never shares an entry
+        (pinned views use the origin's caches)."""
+        if start < EDIT_BASE:
+            return start
+        reader = self._segments()
+        return start | ((reader.uid if reader is not None else 0) << 64)
+
     def _cached_children(self, node: Node) -> _Children | None:
+        key = self._children_key(node.start)
         with self._children_lock:
-            mem = self._mem_children.get(node.start)
+            mem = self._mem_children.get(key)
             if mem is not None:
-                self._mem_children.move_to_end(node.start)
+                self._mem_children.move_to_end(key)
                 return mem
-            reader = self._node_readers.get(node.start)
+            reader = self._node_readers.get(key)
             if reader is not None:
                 return _DiskChildren(reader, node.kind == "object")
         return None
 
     def _remember_children(self, start: int, children: _Children) -> None:
+        start = self._children_key(start)
         with self._children_lock:
             if isinstance(children, _DiskChildren):
                 old = self._node_readers.get(start)
@@ -3120,7 +4124,7 @@ class Document:
 
     def _children_of(self, node: Node, progress: Progress | None, cancel: CancelToken | None) -> _Children:
         if node.role in (_ROLE_RECORDS, _ROLE_VIRTUAL):
-            return _RecordChildren(self)  # live: grows while the index is built
+            return _RecordChildren(self, self._ov())  # live: grows while the index is built
         cached = self._cached_children(node)
         if cached is not None:
             return cached
@@ -3129,14 +4133,22 @@ class Document:
         return children
 
     def _scan_children(self, node: Node, progress: Progress | None, cancel: CancelToken | None) -> _Children:
-        """Index the children of ``node`` (on disk when large) by streaming its bytes."""
+        """Index the children of ``node`` (on disk when large) by streaming its bytes. A node of
+        the edit layer (edit offset) never uses or writes the persistent child-index cache: its
+        child list stays in memory, or -- more than ``large_node_children`` children -- goes to
+        a temporary index removed when the document closes."""
         member = node.kind == "object"
         large = self.settings.large_node_bytes
+        edit = node.start >= EDIT_BASE
         bounds: tuple[int, int] | None = None
         if node.role == _ROLE_ANCESTOR:
             self._ensure_complete(progress, cancel)
-            bounds = self._container_bounds()
-            if bounds is not None and not (node.start <= bounds[0] and bounds[1] <= node.end):
+            # the hole of an edited wrapper (W' nodes) or the container of the file (nodes of
+            # the file's wrapper text): whichever lies inside the node
+            for bounds in (self._container_bounds(), self.container_span):
+                if bounds is not None and node.start <= bounds[0] and bounds[1] <= node.end:
+                    break
+            else:
                 bounds = None
         if bounds is not None:
             segments = [(node.start, bounds[0]), None, (bounds[1], node.end)]
@@ -3144,13 +4156,13 @@ class Document:
         else:
             segments = [(node.start, node.end)]
             scan_bytes = node.size
-        disk = scan_bytes > large
+        disk = scan_bytes > large and not edit
         limit = self.settings.large_node_children
         # an expensive scan is persisted even for a short child list; a node this big may
         # also have more than large_node_children children (each child takes at least 2
         # bytes): in both cases its children may already be in the on-disk cache
-        persist = scan_bytes >= NODE_CACHE_MIN_BYTES
-        if disk or persist or scan_bytes >= 2 * limit:
+        persist = scan_bytes >= NODE_CACHE_MIN_BYTES and not edit
+        if not edit and (disk or persist or scan_bytes >= 2 * limit):
             reader = find_index(self._node_index_key(node.start), self._index_dir())
             if reader is not None:
                 if reader.meta.get("kind") == "node" and reader.meta.get("start") == node.start \
@@ -3167,7 +4179,7 @@ class Document:
             if not progress.message:
                 progress.set_message(t("reader.progress.children"))
         scanner = self._scanner_cls(MODE_CONTAINER, [], node.start)
-        collector = _ChildCollector(self, node, disk, member, persist)
+        collector = _ChildCollector(self, node, disk, member, persist, temporary=edit)
         delta = (bounds[1] - bounds[0] - 2) if bounds is not None else 0
         cstart = bounds[0] if bounds is not None else 0
         done = 0
@@ -3198,6 +4210,9 @@ class Document:
                         out = _shift_spans(out, cstart, delta)
                     collector.add(out)
             if scanner.error is not None and not (bounds is not None and self.container_span is None):
+                if edit:   # units are validated when they are written: the layer is damaged
+                    raise _layer_corrupt(f"node at {node.start}: JSON error {scanner.error[1]}",
+                                         self.source_path.name)
                 raise self._make_error(scanner.error)
             children = collector.finish()
         except BaseException:
@@ -3209,6 +4224,82 @@ class Document:
             self._evict()
         return children
 
+
+class PinnedDocument(Document):
+    """A read-only view of a :class:`Document` bound to ONE overlay state (docs/ARCHITECTURE.md §12.3).
+
+    Made by :meth:`Document.pinned` with ``object.__new__``: its own attributes are only ``_origin``
+    (the live document) and ``_pin`` (the frozen :class:`~jsonreshape.overlay.OverlayState`, or
+    ``None`` = the file as it is). Every other attribute is read from and written to the origin
+    (``__getattr__`` / ``__setattr__``), so the index state, ``closed``, caches, counters and growth
+    notes stay shared and live; only :meth:`_ov` -- the one accessor all overlay-dependent code
+    uses -- answers differently. Methods and properties of :class:`Document` run with the view as
+    ``self``. ``close()`` is a no-op (the live document owns every resource); a view of a closed
+    document raises like the document on reads. Views never change: several threads may iterate
+    views while the live document's state is swapped."""
+
+    _origin: Document
+    _pin: OverlayState | None
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: D107 - not constructible directly
+        raise TypeError("use Document.pinned() to make a pinned view")
+
+    @classmethod
+    def _make(cls, origin: Document, pin: OverlayState | None) -> PinnedDocument:
+        view = object.__new__(cls)
+        object.__setattr__(view, "_origin", origin)
+        object.__setattr__(view, "_pin", pin)
+        return view
+
+    def __getattr__(self, name: str) -> Any:
+        # reached only when the normal lookup failed: the instance data lives on the origin. A
+        # property of the class that raised AttributeError must not be retried on the origin
+        # (that would answer with the LIVE state).
+        if name in _VIEW_OWN or name in _DOCUMENT_ATTRS:
+            raise AttributeError(f"{type(self).__name__!s} has no attribute {name!r}")
+        return getattr(object.__getattribute__(self, "_origin"), name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in _VIEW_OWN:
+            raise AttributeError(f"a pinned view's {name} cannot change")
+        setattr(self._origin, name, value)
+
+    def __delattr__(self, name: str) -> None:
+        if name in _VIEW_OWN:
+            raise AttributeError(f"a pinned view's {name} cannot change")
+        delattr(self._origin, name)
+
+    def _ov(self) -> OverlayState | None:
+        return self._pin
+
+    @property
+    def origin(self) -> Document:
+        return self._origin
+
+    def pinned(self, state: Any = _CURRENT) -> PinnedDocument:
+        """This view for the same state, else a new view of the origin."""
+        if state is _CURRENT or state is self._pin:
+            return self
+        return self._origin.pinned(state)
+
+    def set_overlay(self, state: OverlayState | None) -> None:
+        raise TypeError("set_overlay() changes the live document, not a pinned view")
+
+    def reopen(self, *, use_cache: bool = True, progress: Progress | None = None,
+               cancel: CancelToken | None = None) -> Document:
+        """Reopens the live document (see :meth:`Document.reopen`)."""
+        return self._origin.reopen(use_cache=use_cache, progress=progress, cancel=cancel)
+
+    def close(self) -> None:
+        """A no-op: the live document owns every resource."""
+
+    def __repr__(self) -> str:
+        pin = self._pin
+        return f"<PinnedDocument {'base' if pin is None else f'gen={pin.gen}'} of {self._origin!r}>"
+
+
+_VIEW_OWN = frozenset({"_origin", "_pin"})
+_DOCUMENT_ATTRS = frozenset(name for name in dir(Document) if not name.startswith("__"))
 
 _ROLE_RECORDS = "records"
 _ROLE_VIRTUAL = "virtual"
@@ -3227,6 +4318,249 @@ def _shift_spans(out: bytes, cstart: int, delta: int) -> bytes:
     """Map placeholder coordinates back to file offsets (``v > cstart`` -> ``v + delta``)."""
     a = _pairs(out)
     return array("Q", [v + delta if v > cstart else v for v in a]).tobytes()
+
+
+def _child_windows(doc: Document, starts: Any, ends: Any) -> list[tuple[bytes, int] | None]:
+    """For :meth:`Node.children`: per child ``(window bytes, window start)`` when the children of
+    its address space (the data file, or one segment of the edit layer) lie within 1 MiB of each
+    other (one read for all of them), else ``None`` (the child is read on its own)."""
+    n = len(starts)
+    out: list[tuple[bytes, int] | None] = [None] * n
+    if not n:
+        return out
+    if max(starts) < EDIT_BASE:     # the common case: one window over the file
+        lo, hi = min(starts), max(ends)
+        if hi - lo <= MiB:
+            return [(doc._read(lo, hi), lo)] * n
+        return out
+    by: dict[int, list[int]] = {}
+    for k in range(n):
+        s = starts[k]
+        by.setdefault(-1 if s < EDIT_BASE else _segment_of(s), []).append(k)
+    for ks in by.values():
+        lo = min(starts[k] for k in ks)
+        hi = max(ends[k] for k in ks)
+        if hi - lo <= MiB:
+            win = (doc._read(lo, hi), lo)
+            for k in ks:
+                out[k] = win
+    return out
+
+
+def _clusters(ranges: list[tuple[int, int]], dense: bool) -> list[tuple[int, int]]:
+    """Sorted record-id ranges merged into clusters fetched together: neighbours at most
+    :data:`OV_CLUSTER_GAP` apart join while the cluster stays within ``2 * OV_WINDOW`` ids and --
+    ``dense`` (index reads, whose cost is the extent) -- at least half covered."""
+    out: list[list[int]] = []
+    limit = 2 * OV_WINDOW
+    for lo, hi in ranges:
+        if out:
+            c = out[-1]
+            top = hi if hi > c[1] else c[1]
+            if lo - c[1] <= OV_CLUSTER_GAP and top - c[0] <= limit and (
+                    not dense or 2 * (c[2] + hi - lo) >= top - c[0]):
+                c[1] = top
+                c[2] += hi - lo
+                continue
+        out.append([lo, hi, hi - lo])
+    return [(c[0], c[1]) for c in out]
+
+
+_ZERO_RUN = re.compile(rb"\x00+")
+
+
+class _EffWindow:
+    """The effective records of positions ``[w, w1)`` of an overlay state, computed for the whole window at
+    once (:meth:`Document._ov_run_blocks`, :meth:`Document._eff_bytes`) -- the work grows with the pieces
+    and the overridden records of the window, not with its runs:
+
+    * ``spans``: the flat ``(start, end)`` of every position (either address space): the file spans of the
+      base ids with one index read per cluster of nearby record ids, then the content spans of every layer,
+      oldest first (the newest layer wins), with one ``spans_in`` per layer and cluster (a contiguous or
+      evenly spaced group of overridden ids is one slice assignment);
+    * ``marks``: one byte per position, 0 = a PURE base record (its file bytes are its content), 1 = content
+      from a layer; a new record id without content -> ``EditError("edits.error.layer_corrupt")``;
+    * :meth:`pure_runs`: the maximal pure runs (consecutive ids of one piece, the runs of
+      ``OverlayState.runs``) of at least a given extent; :meth:`effective_bytes`.
+    """
+
+    __slots__ = ("marks", "segs", "spans", "w")
+
+    def __init__(self, doc: Document, ov: OverlayState, w: int, w1: int, layers: list[Any]) -> None:
+        ps, ls, ns = ov.pieces._segments(w, w1)
+        n = w1 - w
+        base = ov.base_count
+        self.w = w
+        spans = array("Q", bytes(16 * n))
+        marks = bytearray(n)
+        segs = [(p - w, r, k) for p, r, k in zip(ps, ls, ns)]
+        self.segs = segs
+        base_ranges = []
+        for off, r, k in segs:
+            hi = r + k if r + k < base else base
+            if hi > r:
+                base_ranges.append((r, hi, off))
+            if r + k > base:                                  # new record ids: content must come from a layer
+                a = (base - r) if base > r else 0
+                marks[off + a:off + k] = b"\x02" * (k - a)
+        if base_ranges:
+            base_ranges.sort()
+            i = 0
+            for lo, hi in _clusters([(r, rhi) for r, rhi, _off in base_ranges], True):
+                arr = _pairs(doc._spans_bytes(lo, hi - lo, sequential=True))
+                if len(arr) != 2 * (hi - lo):   # pragma: no cover - the state was checked against the index
+                    raise IndexError(f"record {lo + len(arr) // 2} out of range")
+                while i < len(base_ranges) and base_ranges[i][0] < hi:
+                    r, rhi, off = base_ranges[i]
+                    spans[2 * off:2 * (off + rhi - r)] = arr[2 * (r - lo):2 * (rhi - lo)]
+                    i += 1
+        if layers and segs:
+            order = sorted(range(len(segs)), key=lambda j: segs[j][1])
+            seg_lo = [segs[j][1] for j in order]
+            for lo, hi in _clusters([(segs[j][1], segs[j][1] + segs[j][2]) for j in order], False):
+                a = bisect.bisect_left(seg_lo, lo)
+                b = bisect.bisect_left(seg_lo, hi)
+                for layer in layers:                          # oldest first: the newest layer wins
+                    keys, pairs = layer.spans_in(lo, hi)
+                    if not keys:
+                        continue
+                    for j in order[a:b]:
+                        off, r, k = segs[j]
+                        ka = bisect.bisect_left(keys, r)
+                        kb = bisect.bisect_left(keys, r + k, ka)
+                        if kb > ka:
+                            _scatter(spans, marks, keys, pairs, ka, kb, off - r)
+        bad = marks.find(2)
+        if bad >= 0:
+            raise _layer_corrupt(f"record id {ov.rid_at(w + bad)} has no content", doc.source_path.name)
+        self.spans = spans
+        self.marks = marks
+
+    def pure_runs(self, min_extent: int) -> Iterator[tuple[int, int, int]]:
+        """``(a, b, rid)``: the maximal pure runs (window offsets ``a .. b-1``, first record id) whose extent
+        (first start to last end) is at least ``min_extent``, in position order."""
+        spans = self.spans
+        marks = self.marks
+        for off, r, k in self.segs:
+            for m in _ZERO_RUN.finditer(marks, off, off + k):
+                a, b = m.span()
+                if spans[2 * b - 1] - spans[2 * a] >= min_extent:
+                    yield a, b, r + a - off
+
+    def effective_bytes(self) -> int:
+        """Bytes of the window's records: pure runs by their extent (separators inside included), the others
+        by their content size."""
+        spans = self.spans
+        marks = self.marks
+        total = sum(compress(map(sub, spans[1::2], spans[0::2]), marks))
+        for off, _r, k in self.segs:
+            for m in _ZERO_RUN.finditer(marks, off, off + k):
+                a, b = m.span()
+                total += spans[2 * b - 1] - spans[2 * a]
+        return total
+
+
+def _scatter(spans: array, marks: bytearray, keys: array, pairs: array, ka: int, kb: int, shift: int) -> None:
+    """Content spans of the ids ``keys[ka:kb]`` (sorted) into the window (position offset = id + ``shift``): a
+    contiguous or evenly spaced group as one slice assignment, else one by one."""
+    n = kb - ka
+    i0 = keys[ka] + shift
+    if n == 1:
+        spans[2 * i0] = pairs[2 * ka]
+        spans[2 * i0 + 1] = pairs[2 * ka + 1]
+        marks[i0] = 1
+        return
+    step = keys[ka + 1] - keys[ka]
+    if keys[kb - 1] - keys[ka] == step * (n - 1) and \
+            all(map(operator.eq, map(sub, keys[ka + 1:kb], keys[ka:kb - 1]), repeat(step))):
+        sub_pairs = pairs[2 * ka:2 * kb]
+        if step == 1:
+            spans[2 * i0:2 * (i0 + n)] = sub_pairs
+            marks[i0:i0 + n] = b"\x01" * n
+        else:
+            stop = i0 + step * (n - 1) + 1
+            spans[2 * i0:2 * stop:2 * step] = sub_pairs[0::2]
+            spans[2 * i0 + 1:2 * stop:2 * step] = sub_pairs[1::2]
+            marks[i0:stop:step] = b"\x01" * n
+        return
+    for j in range(ka, kb):
+        i = keys[j] + shift
+        spans[2 * i] = pairs[2 * j]
+        spans[2 * i + 1] = pairs[2 * j + 1]
+        marks[i] = 1
+
+
+class _Scattered:
+    """The scattered block an edited document's iteration is gathering (:meth:`Document._ov_run_blocks`):
+    positions and spans (either address space), cut by ``block_bytes`` like the file's scattered blocks;
+    a huge record (span longer than ``large_node_bytes``) comes alone in a huge block."""
+
+    __slots__ = ("doc", "ov", "block_bytes", "large", "tracker", "pos", "starts", "ends", "nbytes")
+
+    def __init__(self, doc: Document, ov: OverlayState, block_bytes: int, large: int, tracker: _ByteProgress) -> None:
+        self.doc = doc
+        self.ov = ov
+        self.block_bytes = block_bytes
+        self.large = large
+        self.tracker = tracker
+        self.pos: list[int] = []
+        self.starts: list[int] = []
+        self.ends: list[int] = []
+        self.nbytes = 0
+
+    def __bool__(self) -> bool:
+        return bool(self.pos)
+
+    def add(self, pos0: int, spans: array) -> Iterator[Block]:
+        """Add the records at positions ``pos0 ..`` with the flat ``spans``; yields the blocks that
+        became full (and huge blocks) on the way. Blocks are cut with cumulative sizes (C-level
+        work, not per record)."""
+        starts = spans[0::2]
+        ends = spans[1::2]
+        n = len(starts)
+        if not n:
+            return
+        sizes = list(map(sub, ends, starts))
+        if max(sizes) > self.large:
+            huge = list(compress(range(n), map(gt, sizes, repeat(self.large))))
+        else:
+            huge = []
+        k = 0
+        for h in (*huge, n):
+            if h > k:
+                yield from self._add_run(pos0 + k, starts[k:h], ends[k:h], sizes[k:h])
+            if h < n:
+                if self.pos:
+                    yield self.flush()
+                self.tracker.add(sizes[h])
+                yield self.doc._huge_block(pos0 + h, starts[h], ends[h], self.ov)
+            k = h + 1
+
+    def _add_run(self, pos0: int, starts: Any, ends: Any, sizes: list[int]) -> Iterator[Block]:
+        """Records without a huge one: as many as fit the current block go into it, then new blocks."""
+        n = len(sizes)
+        cum = list(accumulate(map(add, sizes, repeat(1))))   # bytes of records 0..k, one separator each
+        k = 0
+        done = 0          # cum value before record k
+        while k < n:
+            room = self.block_bytes - self.nbytes
+            j = bisect.bisect_right(cum, done + room, k)
+            if j == k:
+                if self.pos:
+                    yield self.flush()
+                    continue
+                j = k + 1     # a record bigger than a block: alone
+            self.pos.extend(range(pos0 + k, pos0 + j))
+            self.starts.extend(starts[k:j])
+            self.ends.extend(ends[k:j])
+            self.nbytes += cum[j - 1] - done
+            done = cum[j - 1]
+            k = j
+
+    def flush(self) -> Block:
+        blk = self.doc._mixed_block(self.ov, self.pos, self.starts, self.ends, self.tracker)
+        self.pos, self.starts, self.ends, self.nbytes = [], [], [], 0
+        return blk
 
 
 class _ByteProgress:
@@ -3254,11 +4588,13 @@ class _ChildCollector:
     list from an expensive scan (``persist``) is kept in memory and also written to the
     cache, so reopening the document does not scan the node again."""
 
-    def __init__(self, doc: Document, node: Node, disk: bool, member: bool, persist: bool = False) -> None:
+    def __init__(self, doc: Document, node: Node, disk: bool, member: bool, persist: bool = False, *,
+                 temporary: bool = False) -> None:
         self.doc = doc
         self.node = node
         self.member = member
-        self.persist = persist
+        self.persist = persist and not temporary
+        self.temporary = temporary   # an edit-layer node: a spilled list is a private, temporary index
         self.limit = doc.settings.large_node_children
         self.mem: array | None = None if disk else array("Q")
         self.writer: IndexWriter | None = None
@@ -3267,7 +4603,11 @@ class _ChildCollector:
 
     def _open_writer(self) -> None:
         doc = self.doc
-        self.writer = IndexWriter(index_path(doc._node_index_key(self.node.start), doc._index_dir()))
+        if self.temporary:
+            key = f"enode-{os.getpid()}-{secrets.token_hex(8)}"   # never found by another document
+        else:
+            key = doc._node_index_key(self.node.start)
+        self.writer = IndexWriter(index_path(key, doc._index_dir()))
 
     def add(self, out: bytes) -> None:
         if self.mem is not None:
@@ -3303,6 +4643,8 @@ class _ChildCollector:
             return _MemChildren(self.mem, self.member)
         assert self.writer is not None
         reader = self.writer.finalize(*self._meta())
+        if self.temporary:
+            self.doc._note_temp_index(reader.path)
         return _DiskChildren(reader, self.member)
 
     def abort(self) -> None:
@@ -3319,14 +4661,16 @@ class Node:
     ``path``: absolute path (tuple of keys/indices); ``start``/``end``: byte span of the
     value (for object members the value only, the key is ``key``); ``kind``: ``object``,
     ``array``, ``string``, ``number``, ``bool`` or ``null``; ``key``: member key (str),
-    array index (int) or ``None`` for the root. Children are indexed on demand (see the
-    module docstring).
+    array index (int) or ``None`` for the root; ``mstart``: for object members (and member
+    records) the offset of the key's opening quote, else ``None``. Children are indexed on
+    demand (see the module docstring). Spans are virtual: an edited node's span is an edit
+    offset (:attr:`is_edited`); read node text with :meth:`Document.node_chunks`.
     """
 
-    __slots__ = ("doc", "path", "start", "end", "kind", "key", "role")
+    __slots__ = ("doc", "path", "start", "end", "kind", "key", "role", "mstart")
 
     def __init__(self, doc: Document, path: Path_, start: int, end: int, kind: str, key: str | int | None,
-                 *, role: str | None = None) -> None:
+                 *, role: str | None = None, mstart: int | None = None) -> None:
         self.doc = doc
         self.path = tuple(path)
         self.start = start
@@ -3334,6 +4678,7 @@ class Node:
         self.kind = kind
         self.key = key
         self.role = role
+        self.mstart = mstart
 
     def __repr__(self) -> str:
         return f"Node({_path_text(self.path)!r}, {self.kind}, {self.start}..{self.end})"
@@ -3348,7 +4693,14 @@ class Node:
     # -- basics ------------------------------------------------------------------------
     @property
     def size(self) -> int:
-        return self.end - self.start
+        """``end - start``; a composite node of an edited document: the size of its effective text
+        (:meth:`Document._composite_size`, an estimate built on :meth:`Document.effective_bytes`)."""
+        if self.role is None:
+            return self.end - self.start
+        ov = self.doc._ov()
+        if not _edited_state(ov):
+            return self.end - self.start
+        return self.doc._composite_size(self, ov)   # type: ignore[arg-type]
 
     @property
     def is_container(self) -> bool:
@@ -3358,6 +4710,22 @@ class Node:
     def is_virtual(self) -> bool:
         """The synthetic root of jsonl/stream/brace_list documents (no real bytes)."""
         return self.role == _ROLE_VIRTUAL
+
+    @property
+    def is_composite(self) -> bool:
+        """The node holding the records, an ancestor of it (wrapped documents) or the virtual
+        root: its text on an edited document is built from the effective records."""
+        return self.role is not None
+
+    @property
+    def is_edited(self) -> bool:
+        """The node's bytes are in the edit layer (its span is an edit offset)."""
+        return self.start >= EDIT_BASE
+
+    def member_span(self) -> tuple[int, int]:
+        """``(mstart, end)``: the span of ``"key": value`` of an object member (or member record);
+        the value span ``(start, end)`` for any other node."""
+        return (self.start if self.mstart is None else self.mstart), self.end
 
     @property
     def is_large(self) -> bool:
@@ -3428,17 +4796,23 @@ class Node:
             return []
         spans = src.get_many(start, stop - start)
         doc = self.doc
-        lo, hi = spans[0], spans[-1]
-        buf: bytes | None = None
-        if hi - lo <= MiB:
-            buf = doc._read(lo, hi)
+        starts = spans[0::2]
+        ends = spans[1::2]
+        # each child's key and kind come from its OWN bytes: read once per window of children
+        # in one address space (and one segment) when they lie within 1 MiB of each other --
+        # the records of an edited document are in any order and in both spaces
+        wins = _child_windows(doc, starts, ends)
         out = []
-        bounds = doc._container_bounds() if doc.info.kind == "wrapped" else None
-        for k in range(len(spans) // 2):
-            s, e = spans[2 * k], spans[2 * k + 1]
+        bounds = doc._bounds_for(self.start) if doc.info.kind == "wrapped" else None
+        member = src.member
+        for k in range(len(starts)):
+            s, e = starts[k], ends[k]
             idx = start + k
-            if src.member:
-                if buf is not None:
+            win = wins[k]
+            mstart: int | None = None
+            if member:
+                if win is not None:
+                    buf, lo = win
                     try:
                         key, vo = split_member(buf[s - lo:min(e, s + KEY_PROBE) - lo])
                     except ValueError:
@@ -3447,11 +4821,12 @@ class Node:
                     key, vo = doc._member_prefix(s, e)
                 vs = s + vo
                 ckey: str | int = key
+                mstart = s
             else:
                 vs = s
                 ckey = idx
-            if buf is not None and vs < hi:
-                kind = _kind_of(buf[vs - lo])
+            if win is not None and vs - win[1] < len(win[0]):
+                kind = _kind_of(win[0][vs - win[1]])
             else:
                 kind = doc._value_kind_at(vs)
             role = None
@@ -3460,7 +4835,7 @@ class Node:
                     role = _ROLE_RECORDS
                 elif vs <= bounds[0] and bounds[1] <= e:
                     role = _ROLE_ANCESTOR
-            out.append(Node(doc, self.path + (ckey,), vs, e, kind, ckey, role=role))
+            out.append(Node(doc, self.path + (ckey,), vs, e, kind, ckey, role=role, mstart=mstart))
         return out
 
     def find_child(self, seg: str | int, *, cancel: CancelToken | None = None) -> Node | None:
@@ -3523,34 +4898,82 @@ class Node:
         return found
 
     # -- values ------------------------------------------------------------------------
+    def _edited_composite(self) -> OverlayState | None:
+        """The (edited) overlay state when this composite node's text must be built from the
+        effective records, else ``None``."""
+        if self.role is None:
+            return None
+        ov = self.doc._ov()
+        return ov if _edited_state(ov) else None
+
     def value(self) -> Any:
         """The parsed value (:class:`TooLargeError` above ``Settings.large_node_bytes``)."""
         doc = self.doc
         large = doc.settings.large_node_bytes
         if self.role == _ROLE_VIRTUAL:
             doc._ensure_complete()
-            total = 0
-            if doc.record_count:
-                total = doc.record_span(doc.record_count - 1)[1] - doc.record_span(0)[0]
+            ov = self._edited_composite()
+            if ov is not None:
+                total = doc._eff_bytes(ov)
+            else:
+                total = doc._base_extent()
             if total > large:
                 raise TooLargeError(size=format_bytes(total))
             return [v for _, v in doc.iter_records()]
+        ov = self._edited_composite()
+        if ov is not None:
+            return codec.loads(self._composite_raw(ov))
         if self.size > large:
             raise TooLargeError(size=format_bytes(self.size))
         return codec.loads(doc._read(self.start, self.end))
 
+    def _composite_raw(self, ov: OverlayState) -> bytes:
+        doc = self.doc
+        size = doc._composite_size(self, ov, exact=True)
+        if size > doc.settings.large_node_bytes:
+            raise TooLargeError(size=format_bytes(size))
+        return b"".join(doc._node_chunks(ov, self, MiB, None))
+
     def raw(self) -> bytes:
-        """The raw bytes of the value (:class:`TooLargeError` when large)."""
+        """The raw bytes of the value (:class:`TooLargeError` when large); a composite node of an
+        edited document: its effective text (:meth:`Document.node_chunks`)."""
+        ov = self._edited_composite()
+        if ov is not None:
+            return self._composite_raw(ov)
         if self.size > self.doc.settings.large_node_bytes:
             raise TooLargeError(size=format_bytes(self.size))
         return self.doc._read(self.start, self.end)
 
     def scalar_text(self, max_chars: int = 200) -> str:
         """Short display text: the raw token of a scalar (long strings/numbers truncated
-        with an ellipsis); for containers a whitespace-collapsed prefix of the JSON."""
+        with an ellipsis); for containers a whitespace-collapsed prefix of the JSON (a
+        composite node of an edited document: of its effective text)."""
         max_chars = max(2, int(max_chars))
         if self.role == _ROLE_VIRTUAL:
             return "[" + ELLIPSIS + "]"
+        ov = self._edited_composite()
+        if ov is not None:
+            want = 4 * max_chars + 8
+            parts: list[bytes] = []
+            got = 0
+            chunks = self.doc._node_chunks(ov, self, want, None)
+            try:
+                for piece in chunks:
+                    parts.append(piece)
+                    got += len(piece)
+                    if got > want:
+                        break
+                else:
+                    want = got   # the whole text: final
+            finally:
+                chunks.close()
+            raw = b"".join(parts)[:max(want, 0)]
+            text = _decode_prefix(raw, final=got <= want)
+            truncated = got > want
+            text = _WS_RUN_RE.sub(" ", text)
+            if truncated or len(text) > max_chars:
+                return text[:max_chars - 1] + ELLIPSIS
+            return text
         n = min(self.size, 4 * max_chars + 8)
         raw = self.doc._read(self.start, self.start + n)
         text = _decode_prefix(raw, final=n >= self.size)

@@ -1065,3 +1065,114 @@ def test_sampling_a_larger_file_is_fast(open_doc, backend) -> None:
     elapsed = time.perf_counter() - t0
     assert s.scanned == 10000 and len(s.fields()) > 10
     assert elapsed < 10   # ~0.2 s measured; generous bound for slow CI machines
+
+
+# ----------------------------------------------------------------------------------
+# stage 5 (docs/ARCHITECTURE.md §14.1): the integer counter, the core field lists
+# ----------------------------------------------------------------------------------
+INTEGRAL_TOKENS = ["0", "-0", "1", "-17", "12345678901234567890", "1.0", "100.0", "-0.0", "1e400", "1E5", "1.000",
+                   "2.5e1", "1e-0", "9" * 5000, "18446744073709551616"]
+FRACTIONAL_TOKENS = ["0.1", "1.10", "0.10000000000000000001", "1e-400", "2.5", "-3.75e1", "5e-324", "1.0000000001"]
+
+
+def _integral_oracle(v: Any) -> bool:
+    if isinstance(v, bool) or codec.json_type(v) != "number":
+        return False
+    d = Decimal(codec.number_text(v))
+    return d == d.to_integral_value()
+
+
+def test_integer_counter_counts_exact_integral_values(open_doc) -> None:
+    from jsonreshape.schema import is_integral
+
+    toks = INTEGRAL_TOKENS + FRACTIONAL_TOKENS
+    for tok in toks:
+        v = codec.loads(tok.encode())
+        assert is_integral(v) == (tok in INTEGRAL_TOKENS) == _integral_oracle(v), tok
+    assert not is_integral(True) and not is_integral("1") and not is_integral(None)
+    assert not is_integral(float("nan")) and not is_integral(float("inf")) and not is_integral(Decimal("Infinity"))
+    data = ("[" + ",".join('{"n": %s, "a": [%s, "x"]}' % (tok, tok) for tok in toks) + "]").encode()
+    want = len(INTEGRAL_TOKENS)
+    for settings in (None, Settings(large_node_bytes=60)):      # parsed, and walked as big records
+        doc = open_doc(data, settings=settings)
+        s = infer_schema(doc, sample=None)
+        assert s.find("n").integers == want and s.find("a[*]").integers == want
+        assert s.find("n").types == {"number": len(toks)} and s.find("a").integers == 0
+    b = SchemaBuilder()
+    b.add({"d": Decimal("2.000"), "e": Decimal("2.5"), "f": 3.0, "g": JsonInt("-0"), "h": JsonFloat("1e400")})
+    s = b.build()
+    assert [s.find(k).integers for k in "defgh"] == [1, 0, 1, 1, 1]
+
+
+def test_integer_counter_matches_an_oracle_on_random_records(open_doc) -> None:
+    recs = jsongen.records(300, seed=77)
+    doc = open_doc(recs, "array")
+    s = infer_schema(doc, sample=None)
+    counts: dict[tuple, int] = {}
+
+    def walk(v: Any, path: tuple) -> None:
+        if isinstance(v, dict):
+            for k, x in v.items():
+                walk(x, path + (k,))
+        elif isinstance(v, list):
+            for x in v:
+                walk(x, path + (ANY,))
+        elif _integral_oracle(v):
+            counts[path] = counts.get(path, 0) + 1
+
+    for r in [doc.record(i) for i in range(doc.record_count)]:
+        walk(r, ())
+    checked = 0
+    for fi in [s.root] + s.fields():
+        assert fi.integers == counts.get(fi.path, 0), fi.text
+        checked += 1
+    assert checked > 20 and s.find("id").integers == 300
+
+
+def test_integers_in_to_dict_and_files_without_it() -> None:
+    b = SchemaBuilder()
+    b.add({"n": 1, "m": 1.5})
+    b.add({"n": 2.0, "m": None})
+    s = b.build()
+    d = s.to_dict()
+    assert [f["integers"] for f in d["fields"]] == [2, 0]
+    for f in d["fields"]:
+        del f["integers"]          # a schema file written before stage 5
+    del d["root"]["integers"]
+    back = Schema.from_dict(d)
+    assert back.find("n").integers == 0 and back.find("n").types == {"number": 2}
+    first, second = SchemaBuilder(), SchemaBuilder()
+    first.add({"n": 1})
+    second.add({"n": 2.5})
+    first.merge(second)
+    assert first.build().find("n").integers == 1
+
+
+def test_core_field_lists() -> None:
+    from jsonreshape.schema import default_columns, field_paths, is_container, under_array
+
+    b = SchemaBuilder(max_keys=6)
+    b.add({"id": 1, "name": "a", "contact": {"phone": "1", "address": {"city": "T", "geo": {"lat": 1}}},
+           "orders": [{"oid": 1, "sum": 2}], "tags": ["x"], "m": {f"k{i}": i for i in range(1, 9)}})
+    s = b.build()
+    assert s.find("m.*") is not None
+    assert default_columns(s) == ["id", "name", "contact.phone", "contact.address.city", "orders", "tags", "m.k1",
+                                  "m.k2", "m.k3", "m.k4", "m.k5", "m.k6"]
+    assert default_columns(s, limit=2) == ["id", "name"]
+    assert default_columns(s, max_depth=1) == ["id", "name", "orders", "tags"]
+    paths = field_paths(s)
+    assert "orders[*].oid" in paths and "m.*" not in paths and "contact" in paths
+    assert "orders[*].oid" not in field_paths(s, inside_arrays=False)
+    assert "contact" not in field_paths(s, containers=False)
+    assert all(p.count(".") < 2 for p in field_paths(s, max_depth=2))
+    assert is_container(s.find("contact")) and not is_container(s.find("id"))
+    assert under_array(s.find("orders[*].oid")) and not under_array(s.find("orders"))
+    keyed = SchemaBuilder()
+    keyed.add({"x": 1}, "k1")
+    ks = keyed.build()
+    assert default_columns(ks) == ["$key", "x"] and field_paths(ks) == ["$key", "x"]
+    assert field_paths(ks, key_field=False) == ["x"]
+    scalars = SchemaBuilder()
+    scalars.add(5)
+    scalars.add("x")
+    assert default_columns(scalars.build()) == ["$"] and default_columns(None) == ["$"] and field_paths(None) == []

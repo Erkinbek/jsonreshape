@@ -1,0 +1,42 @@
+{
+ "name": "t01_identity_unicode",
+ "description": "AGENT_PROMPT §14 test 1 (identity): Uzbek Latin / Cyrillic keys and values, apostrophes, escapes",
+ "case": {
+  "name": "t01_identity_unicode",
+  "records": [
+   {"shahar": "Toshkent", "ko'cha": "Navoiy 12", "izoh": "o'zgarish «yangi»"},
+   {"шаҳар": "Тошкент", "ko'cha": "Amir Temur", "izoh": "satr\nikkinchi \"qator\" \t tab"}
+  ]
+ },
+ "output": [
+  {"shahar": "Toshkent", "ko'cha": "Navoiy 12", "izoh": "o'zgarish «yangi»"},
+  {"ko'cha": "Amir Temur", "izoh": "satr\nikkinchi \"qator\" \t tab", "шаҳар": "Тошкент"}
+ ],
+ "log": [],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "shahar", "kind": "value", "src": [null, "shahar"], "types": ["string"], "count": 1, "pcount": 2, "samples": ["\"Toshkent\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "ko'cha", "kind": "value", "src": [null, "ko'cha"], "types": ["string"], "count": 2, "pcount": 2, "samples": ["\"Navoiy 12\"", "\"Amir Temur\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "izoh", "kind": "value", "src": [null, "izoh"], "types": ["string"], "count": 2, "pcount": 2, "samples": ["\"o'zgarish «yangi»\"", "\"satr\\nikkinchi \\\"qator\\\" \\…"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "шаҳар", "kind": "value", "src": [null, "шаҳар"], "types": ["string"], "count": 1, "pcount": 2, "samples": ["\"Тошкент\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"shahar\" value <- [].shahar",
+  "    \"ko'cha\" value <- [].ko'cha",
+  "    \"izoh\" value <- [].izoh",
+  "    \"шаҳар\" value <- [].шаҳар"
+ ],
+ "preview": [
+  {"shahar": "Toshkent", "ko'cha": "Navoiy 12", "izoh": "o'zgarish «yangi»"},
+  {"ko'cha": "Amir Temur", "izoh": "satr\nikkinchi \"qator\" \t tab", "шаҳар": "Тошкент"}
+ ],
+ "perRecord": [
+  [{"shahar": "Toshkent", "ko'cha": "Navoiy 12", "izoh": "o'zgarish «yangi»"}],
+  [{"ko'cha": "Amir Temur", "izoh": "satr\nikkinchi \"qator\" \t tab", "шаҳар": "Тошкент"}]
+ ],
+ "perRecordConcatEqualsOutput": true
+}

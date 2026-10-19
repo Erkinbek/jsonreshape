@@ -176,20 +176,34 @@ def test_record_path_refusal_in_uzbek_and_for_gzip_and_the_root(run, tmp_path: P
     assert listing(tmp_path) == ["in.jsonl", "in.jsonl.gz"]
 
 
+#: stage 5 (docs/ARCHITECTURE.md §14.4, writer gap G5): the wrapper a JSON Lines file cannot hold is named
+WRAPPER_NOTICE = ("Warning: The part around the records (the fields outside the container data) was not written to "
+                  "the JSON Lines file: it holds the records only. Only a JSON export keeps that part.")
+
+
 def test_record_path_still_works_inside_one_document(run, tmp_path: Path, monkeypatch) -> None:
     w = tmp_path / "w.json"
     w.write_bytes(b'{"meta":{"n":2},"data":[{"id":1},{"id":2}]}')
     out = tmp_path / "o.jsonl"
     r = run("--lang", "en", "convert", w, out, "--record-path", "data")
-    assert r.code == 0 and r.err.startswith("2 / 2 records -> ")
+    # the records are converted; "meta" has no place in JSON Lines and the stage-5 notice says so --
+    # also for a record path given by hand (the GUI's record-path choice is given by hand too; the
+    # records alone are asked for with --no-wrapper / extract)
+    assert r.code == 0 and r.err.splitlines()[0] == WRAPPER_NOTICE
+    assert len(r.err.splitlines()) == 2 and r.err.splitlines()[1].startswith("2 / 2 records -> ")
     assert out.read_bytes().split() == [b'{"id":1}', b'{"id":2}']
+    # a JSON output keeps the wrapper: no notice
+    r = run("--lang", "en", "convert", w, tmp_path / "o.json", "--record-path", "data")
+    assert r.code == 0 and r.err.startswith("2 / 2 records -> ")
+    assert json.loads((tmp_path / "o.json").read_bytes()) == {"meta": {"n": 2}, "data": [{"id": 1}, {"id": 2}]}
     # one JSON document with a misleading name: refused, and --format wrapped is the way out
     misnamed = tmp_path / "single.jsonl"
     misnamed.write_bytes(b'{"meta": 1,\n "data": [{"id": 1}, {"id": 2}]}\n')
     r = run("--lang", "en", "convert", misnamed, out, "--record-path", "data")
     assert r.code == 1 and "add --format wrapped" in r.err
     r = run("--lang", "en", "convert", misnamed, out, "--record-path", "data", "--format", "wrapped")
-    assert r.code == 0 and r.err.startswith("2 / 2 records -> ")
+    assert r.code == 0 and r.err.splitlines()[0] == WRAPPER_NOTICE
+    assert r.err.splitlines()[1].startswith("2 / 2 records -> ")
     # a forced --format jsonl is refused by the reader, as before
     lines = tmp_path / "in.jsonl"
     lines.write_bytes(LINES)
@@ -440,6 +454,7 @@ def test_appended_data_note_is_shown_only_at_the_end_with_its_latest_size(run, s
     notes: dict[int, dict[str, Any]] = {}
 
     def note(doc: Any) -> None:   # like reader._note_appended: added once, its size updated in place
+        doc = getattr(doc, "origin", doc)   # (once per document: its pinned views share the note)
         params = notes.get(id(doc))
         if params is None:
             doc.info.add_warning(key, bytes=next(sizes))

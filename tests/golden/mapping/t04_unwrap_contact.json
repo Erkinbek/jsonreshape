@@ -1,0 +1,55 @@
+{
+ "name": "t04_unwrap_contact",
+ "description": "AGENT_PROMPT §14 test 4 (unwrap): phone and address move one level up",
+ "case": {
+  "name": "t04_unwrap_contact",
+  "records": [
+   {"name": "p1", "contact": {"phone": "1", "address": {"city": "Toshkent", "street": "Navoiy"}}},
+   {"name": "p2", "contact": {"phone": "2", "address": {"city": "Samarqand"}}}
+  ],
+  "ops": [{"op": "unwrap", "node": "[].contact"}]
+ },
+ "output": [
+  {"name": "p1", "phone": "1", "address": {"city": "Toshkent", "street": "Navoiy"}},
+  {"name": "p2", "phone": "2", "address": {"city": "Samarqand"}}
+ ],
+ "log": [
+  {
+   "i": 0,
+   "op": "unwrap",
+   "applied": true,
+   "changed": true,
+   "undo": 1,
+   "msg": "«contact» ichidagi 2 ta maydon bir pog'ona yuqoriga chiqdi"
+  }
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "name", "kind": "value", "src": [null, "name"], "types": ["string"], "count": 2, "pcount": 2, "samples": ["\"p1\"", "\"p2\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "phone", "kind": "value", "src": [null, "contact", "phone"], "types": ["string"], "count": 2, "pcount": 2, "samples": ["\"1\"", "\"2\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "address", "kind": "object", "src": [null, "contact", "address"], "types": ["object"], "count": 2, "pcount": 2, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "city", "kind": "value", "src": [null, "contact", "address", "city"], "types": ["string"], "count": 2, "pcount": 2, "samples": ["\"Toshkent\"", "\"Samarqand\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+    {"key": "street", "kind": "value", "src": [null, "contact", "address", "street"], "types": ["string"], "count": 1, "pcount": 2, "samples": ["\"Navoiy\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+   ]}
+  ]}
+ ]},
+ "badges": [{"ref": [0, "phone"], "badges": ["ko'chirildi"]}, {"ref": [0, "address"], "badges": ["ko'chirildi"]}],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"name\" value <- [].name",
+  "    \"phone\" value <- [].contact.phone",
+  "    \"address\" object <- [].contact.address",
+  "      \"city\" value <- [].contact.address.city",
+  "      \"street\" value <- [].contact.address.street"
+ ],
+ "preview": [
+  {"name": "p1", "phone": "1", "address": {"city": "Toshkent", "street": "Navoiy"}},
+  {"name": "p2", "phone": "2", "address": {"city": "Samarqand"}}
+ ],
+ "perRecord": [
+  [{"name": "p1", "phone": "1", "address": {"city": "Toshkent", "street": "Navoiy"}}],
+  [{"name": "p2", "phone": "2", "address": {"city": "Samarqand"}}]
+ ],
+ "perRecordConcatEqualsOutput": true
+}

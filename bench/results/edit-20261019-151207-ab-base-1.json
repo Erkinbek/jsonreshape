@@ -1,0 +1,131 @@
+{
+ "started": 1792404727.662694,
+ "args": {
+  "child": "False",
+  "op": "",
+  "scen": "base",
+  "home": "base",
+  "keep": "",
+  "patch": "",
+  "data": "E:/Projects/json flatting/bench/data/syn_2g.json",
+  "work": "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\65e44ff0-18e2-413f-b083-b5e57d67f8f7\\scratchpad\\p3\\w2g_after",
+  "pkg": "C:/Users/user34/AppData/Local/Temp/claude/e--Projects-json-flatting/65e44ff0-18e2-413f-b083-b5e57d67f8f7/scratchpad/p3/base",
+  "repeat": "1",
+  "max_repeat_seconds": "150.0",
+  "only": "export_json:dels,export_jsonl:dels",
+  "label": "ab-base-1",
+  "results_dir": "C:/Users/user34/AppData/Local/Temp/claude/e--Projects-json-flatting/65e44ff0-18e2-413f-b083-b5e57d67f8f7/scratchpad/p3/results_ab",
+  "quiet_load": "35.0",
+  "quiet_timeout": "60.0",
+  "keep_work": "False",
+  "report": "",
+  "baseline": "",
+  "lang": "uz",
+  "md": ""
+ },
+ "machine": {
+  "python": "3.14.3",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "cpus": 24,
+  "ram_gb": 205.6,
+  "processor": "Intel64 Family 6 Model 198 Stepping 2, GenuineIntel"
+ },
+ "runs": [
+  {
+   "op": "export_json",
+   "scen": "dels",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 42.5,
+     "private_peak_mb": 31.7,
+     "workers": 0,
+     "seconds": 0.023,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 101,
+     "count": 5862911,
+     "layers": 1,
+     "pieces": 651513,
+     "phase": "restore",
+     "rss_peak_mb": 123.9,
+     "private_peak_mb": 112.4,
+     "workers": 0,
+     "seconds": 0.52,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 1931613258,
+     "records": 5862911,
+     "written": 3299314782,
+     "phase": "op",
+     "rss_peak_mb": 132.8,
+     "private_peak_mb": 123.8,
+     "workers": 0,
+     "seconds": 33.016,
+     "fsync_s": 2.767
+    }
+   },
+   "effective_bytes": 1931613258,
+   "process_peak_wset_mb": 144.7,
+   "process_peak_pagefile_mb": 133.2,
+   "backend": "rust",
+   "wall": 35.21,
+   "load_before": 19.0,
+   "load_mean": 22.1,
+   "load_max": 35.0,
+   "repeat": 1
+  },
+  {
+   "op": "export_jsonl",
+   "scen": "dels",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 42.9,
+     "private_peak_mb": 32.2,
+     "workers": 0,
+     "seconds": 0.022,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 101,
+     "count": 5862911,
+     "layers": 1,
+     "pieces": 651513,
+     "phase": "restore",
+     "rss_peak_mb": 130.5,
+     "private_peak_mb": 119.4,
+     "workers": 0,
+     "seconds": 0.534,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 1931613258,
+     "records": 5862911,
+     "written": 1927055329,
+     "phase": "op",
+     "rss_peak_mb": 124.1,
+     "private_peak_mb": 114.8,
+     "workers": 0,
+     "seconds": 24.25,
+     "fsync_s": 0.877
+    }
+   },
+   "effective_bytes": 1931613258,
+   "process_peak_wset_mb": 144.6,
+   "process_peak_pagefile_mb": 133.4,
+   "backend": "rust",
+   "wall": 26.17,
+   "load_before": 26.3,
+   "load_mean": 24.9,
+   "load_max": 34.1,
+   "repeat": 1
+  }
+ ]
+}

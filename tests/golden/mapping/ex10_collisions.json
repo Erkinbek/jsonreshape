@@ -1,0 +1,71 @@
+{
+ "name": "ex10_collisions",
+ "description": "engine analysis worked example: key collisions _2, _3 on the whole key",
+ "case": {
+  "name": "ex10_collisions",
+  "records": [{"name": "r", "name_2": "x", "a_2": 1, "kids": [{"name": "k1", "a_2": 2}, {"name": "k2"}]}],
+  "ops": [
+   {"op": "move", "node": "[].kids[].name", "target": "[]", "zone": "inside"},
+   {"op": "move", "node": "[].kids[].a_2", "target": "[].a_2", "zone": "after"},
+   {"op": "rename", "node": "[].kids", "name": "name"}
+  ]
+ },
+ "output": [{"name": "r", "name_2": "x", "a_2": 1, "a_2_2": [2], "name_4": [{}, {}], "name_3": ["k1", "k2"]}],
+ "log": [
+  {
+   "i": 0,
+   "op": "move",
+   "applied": true,
+   "changed": true,
+   "undo": 1,
+   "msg": "«name» nomi band edi, «name_3» deb qo'yildi"
+  },
+  {
+   "i": 1,
+   "op": "move",
+   "applied": true,
+   "changed": true,
+   "undo": 2,
+   "msg": "«a_2» nomi band edi, «a_2_2» deb qo'yildi"
+  },
+  {
+   "i": 2,
+   "op": "rename",
+   "applied": true,
+   "changed": true,
+   "undo": 3,
+   "msg": "«name» band edi, «name_4» deb nomlandi"
+  }
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "name", "kind": "value", "src": [null, "name"], "types": ["string"], "count": 1, "pcount": 1, "samples": ["\"r\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "name_2", "kind": "value", "src": [null, "name_2"], "types": ["string"], "count": 1, "pcount": 1, "samples": ["\"x\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "a_2", "kind": "value", "src": [null, "a_2"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "a_2_2", "kind": "value", "src": [null, "kids", null, "a_2"], "types": ["number"], "count": 1, "pcount": 2, "samples": ["2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "name_4", "kind": "array", "src": [null, "kids"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "kids", null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": []}
+   ]},
+   {"key": "name_3", "kind": "value", "src": [null, "kids", null, "name"], "types": ["string"], "count": 2, "pcount": 2, "samples": ["\"k1\"", "\"k2\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [
+  {"ref": [0, "a_2_2"], "badges": ["ko'chirildi", "asl nomi: a_2", "ro'yxatga yig'iladi"]},
+  {"ref": [0, "name_4"], "badges": ["asl nomi: kids"]},
+  {"ref": [0, "name_3"], "badges": ["ko'chirildi", "asl nomi: name", "ro'yxatga yig'iladi"]}
+ ],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"name\" value <- [].name",
+  "    \"name_2\" value <- [].name_2",
+  "    \"a_2\" value <- [].a_2",
+  "    \"a_2_2\" value <- [].kids[].a_2",
+  "    \"name_4\" array <- [].kids",
+  "      [] object <- [].kids[]",
+  "    \"name_3\" value <- [].kids[].name"
+ ],
+ "preview": [{"name": "r", "name_2": "x", "a_2": 1, "a_2_2": [2], "name_4": [{}, {}], "name_3": ["k1", "k2"]}],
+ "perRecord": [[{"name": "r", "name_2": "x", "a_2": 1, "a_2_2": [2], "name_4": [{}, {}], "name_3": ["k1", "k2"]}]],
+ "perRecordConcatEqualsOutput": true
+}

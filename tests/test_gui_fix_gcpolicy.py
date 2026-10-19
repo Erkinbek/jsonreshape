@@ -123,7 +123,10 @@ def test_requests_in_a_row_are_merged_and_bounded(gc_state, monkeypatch) -> None
         pol.request_full(0.1)
         time.sleep(0.02)
         pol.tick()
-    assert pol.collections[2] == 2 and time.monotonic() - start < 0.6
+    # the bound is on when the collection STARTS (GC_FULL_MAX_DEFER_S after the first request), not on how long a full
+    # collection of this test process' heap takes (it grows with the number of tests run before this one)
+    assert pol.collections[2] == 2
+    assert time.monotonic() - start - pol.last_full_pause < 0.6
 
 
 def test_requested_collection_respects_the_time_share_and_the_user(gc_state, monkeypatch) -> None:
@@ -233,6 +236,21 @@ def test_gc_enabled_when_the_workers_end(qtbot, qapp, gc_state) -> None:
     release.set()
     qtbot.waitUntil(gc.isenabled, timeout=5000)                     # the idle pool thread is not waited for
     assert pool_like.is_alive() and not app_mod._gc_enable_pending
+
+
+def test_the_edit_layer_reaper_is_not_waited_for(qtbot, qapp, gc_state) -> None:
+    # regression: the edit layer's file reaper (a daemon living as long as the process) kept the
+    # collector off for good after the first window with an edit layer had closed
+    from jsonreshape import editstore
+    editstore._start_reaper()
+    reaper = editstore._REAPER
+    assert reaper is not None and reaper.is_alive()
+    assert reaper not in app_mod._worker_threads()
+    gc.enable()
+    uninstall = app_mod.install_gc_policy(qapp, interval_ms=10)
+    uninstall()
+    qtbot.waitUntil(gc.isenabled, timeout=5000)
+    assert reaper.is_alive() and not app_mod._gc_enable_pending
 
 
 def test_docstring_states_the_heavy_task_limit() -> None:

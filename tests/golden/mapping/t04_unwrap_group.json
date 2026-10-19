@@ -1,0 +1,45 @@
+{
+ "name": "t04_unwrap_group",
+ "description": "AGENT_PROMPT §14 test 4 (unwrap): a new group can be dissolved again",
+ "case": {
+  "name": "t04_unwrap_group",
+  "records": [{"a": 1, "b": 2}],
+  "ops": [
+   {"op": "group", "node": "[]", "name": "g"},
+   {"op": "move", "node": "[].a", "target": "[].g", "zone": "inside"},
+   {"op": "unwrap", "node": "[].g"}
+  ]
+ },
+ "output": [{"b": 2, "a": 1}],
+ "log": [
+  {
+   "i": 0,
+   "op": "group",
+   "applied": true,
+   "changed": true,
+   "undo": 2,
+   "msg": "",
+   "result": {"ref": [0, "g"], "key": "g"}
+  },
+  {"i": 1, "op": "move", "applied": true, "changed": true, "undo": 3, "msg": ""},
+  {
+   "i": 2,
+   "op": "unwrap",
+   "applied": true,
+   "changed": true,
+   "undo": 4,
+   "msg": "«g» ichidagi 1 ta maydon bir pog'ona yuqoriga chiqdi"
+  }
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "b", "kind": "value", "src": [null, "b"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+   {"key": "a", "kind": "value", "src": [null, "a"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [],
+ "shape": ["(root) array <- (ildiz)", "  [] object <- []", "    \"b\" value <- [].b", "    \"a\" value <- [].a"],
+ "preview": [{"b": 2, "a": 1}],
+ "perRecord": [[{"b": 2, "a": 1}]],
+ "perRecordConcatEqualsOutput": true
+}

@@ -1,0 +1,54 @@
+{
+ "name": "x_flatten_foreign_duplicate_key",
+ "description": "targeted reference case (batch5)",
+ "case": {
+  "name": "x_flatten_foreign_duplicate_key",
+  "records": [{"x": "outer", "kids": [{"n": 1, "kids": [{"n": 2, "x": "inner"}]}]}],
+  "ops": [
+   {"op": "move", "node": "[].x", "target": "[].kids[]", "zone": "inside"},
+   {"op": "flatten", "node": "[].kids"}
+  ]
+ },
+ "output": [{"kids": [{"_depth": 1, "n": 1, "x": "outer"}, {"_depth": 2, "n": 2, "x": "outer"}]}],
+ "log": [
+  {"i": 0, "op": "move", "applied": true, "changed": true, "undo": 1, "msg": ""},
+  {
+   "i": 1,
+   "op": "flatten",
+   "applied": true,
+   "changed": true,
+   "undo": 2,
+   "msg": "«kids» ichidagi barcha darajalar bitta massivga yig'ildi: 2 ta element"
+  }
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "kids", "kind": "array", "src": [null, "kids"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "kids", null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": "kids", "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+     {"key": "_depth", "kind": "value", "src": null, "types": ["number"], "count": 0, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": "depth", "ctx": [null, "kids", null], "open": false, "is_elem": false, "is_root": false, "children": []},
+     {"key": "n", "kind": "value", "src": [null, "kids", null, "n"], "types": ["number"], "count": 2, "pcount": 2, "samples": ["1", "2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []},
+     {"key": "x", "kind": "value", "src": [null, "kids", null, "x"], "types": ["string"], "count": 1, "pcount": 2, "samples": ["\"inner\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []},
+     {"key": "x", "kind": "value", "src": [null, "x"], "types": ["string"], "count": 1, "pcount": 1, "samples": ["\"outer\""], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+    ]}
+   ]}
+  ]}
+ ]},
+ "badges": [
+  {"ref": [0, "kids", 0], "badges": ["rekursiv · kids"]},
+  {"ref": [0, "kids", 0, "_depth"], "badges": ["daraja raqami"]},
+  {"ref": [0, "kids", 0, 3], "badges": ["ko'chirildi", "har elementga takrorlanadi"]}
+ ],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object <- []",
+  "    \"kids\" array <- [].kids",
+  "      [] object [recKey=kids] <- [].kids[]",
+  "        \"_depth\" value [computed=depth ctx=[].kids[]]",
+  "        \"n\" value <- [].kids[].n",
+  "        \"x\" value <- [].kids[].x",
+  "        \"x\" value <- [].x"
+ ],
+ "preview": [{"kids": [{"_depth": 1, "n": 1, "x": "outer"}, {"_depth": 2, "n": 2, "x": "outer"}]}],
+ "perRecord": [[{"kids": [{"_depth": 1, "n": 1, "x": "outer"}, {"_depth": 2, "n": 2, "x": "outer"}]}]],
+ "perRecordConcatEqualsOutput": true
+}

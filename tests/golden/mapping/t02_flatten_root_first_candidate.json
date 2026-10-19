@@ -1,0 +1,46 @@
+{
+ "name": "t02_flatten_root_first_candidate",
+ "description": "AGENT_PROMPT §14 test 2 (recursive flatten): at the root the first object array of the record is chosen",
+ "case": {
+  "name": "t02_flatten_root_first_candidate",
+  "records": [{"id": 1, "orders": [{"oid": 7}], "children": [{"id": 2}]}],
+  "ops": [{"op": "flatten", "node": ""}]
+ },
+ "output": [{"_depth": 1, "id": 1, "children": [{"id": 2}]}, {"_depth": 2, "oid": 7}],
+ "log": [
+  {
+   "i": 0,
+   "op": "flatten",
+   "applied": true,
+   "changed": true,
+   "undo": 1,
+   "msg": "«orders» ichidagi barcha darajalar bitta massivga yig'ildi: 2 ta element"
+  }
+ ],
+ "tree": {"key": "", "kind": "array", "src": [], "types": ["array"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "", "kind": "object", "src": [null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": "orders", "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+   {"key": "_depth", "kind": "value", "src": null, "types": ["number"], "count": 0, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": "depth", "ctx": [null], "open": false, "is_elem": false, "is_root": false, "children": []},
+   {"key": "id", "kind": "value", "src": [null, "id"], "types": ["number"], "count": 1, "pcount": 2, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []},
+   {"key": "children", "kind": "array", "src": [null, "children"], "types": ["array"], "count": 1, "pcount": 2, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": [
+    {"key": "", "kind": "object", "src": [null, "children", null], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": true, "is_root": false, "children": [
+     {"key": "id", "kind": "value", "src": [null, "children", null, "id"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []}
+    ]}
+   ]},
+   {"key": "oid", "kind": "value", "src": [null, "oid"], "types": ["number"], "count": 1, "pcount": 2, "samples": ["7"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": false, "is_elem": false, "is_root": false, "children": []}
+  ]}
+ ]},
+ "badges": [{"ref": [0], "badges": ["rekursiv · orders"]}, {"ref": [0, "_depth"], "badges": ["daraja raqami"]}],
+ "shape": [
+  "(root) array <- (ildiz)",
+  "  [] object [recKey=orders] <- []",
+  "    \"_depth\" value [computed=depth ctx=[]]",
+  "    \"id\" value <- [].id",
+  "    \"children\" array <- [].children",
+  "      [] object <- [].children[]",
+  "        \"id\" value <- [].children[].id",
+  "    \"oid\" value <- [].oid"
+ ],
+ "preview": [[{"_depth": 1, "id": 1, "children": [{"id": 2}]}, {"_depth": 2, "oid": 7}]],
+ "perRecord": [[{"_depth": 1, "id": 1, "children": [{"id": 2}]}, {"_depth": 2, "oid": 7}]],
+ "perRecordConcatEqualsOutput": true
+}

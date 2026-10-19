@@ -58,6 +58,29 @@ of a :class:`DisplayOrder` (the caller may keep and reuse it, e.g. in a cache).
 
 A FlatTree is not thread-safe; it belongs to the GUI thread. A :class:`DisplayOrder` is
 immutable once built and may be passed between threads.
+
+Structure changes (editing, docs/ARCHITECTURE.md §12.9)
+-------------------------------------------------------
+Identity is positional (record number, child index), so an edit that inserts, deletes or
+moves records or children shifts the key paths of everything after the change. Two
+operations re-key the recorded nodes with a ``Remap``-like object (``map(old) -> new |
+None``, ``delta()``, ``identity``; :class:`jsonreshape.overlay.Remap`):
+
+* :meth:`FlatTree.remap_tops` -- record-level changes: every recorded *integer* top key
+  ``k`` becomes ``remap.map(k)`` (``None``: forgotten with its recorded subtree); other top
+  keys (``"wrapper"``, ``"root"``) stay. In identity mode the top count changes by
+  ``remap.delta()``; with custom top functions the positions are asked again from the
+  current ``top_pos`` (the owner normally calls :meth:`~FlatTree.set_top` right after).
+* :meth:`FlatTree.remap_children` -- the children of one container changed: its child
+  records are re-keyed (``by_idx``), the key paths of every recorded descendant are
+  rewritten, children mapped to ``None`` are dropped with their subtrees, the child count
+  becomes ``count`` and a display order falls back to file order (the owner computes a new
+  one). Unrecorded containers need nothing.
+
+Both cost ``O(recorded nodes below the re-keyed ones)`` plus the usual rebuild of the
+touched node. :meth:`FlatTree.top_runs` lists the top-level rows inside a row range in
+runs (``O(log k + expanded tops in the range)``) so a selection of millions of record rows
+never has to be walked row by row.
 """
 
 from __future__ import annotations
@@ -325,6 +348,17 @@ class FlatTree:
         rec = self._lookup(keypath)
         return rec is not None and rec.open
 
+    def child_count(self, keypath: Iterable[Any]) -> int | None:
+        """The child count an expanded node was given (``None``: not expanded; the top level
+        for the empty key path is :attr:`top_count`)."""
+        rec = self._lookup(keypath)
+        return rec.count if rec is not None and rec.open else None
+
+    def has_order(self, keypath: Iterable[Any]) -> bool:
+        """The expanded node shows its children in a display order (not in file order)."""
+        rec = self._lookup(keypath)
+        return rec is not None and rec.open and rec.order is not None
+
     def expanded_keypaths(self) -> list[tuple]:
         """Key paths of all expanded nodes (also hidden ones); parents before descendants."""
         out: list[tuple] = []
@@ -533,6 +567,178 @@ class FlatTree:
             self._drop_kids(rec, n)
             self._rebuild(rec)
         self._propagate(rec, rec.sub - old_sub)
+
+    # ------------------------------------------------------------------ structure changes
+    def remap_tops(self, remap: Any) -> None:
+        """Re-key the recorded top items after a record-level change (see the module docstring,
+        "Structure changes"). ``remap``: ``map(pos) -> int | None`` (and ``delta()``,
+        ``identity``); ``None`` or an identity remap is a no-op. Integer top keys are mapped
+        (a key whose mapping fails or is ``None`` is forgotten with its recorded subtree);
+        other keys stay. Identity mode: the top count changes by ``remap.delta()``. Custom
+        top functions: positions are asked again from the current ``top_pos``; a key it maps
+        outside the top level or onto a position taken by another key is hidden until the
+        next :meth:`set_top`. ``ValueError`` (nothing changed) when two keys map to one key.
+        """
+        if remap is None or getattr(remap, "identity", False):
+            return
+        root = self._root
+        keep: dict[Any, _Node] = {}
+        moved: list[tuple[_Node, Any]] = []
+        for key, rec in root.by_idx.items():
+            if isinstance(key, int) and not isinstance(key, bool):
+                try:
+                    new = remap.map(key)
+                except (IndexError, ValueError, TypeError):
+                    new = None
+                if new is None:
+                    continue
+                moved.append((rec, index(new)))
+            else:
+                keep[key] = rec
+        for rec, new in moved:
+            if new in keep:
+                raise ValueError(f"two recorded top keys map to {new!r}")
+            keep[new] = rec
+        identity = self._top_key is _identity_key
+        n = root.count
+        if identity:
+            try:
+                n = max(0, n + int(remap.delta()))
+            except (AttributeError, TypeError, ValueError):
+                n = root.count
+        # -- nothing raised: change the tree
+        for rec, new in moved:
+            if rec.key != new:
+                rec.key = new
+                self._rekey_subtree(rec, (new,))
+        root.by_idx = keep
+        if identity:
+            root.count = n
+            self._top_pos = _identity_pos_fn(n)
+        taken: set[int] = set()
+        for key, rec in keep.items():
+            try:
+                p = self._checked_pos(self._top_pos(key), n, key)
+            except (ValueError, TypeError):
+                p = None
+            if p is not None and p in taken:
+                p = None
+            if p is not None:
+                taken.add(p)
+            rec.dpos = p
+        self._rebuild(root)
+
+    def remap_children(self, keypath: Iterable[Any], remap: Any, count: int) -> None:
+        """The children of the container ``keypath`` changed structure (see the module
+        docstring, "Structure changes"): child records are re-keyed with ``remap.map(old)``
+        (``None`` / out of ``range(count)``: dropped with their subtrees), key paths of the
+        recorded descendants follow, the child count becomes ``count`` and a display order
+        falls back to file order. No-op for a node that is not recorded. ``ValueError``
+        (nothing changed) for a negative count or two children mapped to one index."""
+        kp = _norm_keypath(keypath)
+        n = index(count)
+        if n < 0:
+            raise ValueError("child count must be >= 0")
+        rec = self._lookup(kp)
+        if rec is None:
+            return
+        identity = remap is None or getattr(remap, "identity", False)
+        if identity and rec.open and n == rec.count:
+            return
+        new_by: dict[Any, _Node] = {}
+        moved: list[tuple[_Node, int]] = []
+        for c, child in rec.by_idx.items():
+            if identity:
+                new: int | None = c
+            else:
+                try:
+                    new = remap.map(c)
+                except (IndexError, ValueError, TypeError):
+                    new = None
+            if new is None:
+                continue
+            new = index(new)
+            if not 0 <= new < n:
+                continue
+            if new in new_by:
+                raise ValueError(f"two children of {kp!r} map to index {new}")
+            new_by[new] = child
+            moved.append((child, new))
+        # -- nothing raised: change the tree
+        for child, new in moved:
+            if child.key != new:
+                child.key = new
+                self._rekey_subtree(child, rec.keypath + (new,))
+        rec.by_idx = new_by
+        if rec.open:
+            old_sub = rec.sub
+            rec.count = n
+            rec.order = rec.inv = None
+            self._rebuild(rec)
+            self._propagate(rec, rec.sub - old_sub)
+        else:
+            rec.count = n
+            rec.order = rec.inv = None
+            self._detach_if_empty(rec)
+
+    def top_runs(self, row0: int, row1: int) -> Iterator[tuple[int, int, int]]:
+        """The top-level rows inside the inclusive row range ``[row0, row1]`` as maximal runs
+        ``(row, pos, n)``: rows ``row .. row+n-1`` show the top items at display positions
+        ``pos .. pos+n-1`` (rows of expanded subtrees between them are left out).
+        ``O(log k + expanded top items in the range)``."""
+        root = self._root
+        _refresh(root)
+        lo = max(0, index(row0))
+        hi = min(index(row1), root.sub - 1)
+        if lo > hi:
+            return
+        starts, poss, kids = root.start, root.pos, root.kids
+        k = len(poss)
+        cur: list[int] | None = None   # [row, pos, n] of the run being built
+
+        def pieces() -> Iterator[tuple[int, int, int]]:
+            """Top rows in order as ``(row, pos, n)`` pieces from the one holding ``lo``."""
+            i = bisect_right(starts, lo) - 1
+            if i < 0:
+                end = starts[0] if k else root.sub
+                yield 0, 0, end
+                i = 0
+            for j in range(i, k):
+                r = starts[j]
+                if r > hi:
+                    return
+                yield r, poss[j], 1
+                a = r + kids[j].sub + 1
+                b = starts[j + 1] if j + 1 < k else root.sub
+                yield a, poss[j] + 1, b - a
+
+        for r, p, m in pieces():
+            if m <= 0:
+                continue
+            a, b = max(r, lo), min(r + m - 1, hi)
+            if a > b:
+                if r > hi:
+                    break
+                continue
+            pa = p + (a - r)
+            if cur is not None and cur[0] + cur[2] == a and cur[1] + cur[2] == pa:
+                cur[2] += b - a + 1
+            else:
+                if cur is not None:
+                    yield cur[0], cur[1], cur[2]
+                cur = [a, pa, b - a + 1]
+        if cur is not None:
+            yield cur[0], cur[1], cur[2]
+
+    @staticmethod
+    def _rekey_subtree(rec: _Node, keypath: tuple) -> None:
+        """``rec`` now lives at ``keypath``: rewrite the key paths of its recorded subtree."""
+        stack = [(rec, keypath)]
+        while stack:
+            node, kp = stack.pop()
+            node.keypath = kp
+            for c, child in node.by_idx.items():
+                stack.append((child, kp + (c,)))
 
     # ------------------------------------------------------------------ internals
     def _lookup(self, keypath: Iterable[Any]) -> _Node | None:

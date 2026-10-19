@@ -22,10 +22,23 @@ if str(TESTS) not in sys.path:
     sys.path.insert(0, str(TESTS))
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _session_app_home(tmp_path_factory):
+    """Safety net: between tests and after a test's teardown (a worker thread that outlives its
+    test) the app still writes into a temp folder, never into the real ``%LOCALAPPDATA%``."""
+    mp = pytest.MonkeyPatch()
+    mp.setenv("JSONRESHAPE_HOME", str(tmp_path_factory.mktemp("jsonreshape_session_home")))
+    yield
+    mp.undo()
+
+
 @pytest.fixture(autouse=True)
-def _isolated_app_home(tmp_path_factory, monkeypatch):
+def _isolated_app_home(tmp_path_factory, _session_app_home):
     home = tmp_path_factory.mktemp("jsonreshape_home")
-    monkeypatch.setenv("JSONRESHAPE_HOME", str(home))
+    # a private MonkeyPatch: a test calling its own ``monkeypatch.undo()`` must not drop the
+    # isolation (it did with the shared fixture: such tests wrote into the real app folder)
+    mp = pytest.MonkeyPatch()
+    mp.setenv("JSONRESHAPE_HOME", str(home))
     try:  # reset cached settings between tests when the module exists
         from jsonreshape import settings as _settings  # noqa: WPS433
 
@@ -34,7 +47,10 @@ def _isolated_app_home(tmp_path_factory, monkeypatch):
             reset()
     except Exception:
         pass
-    yield home
+    try:
+        yield home
+    finally:
+        mp.undo()
 
 
 # test modules that install / check the app's GC policy themselves

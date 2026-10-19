@@ -5,6 +5,25 @@ lists) and the schema view all need the fields of the records. :func:`get_schema
 :func:`jsonreshape.schema.infer_schema` once per opened document in a background task — a
 sample of ``Settings.sample_size`` records, or every record when ``full=True`` — and hands
 it to every caller; a full scan replaces the sample for everyone once it is done.
+
+Edits (docs/ARCHITECTURE.md §12.9): a cached schema remembers the ``session.data_gen`` (the
+overlay-state gen the session shows) it was computed for. The session calls :func:`forget` for
+ChangeSets that may change the structure a lot (bulk, patch, restore, discard, resets and steps
+touching more than 10 000 records); after other edits the cached schema is kept but
+:func:`is_stale` tells (the schema view recomputes it when visible, the field lists of the
+table / filter / sort dialogs keep using it). The computation reads one pinned state (the one
+shown when it starts).
+
+Stage 5:
+
+* The field lists (:func:`field_paths`, :func:`default_columns`, :func:`is_container`,
+  :func:`under_array`, :data:`DEFAULT_COLUMN_LIMIT`, :data:`DEFAULT_COLUMN_DEPTH`,
+  :data:`CONTAINER_TYPES`) are the core helpers of :mod:`jsonreshape.schema` (docs/ARCHITECTURE.md
+  §14.1; the CLI uses them without importing the GUI), re-exported here unchanged -- the same
+  rules this module had (tests/test_gui_roundb_views.py compares them with the former code).
+* :func:`store` feeds a schema computed elsewhere into the cache (e.g. the full scan of the JSON
+  Schema generate dialog), so every view can use it -- only when it belongs to the document and
+  the data generation the session shows.
 """
 
 from __future__ import annotations
@@ -14,26 +33,49 @@ import weakref
 from typing import Any, Callable
 
 from jsonreshape.i18n import t
-from jsonreshape.paths import Wild
-from jsonreshape.schema import FieldInfo, Schema, infer_schema
+from jsonreshape.schema import (
+    CONTAINER_TYPES,
+    DEFAULT_COLUMN_DEPTH,
+    DEFAULT_COLUMN_LIMIT,
+    Schema,
+    default_columns,
+    field_paths,
+    infer_schema,
+    is_container,
+    under_array,
+)
 
 log = logging.getLogger(__name__)
+
+__all__ = [
+    "CONTAINER_TYPES",
+    "DEFAULT_COLUMN_DEPTH",
+    "DEFAULT_COLUMN_LIMIT",
+    "FailedCallback",
+    "SchemaCallback",
+    "cached_schema",
+    "default_columns",
+    "field_paths",
+    "forget",
+    "get_schema",
+    "is_container",
+    "is_stale",
+    "note_same_data",
+    "schema_gen",
+    "store",
+    "under_array",
+]
 
 SchemaCallback = Callable[[Schema], Any]
 #: Called instead of the schema callback when the computation failed (the exception) or was
 #: cancelled / superseded by a reopened document (``None``).
 FailedCallback = Callable[[BaseException | None], Any]
 
-#: Fields suggested by :func:`default_columns` at most / their maximum depth.
-DEFAULT_COLUMN_LIMIT = 50
-DEFAULT_COLUMN_DEPTH = 3
-CONTAINER_TYPES = ("object", "array")
-
 
 class _Entry:
     """Cached schemas of one session (valid for one ``Document`` object)."""
 
-    __slots__ = ("doc_ref", "sample", "full", "waiting", "running")
+    __slots__ = ("doc_ref", "sample", "full", "waiting", "running", "data_gen", "alias")
 
     def __init__(self, doc: Any) -> None:
         self.doc_ref = weakref.ref(doc)  # identity of the Document object (a reopened file is a new one)
@@ -41,6 +83,8 @@ class _Entry:
         self.full: Schema | None = None
         self.waiting: dict[bool, list[tuple[SchemaCallback | None, FailedCallback | None]]] = {False: [], True: []}
         self.running: dict[bool, Any] = {}   # full flag -> GuiTask
+        self.data_gen: int | None = None     # session.data_gen of the cached schemas
+        self.alias: tuple[int, int] | None = None   # (old gen, new gen) showing the same data
 
 
 _cache: "weakref.WeakKeyDictionary[Any, _Entry]" = weakref.WeakKeyDictionary()
@@ -117,11 +161,54 @@ def _fail_all(entry: _Entry, exc: BaseException | None) -> None:
         _notify_failed(waiters, exc)
 
 
+def _data_gen(session: Any) -> int:
+    try:
+        return int(getattr(session, "data_gen", 0) or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def is_stale(session: Any) -> bool:
+    """A schema is cached for ``session`` but was computed for another data generation (the
+    document was edited since): it may miss or show fields (the schema view recomputes it)."""
+    entry = _cache.get(session)
+    if entry is None or entry.doc_ref() is not getattr(session, "doc", None):
+        return False
+    if entry.sample is None and entry.full is None:
+        return False
+    return entry.data_gen != _data_gen(session)
+
+
+def note_same_data(session: Any, old_gen: int, new_gen: int) -> None:
+    """The session now shows a state with the same data as ``old_gen`` (editing became
+    possible: its unedited initial state): a schema of ``old_gen`` -- cached or still being
+    computed -- stays fresh."""
+    entry = _entry(session)
+    if entry is None:
+        return
+    entry.alias = (old_gen, new_gen)
+    if entry.data_gen == old_gen:
+        entry.data_gen = new_gen
+
+
+def schema_gen(session: Any) -> int | None:
+    """The ``session.data_gen`` the cached schema was computed for (``None``: nothing cached)."""
+    entry = _cache.get(session)
+    if entry is None or entry.doc_ref() is not getattr(session, "doc", None):
+        return None
+    if entry.sample is None and entry.full is None:
+        return None
+    return entry.data_gen
+
+
 def _start(session: Any, entry: _Entry, full: bool) -> None:
-    doc = session.doc
+    live = session.doc
+    pinned = getattr(live, "pinned", None)
+    doc = pinned() if callable(pinned) else live   # the state shown now (edits made later do not mix in)
+    gen = _data_gen(session)
     app = session.app
     sample = None if full else max(1, int(app.settings.sample_size))
-    name = doc.source_path.name
+    name = live.source_path.name
     title = t("gui.fields.task.full", name=name) if full else t("gui.fields.task.sample", name=name)
 
     def work(ctx: Any) -> Schema:
@@ -134,6 +221,12 @@ def _start(session: Any, entry: _Entry, full: bool) -> None:
             entry.waiting[full] = []
             _notify_failed(waiters, None)
             return
+        result_gen = gen
+        if entry.alias is not None and result_gen == entry.alias[0]:
+            result_gen = entry.alias[1]
+        if entry.data_gen != result_gen:   # the other cached schema belongs to other data
+            entry.full = entry.sample = None
+        entry.data_gen = result_gen
         if full or schema.complete:
             entry.full = schema
         if not full:
@@ -178,70 +271,37 @@ def forget(session: Any) -> None:
         _fail_all(entry, None)
 
 
-# ----------------------------------------------------------------------------------
-# field lists
-# ----------------------------------------------------------------------------------
-def is_container(fi: FieldInfo) -> bool:
-    """The field's most frequent type is an object or an array."""
-    return fi.main_type in CONTAINER_TYPES
+def store(session: Any, schema: Schema, *, full: bool, gen: int | None = None, doc: Any = None) -> bool:
+    """Put a schema computed elsewhere (GUI thread; e.g. the full scan of the JSON Schema
+    generate dialog) into the cache of ``session``, as the full schema (``full``: every record
+    was analysed -- also when ``schema.complete``, like the cache's own computations) or as the
+    sample. ``gen``: the ``session.data_gen`` of the state it was computed from (default: the
+    one shown now); ``doc``: that document (the live one or a pinned view of it).
 
-
-def under_array(fi: FieldInfo) -> bool:
-    """The field lies inside an array element (``orders[*].id``)."""
-    return any(seg is Wild.ANY_INDEX for seg in fi.path)
-
-
-def field_paths(schema: Schema | None, *, containers: bool = True, inside_arrays: bool = True,
-                key_field: bool = True, max_depth: int | None = None) -> list[str]:
-    """Field texts (path syntax of :mod:`jsonreshape.paths`, ``$key`` for member keys) in
-    pre-order, filtered: ``containers`` keeps object/array fields, ``inside_arrays`` keeps
-    fields under ``[*]``, ``key_field`` keeps ``$key``, ``max_depth`` limits the depth."""
-    if schema is None:
-        return []
-    out: list[str] = []
-    for fi in schema.fields():
-        if fi.is_key:
-            if key_field:
-                out.append(fi.text)
-            continue
-        if max_depth is not None and fi.depth > max_depth:
-            continue
-        if not containers and is_container(fi):
-            continue
-        if not inside_arrays and under_array(fi):
-            continue
-        if any(seg is Wild.ANY_KEY for seg in fi.path):
-            continue  # pooled map keys are not addressable fields
-        out.append(fi.text)
-    return out
-
-
-def default_columns(schema: Schema | None, *, limit: int = DEFAULT_COLUMN_LIMIT,
-                    max_depth: int = DEFAULT_COLUMN_DEPTH) -> list[str]:
-    """Table columns suggested for a schema: ``$key`` (member records), then the scalar
-    fields outside arrays up to ``max_depth`` and the arrays of the first level (shown as
-    ``[n]``), in schema order, at most ``limit``; records that are not objects get the
-    single column ``$``."""
-    if schema is None:
-        return ["$"]
-    root = schema.root
-    root_is_object = root.main_type == "object"
-    cols: list[str] = []
-    for fi in schema.fields():
-        if len(cols) >= limit:
-            break
-        if fi.is_key:
-            cols.append(fi.text)
-            continue
-        if not root_is_object or fi.depth > max_depth or under_array(fi):
-            continue
-        if any(seg is Wild.ANY_KEY for seg in fi.path):
-            continue
-        if fi.main_type == "object":
-            continue  # its scalar children become columns
-        if fi.main_type == "array" and fi.depth > 1:
-            continue
-        cols.append(fi.text)
-    if not root_is_object:
-        cols.append("$")
-    return cols or ["$"]
+    Nothing is stored -- False is returned -- when the session has no document, ``doc`` is of
+    another (replaced) document, ``full`` is asked for a schema that did not analyse every
+    record, or ``gen`` is not the data generation the session shows (a schema of older data:
+    :func:`is_stale` would report it at once). A stored schema of the shown data replaces the
+    cached schemas of other data. Running computations and their waiting callbacks are left
+    alone (they still deliver their own result)."""
+    entry = _entry(session)
+    if entry is None or schema is None:
+        return False
+    if doc is not None and getattr(doc, "origin", doc) is not entry.doc_ref():
+        return False
+    complete = bool(getattr(schema, "complete", False))
+    if full and not complete:
+        return False
+    result_gen = _data_gen(session) if gen is None else int(gen)
+    if entry.alias is not None and result_gen == entry.alias[0]:
+        result_gen = entry.alias[1]
+    if result_gen != _data_gen(session):
+        return False
+    if entry.data_gen != result_gen:   # the cached schemas describe other data
+        entry.full = entry.sample = None
+    entry.data_gen = result_gen
+    if full or complete:
+        entry.full = schema
+    if not full:
+        entry.sample = schema
+    return True

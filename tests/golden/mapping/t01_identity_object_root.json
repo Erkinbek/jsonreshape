@@ -1,0 +1,29 @@
+{
+ "name": "t01_identity_object_root",
+ "description": "AGENT_PROMPT §14 test 1 (identity): object root",
+ "case": {"name": "t01_identity_object_root", "data": {"meta": {"v": 1}, "data": [{"id": 1}, {"id": 2, "x": null}]}},
+ "output": {"meta": {"v": 1}, "data": [{"id": 1}, {"id": 2, "x": null}]},
+ "log": [],
+ "tree": {"key": "", "kind": "object", "src": [], "types": ["object"], "count": 1, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": true, "children": [
+  {"key": "meta", "kind": "object", "src": ["meta"], "types": ["object"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+   {"key": "v", "kind": "value", "src": ["meta", "v"], "types": ["number"], "count": 1, "pcount": 1, "samples": ["1"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+  ]},
+  {"key": "data", "kind": "array", "src": ["data"], "types": ["array"], "count": 1, "pcount": 1, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": [
+   {"key": "", "kind": "object", "src": ["data", null], "types": ["object"], "count": 2, "pcount": null, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": true, "is_root": false, "children": [
+    {"key": "id", "kind": "value", "src": ["data", null, "id"], "types": ["number"], "count": 2, "pcount": 2, "samples": ["1", "2"], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []},
+    {"key": "x", "kind": "value", "src": ["data", null, "x"], "types": ["null"], "count": 1, "pcount": 2, "samples": [], "synthetic": false, "rec_key": null, "computed": null, "ctx": null, "open": true, "is_elem": false, "is_root": false, "children": []}
+   ]}
+  ]}
+ ]},
+ "badges": [],
+ "shape": [
+  "(root) object <- (ildiz)",
+  "  \"meta\" object <- meta",
+  "    \"v\" value <- meta.v",
+  "  \"data\" array <- data",
+  "    [] object <- data[]",
+  "      \"id\" value <- data[].id",
+  "      \"x\" value <- data[].x"
+ ],
+ "preview": [{"meta": {"v": 1}, "data": [{"id": 1}, {"id": 2, "x": null}]}]
+}

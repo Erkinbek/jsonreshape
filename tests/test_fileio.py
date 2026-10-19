@@ -320,7 +320,12 @@ def test_normalize_path(tmp_path: Path) -> None:
 def test_sniff(head: bytes, encoding: str, bom_len: int, gz: bool) -> None:
     assert sniff(head) == Sniff(encoding, bom_len, gz)
     assert sniff(bytearray(head)) == Sniff(encoding, bom_len, gz)
-    assert sniff(memoryview(head + b"rest of the file ignored")) .encoding == encoding
+    # what follows the sniffed bytes does not matter -- as long as it is text of the same encoding: a BOM-less
+    # UTF-16 head of one code unit followed by UTF-8 bytes is no UTF-16 text (fix round R5, R5F-8: the second
+    # code unit counts too; this line used to append ASCII bytes to every head)
+    rest = " rest of the file".encode(encoding) if encoding.startswith("utf-16") and not bom_len \
+        else b"rest of the file ignored"
+    assert sniff(memoryview(head + rest)) .encoding == encoding
 
 
 @pytest.mark.parametrize("encoding", ["utf-16-le", "utf-16-be"])
@@ -540,11 +545,13 @@ def test_invalid_utf16_reports_offset(tmp_path: Path, lang_en) -> None:
         prepare_data_file(lone)
     assert info.value.key == "fileio.error.decode" and info.value.params["offset"] == 6
     assert "UTF-16 LE" in str(info.value)
+    # a dangling byte at the END is a cut file, not invalid data (fix round L1, the repair agent's request):
+    # it is left out with a warning, so the reader and repair can work on the rest (it used to be
+    # fileio.error.decode at offset 8; tests/test_fix5_leftovers.py covers the cut cases in detail)
     odd = tmp_path / "odd.json"
     odd.write_bytes("\ufeff[1]".encode("utf-16-be") + b"\x00")
-    with pytest.raises(FileFormatError) as info:
-        prepare_data_file(odd)
-    assert info.value.params["offset"] == 8  # the dangling byte
+    pf = prepare_data_file(odd)
+    assert Path(pf.data_path).read_bytes() == b"[1]" and pf.warnings == ("fileio.warning.utf16_truncated",)
     assert not any(name.endswith(".part") for name in prepared_files())
 
 
@@ -758,6 +765,151 @@ def test_atomic_path_for_libraries_needing_a_filename(tmp_path: Path) -> None:
 
 
 # ----------------------------------------------------------------------------------
+# replacing open files: replace_posix, hard_link and the save helpers (§12.7)
+# ----------------------------------------------------------------------------------
+def test_replace_posix_replaces_atomically(tmp_path: Path) -> None:
+    src, dst = tmp_path / "new.json", tmp_path / "data.json"
+    src.write_bytes(b"[2]")
+    dst.write_bytes(b"[1]")
+    fileio.replace_posix(src, dst)
+    assert dst.read_bytes() == b"[2]" and not src.exists()
+    other = tmp_path / "fresh.json"                     # a target that does not exist yet
+    src.write_bytes(b"[3]")
+    fileio.replace_posix(str(src), str(other))
+    assert other.read_bytes() == b"[3]" and not src.exists()
+    with pytest.raises(FileNotFoundError):
+        fileio.replace_posix(tmp_path / "missing.json", dst)
+    assert dst.read_bytes() == b"[2]"
+
+
+@windows_only
+def test_replace_posix_while_the_target_is_open_and_mapped(tmp_path: Path) -> None:
+    import mmap
+
+    src, dst = tmp_path / "new.json", tmp_path / "data.json"
+    src.write_bytes(b'{"version": 2}')
+    dst.write_bytes(b'{"version": 1}')
+    f = open_shared(dst, "rb", buffering=0)
+    mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+    try:
+        with pytest.raises(PermissionError):
+            os.replace(src, dst)                          # what MoveFileEx does with an open target
+        fileio.replace_posix(src, dst)
+        f.seek(0)
+        assert f.read() == b'{"version": 1}' and bytes(mm[:]) == b'{"version": 1}'
+        assert dst.read_bytes() == b'{"version": 2}'
+    finally:
+        mm.close()
+        f.close()
+
+
+@windows_only
+def test_replace_posix_refusals(tmp_path: Path, lang_en) -> None:
+    src, dst = tmp_path / "new.json", tmp_path / "data.json"
+    src.write_bytes(b"[2]")
+    dst.write_bytes(b"[1]")
+    handle = win_open(dst, 0x1 | 0x2)                   # held without FILE_SHARE_DELETE
+    try:
+        with pytest.raises(OSError) as info:
+            fileio.replace_posix(src, dst)
+        assert info.value.winerror == 32
+        assert os_error(info.value, dst, writing=True).key == "fileio.error.in_use"
+    finally:
+        _CloseHandle(handle)
+    os.chmod(dst, 0o444)
+    try:
+        assert fileio.is_read_only(dst)
+        with pytest.raises(PermissionError) as info:
+            fileio.replace_posix(src, dst)
+        assert os_error(info.value, dst, writing=True).key == "fileio.error.read_only"
+    finally:
+        fileio.clear_read_only(dst)
+    assert not fileio.is_read_only(dst) and dst.read_bytes() == b"[1]"
+    folder = tmp_path / "folder"
+    folder.mkdir()
+    with pytest.raises(OSError) as info:
+        fileio.replace_posix(src, folder)
+    assert os_error(info.value, folder, writing=True).key == "fileio.error.is_directory"
+    assert src.read_bytes() == b"[2]"
+
+
+@windows_only
+@pytest.mark.parametrize("err", [1, 50, 87, 120])
+def test_replace_posix_unsupported(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, err: int) -> None:
+    src, dst = tmp_path / "new.json", tmp_path / "data.json"
+    src.write_bytes(b"[2]")
+    dst.write_bytes(b"[1]")
+
+    def refuse(handle, cls, buf, size):
+        assert cls == 22                                 # FileRenameInfoEx
+        ctypes.set_last_error(err)
+        return 0
+
+    monkeypatch.setattr(fileio, "_SetFileInformationByHandle", refuse)
+    with pytest.raises(fileio.ReplaceUnsupported) as info:
+        fileio.replace_posix(src, dst)
+    assert isinstance(info.value, OSError) and info.value.winerror == err
+    assert src.read_bytes() == b"[2]" and dst.read_bytes() == b"[1]"
+
+
+@windows_only
+def test_replace_posix_long_and_unicode_paths(tmp_path: Path) -> None:
+    deep = tmp_path
+    while len(str(deep)) < 300:
+        deep = deep / ("o'zbek ўзбек " + "d" * 20)
+    make = fileio.long_path(deep)
+    os.makedirs(make, exist_ok=True)
+    src, dst = deep / "yangi 😀.json", deep / "maʼlumot.json"
+    with open(fileio.long_path(src), "wb") as f:
+        f.write(b"[2]")
+    with open(fileio.long_path(dst), "wb") as f:
+        f.write(b"[1]")
+    fileio.replace_posix(src, dst)
+    with open(fileio.long_path(dst), "rb") as f:
+        assert f.read() == b"[2]"
+    assert not os.path.exists(fileio.long_path(src))
+
+
+def test_hard_link(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    src, link = tmp_path / "a.json", tmp_path / "a.json.bak"
+    src.write_bytes(b"[1]")
+    assert fileio.hard_link(src, link) is True
+    assert os.path.samefile(src, link) and link.read_bytes() == b"[1]"
+    with pytest.raises(FileExistsError):
+        fileio.hard_link(src, link)
+    link.unlink()
+    for err in ([None, "no", None, 1], [None, "no", None, 5], [None, "no", None, 1142], [None, "no", None, 50]):
+        def refuse(a, b, _e=err):
+            raise OSError(*_e) if WINDOWS else OSError(errno.EPERM, "no")
+
+        monkeypatch.setattr(os, "link", refuse)
+        assert fileio.hard_link(src, link) is False and not link.exists()
+
+    def disk_full(a, b):
+        raise OSError(None, "full", None, 112) if WINDOWS else OSError(errno.ENOSPC, "full")
+
+    monkeypatch.setattr(os, "link", disk_full)
+    with pytest.raises(OSError):
+        fileio.hard_link(src, link)
+
+
+def test_save_helpers(tmp_path: Path) -> None:
+    target = tmp_path / "data.json"
+    fd, tmp = fileio.create_temp(target, ".jrsave")
+    os.close(fd)
+    assert tmp.parent == tmp_path and tmp.name.startswith(".data.json.") and tmp.name.endswith(".jrsave")
+    assert fileio.remove_quiet(tmp) and fileio.remove_quiet(tmp)        # gone, and gone again
+    src = tmp_path / "x.json"
+    src.write_bytes(b"[]")
+    fileio.replace_file(src, target)
+    assert target.read_bytes() == b"[]" and not src.exists()
+    with pytest.raises(UserInputError):
+        fileio.replace_file(tmp_path / "missing.json", target)
+    assert not fileio.is_read_only(target) and not fileio.is_read_only(tmp_path / "nothing.json")
+    fileio.clear_read_only(target)                       # a no-op for a writable file
+
+
+# ----------------------------------------------------------------------------------
 # read_range
 # ----------------------------------------------------------------------------------
 class _Trickle(io.RawIOBase):
@@ -805,3 +957,209 @@ def test_read_range(tmp_path: Path) -> None:
     assert read_range(raw, 100, 200) == data[100:200]
     with pytest.raises(FileChangedError):
         read_range(raw, 2500, 2600)
+
+
+# ----------------------------------------------------------------------------------
+# stage 5 (docs/ARCHITECTURE.md §14.4): free_space, move_replace, commit_files
+# ----------------------------------------------------------------------------------
+def _files(folder: Path) -> dict[str, bytes]:
+    return {p.name: p.read_bytes() for p in sorted(folder.iterdir()) if p.is_file()}
+
+
+def test_free_space_of_existing_and_future_paths(tmp_path: Path) -> None:
+    free = fileio.free_space(tmp_path)
+    assert isinstance(free, int) and free > 0
+    # a path that does not exist yet: its nearest existing ancestor
+    assert fileio.free_space(tmp_path / "a" / "b" / "c.json") == pytest.approx(free, rel=0.5)
+    assert isinstance(fileio.free_space(tmp_path / "f.bin"), int)
+
+
+def test_free_space_unknown(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(_p: str) -> None:
+        raise PermissionError(errno.EACCES, "denied")
+
+    monkeypatch.setattr(fileio.shutil, "disk_usage", boom)
+    assert fileio.free_space(tmp_path) is None
+
+
+def test_move_replace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    src, dst = tmp_path / "s.bin", tmp_path / "d.bin"
+    src.write_bytes(b"new")
+    fileio.move_replace(src, dst)                    # no target yet
+    assert dst.read_bytes() == b"new" and not src.exists()
+    src.write_bytes(b"newer")
+    with open_shared(dst) as f:                      # a target this program still reads
+        fileio.move_replace(src, dst)
+        assert f.read() == b"new"                    # the open handle keeps the old bytes
+    assert dst.read_bytes() == b"newer"
+    # no POSIX renames on this file system: a plain replace
+    calls = []
+
+    def unsupported(a, b):  # noqa: ANN001
+        calls.append((a, b))
+        raise fileio.ReplaceUnsupported(None, "not supported", str(b), 50)
+
+    monkeypatch.setattr(fileio, "replace_posix", unsupported)
+    src.write_bytes(b"plain")
+    fileio.move_replace(src, dst)
+    assert calls and dst.read_bytes() == b"plain"
+
+
+@windows_only
+def test_move_replace_retries_a_scanner_holding_the_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    src, dst = tmp_path / "s.bin", tmp_path / "d.bin"
+    src.write_bytes(b"x")
+    real = fileio.replace_posix
+    seen = []
+
+    def busy_twice(a, b):  # noqa: ANN001
+        seen.append(1)
+        if len(seen) <= 2:
+            raise PermissionError(errno.EACCES, "sharing violation", str(a))
+        real(a, b)
+
+    monkeypatch.setattr(fileio, "replace_posix", busy_twice)
+    fileio.move_replace(src, dst, timeout=5.0)
+    assert len(seen) == 3 and dst.read_bytes() == b"x"
+
+    def always_busy(a, b):  # noqa: ANN001
+        raise PermissionError(errno.EACCES, "held", str(a))
+
+    src.write_bytes(b"y")
+    monkeypatch.setattr(fileio, "replace_posix", always_busy)
+    with pytest.raises(PermissionError):
+        fileio.move_replace(src, dst, timeout=0.05)
+    assert src.read_bytes() == b"y" and dst.read_bytes() == b"x"
+
+
+def _stage(folder: Path, contents: list[bytes]) -> list[Path]:
+    staged = []
+    for i, data in enumerate(contents):
+        p = folder / f".staged{i}.jrpart"
+        p.write_bytes(data)
+        staged.append(p)
+    return staged
+
+
+def test_commit_files_places_new_and_replaces_old(tmp_path: Path) -> None:
+    out = tmp_path / "o"
+    out.mkdir()
+    finals = [out / "p_1.json", out / "p_2.json", out / "p_3.json"]
+    finals[1].write_bytes(b"old 2")
+    staged = _stage(out, [b"one", b"two", b"three"])
+    left = fileio.commit_files(staged, finals)
+    assert left == []
+    assert _files(out) == {"p_1.json": b"one", "p_2.json": b"two", "p_3.json": b"three"}   # no temps, no asides
+    assert not any(p.exists() for p in staged)
+
+
+@pytest.mark.parametrize("fail", ["aside", "place", "cancel"])
+def test_commit_files_is_all_or_nothing(tmp_path: Path, fail: str) -> None:
+    out = tmp_path / "o"
+    out.mkdir()
+    finals = [out / f"p_{k}.json" for k in (1, 2, 3)]
+    for k, p in enumerate(finals[:2]):
+        p.write_bytes(b"old %d" % k)
+    (out / "other.txt").write_bytes(b"unrelated")
+    staged = _stage(out, [b"n1", b"n2", b"n3"])
+    before = {p.name: p.read_bytes() for p in finals if p.exists()}
+
+    def move(a: Path, b: Path) -> None:
+        if fail == "aside" and a.name == "p_2.json":
+            raise PermissionError(errno.EACCES, "in use", str(a))
+        if fail == "place" and b.name == "p_3.json":
+            raise OSError(errno.EIO, "I/O error", str(b))
+        if fail == "cancel" and b.name == "p_2.json" and a.name.startswith(".staged"):
+            raise Cancelled()
+        fileio.move_replace(a, b)
+
+    with pytest.raises((UserInputError, JsonReshapeError)):
+        fileio.commit_files(staged, finals, move=move)
+    after = {p.name: p.read_bytes() for p in finals if p.exists()}
+    assert after == before                                   # every final exactly as before
+    assert (out / "other.txt").read_bytes() == b"unrelated"
+    assert not [p for p in out.iterdir() if p.name.endswith(fileio.ASIDE_SUFFIX)]   # asides put back
+    assert not (out / "p_3.json").exists()
+
+
+def test_commit_files_error_hook(tmp_path: Path) -> None:
+    out = tmp_path / "o"
+    out.mkdir()
+    final = out / "a.json"
+    final.write_bytes(b"old")
+    staged = _stage(out, [b"new"])
+
+    class Locked(Exception):
+        pass
+
+    def move(a: Path, b: Path) -> None:
+        raise PermissionError(errno.EACCES, "locked", str(a))
+
+    with pytest.raises(Locked):
+        fileio.commit_files(staged, [final], move=move, error=lambda exc, path: Locked(str(path)))
+    assert final.read_bytes() == b"old" and staged[0].read_bytes() == b"new"
+
+
+def test_commit_files_refusals(tmp_path: Path, lang_en) -> None:
+    out = tmp_path / "o"
+    out.mkdir()
+    staged = _stage(out, [b"a", b"b"])
+    (out / "dir").mkdir()
+    with pytest.raises(UserInputError) as ei:
+        fileio.commit_files(staged[:1], [out / "dir"])
+    assert ei.value.key == "fileio.error.is_directory"
+    ro = out / "ro.json"
+    ro.write_bytes(b"protected")
+    os.chmod(ro, 0o444)
+    try:
+        if fileio.is_read_only(ro):
+            with pytest.raises(UserInputError) as ei:
+                fileio.commit_files(staged, [out / "x.json", ro])
+            assert ei.value.key == "fileio.error.read_only"
+            assert ro.read_bytes() == b"protected" and not (out / "x.json").exists()
+            assert all(p.exists() for p in staged)           # nothing was moved
+    finally:
+        os.chmod(ro, 0o666)
+    with pytest.raises(ValueError):
+        fileio.commit_files(staged, [out / "x.json"])            # lengths differ
+    with pytest.raises(ValueError):
+        fileio.commit_files(staged, [out / "x.json", out / "x.json"])
+    with pytest.raises(ValueError):
+        fileio.commit_files(staged[:1], [staged[0]])
+
+
+@windows_only
+def test_commit_files_with_a_target_open_here_and_elsewhere(tmp_path: Path, lang_en) -> None:
+    out = tmp_path / "o"
+    out.mkdir()
+    finals = [out / "p_1.json", out / "p_2.json"]
+    for p in finals:
+        p.write_bytes(b"old " + p.name.encode())
+    # a target this program reads (a Document shows it in a tab): shared handles -> replaced
+    with open_shared(finals[1]) as f:
+        fileio.commit_files(_stage(out, [b"n1", b"n2"]), finals)
+        assert f.read() == b"old p_2.json"
+    assert [p.read_bytes() for p in finals] == [b"n1", b"n2"]
+    # held by another program without delete sharing (Excel): refused, nothing changed
+    with open(finals[1], "rb"):
+        staged = _stage(out, [b"m1", b"m2"])
+        with pytest.raises(JsonReshapeError):
+            fileio.commit_files(staged, finals, move=lambda a, b: fileio.move_replace(a, b, timeout=0.05))
+    assert [p.read_bytes() for p in finals] == [b"n1", b"n2"]
+    assert not [p for p in out.iterdir() if p.name.endswith(fileio.ASIDE_SUFFIX)]
+
+
+def test_commit_files_reports_asides_it_cannot_remove(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    out = tmp_path / "o"
+    out.mkdir()
+    final = out / "a.json"
+    final.write_bytes(b"old")
+    real = fileio.remove_quiet
+
+    def keep_asides(p):  # noqa: ANN001
+        return False if str(p).endswith(fileio.ASIDE_SUFFIX) else real(p)
+
+    monkeypatch.setattr(fileio, "remove_quiet", keep_asides)
+    left = fileio.commit_files(_stage(out, [b"new"]), [final])
+    assert final.read_bytes() == b"new"
+    assert len(left) == 1 and left[0].read_bytes() == b"old" and left[0].name.endswith(fileio.ASIDE_SUFFIX)

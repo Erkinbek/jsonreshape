@@ -165,6 +165,19 @@ Decisions and deviations (documented, see also the report of the recordset role)
 * Extra keyword arguments: ``strategy``, ``block_bytes`` and ``batch_interval``
   (filter), ``block_bytes`` (sort); ``filter_records`` also accepts expression text and
   ``sort_records`` key texts such as ``"-id"``.
+
+Edited documents (docs/ARCHITECTURE.md §12.0, §12.3)
+-----------------------------------------------------
+Record numbers are the *positions* of the edited document. :func:`filter_records` and
+:func:`sort_records` begin with ``doc = doc.pinned()`` (the whole run reads one overlay
+state), refuse a ``source`` whose ``gen`` belongs to another state
+(``EditError("edits.error.stale_scope")``; sources without ``gen`` pass) and tag their
+result with the pinned state's ``gen`` (``RecordSet.gen``; builders take ``gen=``).
+``RecordSet.base(doc)`` binds the given document (a pinned view: the frozen count of its
+state) and is recognized as "all records" for any view of the same live document
+(:meth:`RecordSet._is_base_of` compares origins). Huge records are read through
+``doc.open_data()``; progress totals of an edited document come from
+``doc.effective_bytes()``.
 """
 
 from __future__ import annotations
@@ -191,7 +204,7 @@ from typing import Any, Callable, Iterable, Iterator, Sequence, Union
 
 from . import codec, core
 from .appdirs import recordsets_dir, tmp_dir, work_dir
-from .errors import Cancelled, JsonReshapeError, UserInputError
+from .errors import Cancelled, EditError, JsonReshapeError, UserInputError
 from .fileio import long_path, open_shared, os_error, read_range
 from .i18n import get_language, has, t
 from .paths import MISSING, PathPattern
@@ -829,29 +842,37 @@ class RecordSet:
       ``array('Q')`` copy), iteration, :meth:`iter_chunks`, :meth:`to_list`.
     * ``complete``: the set is final (a builder finished it / the base set's index is
       complete); ``path``: the backing file (``None`` for in-memory and base sets).
+    * ``gen``: the overlay-state gen its positions belong to (docs/ARCHITECTURE.md §12.3; a
+      plain, assignable attribute; ``None`` = valid for any state, e.g. the base set).
+      Filter, sort and search results carry the gen of the pinned document they read;
+      consumers taking a ``source`` refuse one of another state
+      (``EditError("edits.error.stale_scope")``).
     * Context manager; :meth:`close` (= :meth:`delete`) releases and removes the file.
     """
 
     def __init__(self, store: _Storage | _BaseStore, *, kind: str, description: str = "",
-                 report: Any = None) -> None:
+                 report: Any = None, gen: int | None = None) -> None:
         self._store = store
         self.kind = kind
         self.description = description
         self.report = report
+        self.gen: int | None = gen
         self._finalizer = weakref.finalize(self, store.close)
 
     # -- construction ----------------------------------------------------------------
     @classmethod
     def base(cls, doc: Any) -> RecordSet:
-        """All records of ``doc`` in file order (virtual identity; ``len()`` is
-        ``doc.record_count``, live while the index grows)."""
+        """All records of ``doc`` in order (virtual identity; ``len()`` is
+        ``doc.record_count``, live while the index grows -- a pinned view gives the frozen
+        count of its state). ``gen`` is ``None``: "all records" of any state."""
         return cls(_BaseStore(doc), kind="base", description=t("recordset.desc.base"))
 
     @classmethod
-    def from_indices(cls, indices: Iterable[int], kind: str = "manual", description: str = "") -> RecordSet:
+    def from_indices(cls, indices: Iterable[int], kind: str = "manual", description: str = "", *,
+                     gen: int | None = None) -> RecordSet:
         """A complete set holding ``indices`` (list, tuple, ``array``, ``range``,
         RecordSet or any iterable of non-negative ints) in the given order."""
-        builder = RecordSetBuilder(kind, description)
+        builder = RecordSetBuilder(kind, description, gen=gen)
         try:
             builder.extend(indices)
             return builder.finish()
@@ -878,8 +899,15 @@ class RecordSet:
         return bool(self._store.ascending)
 
     def _is_base_of(self, doc: Any) -> bool:
+        """The base set of ``doc`` or of another view of the same live document (origins are
+        compared: the base set of the live document means "all records" for any pinned state)."""
         store = self._store
-        return isinstance(store, _BaseStore) and store.doc is doc
+        if not isinstance(store, _BaseStore):
+            return False
+        mine = store.doc
+        if mine is None:
+            return False
+        return mine is doc or getattr(mine, "origin", mine) is getattr(doc, "origin", doc)
 
     # -- access ------------------------------------------------------------------------
     def __len__(self) -> int:
@@ -964,7 +992,8 @@ class RecordSet:
     def __repr__(self) -> str:
         state = "closed" if self.closed else "complete" if self.complete else "growing"
         desc = f" {self.description!r}" if self.description else ""
-        return f"<RecordSet {self.kind}{desc} {len(self)} records {state}>"
+        gen = f" gen={self.gen}" if self.gen is not None else ""
+        return f"<RecordSet {self.kind}{desc} {len(self)} records {state}{gen}>"
 
 
 class RecordSetBuilder:
@@ -979,10 +1008,10 @@ class RecordSetBuilder:
     """
 
     def __init__(self, kind: str = "manual", description: str = "", *, directory: StrPath | None = None,
-                 flush_bytes: int | None = None, memory_max: int | None = None) -> None:
+                 flush_bytes: int | None = None, memory_max: int | None = None, gen: int | None = None) -> None:
         _purge_once()
         self._storage = _Storage(directory=directory, flush_bytes=flush_bytes, memory_max=memory_max)
-        self.recordset = RecordSet(self._storage, kind=kind, description=description)
+        self.recordset = RecordSet(self._storage, kind=kind, description=description, gen=gen)
 
     @property
     def state(self) -> str:
@@ -1148,9 +1177,37 @@ def _normalize_source(doc: Any, source: Any) -> Any:
     return source
 
 
+def _open_data(doc: Any) -> Any:
+    """``doc.open_data()``: a reader of the document's virtual address space (an edited record's
+    span is in the edit layer); a document-like object without it is read from ``data_path``."""
+    open_data = getattr(doc, "open_data", None)
+    if open_data is not None:
+        return open_data()
+    return open_shared(doc.data_path, "rb")
+
+
+def _pin(doc: Any) -> Any:
+    """``doc.pinned()`` (docs/ARCHITECTURE.md §12.3): a run reads ONE overlay state; a
+    document-like object without ``pinned`` is used as it is."""
+    pinned = getattr(doc, "pinned", None)
+    return pinned() if callable(pinned) else doc
+
+
+def _check_scope(doc: Any, source: Any) -> None:
+    """``EditError("edits.error.stale_scope")`` for a source made for another overlay state
+    (``source.gen`` set and not ``doc.gen``): its positions address other records."""
+    gen = getattr(source, "gen", None) if source is not None else None
+    if gen is not None and gen != getattr(doc, "gen", 0):
+        raise EditError("edits.error.stale_scope")
+
+
 def _estimate_total(doc: Any, source: Any) -> int | None:
-    """Expected record bytes of ``source`` (exact for all records, else proportional)."""
-    full = max(0, int(doc.data_size) - int(doc.info.data_start))
+    """Expected record bytes of ``source`` (exact for all records, else proportional; an
+    edited document: from ``doc.effective_bytes()``)."""
+    if getattr(doc, "edited", False):
+        full = max(0, int(doc.effective_bytes()))
+    else:
+        full = max(0, int(doc.data_size) - int(doc.info.data_start))
     if source is None:
         return full
     try:
@@ -1576,11 +1633,13 @@ def filter_records(doc: Any, flt: Filter | str, source: Any = None, *, progress:
         flt = compile_filter(flt)
     if not isinstance(flt, Filter):
         raise TypeError(f"expected a Filter, not {type(flt).__name__}")
+    doc = _pin(doc)
+    _check_scope(doc, source)
     started = time.perf_counter()
     runner = _FilterRunner(doc, flt, strategy, cancel)
     src = _normalize_source(doc, source)
     tracker = _Tracker(progress, _estimate_total(doc, src), t("recordset.progress.filter", name=doc.source_path.name))
-    builder = RecordSetBuilder("filter", t("recordset.desc.filter", expr=flt.text))
+    builder = RecordSetBuilder("filter", t("recordset.desc.filter", expr=flt.text), gen=getattr(doc, "gen", None))
     rs = builder.recordset
     out: list[int] = []
     last_batch = time.monotonic()
@@ -1859,7 +1918,7 @@ class _KeyCollector:
         compact JSON text (module docstring)."""
         spec = self.specs[pos]
         vs, ve = self.doc.record_value_span(idx) if self.member else span
-        with open_shared(self.doc.data_path, "rb") as f:
+        with _open_data(self.doc) as f:   # an edited record lives in the edit layer
             first = read_range(f, vs, vs + 1) if ve > vs else b""
             if first not in (b"{", b"["):
                 vals: list[Any] | None
@@ -2365,6 +2424,8 @@ def sort_records(doc: Any, keys: Sequence[SortKey | str], source: Any = None, *,
         log.info("sort: memory limit %s lowered to %s (half of the memory limit setting)", format_bytes(own),
                  format_bytes(limit))
     started = time.perf_counter()
+    doc = _pin(doc)
+    _check_scope(doc, source)
     src = _normalize_source(doc, source)
     temp_src: RecordSet | None = None
     if src is not None and not isinstance(src, (RecordSet, range, list, tuple, array)):
@@ -2378,7 +2439,7 @@ def sort_records(doc: Any, keys: Sequence[SortKey | str], source: Any = None, *,
     sorter = _Sorter(limit, cancel, directory=work_dir(settings.cache_dir), max_limit=budget, expected=expected)
     name = doc.source_path.name
     tracker = _Tracker(progress, _estimate_total(doc, src), t("recordset.progress.sort_keys", name=name))
-    builder = RecordSetBuilder("sort", t("recordset.desc.sort", keys=describe_keys(specs)))
+    builder = RecordSetBuilder("sort", t("recordset.desc.sort", keys=describe_keys(specs)), gen=getattr(doc, "gen", None))
     try:
         try:
             seq = 0

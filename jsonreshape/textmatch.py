@@ -75,7 +75,10 @@ Word character at index ``i``:
 
 So ``"O"`` is not a whole word in ``"O'zbekiston"`` while ``"Toshkent"`` is one in
 ``"'Toshkent'"`` and ``"ʻToshkentʼ"``. In regex mode the same rule is compiled into
-look-around guards around the pattern, so alternatives are retried correctly.
+look-around guards around the pattern, so alternatives are retried correctly (a pattern
+the guards cannot wrap is matched as it is and its matches are filtered instead:
+:attr:`TextQuery.regex_postfilter`). The rule is public as :func:`is_whole_word` /
+:func:`is_word_char`, the pattern of a regex query as :attr:`TextQuery.regex`.
 
 Latin <-> Cyrillic folding (``translit=True``)
 ===============================================
@@ -199,6 +202,7 @@ __all__ = [
     "WINDOW_CHARS",
     "compare_numbers",
     "fold",
+    "is_whole_word",
     "is_word_char",
     "number_key",
     "regex_error_text",
@@ -578,8 +582,14 @@ def is_word_char(s: str, i: int) -> bool:
     return c.isalnum() or c == "_"
 
 
-def _is_whole_word(s: str, start: int, end: int) -> bool:
+def is_whole_word(s: str, start: int, end: int) -> bool:
+    """Whether the match ``s[start:end]`` is a whole word (module docstring "Whole word"): the
+    characters before and after it are not word characters (:func:`is_word_char`). Public since fix
+    round L1 (the filter of :attr:`TextQuery.regex_postfilter`); ``_is_whole_word`` stays as an alias."""
     return (start == 0 or not is_word_char(s, start - 1)) and (end >= len(s) or not is_word_char(s, end))
+
+
+_is_whole_word = is_whole_word
 
 
 _RX_LETTER = "(?!" + _APOS_CLASS + ")[^\\W\\d_]"
@@ -1146,6 +1156,24 @@ class TextQuery:
                 log.info("whole-word wrapping failed for %r; filtering matches instead", self.text)
                 self._regex_postfilter = True
         self._regex = compiled
+
+    # -- accessors (public since fix round L1; the private names stay) ----------------
+    @property
+    def regex(self) -> re.Pattern[str] | None:
+        """Regex mode: the compiled pattern :meth:`find_spans` runs -- ``re.IGNORECASE`` unless
+        case-sensitive and, with ``whole_word``, the look-around guards of the whole-word rule
+        compiled into it -- for callers that must use exactly the search's pattern (the bulk
+        "replace" uses its ``sub``). ``None`` in plain and number mode. When the guards could not be
+        compiled into the pattern, :attr:`regex_postfilter` is true and the pattern is the user's
+        own: keep only the matches :func:`is_whole_word` accepts."""
+        return self._regex
+
+    @property
+    def regex_postfilter(self) -> bool:
+        """Regex mode with ``whole_word``: ``True`` when the whole-word rule is applied by filtering
+        the matches of :attr:`regex` (:func:`is_whole_word`) instead of by guards inside the pattern
+        (a pattern the guards cannot wrap); ``False`` otherwise."""
+        return self._regex_postfilter
 
     # -- matching -------------------------------------------------------------------
     def find_spans(self, s: str, reach: int | None = None) -> list[tuple[int, int]]:
