@@ -1,0 +1,371 @@
+{
+ "started": 1792415349.8709638,
+ "args": {
+  "child": "False",
+  "op": "",
+  "scen": "base",
+  "home": "base",
+  "keep": "",
+  "patch": "",
+  "data": "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+  "work": "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\65e44ff0-18e2-413f-b083-b5e57d67f8f7\\scratchpad\\p6\\w2g",
+  "pkg": "C:/Users/user34/AppData/Local/Temp/claude/e--Projects-json-flatting/65e44ff0-18e2-413f-b083-b5e57d67f8f7/scratchpad/p6/pkg_before",
+  "repeat": "3",
+  "max_repeat_seconds": "150.0",
+  "only": "restore:third,restore:all,restore:dels",
+  "label": "ab-before-restore-1",
+  "results_dir": "C:/Users/user34/AppData/Local/Temp/claude/e--Projects-json-flatting/65e44ff0-18e2-413f-b083-b5e57d67f8f7/scratchpad/p6/results",
+  "quiet_load": "35.0",
+  "quiet_timeout": "90.0",
+  "keep_work": "True",
+  "report": "",
+  "baseline": "",
+  "lang": "uz",
+  "md": "",
+  "workers": "0",
+  "note": "[]",
+  "export_report": "False"
+ },
+ "machine": {
+  "python": "3.14.3",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "cpus": 24,
+  "ram_gb": 205.6,
+  "processor": "Intel64 Family 6 Model 198 Stepping 2, GenuineIntel"
+ },
+ "runs": [
+  {
+   "op": "restore",
+   "scen": "third",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 42.3,
+     "private_peak_mb": 31.0,
+     "workers": 0,
+     "seconds": 0.01,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 1,
+     "count": 6513235,
+     "layers": 3,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 46.1,
+     "private_peak_mb": 35.0,
+     "workers": 0,
+     "seconds": 0.344,
+     "fsync_s": 0.0
+    }
+   },
+   "effective_bytes": 2169194636,
+   "process_peak_wset_mb": 65.6,
+   "process_peak_pagefile_mb": 49.1,
+   "backend": "rust",
+   "wall": 1.4,
+   "load_before": 6.8,
+   "load_mean": 0.0,
+   "load_max": 0.0,
+   "repeat": 1
+  },
+  {
+   "op": "restore",
+   "scen": "third",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 42.1,
+     "private_peak_mb": 30.9,
+     "workers": 0,
+     "seconds": 0.009,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 1,
+     "count": 6513235,
+     "layers": 3,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 45.7,
+     "private_peak_mb": 35.0,
+     "workers": 0,
+     "seconds": 0.355,
+     "fsync_s": 0.0
+    }
+   },
+   "effective_bytes": 2169194636,
+   "process_peak_wset_mb": 65.8,
+   "process_peak_pagefile_mb": 49.3,
+   "backend": "rust",
+   "wall": 1.44,
+   "load_before": 2.9,
+   "load_mean": 0.0,
+   "load_max": 0.0,
+   "repeat": 2
+  },
+  {
+   "op": "restore",
+   "scen": "third",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 42.3,
+     "private_peak_mb": 31.1,
+     "workers": 0,
+     "seconds": 0.009,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 1,
+     "count": 6513235,
+     "layers": 3,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 45.9,
+     "private_peak_mb": 35.1,
+     "workers": 0,
+     "seconds": 0.358,
+     "fsync_s": 0.0
+    }
+   },
+   "effective_bytes": 2169194636,
+   "process_peak_wset_mb": 65.8,
+   "process_peak_pagefile_mb": 49.3,
+   "backend": "rust",
+   "wall": 1.45,
+   "load_before": 6.6,
+   "load_mean": 0.0,
+   "load_max": 0.0,
+   "repeat": 3
+  },
+  {
+   "op": "restore",
+   "scen": "all",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 42.2,
+     "private_peak_mb": 31.0,
+     "workers": 0,
+     "seconds": 0.009,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 1,
+     "count": 6513235,
+     "layers": 3,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 46.5,
+     "private_peak_mb": 35.2,
+     "workers": 0,
+     "seconds": 1.108,
+     "fsync_s": 0.0
+    }
+   },
+   "effective_bytes": 2232155965,
+   "process_peak_wset_mb": 67.0,
+   "process_peak_pagefile_mb": 49.2,
+   "backend": "rust",
+   "wall": 2.14,
+   "load_before": 6.0,
+   "load_mean": 6.5,
+   "load_max": 13.0,
+   "repeat": 1
+  },
+  {
+   "op": "restore",
+   "scen": "all",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 46.5,
+     "private_peak_mb": 35.1,
+     "workers": 0,
+     "seconds": 0.01,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 1,
+     "count": 6513235,
+     "layers": 3,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 45.7,
+     "private_peak_mb": 34.4,
+     "workers": 0,
+     "seconds": 1.063,
+     "fsync_s": 0.0
+    }
+   },
+   "effective_bytes": 2232155965,
+   "process_peak_wset_mb": 67.2,
+   "process_peak_pagefile_mb": 50.1,
+   "backend": "rust",
+   "wall": 2.08,
+   "load_before": 9.0,
+   "load_mean": 6.5,
+   "load_max": 12.9,
+   "repeat": 2
+  },
+  {
+   "op": "restore",
+   "scen": "all",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 42.5,
+     "private_peak_mb": 31.2,
+     "workers": 0,
+     "seconds": 0.009,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 1,
+     "count": 6513235,
+     "layers": 3,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 46.8,
+     "private_peak_mb": 35.5,
+     "workers": 0,
+     "seconds": 1.069,
+     "fsync_s": 0.0
+    }
+   },
+   "effective_bytes": 2232155965,
+   "process_peak_wset_mb": 67.2,
+   "process_peak_pagefile_mb": 49.5,
+   "backend": "rust",
+   "wall": 2.1,
+   "load_before": 10.0,
+   "load_mean": 6.5,
+   "load_max": 13.0,
+   "repeat": 3
+  },
+  {
+   "op": "restore",
+   "scen": "dels",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 42.0,
+     "private_peak_mb": 30.7,
+     "workers": 0,
+     "seconds": 0.009,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 101,
+     "count": 5862911,
+     "layers": 1,
+     "pieces": 651513,
+     "phase": "restore",
+     "rss_peak_mb": 130.6,
+     "private_peak_mb": 119.4,
+     "workers": 0,
+     "seconds": 0.399,
+     "fsync_s": 0.0
+    }
+   },
+   "effective_bytes": 1931613258,
+   "process_peak_wset_mb": 144.4,
+   "process_peak_pagefile_mb": 133.5,
+   "backend": "rust",
+   "wall": 1.63,
+   "load_before": 9.1,
+   "load_mean": 0.0,
+   "load_max": 0.0,
+   "repeat": 1
+  },
+  {
+   "op": "restore",
+   "scen": "dels",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 42.4,
+     "private_peak_mb": 31.1,
+     "workers": 0,
+     "seconds": 0.009,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 101,
+     "count": 5862911,
+     "layers": 1,
+     "pieces": 651513,
+     "phase": "restore",
+     "rss_peak_mb": 130.3,
+     "private_peak_mb": 119.0,
+     "workers": 0,
+     "seconds": 0.392,
+     "fsync_s": 0.0
+    }
+   },
+   "effective_bytes": 1931613258,
+   "process_peak_wset_mb": 144.2,
+   "process_peak_pagefile_mb": 133.2,
+   "backend": "rust",
+   "wall": 1.63,
+   "load_before": 10.3,
+   "load_mean": 0.0,
+   "load_max": 0.0,
+   "repeat": 2
+  },
+  {
+   "op": "restore",
+   "scen": "dels",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 42.3,
+     "private_peak_mb": 31.0,
+     "workers": 0,
+     "seconds": 0.01,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 101,
+     "count": 5862911,
+     "layers": 1,
+     "pieces": 651513,
+     "phase": "restore",
+     "rss_peak_mb": 130.5,
+     "private_peak_mb": 119.2,
+     "workers": 0,
+     "seconds": 0.394,
+     "fsync_s": 0.0
+    }
+   },
+   "effective_bytes": 1931613258,
+   "process_peak_wset_mb": 144.3,
+   "process_peak_pagefile_mb": 133.4,
+   "backend": "rust",
+   "wall": 1.63,
+   "load_before": 7.3,
+   "load_mean": 0.0,
+   "load_max": 0.0,
+   "repeat": 3
+  }
+ ]
+}

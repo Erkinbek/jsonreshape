@@ -16,12 +16,15 @@ Usage (from the project root, with the venv interpreter)::
     python bench/ops.py search   PATH TEXT [--mode plain|regex|number] [--max-hits N] [--no-prebuild]
     python bench/ops.py filter   PATH EXPR [--strategy auto|extract|parse]
     python bench/ops.py sort     PATH KEY [KEY ...] [--by=-KEY] [--memory-limit SIZE]
-    python bench/ops.py export   PATH OUT [--fmt json|jsonl|csv] [--indent 2|tab|none] [--columns a,b.c] [--keep]
+    python bench/ops.py export   PATH OUT [--fmt json|jsonl|csv|xlsx|sqlite] [--indent 2|tab|none] [--columns a,b.c]
+                                 [--workers N] [--keep]
     python bench/ops.py sort+export   PATH OUT KEY [KEY ...] [--by=-KEY] [--memory-limit SIZE] [--fmt F] [--keep]
     python bench/ops.py filter+export PATH OUT EXPR [--strategy auto|extract|parse] [--fmt F] [--keep]
     python bench/ops.py schema   PATH [--sample 10000]
     python bench/ops.py coldread PATH                            # Windows: unbuffered (uncached) reads
     python bench/ops.py cold     PATH [--records 50]            # PATH must not be in the OS file cache
+    python bench/ops.py cli      PATH OUT [--expect 0,5] [--inputs A,B] [--capture M:F] [--mkdir] [--keep]
+                                 -- COMMAND ARGS...
 
 What each operation measures (all times in seconds, ``time.perf_counter``):
 
@@ -45,7 +48,10 @@ What each operation measures (all times in seconds, ``time.perf_counter``):
   ``--no-prebuild`` searches right after ``Document.open`` while the index is built in the
   background (the GUI flow); its times are counted from the ``Document.open`` call.
 * ``filter`` / ``sort`` / ``export`` / ``schema``: index first (timed separately), then the
-  operation; ``mb_per_s`` = record bytes read (export: data bytes) / operation time.
+  operation; ``mb_per_s`` = record bytes read (export: data bytes) / operation time. ``export``
+  chooses its worker processes as the program does (CSV rows and the CSV/XLSX column scan; this
+  script is as safe for spawned workers as the program's entry points; ``--workers N`` asks for N)
+  and reports ``workers``.
 * ``sort+export`` / ``filter+export``: what the user gets from ``jsonreshape sort IN OUT
   --by KEY`` / ``jsonreshape filter IN OUT --where EXPR`` (AGENT_PROMPT §6.4: the sort
   result is exported in sorted order): ``Document.open`` + index + ``sort_records`` /
@@ -65,6 +71,18 @@ What each operation measures (all times in seconds, ``time.perf_counter``):
   cache (``run_bench.py`` makes it with :func:`cold_copy`); ``disk_read_bytes`` is the
   growth of the read counter of the physical disk holding the file (system-wide, so other
   programs add noise) and shows whether the data really came from the disk.
+* ``cli``: the command line ``jsonreshape COMMAND ARGS...`` run in this process exactly as the
+  user runs it (``jsonreshape.cli.main``: Document.open, the index, the operation, the summary),
+  e.g. ``apply MAPPING {in} {out}``, ``flatten``, ``stats``, ``split``, ``diff``; ``{in}`` /
+  ``{out}`` in ARGS become PATH / OUT. ``total_seconds`` = the whole command;
+  ``index_seconds`` = the time spent in ``Document.build_index`` (every input; ``indexes`` of
+  them); ``seconds`` = the command without the index; ``mb_per_s`` = the bytes of the inputs
+  (PATH, or the files of ``--inputs``) / ``seconds``, ``total_mb_per_s`` the same over the whole
+  command. A command that runs ``engine.apply`` reports its ``workers``, passes and bytes;
+  ``bytes_written`` is the size of OUT (a folder: of its files). Worker processes are chosen as
+  the program does (see :func:`_workers_as_the_program`); the exit code must be one of
+  ``--expect`` (default 0); OUT is removed afterwards unless ``--keep``. The command's own
+  output goes into ``stdout_tail`` (the last characters).
 
 Without ``JSONRESHAPE_HOME`` a temporary home under ``bench/data/homes`` is used and
 removed at the end (never the real ``%LOCALAPPDATA%\jsonreshape``).
@@ -640,16 +658,33 @@ def _rate(nbytes: int | float, seconds: float) -> float | None:
     return _r(nbytes / seconds / 1e6 if seconds > 0 else 0.0, 3)
 
 
+def _workers_as_the_program() -> None:
+    """This script runs its work behind ``if __name__ == "__main__"`` like the program's own entry points
+    (``python -m jsonreshape``, the console scripts, the frozen exe), so spawned worker processes are safe: let
+    the operations choose their worker processes as they do in the program (``bulk._spawn_safe`` /
+    ``engine._spawn_safe`` refuse a plain script as ``__main__``; CSV / XLSX exports, bulk previews, the JSON
+    Patch export and the mapping apply ask them). Only when this file is the running script: imported (the tests
+    call :func:`main` in their own process) it changes nothing -- the patch would outlive the call."""
+    if __name__ != "__main__":
+        return
+    from jsonreshape import bulk, engine
+
+    bulk._spawn_safe = lambda: True
+    engine._spawn_safe = lambda: True
+
+
 def op_export(args: argparse.Namespace) -> dict[str, Any]:
     from jsonreshape.writer import export
 
+    _workers_as_the_program()
     opts = _export_options(args, "json")
+    kw: dict[str, Any] = {"workers": args.workers} if getattr(args, "workers", None) else {}
     doc, open_s = _open_doc(args.path, use_cache=False)
     files: list[Path] = []
     try:
         idx = _index(doc)
         t0 = now()
-        rep = export(doc, args.out, opts)
+        rep = export(doc, args.out, opts, **kw)
         seconds = now() - t0
         files = list(rep.files)
         data = max(1, doc.data_size - doc.info.data_start)
@@ -669,6 +704,7 @@ def op_export(args: argparse.Namespace) -> dict[str, Any]:
             "out_mb_per_s": _rate(rep.bytes_written, seconds),
             "columns": list(rep.columns),
             "warnings": list(rep.warnings),
+            "workers": int(getattr(rep, "workers", 1)),
             **_doc_info(doc),
         }
     finally:
@@ -952,6 +988,198 @@ def op_cold(args: argparse.Namespace) -> dict[str, Any]:
         doc.close()
 
 
+def _tree_bytes(path: Path) -> tuple[int, int]:
+    """(bytes, files) of a file, or of the files below a folder; (0, 0) when it does not exist."""
+    if path.is_file():
+        return path.stat().st_size, 1
+    if path.is_dir():
+        sizes = [p.stat().st_size for p in path.rglob("*") if p.is_file()]
+        return sum(sizes), len(sizes)
+    return 0, 0
+
+
+_REPORT_PROPERTIES = ("records", "total", "identical")
+
+
+def _scalars(value: Any, limit: int = 40) -> Any:
+    """The top-level scalar fields of a report (a dataclass, ``to_dict()`` or ``__dict__``), or of the first items
+    of a list of them: what a benchmark row needs to say what the command did (counts), never the bulky parts."""
+    import dataclasses
+
+    if isinstance(value, (list, tuple)):
+        return [_scalars(v, limit) for v in list(value)[:8]]
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        data = {f.name: getattr(value, f.name, None) for f in dataclasses.fields(value)}
+    else:
+        to_dict = getattr(value, "to_dict", None)
+        try:
+            data = to_dict() if callable(to_dict) else dict(getattr(value, "__dict__", {}) or {})
+        except Exception:  # noqa: BLE001 - a report that cannot describe itself
+            data = {}
+    out: dict[str, Any] = {}
+    for k, v in data.items():
+        if isinstance(v, bool) or v is None or isinstance(v, (int, float)):
+            out[str(k)] = v
+        elif isinstance(v, str):
+            out[str(k)] = v[:200]
+        if len(out) >= limit:
+            break
+    for name in _REPORT_PROPERTIES:          # counts some reports give as properties (merge, repair, diff)
+        if name in out:
+            continue
+        try:
+            v = getattr(value, name)
+        except Exception:  # noqa: BLE001 - not every report has them
+            continue
+        if isinstance(v, (bool, int, float, str)):
+            out[name] = v
+    return out
+
+
+def _capture(spec: str, store: dict[str, list[Any]]) -> list[tuple[Any, str, Any]]:
+    """Wrap the functions of ``spec`` (``module:function[@N]``, comma-separated; modules of jsonreshape) so that
+    their result -- or, with ``@N``, their positional argument N -- is kept as :func:`_scalars` in ``store``.
+    Returns what is needed to undo it."""
+    import importlib
+
+    undo: list[tuple[Any, str, Any]] = []
+    for item in [x.strip() for x in spec.split(",") if x.strip()]:
+        target, _, arg = item.partition("@")
+        mod_name, _, func_name = target.partition(":")
+        mod = importlib.import_module("jsonreshape." + mod_name)
+        orig = getattr(mod, func_name)
+        index = int(arg) if arg else None
+
+        def wrapper(*a: Any, __orig: Any = orig, __name: str = item, __index: int | None = index, **kw: Any) -> Any:
+            res = __orig(*a, **kw)
+            try:
+                store.setdefault(__name, []).append(_scalars(res if __index is None else a[__index]))
+            except Exception:  # noqa: BLE001 - never disturb the measured command
+                pass
+            return res
+
+        setattr(mod, func_name, wrapper)
+        undo.append((mod, func_name, orig))
+    return undo
+
+
+def op_cli(args: argparse.Namespace) -> dict[str, Any]:
+    """``jsonreshape COMMAND ARGS...`` in this process, timed as a whole and per phase (see the module docstring)."""
+    import io
+
+    from jsonreshape import cli, engine
+    from jsonreshape.reader import Document
+
+    _workers_as_the_program()
+    rest = list(args.argv)
+    if "--" in rest:                    # options given after PATH OUT end up in the remainder: before "--"
+        cut = rest.index("--")
+        more, rest = rest[:cut], rest[cut + 1:]
+        sub = argparse.ArgumentParser(add_help=False)
+        for name in ("--expect", "--inputs", "--capture"):
+            sub.add_argument(name, default=None)
+        sub.add_argument("--keep", action="store_true", default=None)
+        sub.add_argument("--mkdir", action="store_true", default=None)
+        known, unknown = sub.parse_known_args(more)
+        if unknown:
+            raise SystemExit(f"cli: unknown options before --: {unknown}")
+        for name, value in vars(known).items():
+            if value is not None:
+                setattr(args, name, value)
+    captured: dict[str, list[Any]] = {}
+    undo = _capture(args.capture, captured) if args.capture else []
+    argv = [a.replace("{in}", args.path).replace("{out}", args.out) for a in rest]
+    if not argv:
+        raise SystemExit("cli needs a command after --")
+    expect = {int(x) for x in str(args.expect).split(",") if x.strip()}
+    inputs = [args.path] + [p for p in (args.inputs or "").split(",") if p.strip()]
+    input_bytes = sum(os.path.getsize(p) for p in dict.fromkeys(inputs) if os.path.isfile(p))
+    out_path = Path(args.out)
+    os.makedirs(os.path.dirname(os.path.abspath(args.out)) or ".", exist_ok=True)
+    if args.mkdir:                      # OUT is a folder the command writes into (split -o)
+        out_path.mkdir(parents=True, exist_ok=True)
+    timing: dict[str, Any] = {"index_seconds": 0.0, "indexes": 0, "records": 0}
+    orig_build = Document.build_index
+
+    def build_index(self: Any, *a: Any, **kw: Any) -> Any:
+        t0 = now()
+        try:
+            return orig_build(self, *a, **kw)
+        finally:
+            timing["index_seconds"] += now() - t0
+            timing["indexes"] += 1
+            try:
+                timing["records"] += int(self.record_count)
+            except Exception:  # noqa: BLE001 - a failed index has no count
+                pass
+
+    applied: list[Any] = []
+    orig_apply = engine.apply
+
+    def apply(*a: Any, **kw: Any) -> Any:
+        rep = orig_apply(*a, **kw)
+        applied.append(rep)
+        return rep
+
+    Document.build_index = build_index          # type: ignore[method-assign]
+    engine.apply = apply
+    buf = io.StringIO()
+    old_stdout = sys.stdout
+    sys.stdout = buf
+    t0 = now()
+    try:
+        code = cli.main(argv)
+    finally:
+        total = now() - t0
+        sys.stdout = old_stdout
+        Document.build_index = orig_build      # type: ignore[method-assign]
+        engine.apply = orig_apply
+        for mod, name, orig in undo:
+            setattr(mod, name, orig)
+    text = buf.getvalue()
+    try:
+        if code not in expect:
+            raise RuntimeError(f"jsonreshape {' '.join(argv[:1])} exit code {code} (expected {sorted(expect)}): "
+                               f"{text[-600:]!r}")
+        written, files = _tree_bytes(out_path)
+        index_s = float(timing["index_seconds"])
+        op_s = max(1e-9, total - index_s)
+        out: dict[str, Any] = {
+            "command": argv[0],
+            "argv": argv,
+            "exit_code": code,
+            "total_seconds": _r(total),
+            "index_seconds": _r(index_s),
+            "indexes": timing["indexes"],
+            "record_count": timing["records"] or None,
+            "seconds": _r(op_s),
+            "input_bytes": input_bytes,
+            "mb_per_s": _rate(input_bytes, op_s),
+            "total_mb_per_s": _rate(input_bytes, total),
+            "bytes_written": written,
+            "files": files,
+            "out_mb_per_s": _rate(written, op_s),
+            "stdout_tail": text[-1500:],
+            "captured": captured,
+        }
+        if applied:
+            rep = applied[-1]
+            out.update({"workers": int(rep.workers), "passes": int(rep.passes), "records_in": int(rep.records_in),
+                        "items_out": int(rep.items_out), "apply_seconds": _r(rep.elapsed),
+                        "apply_bytes_read": int(rep.bytes_read), "apply_mb_per_s": _r(rep.mb_per_s, 3),
+                        "unmapped_records": int(rep.unmapped_records), "warnings": list(rep.warning_keys)})
+        return out
+    finally:
+        if not args.keep:
+            if out_path.is_dir():
+                shutil.rmtree(out_path, ignore_errors=True)
+            else:
+                try:
+                    os.remove(out_path)
+                except OSError:
+                    pass
+
+
 OPS: dict[str, Callable[[argparse.Namespace], dict[str, Any]]] = {
     "open": op_open,
     "index": op_index,
@@ -966,6 +1194,7 @@ OPS: dict[str, Callable[[argparse.Namespace], dict[str, Any]]] = {
     "schema": op_schema,
     "coldread": op_coldread,
     "cold": op_cold,
+    "cli": op_cli,
 }
 
 EXPORT_FORMATS = ["json", "jsonl", "csv", "xlsx", "sqlite"]
@@ -1010,6 +1239,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--fmt", default=None, choices=EXPORT_FORMATS)
     p.add_argument("--indent", default=None, help="2, 4, tab or none (json)")
     p.add_argument("--columns", default=None)
+    p.add_argument("--workers", type=int, default=None,
+                   help="worker processes of a CSV/XLSX export (default: automatic, as the program)")
     p.add_argument("--keep", action="store_true", help="keep the output file")
     p = sub.add_parser("sort+export", help="sort, then export the sorted records (jsonreshape sort)")
     p.add_argument("path")
@@ -1036,6 +1267,16 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("cold", help="open + first records + index of an uncached file")
     p.add_argument("path")
     p.add_argument("--records", type=int, default=DEFAULT_PAGE)
+    p = sub.add_parser("cli", help="a jsonreshape command line in this process (jsonreshape COMMAND ARGS...)")
+    p.add_argument("path", help="the main input ({in} in ARGS)")
+    p.add_argument("out", help="the output file or folder ({out} in ARGS; removed afterwards unless --keep)")
+    p.add_argument("--expect", default="0", help="accepted exit codes, comma-separated (default 0)")
+    p.add_argument("--inputs", default="", help="more input files whose bytes count for MB/s (comma-separated)")
+    p.add_argument("--keep", action="store_true", help="keep the output")
+    p.add_argument("--mkdir", action="store_true", help="create OUT as a folder first (split -o {out})")
+    p.add_argument("--capture", default="",
+                   help="module:function[@N] of jsonreshape whose result (or argument N) is reported (comma-separated)")
+    p.add_argument("argv", nargs=argparse.REMAINDER, help="-- COMMAND ARGS... of jsonreshape")
     return ap
 
 

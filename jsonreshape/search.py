@@ -172,7 +172,7 @@ import orjson
 from . import codec, core
 from .appdirs import app_home
 from .errors import EditError, JsonDecodeError, TooLargeError, UserInputError
-from .fileio import atomic_write, long_path, make_dirs, open_shared, os_error, read_range
+from .fileio import atomic_write, long_path, make_dirs, open_shared, os_error, read_limited, read_range
 from .i18n import get_language, t
 from .paths import PathPattern, Wild, canonical_index, format_path, parse_pattern
 from .reader import split_member
@@ -1913,7 +1913,7 @@ class SearchHistory:
     def _load(self) -> list[dict[str, Any]]:
         try:
             with open_shared(self.path, "rb") as f:
-                raw = f.read(_HISTORY_MAX_BYTES + 1)
+                raw = read_limited(f, _HISTORY_MAX_BYTES)
         except Exception as exc:  # missing (normal on first use) or unreadable
             if os.path.exists(long_path(self.path)):
                 log.warning("cannot read search history %s: %s", self.path, exc)

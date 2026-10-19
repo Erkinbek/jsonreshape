@@ -10,8 +10,10 @@ the taskbar groups the windows), applies the theme and the UI font size from the
 state, creates the
 :class:`~jsonreshape.gui.context.AppContext` and the
 :class:`~jsonreshape.gui.mainwindow.MainWindow`, opens the files given on the command line
-and runs the event loop. Closing the window closes the documents, cancels the background
-tasks and saves the GUI state.
+-- or, without any, restores the last session as the ``restore_session`` setting says (stage 6,
+:meth:`jsonreshape.gui.workspace.WorkspaceController.at_start`; with files the saved session is
+kept for the next start) -- and runs the event loop. Closing the window closes the documents,
+cancels the background tasks and saves the GUI state (with the session).
 
 Unexpected exceptions (in Qt slots, callbacks, worker threads) do not end the program:
 :func:`install_qt_excepthook` logs them and shows the error window
@@ -625,7 +627,10 @@ def main(argv: list[str] | None = None, *, run: bool = True) -> Any:
             continue
         paths.append(item)
     # empty arguments ignored, duplicates opened once, folders skipped with a message
-    window.open_command_line(paths)
+    opened = window.open_command_line(paths)
+    # stage 6 (docs/ARCHITECTURE.md §15.0): files on the command line open alone (the saved session is kept for
+    # the next start); without any, the last session is restored as the restore_session setting says
+    window.workspaces.at_start(opened)
     window.show()
     if not run:
         return window

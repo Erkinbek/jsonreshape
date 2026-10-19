@@ -35,7 +35,15 @@ Measurement
   ``PeakWorkingSetSize`` from the still-open process handle; the child also reports its own
   peak at the end (POSIX: ``ru_maxrss``). The largest of these is used. Pages of the
   memory-mapped index that the process touched count, as they do in Task Manager. The peak
-  private bytes (commit) are recorded too.
+  private bytes (commit) are recorded too. Operations with worker processes (CSV exports,
+  ``jsonreshape apply`` / ``flatten``) are judged by the whole program: at every poll the
+  current working sets (and private bytes) of every live process of the tree except the venv
+  launcher are added up; the largest sum, or the exact peak of one process when that is larger
+  (:func:`program_peak`), is the operation's memory (``processes_max``: processes alive at once).
+* **Commands as the user runs them** (``ops.py cli``): ``jsonreshape apply`` of the 6-step
+  mapping ``bench/mapping_syn.json`` and ``jsonreshape flatten`` run ``jsonreshape.cli.main``
+  in the measured process (workers chosen as the program does); the table shows the command
+  after its index (and the whole time, and engine.apply alone).
 * **Time**: each operation reports its own internal timings (``bench/ops.py``); the table
   uses the operation's time (the index that search/filter/sort/export/schema build first in
   the same process is timed separately); the runner adds the process wall time.
@@ -171,8 +179,33 @@ BENCH_MESSAGES: dict[str, dict[str, str]] = {
                                "en": "Export JSON → JSONL ({file}; without mapping/edits)"},
     "bench.row.export_json2": {"uz": "Eksport JSON → JSON, indent 2 ({file}; mapping/tahrirlarsiz)",
                                "en": "Export JSON → JSON, indent 2 ({file}; without mapping/edits)"},
-    "bench.row.memory": {"uz": "Dasturning umumiy xotirasi (tartiblashdan boshqa amallarning eng katta peak RSS)",
-                         "en": "Overall program memory (largest peak RSS of the non-sort operations)"},
+    "bench.row.memory": {"uz": "Dasturning umumiy xotirasi (tartiblashdan boshqa amallarning eng katta peak RSS, "
+                               "ishchi jarayonlari bilan birga)",
+                         "en": "Overall program memory (largest peak RSS of the non-sort operations, their worker "
+                               "processes included)"},
+    "bench.row.apply": {
+        "uz": "Mapping bilan eksport: `jsonreshape apply` (6 qadamli mapping), {file} → {fmt}; ishchi jarayonlar: "
+              "{workers}",
+        "en": "Export with a mapping: `jsonreshape apply` (a 6-step mapping), {file} → {fmt}; worker processes: "
+              "{workers}",
+    },
+    "bench.row.flatten": {
+        "uz": "Rekursiv tekislash bilan eksport: `jsonreshape flatten --children-key children`, {file} → {fmt}; "
+              "ishchi jarayonlar: {workers}",
+        "en": "Export with a recursive flatten: `jsonreshape flatten --children-key children`, {file} → {fmt}; "
+              "worker processes: {workers}",
+    },
+    "bench.res.apply": {
+        "uz": "{rate}, RAM {peak} ({seconds}; {items} ta element, chiqish {out}; apply bosqichi {apply_rate}; jami "
+              "{total}, shundan indeks {index})",
+        "en": "{rate}, RAM {peak} ({seconds}; {items} items, output {out}; apply phase {apply_rate}; {total} in "
+              "all, {index} of it the index)",
+    },
+    "bench.workers.auto": {"uz": "avtomatik ({n} ta)", "en": "automatic ({n})"},
+    "bench.workers.given": {"uz": "{n} (--workers {n})", "en": "{n} (--workers {n})"},
+    "bench.mem.procs": {"uz": "{peak} ({n} ta jarayon birga, private {private}; bittasining eng kattasi {single})",
+                        "en": "{peak} ({n} processes together, private {private}; the largest single one {single})"},
+    "bench.fmt.json2": {"uz": "JSON (indent 2)", "en": "JSON (indent 2)"},
     "bench.row.reopen": {"uz": "Keshdagi indeks bilan qayta ochish, birinchi {n} ta yozuv",
                          "en": "Reopen with the cached index, first {n} records"},
     "bench.row.node_auto": {
@@ -341,6 +374,58 @@ BENCH_MESSAGES: dict[str, dict[str, str]] = {
               "thread, in parallel with writing; 4) when memory is the problem: lower --memory-limit or "
               "Settings.sort_memory_bytes (more runs, less RAM).",
     },
+    "bench.miss.apply_mem.cause": {
+        "uz": "butun dastur {peak}: asosiy jarayon (bloklarni o'qiydi va natijalarni tartib bilan yozadi; u tegib "
+              "o'tgan fayl va indeks sahifalari ham kiradi) va {workers} ta ishchi jarayon, har biri ~{worker} "
+              "(interpretator, modullar, parse qilingan blok va uning natijasi). `engine.auto_workers` ishchi "
+              "sonini xotira byudjetining (512 MiB) yarmidan ~60 MB / ishchi deb hisoblaydi (4 ta) — haqiqiy yig'indi "
+              "300 MB dan oshdi. Ishchi to'plamlar yig'indisi har jarayondagi umumiy DLL sahifalarini qayta sanaydi "
+              "(private yig'indisi {private}).{spike}",
+        "en": "the whole program was {peak}: the main process (reading the blocks and writing the results in order; "
+              "the file and index pages it touched count too) and {workers} worker processes of ~{worker} each (the "
+              "interpreter, the modules, a parsed block and its result). `engine.auto_workers` sizes the pool from "
+              "half of the memory budget (512 MiB) at ~60 MB per worker (4) — the real sum went over 300 MB. The sum "
+              "of the working sets counts the shared DLL pages once per process (private bytes in all: "
+              "{private}).{spike}",
+    },
+    "bench.miss.apply_mem.spike": {
+        "uz": " Asosiy jarayonning {parent} peak'i — mapping faylini o'qishdagi qisqa sakrash: `mapping.load_mapping` "
+              "`f.read(MAX_FILE_BYTES + 1)` bilan 4.8 KB fayl uchun 128 MiB bufer ajratadi.",
+        "en": " The main process's peak of {parent} is a short spike while the mapping file is read: "
+              "`mapping.load_mapping` allocates a 128 MiB buffer with `f.read(MAX_FILE_BYTES + 1)` for a 4.8 KB file.",
+    },
+    "bench.miss.apply_mem.options": {
+        "uz": "1) kamroq ishchi: `--workers 3` (yoki kichikroq `memory_limit_bytes` / kattaroq `engine.WORKER_MEMORY`){w3}; "
+              "2) yengilroq ishchilar — faqat engine/codec import, kichikroq bloklar va kamroq «parvozdagi» blok; "
+              "3) asosiy jarayonda o'qilgan blok sahifalarini bo'shatish; 4) maqsadni private xotira bo'yicha "
+              "hisoblash{fix}.",
+        "en": "1) fewer workers: `--workers 3` (or a smaller `memory_limit_bytes` / a larger `engine.WORKER_MEMORY`){w3}; "
+              "2) lighter workers — import only engine / codec, smaller blocks and fewer blocks in flight; 3) let the "
+              "main process drop the pages of the blocks it has read; 4) count the target in private bytes{fix}.",
+    },
+    "bench.miss.apply_mem.fix": {
+        "uz": "; 5) `load_mapping` ni fayl hajmicha o'qish (bir qatorli tuzatish, mapping.py egasiga so'rov)",
+        "en": "; 5) read the mapping file by its size in `load_mapping` (a one-line fix; a request to the owner of "
+              "mapping.py)",
+    },
+    "bench.miss.apply_auto": {"uz": "{rate}, {n} ta ishchi jarayon bilan", "en": "{rate} with {n} worker processes"},
+    "bench.miss.apply_w3": {"uz": " — o'lchandi: {rate}, RAM {peak}", "en": " — measured: {rate}, RAM {peak}"},
+    "bench.miss.apply_speed.cause": {
+        "uz": "bitta jarayonda har yozuv Python'da parse qilinadi (codec.loads), kompilyatsiya qilingan mapping "
+              "funksiyalari bilan qayta quriladi va codec.dumps bilan yoziladi: {rate}. Shu sababli 64 MB dan katta "
+              "fayllarda `apply` / `flatten` o'zi ishchi jarayonlarni ishlatadi (standart: {auto}).",
+        "en": "in one process every record is parsed in Python (codec.loads), rebuilt by the compiled mapping "
+              "closures and written with codec.dumps: {rate}. That is why `apply` / `flatten` use worker processes "
+              "by themselves for files over 64 MB (the default: {auto}).",
+    },
+    "bench.miss.apply_speed.options": {
+        "uz": "1) standart avtomatik ishchilar (yuqoridagi qator: maqsaddan tez); 2) mapping baholashni Rust yadroga "
+              "o'tkazish (yozuvlar baytlaridan to'g'ridan-to'g'ri) — eng katta yutuq, katta ish; 3) oddiy "
+              "ko'chirish/o'chirish/nomlash mapping'larida yozuvni parse qilmasdan bayt darajasida qayta yozish.",
+        "en": "1) the default automatic workers (the row above: faster than the target); 2) evaluate the mapping in "
+              "the Rust core (straight from the record bytes) — the biggest gain, a big job; 3) for plain move / "
+              "delete / rename mappings, rewrite the record at the byte level without parsing it.",
+    },
     "bench.miss.generic.cause": {"uz": "sababi avtomatik tahlil qilinmagan; JSON natijalaridagi ichki vaqtlarni ko'ring.",
                                  "en": "the cause is not analysed automatically; see the internal timings in the "
                                        "JSON results."},
@@ -487,10 +572,40 @@ BENCH_MESSAGES: dict[str, dict[str, str]] = {
               "(number) and `contact.phone` (string) rows of the extra table.",
     },
     "bench.cond.export": {
-        "uz": "§12 dagi eksport maqsadi mapping yoki tahrirlar bilan eksport uchun; ular keyingi bosqichlarda "
-              "qo'shiladi, shuning uchun hozir oddiy JSON → JSONL va JSON → JSON (indent 2) o'lchandi.",
-        "en": "The §12 export target is for exports with a mapping or edits; those come in later stages, so plain "
-              "JSON → JSONL and JSON → JSON (indent 2) were measured.",
+        "uz": "§12 dagi «mapping yoki tahrirlar bilan eksport» maqsadi: mapping bilan eksport shu jadvalda "
+              "(`jsonreshape apply` / `flatten`, buyruq foydalanuvchi ishga tushirgandek, jarayon ichida "
+              "`jsonreshape.cli.main`), tahrirlar bilan eksport `edit_latest.md` va `export_latest.md` da. Oddiy "
+              "JSON → JSONL va JSON → JSON (indent 2) eksporti — taqqoslash uchun.",
+        "en": "The §12 target \"export with a mapping or edits\": the export with a mapping is in this table "
+              "(`jsonreshape apply` / `flatten`, the command as the user runs it, `jsonreshape.cli.main` in the "
+              "process), the export with edits in `edit_latest.md` and `export_latest.md`. The plain JSON → JSONL and "
+              "JSON → JSON (indent 2) exports are there for comparison.",
+    },
+    "bench.cond.mapping": {
+        "uz": "Mapping: `bench/mapping_syn.json` — 10 000 yozuvli namunadan olingan daraxt + 6 qadam: "
+              "`contact.address.city` yozuv darajasiga (`name` oldiga), `contact` ochildi (unwrap), `orders[].oid` "
+              "yig'ildi (gather), `tags` o'chirildi, `score` → `ball`, yangi `holat` guruhi ichiga `active`. Vaqt — "
+              "buyruqning indeksdan keyingi qismi (GUI'da indeks fayl ochilganda quriladi); jami vaqt va «apply "
+              "bosqichi» (engine.apply'ning o'zi) ham ko'rsatilgan.",
+        "en": "Mapping: `bench/mapping_syn.json` — the tree inferred from a 10 000-record sample + 6 steps: "
+              "`contact.address.city` moved to the record level (before `name`), `contact` unwrapped, `orders[].oid` "
+              "gathered, `tags` deleted, `score` → `ball`, a new group `holat` holding `active`. Time: the command "
+              "after the index (the GUI builds the index when the file opens); the whole time and the \"apply phase\" "
+              "(engine.apply alone) are shown too.",
+    },
+    "bench.cond.merged": {
+        "uz": "{ops} — alohida o'lchov ({date}, shu sharoitda; `{file}`), natijalarga qo'shilgan.",
+        "en": "{ops}: a separate run ({date}, the same conditions; `{file}`), merged into the results.",
+    },
+    "bench.cond.memory_sum": {
+        "uz": "Ishchi jarayonli amallarda (CSV eksport, mapping) xotira — butun dastur: asosiy jarayon va ishchi "
+              "jarayonlar ishchi to'plamlarining bir paytdagi yig'indisi (har {poll} ms dagi namunalarning eng "
+              "kattasi; venv ishga tushiruvchisi kirmaydi) yoki bitta jarayonning aniq peak'i — qaysi biri katta "
+              "bo'lsa.",
+        "en": "For operations with worker processes (CSV export, mapping) the memory is the whole program's: the "
+              "sum of the working sets of the main process and its workers at one instant (the largest of the "
+              "samples taken every {poll} ms; the venv launcher left out) or the exact peak of one process, "
+              "whichever is larger.",
     },
     "bench.cond.hybrid": {
         "uz": "Gibrid protsessor ({p} ta P + {e} ta E yadro): affinity o'rnatilmadi, yadroni Windows tanlaydi; "
@@ -513,16 +628,10 @@ BENCH_MESSAGES: dict[str, dict[str, str]] = {
               "(above).",
     },
     "bench.nm.gui": {
-        "uz": "GUI hali yo'q (2-bosqich): «birinchi yozuvlar ko'rinishi» kutubxona darajasida o'lchandi "
-              "(Document.open + daraxt tugunlari + qiymatlar), Qt chizish vaqti kirmaydi.",
-        "en": "There is no GUI yet (stage 2): \"first records visible\" was measured at the library level "
-              "(Document.open + tree nodes + values); Qt painting is not included.",
-    },
-    "bench.nm.mapping": {
-        "uz": "Mapping yoki tahrirlar bilan eksport (§12 dagi 6-qator) hali o'lchab bo'lmaydi: bu imkoniyatlar 3- "
-              "va 4-bosqichlarda.",
-        "en": "Export with a mapping or edits (row 6 of §12) cannot be measured yet: those features come in stages "
-              "3 and 4.",
+        "uz": "Bu jadvalda «birinchi yozuvlar ko'rinishi» kutubxona darajasida o'lchandi (Document.open + daraxt "
+              "tugunlari + qiymatlar), Qt chizish vaqti kirmaydi; haqiqiy oynadagi o'lchovlar — `gui_latest.md`.",
+        "en": "In this table \"first records visible\" is measured at the library level (Document.open + tree "
+              "nodes + values) without Qt's painting; the measurements in the real window: `gui_latest.md`.",
     },
 }
 
@@ -567,6 +676,12 @@ MEDIUM_TEXT = "Toshkent"          # city: ~6 % of the records
 FILTER_EXPR = 'contact.address.city == "Toshkent"'
 SCALAR_COLUMNS = ("id,name,active,score,created_at,contact.phone,contact.address.city,"
                   "contact.address.street,contact.address.zip")
+# the mapping of the "export with a mapping" rows: the default tree of syn_2g.json (a 10 000-record sample)
+# + 6 designer steps (city moved to the record level, contact unwrapped, orders[].oid gathered, tags deleted,
+# score renamed, a new group); ops.py `cli` replaces {in} / {out}
+MAPPING_FILE = BENCH / "mapping_syn.json"
+APPLY_ARGS = ("--", "apply", str(MAPPING_FILE), "{in}", "{out}", "-q")
+FLATTEN_ARGS = ("--", "flatten", "{in}", "{out}", "--children-key", "children", "-q")
 
 
 # ----------------------------------------------------------------------------------
@@ -636,6 +751,18 @@ SPECS: tuple[OpSpec, ...] = (
     OpSpec("export_csv", "export", "syn_2g", ("--fmt", "csv"), out_ext=".csv", repeats=2),
     OpSpec("export_csv_scalar", "export", "syn_2g", ("--fmt", "csv", "--columns", SCALAR_COLUMNS), out_ext=".csv",
            repeats=2),
+    # export with a mapping (the §12 row "Mapping yoki tahrirlar bilan eksport"): `jsonreshape apply` of a
+    # non-trivial mapping (bench/mapping_syn.json) and `jsonreshape flatten`, run as the user runs them
+    OpSpec("apply_2g", "cli", "syn_2g", APPLY_ARGS, repeats=2, out_ext=".json"),
+    OpSpec("apply_2g_w1", "cli", "syn_2g", APPLY_ARGS + ("--workers", "1"), repeats=2, out_ext=".json"),
+    OpSpec("apply_2g_jsonl", "cli", "syn_2g", APPLY_ARGS, repeats=2, out_ext=".jsonl"),
+    OpSpec("flatten_2g", "cli", "syn_2g", FLATTEN_ARGS, repeats=2, out_ext=".json"),
+    OpSpec("flatten_2g_w1", "cli", "syn_2g", FLATTEN_ARGS + ("--workers", "1"), repeats=2, out_ext=".json"),
+    # the option for the memory of the automatic pool (4 workers): 3 workers (not in the full run; --only)
+    OpSpec("apply_2g_w3", "cli", "syn_2g", APPLY_ARGS + ("--workers", "3"), repeats=2, out_ext=".json",
+           groups=("workers",)),
+    OpSpec("flatten_2g_w3", "cli", "syn_2g", FLATTEN_ARGS + ("--workers", "3"), repeats=2, out_ext=".json",
+           groups=("workers",)),
     OpSpec("filter_extract", "filter", "syn_2g", (FILTER_EXPR,)),
     OpSpec("filter_parse", "filter", "syn_2g", (FILTER_EXPR, "--strategy", "parse"), repeats=1),
     # what the user gets from `jsonreshape filter`: the matching records written to a file
@@ -939,14 +1066,17 @@ if sys.platform == "win32":
         return _K32.OpenProcess(_PROCESS_QUERY, False, pid) or None
 
     def _win_stats(handle: Any) -> dict[str, Any]:
-        """Peak working set / peak private bytes / CPU seconds of a process handle; works
-        after the process has exited as long as the handle is open."""
+        """Peak working set / peak private bytes / CPU seconds of a process handle (and the current
+        working set / private bytes); works after the process has exited as long as the handle is
+        open."""
         out: dict[str, Any] = {}
         pmc = _PMC()
         pmc.cb = ctypes.sizeof(_PMC)
         if _K32.K32GetProcessMemoryInfo(handle, ctypes.byref(pmc), pmc.cb):
             out["peak_wset"] = int(pmc.PeakWorkingSetSize)
             out["peak_private"] = int(pmc.PeakPagefileUsage)
+            out["wset"] = int(pmc.WorkingSetSize)
+            out["private"] = int(pmc.PagefileUsage)
         ft = [_wt.FILETIME() for _ in range(4)]
         if _K32.GetProcessTimes(handle, *(ctypes.byref(x) for x in ft)):
             out["cpu"] = sum(((f.dwHighDateTime << 32) | f.dwLowDateTime) / 1e7 for f in ft[2:])
@@ -966,6 +1096,11 @@ class TreeWatcher:
     def __init__(self, pid: int) -> None:
         self.procs: dict[int, dict[str, Any]] = {}
         self._next_scan = 0.0
+        # the whole program at one instant: the sum of the working sets / private bytes of every live
+        # process of the tree except the venv launcher (worker processes included), sampled at every poll
+        self.sum_peak = 0
+        self.sum_private_peak = 0
+        self.live_max = 0
         try:
             self.root: psutil.Process | None = psutil.Process(pid)
         except psutil.Error:
@@ -982,9 +1117,10 @@ class TreeWatcher:
             if p.pid in self.procs:
                 continue
             entry: dict[str, Any] = {"pid": p.pid, "name": None, "proc": p, "handle": None,
-                                     "peak": 0, "private": 0, "cpu": None}
+                                     "peak": 0, "private": 0, "cpu": None, "ppid": None, "now": 0, "now_private": 0}
             try:
                 entry["name"] = p.name()
+                entry["ppid"] = p.ppid()
             except psutil.Error:
                 pass
             if sys.platform == "win32":
@@ -996,16 +1132,31 @@ class TreeWatcher:
             st = _win_stats(e["handle"])
             e["peak"] = max(e["peak"], st.get("peak_wset", 0))
             e["private"] = max(e["private"], st.get("peak_private", 0))
+            e["now"], e["now_private"] = st.get("wset", 0), st.get("private", 0)
             if "cpu" in st:
                 e["cpu"] = st["cpu"]
             return
         try:
             mi = e["proc"].memory_info()
             e["peak"] = max(e["peak"], int(getattr(mi, "peak_wset", 0) or mi.rss))
+            e["now"], e["now_private"] = int(mi.rss), int(getattr(mi, "private", 0) or 0)
             ct = e["proc"].cpu_times()
             e["cpu"] = ct.user + ct.system
         except psutil.Error:
-            pass
+            e["now"] = e["now_private"] = 0
+
+    def _launcher(self) -> int | None:
+        """The pid of the venv launcher (Windows: the root python.exe whose child is the real interpreter of the
+        same name): it is left out of the sums."""
+        if self.root is None or len(self.procs) < 2:
+            return None
+        root = self.procs.get(self.root.pid)
+        if root is None:
+            return None
+        for e in self.procs.values():
+            if e["ppid"] == root["pid"] and e["name"] and e["name"] == root["name"]:
+                return root["pid"]
+        return None
 
     def poll(self) -> None:
         now = time.monotonic()
@@ -1015,6 +1166,11 @@ class TreeWatcher:
             self._next_scan = now + (POLL_SECONDS if len(self.procs) < 2 else 0.5)
         for e in self.procs.values():
             self._update(e)
+        skip = self._launcher()
+        live = [e for e in self.procs.values() if e["pid"] != skip and e["now"] > 0]
+        self.sum_peak = max(self.sum_peak, sum(e["now"] for e in live))
+        self.sum_private_peak = max(self.sum_private_peak, sum(e["now_private"] for e in live))
+        self.live_max = max(self.live_max, len(live))
 
     def kill(self) -> None:
         for e in self.procs.values():
@@ -1084,6 +1240,7 @@ def run_child(cmd: list[str], env: dict[str, str], *, timeout: float = OP_TIMEOU
                 continue
     tree_peak = max((p["peak_rss"] or 0 for p in tree), default=0)
     tree_private = max((p["peak_private"] or 0 for p in tree), default=0)
+    sum_peak, sum_private, live_max = watcher.sum_peak, watcher.sum_private_peak, watcher.live_max
     peaks = [p for p in (tree_peak, (child or {}).get("peak_rss")) if p]
     privates = [p for p in (tree_private, (child or {}).get("peak_private")) if p]
     cpus = [p["cpu_seconds"] for p in tree if p["cpu_seconds"] is not None]
@@ -1112,6 +1269,11 @@ def run_child(cmd: list[str], env: dict[str, str], *, timeout: float = OP_TIMEOU
         "peak_rss_tree": tree_peak or None,
         "peak_rss_child": (child or {}).get("peak_rss"),
         "peak_private": max(privates) if privates else None,
+        # the whole program (worker processes included), sampled every POLL_SECONDS: the largest sum of the
+        # working sets / private bytes at one instant, and the most processes alive at once (launcher excluded)
+        "peak_rss_sum": sum_peak or None,
+        "peak_private_sum": sum_private or None,
+        "processes_max": live_max or None,
         "processes": tree,
         "cpu_seconds": None if cpu is None else round(cpu, 3),
         "load_during": round(load_during, 1),
@@ -1182,6 +1344,9 @@ def summarize_op(spec: OpSpec, runs: list[dict[str, Any]]) -> dict[str, Any]:
     best = _best_run(runs, spec.metric)
     peaks = [r["peak_rss"] for r in runs if r.get("peak_rss")]
     privs = [r["peak_private"] for r in runs if r.get("peak_private")]
+    sums = [r["peak_rss_sum"] for r in runs if r.get("peak_rss_sum")]
+    psums = [r["peak_private_sum"] for r in runs if r.get("peak_private_sum")]
+    procs = [r["processes_max"] for r in runs if r.get("processes_max")]
     values = [r["child"][spec.metric] for r in runs
               if r.get("ok") and isinstance((r.get("child") or {}).get(spec.metric), (int, float))]
     return {
@@ -1195,7 +1360,20 @@ def summarize_op(spec: OpSpec, runs: list[dict[str, Any]]) -> dict[str, Any]:
         "metric_values": values,
         "peak_rss": max(peaks) if peaks else None,
         "peak_private": max(privs) if privs else None,
+        "peak_rss_sum": max(sums) if sums else None,
+        "peak_private_sum": max(psums) if psums else None,
+        "processes_max": max(procs) if procs else None,
     }
+
+
+def program_peak(o: dict[str, Any] | None) -> int | None:
+    """The memory of the whole program in an operation's runs: the largest of the exact peak working set of any
+    one process (a short peak between two samples included) and the sampled sum over its processes (worker
+    processes included). One process: its peak RSS."""
+    if not o:
+        return None
+    vals = [v for v in (o.get("peak_rss"), o.get("peak_rss_sum")) if v]
+    return max(vals) if vals else None
 
 
 def run(cfg: RunConfig) -> dict[str, Any]:
@@ -1413,8 +1591,18 @@ def build_rows(results: dict[str, Any]) -> list[Row]:
         return o.get("best") if o and o.get("best") else None
 
     def peak(name: str) -> int | None:
-        o = ops_.get(name)
-        return o.get("peak_rss") if o else None
+        """The whole program's peak (worker processes included; one process: its peak RSS)."""
+        return program_peak(ops_.get(name))
+
+    def mem(name: str) -> str:
+        """The peak memory as text: with several processes, how many and the largest single one."""
+        o = ops_.get(name) or {}
+        pk = peak(name)
+        procs = o.get("processes_max") or 1
+        if procs > 1 and o.get("peak_rss"):
+            return t("bench.mem.procs", peak=fmt_mb(pk), n=procs, single=fmt_mb(o.get("peak_rss")),
+                     private=fmt_mb(o.get("peak_private_sum")))
+        return fmt_mb(pk)
 
     def size_of(key: str) -> str:
         info = data.get(key) or {}
@@ -1531,7 +1719,7 @@ def build_rows(results: dict[str, Any]) -> list[Row]:
         def fn(b: dict[str, Any]) -> tuple[str, bool]:
             pk = peak(name)
             ok = b["mb_per_s"] >= T_EXPORT_MBPS and pk is not None and pk < T_EXPORT_RSS
-            return (t("bench.res.export", rate=fmt_rate(b["mb_per_s"]), seconds=fmt_s(b["seconds"]), peak=fmt_mb(pk),
+            return (t("bench.res.export", rate=fmt_rate(b["mb_per_s"]), seconds=fmt_s(b["seconds"]), peak=mem(name),
                       out=fmt_mb(b.get("bytes_written"))), ok)
         return fn
 
@@ -1539,9 +1727,47 @@ def build_rows(results: dict[str, Any]) -> list[Row]:
         export_res("export_jsonl"))
     add("export_json2", "main", t("bench.row.export_json2", file=file_2g), t("bench.target.export"),
         export_res("export_json2"))
+
+    # -- (6b) export with a mapping: `jsonreshape apply` / `flatten` (the §12 row "Mapping ... bilan eksport") --
+    def workers_text(name: str, b: dict[str, Any]) -> str:
+        args = (ops_.get(name) or {}).get("spec", {}).get("args") or ()
+        n = int(b.get("workers") or 1)
+        if "--workers" in args:
+            return t("bench.workers.given", n=n)
+        return t("bench.workers.auto", n=n)
+
+    def apply_res(name: str) -> Callable[[dict[str, Any]], tuple[str, bool]]:
+        def fn(b: dict[str, Any]) -> tuple[str, bool]:
+            pk = peak(name)
+            ok = b["mb_per_s"] >= T_EXPORT_MBPS and pk is not None and pk < T_EXPORT_RSS
+            return (t("bench.res.apply", rate=fmt_rate(b["mb_per_s"]), seconds=fmt_s(b["seconds"]),
+                      workers=workers_text(name, b), apply_rate=fmt_rate(b.get("apply_mb_per_s")),
+                      total=fmt_s(b.get("total_seconds")), index=fmt_s(b.get("index_seconds")),
+                      peak=mem(name), out=fmt_mb(b.get("bytes_written")), items=group(b.get("items_out"))), ok)
+        return fn
+
+    def apply_details(b: dict[str, Any]) -> dict[str, Any]:
+        return {k: b.get(k) for k in ("workers", "passes", "records_in", "items_out", "apply_seconds",
+                                      "apply_mb_per_s", "total_seconds", "index_seconds", "seconds", "mb_per_s",
+                                      "bytes_written", "unmapped_records")}
+
+    def fmt_of(name: str) -> str:
+        ext = ((ops_.get(name) or {}).get("spec", {}).get("out_ext") or ".json").lstrip(".")
+        return t("bench.fmt.json2") if ext == "json" else ext.upper()
+
+    for name, section in (("apply_2g", "main"), ("apply_2g_w1", "extra"), ("apply_2g_w3", "extra"),
+                          ("apply_2g_jsonl", "extra"), ("flatten_2g", "extra"), ("flatten_2g_w1", "extra"),
+                          ("flatten_2g_w3", "extra")):
+        if name not in ops_:
+            continue
+        key = "bench.row.flatten" if name.startswith("flatten") else "bench.row.apply"
+        b0 = best(name) or {}
+        add(name, section, t(key, file=file_2g, fmt=fmt_of(name),
+                             workers=workers_text(name, b0) if b0 else "?"),
+            t("bench.target.export"), apply_res(name), apply_details)
     # -- (7) overall memory -------------------------------------------------------------------------
-    non_sort = [(o.get("peak_rss"), name) for name, o in ops_.items()
-                if not o["spec"].get("is_sort") and o.get("peak_rss")]
+    non_sort = [(program_peak(o), name) for name, o in ops_.items()
+                if not o["spec"].get("is_sort") and program_peak(o)]
     if non_sort:
         pk, who = max(non_sort)
         ok = pk < T_TOTAL_RSS
@@ -1700,6 +1926,36 @@ def miss_texts(row: Row, results: dict[str, Any]) -> tuple[str, str]:
         key = "export_csv"
         sc = (ops_.get("export_csv_scalar") or {}).get("best") or {}
         params["scalar"] = fmt_rate(sc.get("mb_per_s")) if sc else "?"
+    elif row.id.startswith(("apply_", "flatten_")):
+        o = ops_.get(row.id) or {}
+        b = o.get("best") or {}
+        auto_name = "flatten_2g" if row.id.startswith("flatten") else "apply_2g"
+        ab = (ops_.get(auto_name) or {}).get("best") or {}
+        if (b.get("mb_per_s") or 0.0) < T_EXPORT_MBPS:
+            key = "apply_speed"
+            params.update(rate=fmt_rate(b.get("mb_per_s")),
+                          auto=t("bench.miss.apply_auto", rate=fmt_rate(ab.get("mb_per_s")),
+                                 n=ab.get("workers") or "?") if ab else "?")
+        else:
+            key = "apply_mem"
+            main_peak, workers = 0, []
+            for r in o.get("runs", []):          # per run: the main process is the largest, the launcher tiny
+                peaks = sorted((p["peak_rss"] for p in (r.get("processes") or []) if p.get("peak_rss")), reverse=True)
+                if peaks:
+                    main_peak = max(main_peak, peaks[0])
+                    workers += [x for x in peaks[1:] if x > 20_000_000]
+            spike = ""
+            if row.id.startswith("apply") and main_peak > 150_000_000:
+                spike = t("bench.miss.apply_mem.spike", parent=fmt_mb(main_peak))
+            w3 = ops_.get(auto_name + "_w3") or {}
+            w3_text = ""
+            if w3.get("best"):
+                w3_text = t("bench.miss.apply_w3", rate=fmt_rate(w3["best"].get("mb_per_s")),
+                            peak=fmt_mb(program_peak(w3)))
+            params.update(peak=fmt_mb(program_peak(o)), workers=max(0, (o.get("processes_max") or 1) - 1),
+                          worker=fmt_mb(max(workers) if workers else None), private=fmt_mb(o.get("peak_private_sum")),
+                          spike=spike, w3=w3_text,
+                          fix=t("bench.miss.apply_mem.fix") if row.id.startswith("apply") else "")
     elif row.id in SORT_MAIN_OPS:
         key = "sort_export"
         b = (ops_.get(row.id) or {}).get("best") or {}
@@ -1804,6 +2060,9 @@ def render_markdown(results: dict[str, Any], rows: list[Row], json_name: str | N
         out.append("- " + t("bench.cond.others", avg=oc.get("avg"), max=oc.get("max"),
                              logical=m.get("cores_logical")))
     cold = (results.get("ops", {}).get("cold_2g") or {}).get("best") or {}
+    for entry in results.get("merged") or []:
+        out.append("- " + t("bench.cond.merged", ops=", ".join(entry.get("ops") or []), file=entry.get("file"),
+                             date=str(entry.get("started") or "?").replace("T", " ")))
     out.append("- " + t("bench.cond.cache", ram=fmt_mb(m.get("ram_total"))))
     if cold:
         out.append("- " + t("bench.cond.cold", disk=fmt_mb(cold.get("disk_read_bytes")),
@@ -1818,16 +2077,51 @@ def render_markdown(results: dict[str, Any], rows: list[Row], json_name: str | N
     if any(n.startswith("sort_") for n in results.get("ops", {})):
         out.append("- " + t("bench.cond.cardinality"))
     out.append("- " + t("bench.cond.export"))
+    if any(o["spec"].get("op") == "cli" for o in results.get("ops", {}).values()):
+        out.append("- " + t("bench.cond.mapping"))
+    if any((o.get("processes_max") or 1) > 1 for o in results.get("ops", {}).values()):
+        out.append("- " + t("bench.cond.memory_sum", poll=int(POLL_SECONDS * 1000)))
     if m.get("p_cores"):
         out.append("- " + t("bench.cond.hybrid", p=m.get("p_cores"), e=m.get("e_cores")))
     out.append("")
     out += [f"## {t('bench.md.not_measured')}", ""]
-    for key in ("bench.nm.laptop", "bench.nm.cold_all", "bench.nm.gui", "bench.nm.mapping"):
+    for key in ("bench.nm.laptop", "bench.nm.cold_all", "bench.nm.gui"):
         out.append("- " + t(key, cpu=m.get("cpu")))
     out.append("")
     out.append(t("bench.md.rerun"))
     out.append("")
     return "\n".join(out)
+
+
+def rewrite_report(json_path: Path, cfg: RunConfig, merge: list[Path] | None = None) -> dict[str, str]:
+    """The Markdown of an earlier results file written again with the current texts and rules: ``<run id>.md``
+    next to it, and ``latest.md`` for a full run (or with ``--latest``). ``merge``: partial results files whose
+    operations are added first (an operation of the same name is replaced); the merged results are saved back
+    to ``json_path`` and name the merged files (``results["merged"]``, said in the report)."""
+    results = json.loads(Path(json_path).read_bytes().decode("utf-8"))
+    for extra in merge or []:
+        more = json.loads(Path(extra).read_bytes().decode("utf-8"))
+        results.setdefault("ops", {}).update(more.get("ops", {}))
+        for key, info in (more.get("data") or {}).items():
+            results.setdefault("data", {}).setdefault(key, info)
+        names = results.setdefault("merged", [])
+        entry = {"file": Path(extra).name, "ops": sorted(more.get("ops", {})), "started": more.get("started")}
+        results["merged"] = [m for m in names if m.get("file") != entry["file"]] + [entry]
+    if merge:
+        text = json.dumps(results, ensure_ascii=False, indent=1, default=str) + "\n"
+        Path(json_path).write_bytes(text.encode("utf-8"))
+    rows = build_rows(results)
+    results["rows"] = [asdict(r) for r in rows]
+    md = render_markdown(results, rows, Path(json_path).name)
+    mpath = Path(json_path).with_suffix(".md")
+    mpath.write_bytes(md.encode("utf-8"))
+    files = {"json": str(json_path), "md": str(mpath)}
+    latest = cfg.write_latest if cfg.write_latest is not None else (results.get("mode") == "full")
+    if latest:
+        target = Path(cfg.results_dir) / "latest.md"
+        target.write_bytes(md.encode("utf-8"))
+        files["latest"] = str(target)
+    return files
 
 
 def write_results(results: dict[str, Any], rows: list[Row], results_dir: Path, cfg: RunConfig) -> dict[str, str]:
@@ -1871,6 +2165,12 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--timeout", type=float, default=OP_TIMEOUT, help="seconds per run")
     ap.add_argument("--lang", choices=["uz", "en"], default="uz")
     ap.add_argument("--latest", action="store_true", help="also write latest.md for a partial run")
+    ap.add_argument("--report", type=Path, default=None,
+                    help="write the Markdown of an earlier results JSON again (its .md; latest.md for a full run "
+                         "or with --latest) and exit")
+    ap.add_argument("--merge", type=Path, action="append", default=[],
+                    help="with --report: add the operations of this (partial) results JSON to it first and save "
+                         "the merged JSON (repeatable)")
     return ap
 
 
@@ -1898,6 +2198,11 @@ def main(argv: list[str] | None = None) -> int:
         for s in SPECS:
             sys.stdout.write(f"{s.name:18} {s.op:13} {DATA_SPECS[s.data].filename:14} {' '.join(s.args)}"
                              f"  [{', '.join(s.groups)}]\n")
+        return 0
+    if args.report is not None:
+        set_language(cfg.lang)
+        files = rewrite_report(args.report, cfg, merge=args.merge)
+        sys.stdout.write(t("bench.log.written", json=args.report, md=files["md"]) + "\n")
         return 0
     results = run(cfg)
     set_language(cfg.lang)

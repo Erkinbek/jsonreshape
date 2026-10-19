@@ -1,0 +1,4005 @@
+{
+ "version": 1,
+ "kind": "gui",
+ "run_id": "20261019-194028",
+ "mode": "full",
+ "only": null,
+ "started": "2026-10-19T19:40:28",
+ "command": [
+  "gui_bench.py",
+  "--work-dir",
+  "C:/Users/user34/AppData/Local/Temp/claude/e--Projects-json-flatting/65e44ff0-18e2-413f-b083-b5e57d67f8f7/scratchpad/s6d/work_gui"
+ ],
+ "lang": "uz",
+ "machine": {
+  "cpu": "Intel(R) Core(TM) Ultra 9 285",
+  "cores_physical": 24,
+  "cores_logical": 24,
+  "efficiency_classes": {
+   "0": 16,
+   "1": 8
+  },
+  "p_cores": 8,
+  "e_cores": 16,
+  "ram_total": 205550673920,
+  "ram_available_at_start": 160733462528,
+  "disk": {
+   "free": 376303038464,
+   "total": 1024191361024,
+   "drive": "E:",
+   "fs": "NTFS",
+   "model": "SAMSUNG MZVL81T0HELB-00BH1",
+   "bus": "NVMe",
+   "media": "SSD",
+   "number": 1,
+   "io_key": "PhysicalDrive1"
+  },
+  "os": "Windows-11-10.0.26200-SP0",
+  "python": "3.14.3",
+  "python_impl": "CPython",
+  "power_plan": "Balanced",
+  "core_backend": "rust",
+  "core_backends": [
+   "rust",
+   "python"
+  ],
+  "ijson_backend": "yajl2_c",
+  "versions": {
+   "orjson": "3.13.0",
+   "ijson": "3.6.0",
+   "xlsxwriter": "3.2.9",
+   "jmespath": "1.1.0",
+   "psutil": "7.2.2",
+   "PySide6": "6.12.0"
+  },
+  "app_version": "0.1.0"
+ },
+ "conditions": {
+  "quiet_load_limit": 35.0,
+  "quiet_timeout": 60.0,
+  "wait_for_quiet": true,
+  "repeat": 2,
+  "qt_platform": "offscreen",
+  "font_dir": "C:/Windows/Fonts",
+  "heartbeat_ms": 5,
+  "rss_sample_s": 0.05,
+  "window": [
+   1440,
+   900
+  ],
+  "data_dir": "E:\\Projects\\json flatting\\bench\\data",
+  "work_dir": "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\65e44ff0-18e2-413f-b083-b5e57d67f8f7\\scratchpad\\s6d\\work_gui",
+  "fresh_home_per_run": true,
+  "load_before": {
+   "min": 2.4,
+   "max": 14.5,
+   "avg": 4.8
+  }
+ },
+ "data": {
+  "node_1m": {
+   "path": "E:\\Projects\\json flatting\\bench\\data\\node_1m.json",
+   "file": "node_1m.json",
+   "generated": false,
+   "bytes": 41667416,
+   "records": 1000000
+  },
+  "syn_10m": {
+   "path": "E:\\Projects\\json flatting\\bench\\data\\syn_10m.jsonl",
+   "file": "syn_10m.jsonl",
+   "generated": false,
+   "bytes": 3288547846,
+   "records": 10000000
+  },
+  "syn_2g": {
+   "path": "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+   "file": "syn_2g.json",
+   "generated": false,
+   "bytes": 2147483913,
+   "records": 6513235
+  },
+  "syn_5g": {
+   "path": "E:\\Projects\\json flatting\\bench\\data\\syn_5g.json",
+   "file": "syn_5g.json",
+   "generated": false,
+   "bytes": 5368709333,
+   "records": 16222716
+  }
+ },
+ "ops": {
+  "open_2g": {
+   "spec": {
+    "name": "open_2g",
+    "scenario": "open_index",
+    "data": "syn_2g",
+    "params": [],
+    "is_sort": false,
+    "quick": true,
+    "out_ext": null
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 5.4958,
+     "peak_rss": 146960384,
+     "peak_rss_tree": 146960384,
+     "peak_rss_child": 146960384,
+     "peak_private": 113631232,
+     "peak_rss_sum": 132091904,
+     "peak_private_sum": 96944128,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 14180,
+       "name": "python.exe",
+       "peak_rss": 4796416,
+       "peak_private": 946176,
+       "cpu_seconds": 0.016
+      },
+      {
+       "pid": 41944,
+       "name": "python.exe",
+       "peak_rss": 146960384,
+       "peak_private": 113631232,
+       "cpu_seconds": 3.266
+      }
+     ],
+     "cpu_seconds": 3.282,
+     "load_during": 8.4,
+     "others_cores_during": 1.42,
+     "child": {
+      "scenario": "open_index",
+      "ok": true,
+      "main_called": 0.07005480001680553,
+      "main_returned": 0.3096485999994911,
+      "data_size": 2147483913,
+      "first_paint_seconds": 0.6484,
+      "first_paint_proc_seconds": 0.6374,
+      "first_paint_main_seconds": 0.4707,
+      "first_paint_script_seconds": 0.5408,
+      "first_full_paint_main_seconds": 0.4707,
+      "main_seconds": 0.2396,
+      "opened_main_seconds": 0.2577,
+      "first_rows": [
+       "#0",
+       "#1",
+       "#2"
+      ],
+      "open_gaps": {
+       "n": 44,
+       "p50_ms": 5.0,
+       "p95_ms": 6.1,
+       "p99_ms": 8.4,
+       "max_ms": 8.4,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 0.22
+      },
+      "open_gap_p95_s": 0.0060999999999999995,
+      "open_gap_max_s": 0.008400000000000001,
+      "record_count": 6513235,
+      "index_seconds": 2.7798,
+      "index_mb_per_s": 772.5,
+      "kind": "array",
+      "rss_after_index": 129269760,
+      "index_gaps": {
+       "n": 557,
+       "p50_ms": 5.0,
+       "p95_ms": 6.0,
+       "p99_ms": 6.4,
+       "max_ms": 8.9,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 2.788
+      },
+      "index_gap_p95_s": 0.006,
+      "index_gap_max_s": 0.0089,
+      "scroll_end_seconds": 0.0058,
+      "scroll_end_top_row": 6513202,
+      "scroll_mid_seconds": 0.0088,
+      "scroll_gaps": {
+       "n": 126,
+       "p50_ms": 5.0,
+       "p95_ms": 5.9,
+       "p99_ms": 6.4,
+       "max_ms": 6.6,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 0.63
+      },
+      "scroll_gap_p95_s": 0.005900000000000001,
+      "scroll_gap_max_s": 0.0066,
+      "rss_after_close": 130121728,
+      "errors": [],
+      "phase_rss_peak": {
+       "start": 31629312,
+       "open": 125612032,
+       "index": 129568768,
+       "idle": 129646592,
+       "scroll": 129757184,
+       "close": 130121728
+      },
+      "phase_gaps": {
+       "open": {
+        "n": 45,
+        "p50_ms": 5.0,
+        "p95_ms": 6.1,
+        "p99_ms": 8.4,
+        "max_ms": 8.4,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.224
+       },
+       "index": {
+        "n": 514,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 6.4,
+        "max_ms": 10.8,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 2.578
+       },
+       "idle": {
+        "n": 102,
+        "p50_ms": 5.0,
+        "p95_ms": 5.7,
+        "p99_ms": 6.1,
+        "max_ms": 10.8,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.517
+       },
+       "scroll": {
+        "n": 127,
+        "p50_ms": 5.0,
+        "p95_ms": 5.9,
+        "p99_ms": 6.6,
+        "max_ms": 10.1,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.64
+       },
+       "close": {
+        "n": 201,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 6.5,
+        "max_ms": 10.1,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 1.009
+       }
+      },
+      "peak_rss": 146960384,
+      "cpu_user": 2.109,
+      "cpu_system": 1.156
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 2.5,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 2.5
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 5.4826,
+     "peak_rss": 145502208,
+     "peak_rss_tree": 145502208,
+     "peak_rss_child": 145502208,
+     "peak_private": 112304128,
+     "peak_rss_sum": 129859584,
+     "peak_private_sum": 96927744,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 44028,
+       "name": "python.exe",
+       "peak_rss": 4800512,
+       "peak_private": 950272,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 56312,
+       "name": "python.exe",
+       "peak_rss": 145502208,
+       "peak_private": 112304128,
+       "cpu_seconds": 3.375
+      }
+     ],
+     "cpu_seconds": 3.375,
+     "load_during": 8.9,
+     "others_cores_during": 1.52,
+     "child": {
+      "scenario": "open_index",
+      "ok": true,
+      "main_called": 0.07068780000554398,
+      "main_returned": 0.30697370000416413,
+      "data_size": 2147483913,
+      "first_paint_seconds": 0.6406,
+      "first_paint_proc_seconds": 0.6353,
+      "first_paint_main_seconds": 0.4631,
+      "first_paint_script_seconds": 0.5338,
+      "first_full_paint_main_seconds": 0.4631,
+      "main_seconds": 0.2363,
+      "opened_main_seconds": 0.2493,
+      "first_rows": [
+       "#0",
+       "#1",
+       "#2"
+      ],
+      "open_gaps": {
+       "n": 43,
+       "p50_ms": 5.0,
+       "p95_ms": 5.6,
+       "p99_ms": 7.6,
+       "max_ms": 7.6,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 0.217
+      },
+      "open_gap_p95_s": 0.0056,
+      "open_gap_max_s": 0.0076,
+      "record_count": 6513235,
+      "index_seconds": 2.8101,
+      "index_mb_per_s": 764.2,
+      "kind": "array",
+      "rss_after_index": 127811584,
+      "index_gaps": {
+       "n": 562,
+       "p50_ms": 5.0,
+       "p95_ms": 6.0,
+       "p99_ms": 6.9,
+       "max_ms": 9.7,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 2.814
+      },
+      "index_gap_p95_s": 0.006,
+      "index_gap_max_s": 0.009699999999999999,
+      "scroll_end_seconds": 0.0071,
+      "scroll_end_top_row": 6513202,
+      "scroll_mid_seconds": 0.007,
+      "scroll_gaps": {
+       "n": 124,
+       "p50_ms": 5.0,
+       "p95_ms": 5.8,
+       "p99_ms": 6.5,
+       "max_ms": 7.4,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 0.619
+      },
+      "scroll_gap_p95_s": 0.0058,
+      "scroll_gap_max_s": 0.0074,
+      "rss_after_close": 128663552,
+      "errors": [],
+      "phase_rss_peak": {
+       "start": 31825920,
+       "open": 127668224,
+       "index": 129351680,
+       "idle": 128176128,
+       "scroll": 128282624,
+       "close": 128663552
+      },
+      "phase_gaps": {
+       "open": {
+        "n": 44,
+        "p50_ms": 5.0,
+        "p95_ms": 5.6,
+        "p99_ms": 7.6,
+        "max_ms": 7.6,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.22
+       },
+       "index": {
+        "n": 520,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 6.9,
+        "max_ms": 9.7,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 2.607
+       },
+       "idle": {
+        "n": 103,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 7.4,
+        "max_ms": 9.7,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.518
+       },
+       "scroll": {
+        "n": 125,
+        "p50_ms": 5.0,
+        "p95_ms": 5.8,
+        "p99_ms": 7.4,
+        "max_ms": 9.4,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.628
+       },
+       "close": {
+        "n": 201,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 6.3,
+        "max_ms": 9.4,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 1.005
+       }
+      },
+      "peak_rss": 145502208,
+      "cpu_user": 2.281,
+      "cpu_system": 1.078
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 2.4,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 2.4
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "scenario": "open_index",
+    "ok": true,
+    "main_called": 0.07005480001680553,
+    "main_returned": 0.3096485999994911,
+    "data_size": 2147483913,
+    "first_paint_seconds": 0.6406,
+    "first_paint_proc_seconds": 0.6353,
+    "first_paint_main_seconds": 0.4631,
+    "first_paint_script_seconds": 0.5408,
+    "first_full_paint_main_seconds": 0.4631,
+    "main_seconds": 0.2363,
+    "opened_main_seconds": 0.2577,
+    "first_rows": [
+     "#0",
+     "#1",
+     "#2"
+    ],
+    "open_gaps": {
+     "n": 44,
+     "p50_ms": 5.0,
+     "p95_ms": 6.1,
+     "p99_ms": 8.4,
+     "max_ms": 8.4,
+     "over100": 0,
+     "over250": 0,
+     "seconds": 0.22
+    },
+    "open_gap_p95_s": 0.0060999999999999995,
+    "open_gap_max_s": 0.0076,
+    "record_count": 6513235,
+    "index_seconds": 2.7798,
+    "index_mb_per_s": 772.5,
+    "kind": "array",
+    "rss_after_index": 129269760,
+    "index_gaps": {
+     "n": 557,
+     "p50_ms": 5.0,
+     "p95_ms": 6.0,
+     "p99_ms": 6.4,
+     "max_ms": 8.9,
+     "over100": 0,
+     "over250": 0,
+     "seconds": 2.788
+    },
+    "index_gap_p95_s": 0.006,
+    "index_gap_max_s": 0.0089,
+    "scroll_end_seconds": 0.0058,
+    "scroll_end_top_row": 6513202,
+    "scroll_mid_seconds": 0.007,
+    "scroll_gaps": {
+     "n": 126,
+     "p50_ms": 5.0,
+     "p95_ms": 5.9,
+     "p99_ms": 6.4,
+     "max_ms": 6.6,
+     "over100": 0,
+     "over250": 0,
+     "seconds": 0.63
+    },
+    "scroll_gap_p95_s": 0.005900000000000001,
+    "scroll_gap_max_s": 0.0066,
+    "rss_after_close": 130121728,
+    "errors": [],
+    "phase_rss_peak": {
+     "start": 31629312,
+     "open": 125612032,
+     "index": 129568768,
+     "idle": 129646592,
+     "scroll": 129757184,
+     "close": 130121728
+    },
+    "phase_gaps": {
+     "open": {
+      "n": 45,
+      "p50_ms": 5.0,
+      "p95_ms": 6.1,
+      "p99_ms": 8.4,
+      "max_ms": 8.4,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 0.224
+     },
+     "index": {
+      "n": 514,
+      "p50_ms": 5.0,
+      "p95_ms": 6.0,
+      "p99_ms": 6.4,
+      "max_ms": 10.8,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 2.578
+     },
+     "idle": {
+      "n": 102,
+      "p50_ms": 5.0,
+      "p95_ms": 5.7,
+      "p99_ms": 6.1,
+      "max_ms": 10.8,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 0.517
+     },
+     "scroll": {
+      "n": 127,
+      "p50_ms": 5.0,
+      "p95_ms": 5.9,
+      "p99_ms": 6.6,
+      "max_ms": 10.1,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 0.64
+     },
+     "close": {
+      "n": 201,
+      "p50_ms": 5.0,
+      "p95_ms": 6.0,
+      "p99_ms": 6.5,
+      "max_ms": 10.1,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 1.009
+     }
+    },
+    "peak_rss": 146960384,
+    "cpu_user": 2.109,
+    "cpu_system": 1.156
+   },
+   "peak_rss": 146960384
+  },
+  "open_5g": {
+   "spec": {
+    "name": "open_5g",
+    "scenario": "open_index",
+    "data": "syn_5g",
+    "params": [],
+    "is_sort": false,
+    "quick": false,
+    "out_ext": null
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 9.8768,
+     "peak_rss": 143769600,
+     "peak_rss_tree": 143769600,
+     "peak_rss_child": 143769600,
+     "peak_private": 110391296,
+     "peak_rss_sum": 128172032,
+     "peak_private_sum": 95191040,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 32036,
+       "name": "python.exe",
+       "peak_rss": 4800512,
+       "peak_private": 954368,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 57012,
+       "name": "python.exe",
+       "peak_rss": 143769600,
+       "peak_private": 110391296,
+       "cpu_seconds": 7.609
+      }
+     ],
+     "cpu_seconds": 7.609,
+     "load_during": 7.6,
+     "others_cores_during": 1.05,
+     "child": {
+      "scenario": "open_index",
+      "ok": true,
+      "main_called": 0.06850410002516583,
+      "main_returned": 0.29788680002093315,
+      "data_size": 5368709333,
+      "first_paint_seconds": 0.6272,
+      "first_paint_proc_seconds": 0.6217,
+      "first_paint_main_seconds": 0.4563,
+      "first_paint_script_seconds": 0.5248,
+      "first_full_paint_main_seconds": 0.4563,
+      "main_seconds": 0.2294,
+      "opened_main_seconds": 0.2442,
+      "first_rows": [
+       "#0",
+       "#1",
+       "#2"
+      ],
+      "open_gaps": {
+       "n": 43,
+       "p50_ms": 4.9,
+       "p95_ms": 6.0,
+       "p99_ms": 6.8,
+       "max_ms": 6.8,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 0.216
+      },
+      "open_gap_p95_s": 0.006,
+      "open_gap_max_s": 0.0068,
+      "record_count": 16222716,
+      "index_seconds": 7.1679,
+      "index_mb_per_s": 749.0,
+      "kind": "array",
+      "rss_after_index": 126021632,
+      "index_gaps": {
+       "n": 1434,
+       "p50_ms": 5.0,
+       "p95_ms": 5.9,
+       "p99_ms": 6.5,
+       "max_ms": 9.5,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 7.172
+      },
+      "index_gap_p95_s": 0.005900000000000001,
+      "index_gap_max_s": 0.0095,
+      "scroll_end_seconds": 0.0065,
+      "scroll_end_top_row": 16222683,
+      "scroll_mid_seconds": 0.007,
+      "scroll_gaps": {
+       "n": 124,
+       "p50_ms": 5.0,
+       "p95_ms": 6.0,
+       "p99_ms": 6.2,
+       "max_ms": 6.2,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 0.62
+      },
+      "scroll_gap_p95_s": 0.006,
+      "scroll_gap_max_s": 0.0062,
+      "rss_after_close": 126930944,
+      "errors": [],
+      "phase_rss_peak": {
+       "start": 31526912,
+       "open": 125177856,
+       "index": 127459328,
+       "idle": 126472192,
+       "scroll": 126595072,
+       "close": 126988288
+      },
+      "phase_gaps": {
+       "open": {
+        "n": 44,
+        "p50_ms": 4.9,
+        "p95_ms": 6.0,
+        "p99_ms": 6.8,
+        "max_ms": 6.8,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.219
+       },
+       "index": {
+        "n": 1392,
+        "p50_ms": 5.0,
+        "p95_ms": 5.9,
+        "p99_ms": 6.6,
+        "max_ms": 10.1,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 6.966
+       },
+       "idle": {
+        "n": 106,
+        "p50_ms": 5.0,
+        "p95_ms": 6.1,
+        "p99_ms": 6.5,
+        "max_ms": 10.1,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.533
+       },
+       "scroll": {
+        "n": 125,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 6.2,
+        "max_ms": 10.8,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.631
+       },
+       "close": {
+        "n": 205,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 6.5,
+        "max_ms": 10.8,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 1.029
+       }
+      },
+      "peak_rss": 143769600,
+      "cpu_user": 5.047,
+      "cpu_system": 2.562
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 5.1,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 5.1
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 9.8446,
+     "peak_rss": 146477056,
+     "peak_rss_tree": 146477056,
+     "peak_rss_child": 146477056,
+     "peak_private": 112889856,
+     "peak_rss_sum": 130850816,
+     "peak_private_sum": 97259520,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 3684,
+       "name": "python.exe",
+       "peak_rss": 4800512,
+       "peak_private": 950272,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 21768,
+       "name": "python.exe",
+       "peak_rss": 146477056,
+       "peak_private": 112889856,
+       "cpu_seconds": 7.531
+      }
+     ],
+     "cpu_seconds": 7.531,
+     "load_during": 8.9,
+     "others_cores_during": 1.37,
+     "child": {
+      "scenario": "open_index",
+      "ok": true,
+      "main_called": 0.06744419998722151,
+      "main_returned": 0.297132599982433,
+      "data_size": 5368709333,
+      "first_paint_seconds": 0.6336,
+      "first_paint_proc_seconds": 0.6253,
+      "first_paint_main_seconds": 0.4638,
+      "first_paint_script_seconds": 0.5312,
+      "first_full_paint_main_seconds": 0.4638,
+      "main_seconds": 0.2297,
+      "opened_main_seconds": 0.2481,
+      "first_rows": [
+       "#0",
+       "#1",
+       "#2"
+      ],
+      "open_gaps": {
+       "n": 44,
+       "p50_ms": 5.0,
+       "p95_ms": 6.1,
+       "p99_ms": 7.9,
+       "max_ms": 7.9,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 0.223
+      },
+      "open_gap_p95_s": 0.0060999999999999995,
+      "open_gap_max_s": 0.0079,
+      "record_count": 16222716,
+      "index_seconds": 7.2056,
+      "index_mb_per_s": 745.1,
+      "kind": "array",
+      "rss_after_index": 129970176,
+      "index_gaps": {
+       "n": 1441,
+       "p50_ms": 5.0,
+       "p95_ms": 5.9,
+       "p99_ms": 6.3,
+       "max_ms": 9.7,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 7.21
+      },
+      "index_gap_p95_s": 0.005900000000000001,
+      "index_gap_max_s": 0.009699999999999999,
+      "scroll_end_seconds": 0.0056,
+      "scroll_end_top_row": 16222683,
+      "scroll_mid_seconds": 0.0073,
+      "scroll_gaps": {
+       "n": 124,
+       "p50_ms": 5.0,
+       "p95_ms": 6.1,
+       "p99_ms": 6.5,
+       "max_ms": 6.5,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 0.62
+      },
+      "scroll_gap_p95_s": 0.0060999999999999995,
+      "scroll_gap_max_s": 0.0065,
+      "rss_after_close": 129638400,
+      "errors": [],
+      "phase_rss_peak": {
+       "start": 31674368,
+       "open": 126627840,
+       "index": 129953792,
+       "idle": 129208320,
+       "scroll": 129327104,
+       "close": 129638400
+      },
+      "phase_gaps": {
+       "open": {
+        "n": 45,
+        "p50_ms": 5.0,
+        "p95_ms": 6.1,
+        "p99_ms": 7.9,
+        "max_ms": 7.9,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.227
+       },
+       "index": {
+        "n": 1399,
+        "p50_ms": 5.0,
+        "p95_ms": 5.9,
+        "p99_ms": 6.3,
+        "max_ms": 10.6,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 7.001
+       },
+       "idle": {
+        "n": 103,
+        "p50_ms": 5.1,
+        "p95_ms": 5.8,
+        "p99_ms": 6.1,
+        "max_ms": 10.6,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.516
+       },
+       "scroll": {
+        "n": 125,
+        "p50_ms": 5.0,
+        "p95_ms": 6.1,
+        "p99_ms": 6.5,
+        "max_ms": 9.8,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.629
+       },
+       "close": {
+        "n": 202,
+        "p50_ms": 5.0,
+        "p95_ms": 5.9,
+        "p99_ms": 6.3,
+        "max_ms": 9.8,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 1.011
+       }
+      },
+      "peak_rss": 146477056,
+      "cpu_user": 4.891,
+      "cpu_system": 2.625
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 5.9,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 5.9
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "scenario": "open_index",
+    "ok": true,
+    "main_called": 0.06850410002516583,
+    "main_returned": 0.29788680002093315,
+    "data_size": 5368709333,
+    "first_paint_seconds": 0.6272,
+    "first_paint_proc_seconds": 0.6217,
+    "first_paint_main_seconds": 0.4563,
+    "first_paint_script_seconds": 0.5248,
+    "first_full_paint_main_seconds": 0.4563,
+    "main_seconds": 0.2294,
+    "opened_main_seconds": 0.2442,
+    "first_rows": [
+     "#0",
+     "#1",
+     "#2"
+    ],
+    "open_gaps": {
+     "n": 43,
+     "p50_ms": 4.9,
+     "p95_ms": 6.0,
+     "p99_ms": 6.8,
+     "max_ms": 6.8,
+     "over100": 0,
+     "over250": 0,
+     "seconds": 0.216
+    },
+    "open_gap_p95_s": 0.006,
+    "open_gap_max_s": 0.0068,
+    "record_count": 16222716,
+    "index_seconds": 7.1679,
+    "index_mb_per_s": 749.0,
+    "kind": "array",
+    "rss_after_index": 129970176,
+    "index_gaps": {
+     "n": 1434,
+     "p50_ms": 5.0,
+     "p95_ms": 5.9,
+     "p99_ms": 6.5,
+     "max_ms": 9.5,
+     "over100": 0,
+     "over250": 0,
+     "seconds": 7.172
+    },
+    "index_gap_p95_s": 0.005900000000000001,
+    "index_gap_max_s": 0.0095,
+    "scroll_end_seconds": 0.0056,
+    "scroll_end_top_row": 16222683,
+    "scroll_mid_seconds": 0.007,
+    "scroll_gaps": {
+     "n": 124,
+     "p50_ms": 5.0,
+     "p95_ms": 6.0,
+     "p99_ms": 6.2,
+     "max_ms": 6.2,
+     "over100": 0,
+     "over250": 0,
+     "seconds": 0.62
+    },
+    "scroll_gap_p95_s": 0.006,
+    "scroll_gap_max_s": 0.0062,
+    "rss_after_close": 126930944,
+    "errors": [],
+    "phase_rss_peak": {
+     "start": 31526912,
+     "open": 125177856,
+     "index": 127459328,
+     "idle": 126472192,
+     "scroll": 126595072,
+     "close": 126988288
+    },
+    "phase_gaps": {
+     "open": {
+      "n": 44,
+      "p50_ms": 4.9,
+      "p95_ms": 6.0,
+      "p99_ms": 6.8,
+      "max_ms": 6.8,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 0.219
+     },
+     "index": {
+      "n": 1392,
+      "p50_ms": 5.0,
+      "p95_ms": 5.9,
+      "p99_ms": 6.6,
+      "max_ms": 10.1,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 6.966
+     },
+     "idle": {
+      "n": 106,
+      "p50_ms": 5.0,
+      "p95_ms": 6.1,
+      "p99_ms": 6.5,
+      "max_ms": 10.1,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 0.533
+     },
+     "scroll": {
+      "n": 125,
+      "p50_ms": 5.0,
+      "p95_ms": 6.0,
+      "p99_ms": 6.2,
+      "max_ms": 10.8,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 0.631
+     },
+     "close": {
+      "n": 205,
+      "p50_ms": 5.0,
+      "p95_ms": 6.0,
+      "p99_ms": 6.5,
+      "max_ms": 10.8,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 1.029
+     }
+    },
+    "peak_rss": 143769600,
+    "cpu_user": 5.047,
+    "cpu_system": 2.562
+   },
+   "peak_rss": 146477056
+  },
+  "open_10m": {
+   "spec": {
+    "name": "open_10m",
+    "scenario": "open_index",
+    "data": "syn_10m",
+    "params": [],
+    "is_sort": false,
+    "quick": true,
+    "out_ext": null
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 7.209,
+     "peak_rss": 145649664,
+     "peak_rss_tree": 145649664,
+     "peak_rss_child": 145649664,
+     "peak_private": 112586752,
+     "peak_rss_sum": 141676544,
+     "peak_private_sum": 112562176,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 52012,
+       "name": "python.exe",
+       "peak_rss": 4800512,
+       "peak_private": 958464,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 30836,
+       "name": "python.exe",
+       "peak_rss": 145649664,
+       "peak_private": 112586752,
+       "cpu_seconds": 5.062
+      }
+     ],
+     "cpu_seconds": 5.062,
+     "load_during": 10.0,
+     "others_cores_during": 1.7,
+     "child": {
+      "scenario": "open_index",
+      "ok": true,
+      "main_called": 0.06745689996751025,
+      "main_returned": 0.3022618999821134,
+      "data_size": 3288547846,
+      "first_paint_seconds": 0.6209,
+      "first_paint_proc_seconds": 0.6163,
+      "first_paint_main_seconds": 0.4573,
+      "first_paint_script_seconds": 0.5248,
+      "first_full_paint_main_seconds": 0.4573,
+      "main_seconds": 0.2348,
+      "opened_main_seconds": 0.2481,
+      "first_rows": [
+       "#0",
+       "#1",
+       "#2"
+      ],
+      "open_gaps": {
+       "n": 42,
+       "p50_ms": 5.1,
+       "p95_ms": 6.0,
+       "p99_ms": 6.8,
+       "max_ms": 6.8,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 0.212
+      },
+      "open_gap_p95_s": 0.006,
+      "open_gap_max_s": 0.0068,
+      "record_count": 10000000,
+      "index_seconds": 4.5553,
+      "index_mb_per_s": 721.9,
+      "kind": "jsonl",
+      "rss_after_index": 128008192,
+      "index_gaps": {
+       "n": 911,
+       "p50_ms": 5.0,
+       "p95_ms": 5.9,
+       "p99_ms": 7.7,
+       "max_ms": 9.0,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 4.559
+      },
+      "index_gap_p95_s": 0.005900000000000001,
+      "index_gap_max_s": 0.009,
+      "scroll_end_seconds": 0.0056,
+      "scroll_end_top_row": 9999967,
+      "scroll_mid_seconds": 0.0085,
+      "scroll_gaps": {
+       "n": 126,
+       "p50_ms": 5.0,
+       "p95_ms": 5.8,
+       "p99_ms": 6.2,
+       "max_ms": 6.8,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 0.63
+      },
+      "scroll_gap_p95_s": 0.0058,
+      "scroll_gap_max_s": 0.0068,
+      "rss_after_close": 128811008,
+      "errors": [],
+      "phase_rss_peak": {
+       "start": 31453184,
+       "open": 127565824,
+       "index": 129142784,
+       "idle": 128368640,
+       "scroll": 128475136,
+       "close": 128811008
+      },
+      "phase_gaps": {
+       "open": {
+        "n": 43,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 6.8,
+        "max_ms": 6.8,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.215
+       },
+       "index": {
+        "n": 870,
+        "p50_ms": 5.0,
+        "p95_ms": 5.9,
+        "p99_ms": 8.1,
+        "max_ms": 10.1,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 4.357
+       },
+       "idle": {
+        "n": 103,
+        "p50_ms": 5.1,
+        "p95_ms": 6.0,
+        "p99_ms": 6.2,
+        "max_ms": 10.1,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.517
+       },
+       "scroll": {
+        "n": 127,
+        "p50_ms": 5.0,
+        "p95_ms": 5.8,
+        "p99_ms": 6.8,
+        "max_ms": 9.1,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.639
+       },
+       "close": {
+        "n": 201,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 6.5,
+        "max_ms": 9.1,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 1.006
+       }
+      },
+      "peak_rss": 145649664,
+      "cpu_user": 3.297,
+      "cpu_system": 1.75
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 4.4,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 4.4
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 7.2707,
+     "peak_rss": 144068608,
+     "peak_rss_tree": 144068608,
+     "peak_rss_child": 144068608,
+     "peak_private": 109989888,
+     "peak_rss_sum": 128761856,
+     "peak_private_sum": 95461376,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 43108,
+       "name": "python.exe",
+       "peak_rss": 4800512,
+       "peak_private": 946176,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 52040,
+       "name": "python.exe",
+       "peak_rss": 144068608,
+       "peak_private": 109989888,
+       "cpu_seconds": 5.172
+      }
+     ],
+     "cpu_seconds": 5.172,
+     "load_during": 8.2,
+     "others_cores_during": 1.26,
+     "child": {
+      "scenario": "open_index",
+      "ok": true,
+      "main_called": 0.07313319999957457,
+      "main_returned": 0.3093519000103697,
+      "data_size": 3288547846,
+      "first_paint_seconds": 0.6407,
+      "first_paint_proc_seconds": 0.6347,
+      "first_paint_main_seconds": 0.4628,
+      "first_paint_script_seconds": 0.536,
+      "first_full_paint_main_seconds": 0.4628,
+      "main_seconds": 0.2362,
+      "opened_main_seconds": 0.252,
+      "first_rows": [
+       "#0",
+       "#1",
+       "#2"
+      ],
+      "open_gaps": {
+       "n": 43,
+       "p50_ms": 5.0,
+       "p95_ms": 6.0,
+       "p99_ms": 6.8,
+       "max_ms": 6.8,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 0.217
+      },
+      "open_gap_p95_s": 0.006,
+      "open_gap_max_s": 0.0068,
+      "record_count": 10000000,
+      "index_seconds": 4.5617,
+      "index_mb_per_s": 720.9,
+      "kind": "jsonl",
+      "rss_after_index": 126242816,
+      "index_gaps": {
+       "n": 913,
+       "p50_ms": 5.0,
+       "p95_ms": 6.0,
+       "p99_ms": 6.3,
+       "max_ms": 7.4,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 4.568
+      },
+      "index_gap_p95_s": 0.006,
+      "index_gap_max_s": 0.0074,
+      "scroll_end_seconds": 0.0057,
+      "scroll_end_top_row": 9999967,
+      "scroll_mid_seconds": 0.0074,
+      "scroll_gaps": {
+       "n": 125,
+       "p50_ms": 5.0,
+       "p95_ms": 5.9,
+       "p99_ms": 6.3,
+       "max_ms": 6.4,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 0.625
+      },
+      "scroll_gap_p95_s": 0.005900000000000001,
+      "scroll_gap_max_s": 0.0064,
+      "rss_after_close": 127229952,
+      "errors": [],
+      "phase_rss_peak": {
+       "start": 31690752,
+       "open": 125251584,
+       "index": 127819776,
+       "idle": 126775296,
+       "scroll": 126885888,
+       "close": 127229952
+      },
+      "phase_gaps": {
+       "open": {
+        "n": 44,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 6.8,
+        "max_ms": 6.8,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.22
+       },
+       "index": {
+        "n": 871,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 6.3,
+        "max_ms": 9.6,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 4.361
+       },
+       "idle": {
+        "n": 106,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 6.2,
+        "max_ms": 9.6,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.532
+       },
+       "scroll": {
+        "n": 126,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 6.4,
+        "max_ms": 9.3,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.634
+       },
+       "close": {
+        "n": 201,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 6.3,
+        "max_ms": 9.3,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 1.005
+       }
+      },
+      "peak_rss": 144068608,
+      "cpu_user": 3.625,
+      "cpu_system": 1.531
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 14.5,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 14.5
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "scenario": "open_index",
+    "ok": true,
+    "main_called": 0.06745689996751025,
+    "main_returned": 0.3022618999821134,
+    "data_size": 3288547846,
+    "first_paint_seconds": 0.6209,
+    "first_paint_proc_seconds": 0.6163,
+    "first_paint_main_seconds": 0.4573,
+    "first_paint_script_seconds": 0.5248,
+    "first_full_paint_main_seconds": 0.4573,
+    "main_seconds": 0.2348,
+    "opened_main_seconds": 0.2481,
+    "first_rows": [
+     "#0",
+     "#1",
+     "#2"
+    ],
+    "open_gaps": {
+     "n": 42,
+     "p50_ms": 5.1,
+     "p95_ms": 6.0,
+     "p99_ms": 6.8,
+     "max_ms": 6.8,
+     "over100": 0,
+     "over250": 0,
+     "seconds": 0.212
+    },
+    "open_gap_p95_s": 0.006,
+    "open_gap_max_s": 0.0068,
+    "record_count": 10000000,
+    "index_seconds": 4.5553,
+    "index_mb_per_s": 721.9,
+    "kind": "jsonl",
+    "rss_after_index": 128008192,
+    "index_gaps": {
+     "n": 911,
+     "p50_ms": 5.0,
+     "p95_ms": 5.9,
+     "p99_ms": 7.7,
+     "max_ms": 9.0,
+     "over100": 0,
+     "over250": 0,
+     "seconds": 4.559
+    },
+    "index_gap_p95_s": 0.005900000000000001,
+    "index_gap_max_s": 0.0074,
+    "scroll_end_seconds": 0.0056,
+    "scroll_end_top_row": 9999967,
+    "scroll_mid_seconds": 0.0074,
+    "scroll_gaps": {
+     "n": 126,
+     "p50_ms": 5.0,
+     "p95_ms": 5.8,
+     "p99_ms": 6.2,
+     "max_ms": 6.8,
+     "over100": 0,
+     "over250": 0,
+     "seconds": 0.63
+    },
+    "scroll_gap_p95_s": 0.0058,
+    "scroll_gap_max_s": 0.0064,
+    "rss_after_close": 128811008,
+    "errors": [],
+    "phase_rss_peak": {
+     "start": 31453184,
+     "open": 127565824,
+     "index": 129142784,
+     "idle": 128368640,
+     "scroll": 128475136,
+     "close": 128811008
+    },
+    "phase_gaps": {
+     "open": {
+      "n": 43,
+      "p50_ms": 5.0,
+      "p95_ms": 6.0,
+      "p99_ms": 6.8,
+      "max_ms": 6.8,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 0.215
+     },
+     "index": {
+      "n": 870,
+      "p50_ms": 5.0,
+      "p95_ms": 5.9,
+      "p99_ms": 8.1,
+      "max_ms": 10.1,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 4.357
+     },
+     "idle": {
+      "n": 103,
+      "p50_ms": 5.1,
+      "p95_ms": 6.0,
+      "p99_ms": 6.2,
+      "max_ms": 10.1,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 0.517
+     },
+     "scroll": {
+      "n": 127,
+      "p50_ms": 5.0,
+      "p95_ms": 5.8,
+      "p99_ms": 6.8,
+      "max_ms": 9.1,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 0.639
+     },
+     "close": {
+      "n": 201,
+      "p50_ms": 5.0,
+      "p95_ms": 6.0,
+      "p99_ms": 6.5,
+      "max_ms": 9.1,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 1.006
+     }
+    },
+    "peak_rss": 145649664,
+    "cpu_user": 3.297,
+    "cpu_system": 1.75
+   },
+   "peak_rss": 145649664
+  },
+  "node_1m": {
+   "spec": {
+    "name": "node_1m",
+    "scenario": "node",
+    "data": "node_1m",
+    "params": [],
+    "is_sort": false,
+    "quick": true,
+    "out_ext": null
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 3.1368,
+     "peak_rss": 221257728,
+     "peak_rss_tree": 221257728,
+     "peak_rss_child": 221257728,
+     "peak_private": 217296896,
+     "peak_rss_sum": 208359424,
+     "peak_private_sum": 205287424,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 42436,
+       "name": "python.exe",
+       "peak_rss": 4800512,
+       "peak_private": 950272,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 37004,
+       "name": "python.exe",
+       "peak_rss": 221257728,
+       "peak_private": 217296896,
+       "cpu_seconds": 1.672
+      }
+     ],
+     "cpu_seconds": 1.672,
+     "load_during": 7.1,
+     "others_cores_during": 1.17,
+     "child": {
+      "scenario": "node",
+      "ok": true,
+      "data_size": 41667416,
+      "main_called": 0.0694933999911882,
+      "main_returned": 0.27686639997409657,
+      "rss_before_select": 125632512,
+      "text_pane_seconds": 0.7933,
+      "rss_after_select": 203513856,
+      "select_gaps": {
+       "n": 71,
+       "p50_ms": 13.1,
+       "p95_ms": 19.4,
+       "p99_ms": 24.1,
+       "max_ms": 24.1,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 0.797
+      },
+      "select_gap_p95_s": 0.019399999999999997,
+      "select_gap_max_s": 0.0241,
+      "memory_after_expand": {
+       "rss": 204455936,
+       "private": 200630272,
+       "maps": [
+        [
+         "40c56739b1adfe47734786be42d1adc0ed7610b3614d0eb75f1383bd7beb7822.jri",
+         16007168
+        ],
+        [
+         "Qt6Core.dll",
+         10498048
+        ],
+        [
+         "Qt6Gui.dll",
+         9768960
+        ],
+        [
+         "windows.storage.dll",
+         9121792
+        ],
+        [
+         "shell32.dll",
+         7999488
+        ]
+       ]
+      },
+      "child_count": 1000000,
+      "first_index_seconds": 0.098,
+      "first_after_index_seconds": 0.0062,
+      "first_total_seconds": 0.1042,
+      "expand1_gaps": {
+       "n": 21,
+       "p50_ms": 5.1,
+       "p95_ms": 6.0,
+       "p99_ms": 6.6,
+       "max_ms": 6.6,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 0.108
+      },
+      "expand1_gap_p95_s": 0.006,
+      "expand1_gap_max_s": 0.0066,
+      "cached_seconds": 0.0046,
+      "expand2_gaps": {
+       "n": 1,
+       "p50_ms": 6.4,
+       "p95_ms": 6.4,
+       "p99_ms": 6.4,
+       "max_ms": 6.4,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 0.006
+      },
+      "expand2_gap_p95_s": 0.0064,
+      "expand2_gap_max_s": 0.0064,
+      "last_child_seconds": 0.0047,
+      "last_child_key": "[999999]",
+      "errors": [],
+      "phase_rss_peak": {
+       "start": 31551488,
+       "open": 125095936,
+       "select": 203513856,
+       "expand1": 208359424,
+       "collapse": 204476416,
+       "expand2": 204476416,
+       "last": 204484608
+      },
+      "phase_gaps": {
+       "open": {
+        "n": 21,
+        "p50_ms": 5.1,
+        "p95_ms": 8.6,
+        "p99_ms": 9.9,
+        "max_ms": 9.9,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.11
+       },
+       "select": {
+        "n": 132,
+        "p50_ms": 5.4,
+        "p95_ms": 18.5,
+        "p99_ms": 22.3,
+        "max_ms": 24.1,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 1.101
+       },
+       "expand1": {
+        "n": 83,
+        "p50_ms": 5.0,
+        "p95_ms": 6.2,
+        "p99_ms": 10.9,
+        "max_ms": 10.9,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.421
+       },
+       "collapse": {
+        "n": 82,
+        "p50_ms": 5.0,
+        "p95_ms": 6.2,
+        "p99_ms": 10.9,
+        "max_ms": 10.9,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.417
+       },
+       "expand2": {
+        "n": 63,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 6.5,
+        "max_ms": 6.5,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.316
+       },
+       "last": {
+        "n": 62,
+        "p50_ms": 5.0,
+        "p95_ms": 5.9,
+        "p99_ms": 6.1,
+        "max_ms": 6.1,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.31
+       }
+      },
+      "peak_rss": 221257728,
+      "cpu_user": 1.219,
+      "cpu_system": 0.438
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 4.4,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 4.4
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 3.1359,
+     "peak_rss": 221224960,
+     "peak_rss_tree": 221224960,
+     "peak_rss_child": 221224960,
+     "peak_private": 217268224,
+     "peak_rss_sum": 209563648,
+     "peak_private_sum": 205762560,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 21452,
+       "name": "python.exe",
+       "peak_rss": 4800512,
+       "peak_private": 946176,
+       "cpu_seconds": 0.016
+      },
+      {
+       "pid": 52024,
+       "name": "python.exe",
+       "peak_rss": 221224960,
+       "peak_private": 217268224,
+       "cpu_seconds": 1.531
+      }
+     ],
+     "cpu_seconds": 1.547,
+     "load_during": 6.7,
+     "others_cores_during": 1.11,
+     "child": {
+      "scenario": "node",
+      "ok": true,
+      "data_size": 41667416,
+      "main_called": 0.06803839997155592,
+      "main_returned": 0.26723229995695874,
+      "rss_before_select": 124608512,
+      "text_pane_seconds": 0.7799,
+      "rss_after_select": 203485184,
+      "select_gaps": {
+       "n": 70,
+       "p50_ms": 13.9,
+       "p95_ms": 18.1,
+       "p99_ms": 19.4,
+       "max_ms": 19.4,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 0.785
+      },
+      "select_gap_p95_s": 0.0181,
+      "select_gap_max_s": 0.019399999999999997,
+      "memory_after_expand": {
+       "rss": 204431360,
+       "private": 200613888,
+       "maps": [
+        [
+         "40c56739b1adfe47734786be42d1adc0ed7610b3614d0eb75f1383bd7beb7822.jri",
+         16007168
+        ],
+        [
+         "Qt6Core.dll",
+         10498048
+        ],
+        [
+         "Qt6Gui.dll",
+         9768960
+        ],
+        [
+         "windows.storage.dll",
+         9121792
+        ],
+        [
+         "shell32.dll",
+         7999488
+        ]
+       ]
+      },
+      "child_count": 1000000,
+      "first_index_seconds": 0.099,
+      "first_after_index_seconds": 0.006,
+      "first_total_seconds": 0.1049,
+      "expand1_gaps": {
+       "n": 21,
+       "p50_ms": 5.0,
+       "p95_ms": 5.9,
+       "p99_ms": 8.2,
+       "max_ms": 8.2,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 0.106
+      },
+      "expand1_gap_p95_s": 0.005900000000000001,
+      "expand1_gap_max_s": 0.008199999999999999,
+      "cached_seconds": 0.003,
+      "expand2_gaps": {
+       "n": 1,
+       "p50_ms": 5.8,
+       "p95_ms": 5.8,
+       "p99_ms": 5.8,
+       "max_ms": 5.8,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 0.006
+      },
+      "expand2_gap_p95_s": 0.0058,
+      "expand2_gap_max_s": 0.0058,
+      "last_child_seconds": 0.0072,
+      "last_child_key": "[999999]",
+      "errors": [],
+      "phase_rss_peak": {
+       "start": 31404032,
+       "open": 123031552,
+       "select": 203485184,
+       "expand1": 208359424,
+       "collapse": 204455936,
+       "expand2": 204455936,
+       "last": 204464128
+      },
+      "phase_gaps": {
+       "open": {
+        "n": 18,
+        "p50_ms": 5.2,
+        "p95_ms": 9.0,
+        "p99_ms": 9.0,
+        "max_ms": 9.0,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.101
+       },
+       "select": {
+        "n": 132,
+        "p50_ms": 5.4,
+        "p95_ms": 17.6,
+        "p99_ms": 19.0,
+        "max_ms": 19.4,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 1.091
+       },
+       "expand1": {
+        "n": 82,
+        "p50_ms": 5.0,
+        "p95_ms": 5.9,
+        "p99_ms": 8.2,
+        "max_ms": 8.2,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.412
+       },
+       "collapse": {
+        "n": 82,
+        "p50_ms": 5.0,
+        "p95_ms": 5.9,
+        "p99_ms": 6.8,
+        "max_ms": 6.8,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.411
+       },
+       "expand2": {
+        "n": 63,
+        "p50_ms": 5.1,
+        "p95_ms": 5.9,
+        "p99_ms": 6.6,
+        "max_ms": 6.6,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.317
+       },
+       "last": {
+        "n": 62,
+        "p50_ms": 5.1,
+        "p95_ms": 5.7,
+        "p99_ms": 6.6,
+        "max_ms": 6.6,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.309
+       }
+      },
+      "peak_rss": 221224960,
+      "cpu_user": 1.219,
+      "cpu_system": 0.281
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 4.3,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 4.3
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "scenario": "node",
+    "ok": true,
+    "data_size": 41667416,
+    "main_called": 0.0694933999911882,
+    "main_returned": 0.27686639997409657,
+    "rss_before_select": 125632512,
+    "text_pane_seconds": 0.7799,
+    "rss_after_select": 203513856,
+    "select_gaps": {
+     "n": 71,
+     "p50_ms": 13.1,
+     "p95_ms": 19.4,
+     "p99_ms": 24.1,
+     "max_ms": 24.1,
+     "over100": 0,
+     "over250": 0,
+     "seconds": 0.797
+    },
+    "select_gap_p95_s": 0.019399999999999997,
+    "select_gap_max_s": 0.019399999999999997,
+    "memory_after_expand": {
+     "rss": 204455936,
+     "private": 200630272,
+     "maps": [
+      [
+       "40c56739b1adfe47734786be42d1adc0ed7610b3614d0eb75f1383bd7beb7822.jri",
+       16007168
+      ],
+      [
+       "Qt6Core.dll",
+       10498048
+      ],
+      [
+       "Qt6Gui.dll",
+       9768960
+      ],
+      [
+       "windows.storage.dll",
+       9121792
+      ],
+      [
+       "shell32.dll",
+       7999488
+      ]
+     ]
+    },
+    "child_count": 1000000,
+    "first_index_seconds": 0.098,
+    "first_after_index_seconds": 0.006,
+    "first_total_seconds": 0.1042,
+    "expand1_gaps": {
+     "n": 21,
+     "p50_ms": 5.1,
+     "p95_ms": 6.0,
+     "p99_ms": 6.6,
+     "max_ms": 6.6,
+     "over100": 0,
+     "over250": 0,
+     "seconds": 0.108
+    },
+    "expand1_gap_p95_s": 0.006,
+    "expand1_gap_max_s": 0.0066,
+    "cached_seconds": 0.003,
+    "expand2_gaps": {
+     "n": 1,
+     "p50_ms": 6.4,
+     "p95_ms": 6.4,
+     "p99_ms": 6.4,
+     "max_ms": 6.4,
+     "over100": 0,
+     "over250": 0,
+     "seconds": 0.006
+    },
+    "expand2_gap_p95_s": 0.0064,
+    "expand2_gap_max_s": 0.0064,
+    "last_child_seconds": 0.0047,
+    "last_child_key": "[999999]",
+    "errors": [],
+    "phase_rss_peak": {
+     "start": 31551488,
+     "open": 125095936,
+     "select": 203513856,
+     "expand1": 208359424,
+     "collapse": 204476416,
+     "expand2": 204476416,
+     "last": 204484608
+    },
+    "phase_gaps": {
+     "open": {
+      "n": 21,
+      "p50_ms": 5.1,
+      "p95_ms": 8.6,
+      "p99_ms": 9.9,
+      "max_ms": 9.9,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 0.11
+     },
+     "select": {
+      "n": 132,
+      "p50_ms": 5.4,
+      "p95_ms": 18.5,
+      "p99_ms": 22.3,
+      "max_ms": 24.1,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 1.101
+     },
+     "expand1": {
+      "n": 83,
+      "p50_ms": 5.0,
+      "p95_ms": 6.2,
+      "p99_ms": 10.9,
+      "max_ms": 10.9,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 0.421
+     },
+     "collapse": {
+      "n": 82,
+      "p50_ms": 5.0,
+      "p95_ms": 6.2,
+      "p99_ms": 10.9,
+      "max_ms": 10.9,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 0.417
+     },
+     "expand2": {
+      "n": 63,
+      "p50_ms": 5.0,
+      "p95_ms": 6.0,
+      "p99_ms": 6.5,
+      "max_ms": 6.5,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 0.316
+     },
+     "last": {
+      "n": 62,
+      "p50_ms": 5.0,
+      "p95_ms": 5.9,
+      "p99_ms": 6.1,
+      "max_ms": 6.1,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 0.31
+     }
+    },
+    "peak_rss": 221257728,
+    "cpu_user": 1.219,
+    "cpu_system": 0.438
+   },
+   "peak_rss": 221257728
+  },
+  "search_2g": {
+   "spec": {
+    "name": "search_2g",
+    "scenario": "search",
+    "data": "syn_2g",
+    "params": [
+     [
+      "queries",
+      [
+       "Qoraqalpog'iston",
+       "Toshkent"
+      ]
+     ]
+    ],
+    "is_sort": false,
+    "quick": true,
+    "out_ext": null
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 9.454,
+     "peak_rss": 167305216,
+     "peak_rss_tree": 167305216,
+     "peak_rss_child": 167305216,
+     "peak_private": 133591040,
+     "peak_rss_sum": 167165952,
+     "peak_private_sum": 133537792,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 46596,
+       "name": "python.exe",
+       "peak_rss": 4800512,
+       "peak_private": 950272,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 42512,
+       "name": "python.exe",
+       "peak_rss": 167305216,
+       "peak_private": 133591040,
+       "cpu_seconds": 8.422
+      }
+     ],
+     "cpu_seconds": 8.422,
+     "load_during": 10.0,
+     "others_cores_during": 1.51,
+     "child": {
+      "scenario": "search",
+      "ok": true,
+      "data_size": 2147483913,
+      "main_called": 0.07143829995766282,
+      "main_returned": 0.3013834999874234,
+      "record_count": 6513235,
+      "searches": [
+       {
+        "query": "Qoraqalpog'iston",
+        "seconds": 1.9784,
+        "mb_per_s": 1085.5,
+        "core_seconds": 1.9684,
+        "core_mb_per_s": 1091.0,
+        "hit_count": 66,
+        "record_count": 66,
+        "mode_used": "bytes",
+        "first_hit_painted_seconds": 0.0502,
+        "gaps": {
+         "n": 396,
+         "p50_ms": 5.0,
+         "p95_ms": 6.1,
+         "p99_ms": 7.1,
+         "max_ms": 10.4,
+         "over100": 0,
+         "over250": 0,
+         "seconds": 1.98
+        }
+       },
+       {
+        "query": "Toshkent",
+        "seconds": 2.6432,
+        "mb_per_s": 812.4,
+        "core_seconds": 2.6307,
+        "core_mb_per_s": 816.3,
+        "hit_count": 382422,
+        "record_count": 382422,
+        "mode_used": "bytes",
+        "first_hit_painted_seconds": 0.0205,
+        "gaps": {
+         "n": 526,
+         "p50_ms": 5.0,
+         "p95_ms": 6.0,
+         "p99_ms": 7.1,
+         "max_ms": 14.6,
+         "over100": 0,
+         "over250": 0,
+         "seconds": 2.645
+        }
+       }
+      ],
+      "errors": [],
+      "phase_rss_peak": {
+       "start": 31924224,
+       "open": 129236992,
+       "search:Qoraqalpog'iston": 150908928,
+       "search:Toshkent": 166199296
+      },
+      "phase_gaps": {
+       "open": {
+        "n": 779,
+        "p50_ms": 5.0,
+        "p95_ms": 5.9,
+        "p99_ms": 6.3,
+        "max_ms": 11.7,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 3.905
+       },
+       "search:Qoraqalpog'iston": {
+        "n": 437,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 7.1,
+        "max_ms": 14.6,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 2.194
+       },
+       "search:Toshkent": {
+        "n": 569,
+        "p50_ms": 5.0,
+        "p95_ms": 5.9,
+        "p99_ms": 7.1,
+        "max_ms": 14.6,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 2.86
+       }
+      },
+      "peak_rss": 167305216,
+      "cpu_user": 5.359,
+      "cpu_system": 3.047
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 4.0,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 4.0
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 8.9614,
+     "peak_rss": 167534592,
+     "peak_rss_tree": 167534592,
+     "peak_rss_child": 167534592,
+     "peak_private": 133754880,
+     "peak_rss_sum": 167534592,
+     "peak_private_sum": 133697536,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 540,
+       "name": "python.exe",
+       "peak_rss": 4800512,
+       "peak_private": 946176,
+       "cpu_seconds": 0.016
+      },
+      {
+       "pid": 40556,
+       "name": "python.exe",
+       "peak_rss": 167534592,
+       "peak_private": 133754880,
+       "cpu_seconds": 8.375
+      }
+     ],
+     "cpu_seconds": 8.391,
+     "load_during": 13.7,
+     "others_cores_during": 2.35,
+     "child": {
+      "scenario": "search",
+      "ok": true,
+      "data_size": 2147483913,
+      "main_called": 0.07181350002065301,
+      "main_returned": 0.32809179998002946,
+      "record_count": 6513235,
+      "searches": [
+       {
+        "query": "Qoraqalpog'iston",
+        "seconds": 2.0201,
+        "mb_per_s": 1063.1,
+        "core_seconds": 2.0063,
+        "core_mb_per_s": 1070.4,
+        "hit_count": 66,
+        "record_count": 66,
+        "mode_used": "bytes",
+        "first_hit_painted_seconds": 0.0456,
+        "gaps": {
+         "n": 404,
+         "p50_ms": 5.0,
+         "p95_ms": 5.9,
+         "p99_ms": 6.6,
+         "max_ms": 7.5,
+         "over100": 0,
+         "over250": 0,
+         "seconds": 2.022
+        }
+       },
+       {
+        "query": "Toshkent",
+        "seconds": 2.6265,
+        "mb_per_s": 817.6,
+        "core_seconds": 2.6149,
+        "core_mb_per_s": 821.2,
+        "hit_count": 382422,
+        "record_count": 382422,
+        "mode_used": "bytes",
+        "first_hit_painted_seconds": 0.0214,
+        "gaps": {
+         "n": 523,
+         "p50_ms": 5.0,
+         "p95_ms": 6.0,
+         "p99_ms": 7.4,
+         "max_ms": 16.1,
+         "over100": 0,
+         "over250": 0,
+         "seconds": 2.629
+        }
+       }
+      ],
+      "errors": [],
+      "phase_rss_peak": {
+       "start": 31838208,
+       "open": 128913408,
+       "search:Qoraqalpog'iston": 151650304,
+       "search:Toshkent": 166223872
+      },
+      "phase_gaps": {
+       "open": {
+        "n": 673,
+        "p50_ms": 5.0,
+        "p95_ms": 5.9,
+        "p99_ms": 6.6,
+        "max_ms": 11.3,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 3.374
+       },
+       "search:Qoraqalpog'iston": {
+        "n": 445,
+        "p50_ms": 5.0,
+        "p95_ms": 5.9,
+        "p99_ms": 6.7,
+        "max_ms": 16.1,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 2.236
+       },
+       "search:Toshkent": {
+        "n": 564,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 7.4,
+        "max_ms": 16.1,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 2.83
+       }
+      },
+      "peak_rss": 167534592,
+      "cpu_user": 5.5,
+      "cpu_system": 2.859
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 3.4,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 3.4
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "scenario": "search",
+    "ok": true,
+    "data_size": 2147483913,
+    "main_called": 0.07143829995766282,
+    "main_returned": 0.3013834999874234,
+    "record_count": 6513235,
+    "searches": [
+     {
+      "query": "Qoraqalpog'iston",
+      "seconds": 1.9784,
+      "mb_per_s": 1085.5,
+      "core_seconds": 1.9684,
+      "core_mb_per_s": 1091.0,
+      "hit_count": 66,
+      "record_count": 66,
+      "mode_used": "bytes",
+      "first_hit_painted_seconds": 0.0456,
+      "gaps": {
+       "n": 396,
+       "p50_ms": 5.0,
+       "p95_ms": 6.1,
+       "p99_ms": 7.1,
+       "max_ms": 10.4,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 1.98
+      },
+      "gap_p95_s": 0.005900000000000001,
+      "gap_max_s": 0.0075
+     },
+     {
+      "query": "Toshkent",
+      "seconds": 2.6265,
+      "mb_per_s": 817.6,
+      "core_seconds": 2.6307,
+      "core_mb_per_s": 816.3,
+      "hit_count": 382422,
+      "record_count": 382422,
+      "mode_used": "bytes",
+      "first_hit_painted_seconds": 0.0205,
+      "gaps": {
+       "n": 526,
+       "p50_ms": 5.0,
+       "p95_ms": 6.0,
+       "p99_ms": 7.1,
+       "max_ms": 14.6,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 2.645
+      },
+      "gap_p95_s": 0.006,
+      "gap_max_s": 0.0146
+     }
+    ],
+    "errors": [],
+    "phase_rss_peak": {
+     "start": 31924224,
+     "open": 129236992,
+     "search:Qoraqalpog'iston": 150908928,
+     "search:Toshkent": 166199296
+    },
+    "phase_gaps": {
+     "open": {
+      "n": 779,
+      "p50_ms": 5.0,
+      "p95_ms": 5.9,
+      "p99_ms": 6.3,
+      "max_ms": 11.7,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 3.905
+     },
+     "search:Qoraqalpog'iston": {
+      "n": 437,
+      "p50_ms": 5.0,
+      "p95_ms": 6.0,
+      "p99_ms": 7.1,
+      "max_ms": 14.6,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 2.194
+     },
+     "search:Toshkent": {
+      "n": 569,
+      "p50_ms": 5.0,
+      "p95_ms": 5.9,
+      "p99_ms": 7.1,
+      "max_ms": 14.6,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 2.86
+     }
+    },
+    "peak_rss": 167305216,
+    "cpu_user": 5.359,
+    "cpu_system": 3.047
+   },
+   "peak_rss": 167534592
+  },
+  "filter_10m": {
+   "spec": {
+    "name": "filter_10m",
+    "scenario": "filter",
+    "data": "syn_10m",
+    "params": [
+     [
+      "expr",
+      "contact.address.city == \"Toshkent\""
+     ]
+    ],
+    "is_sort": false,
+    "quick": true,
+    "out_ext": null
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 19.6784,
+     "peak_rss": 198287360,
+     "peak_rss_tree": 198287360,
+     "peak_rss_child": 198287360,
+     "peak_private": 124481536,
+     "peak_rss_sum": 196685824,
+     "peak_private_sum": 122470400,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 46724,
+       "name": "python.exe",
+       "peak_rss": 4800512,
+       "peak_private": 946176,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 40148,
+       "name": "python.exe",
+       "peak_rss": 198287360,
+       "peak_private": 124481536,
+       "cpu_seconds": 20.094
+      }
+     ],
+     "cpu_seconds": 20.094,
+     "load_during": 9.6,
+     "others_cores_during": 1.28,
+     "child": {
+      "scenario": "filter",
+      "ok": true,
+      "data_size": 3288547846,
+      "main_called": 0.06882600003154948,
+      "main_returned": 0.30877320002764463,
+      "record_count": 10000000,
+      "seconds": 13.9559,
+      "mb_per_s": 235.6,
+      "matched": 587025,
+      "first_rows_painted_seconds": 0.144,
+      "first_rows_before_end": true,
+      "filter_gaps": {
+       "n": 2777,
+       "p50_ms": 5.0,
+       "p95_ms": 6.4,
+       "p99_ms": 9.2,
+       "max_ms": 12.5,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 13.956
+      },
+      "filter_gap_p95_s": 0.0064,
+      "filter_gap_max_s": 0.0125,
+      "errors": [],
+      "phase_rss_peak": {
+       "start": 31653888,
+       "open": 170024960,
+       "filter": 196055040
+      },
+      "phase_gaps": {
+       "open": {
+        "n": 1031,
+        "p50_ms": 5.0,
+        "p95_ms": 5.9,
+        "p99_ms": 6.5,
+        "max_ms": 19.6,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 5.179
+       },
+       "filter": {
+        "n": 2777,
+        "p50_ms": 5.0,
+        "p95_ms": 6.4,
+        "p99_ms": 9.2,
+        "max_ms": 12.5,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 13.956
+       }
+      },
+      "peak_rss": 198287360,
+      "cpu_user": 15.938,
+      "cpu_system": 4.141
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 4.0,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 4.0
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 19.6873,
+     "peak_rss": 199016448,
+     "peak_rss_tree": 199016448,
+     "peak_rss_child": 199016448,
+     "peak_private": 124936192,
+     "peak_rss_sum": 198803456,
+     "peak_private_sum": 124207104,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 26448,
+       "name": "python.exe",
+       "peak_rss": 4796416,
+       "peak_private": 950272,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 49060,
+       "name": "python.exe",
+       "peak_rss": 199016448,
+       "peak_private": 124936192,
+       "cpu_seconds": 20.531
+      }
+     ],
+     "cpu_seconds": 20.531,
+     "load_during": 11.1,
+     "others_cores_during": 1.62,
+     "child": {
+      "scenario": "filter",
+      "ok": true,
+      "data_size": 3288547846,
+      "main_called": 0.06715479999547824,
+      "main_returned": 0.3023386999848299,
+      "record_count": 10000000,
+      "seconds": 13.9699,
+      "mb_per_s": 235.4,
+      "matched": 587025,
+      "first_rows_painted_seconds": 0.1432,
+      "first_rows_before_end": true,
+      "filter_gaps": {
+       "n": 2773,
+       "p50_ms": 5.0,
+       "p95_ms": 6.3,
+       "p99_ms": 8.8,
+       "max_ms": 15.7,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 13.965
+      },
+      "filter_gap_p95_s": 0.0063,
+      "filter_gap_max_s": 0.0157,
+      "errors": [],
+      "phase_rss_peak": {
+       "start": 31707136,
+       "open": 173428736,
+       "filter": 198385664
+      },
+      "phase_gaps": {
+       "open": {
+        "n": 1036,
+        "p50_ms": 5.0,
+        "p95_ms": 5.9,
+        "p99_ms": 6.3,
+        "max_ms": 19.6,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 5.21
+       },
+       "filter": {
+        "n": 2773,
+        "p50_ms": 5.0,
+        "p95_ms": 6.3,
+        "p99_ms": 8.8,
+        "max_ms": 15.7,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 13.965
+       }
+      },
+      "peak_rss": 199016448,
+      "cpu_user": 14.594,
+      "cpu_system": 5.922
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 6.1,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 6.1
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "scenario": "filter",
+    "ok": true,
+    "data_size": 3288547846,
+    "main_called": 0.06882600003154948,
+    "main_returned": 0.30877320002764463,
+    "record_count": 10000000,
+    "seconds": 13.9559,
+    "mb_per_s": 235.6,
+    "matched": 587025,
+    "first_rows_painted_seconds": 0.1432,
+    "first_rows_before_end": true,
+    "filter_gaps": {
+     "n": 2777,
+     "p50_ms": 5.0,
+     "p95_ms": 6.4,
+     "p99_ms": 9.2,
+     "max_ms": 12.5,
+     "over100": 0,
+     "over250": 0,
+     "seconds": 13.956
+    },
+    "filter_gap_p95_s": 0.0063,
+    "filter_gap_max_s": 0.0125,
+    "errors": [],
+    "phase_rss_peak": {
+     "start": 31653888,
+     "open": 170024960,
+     "filter": 196055040
+    },
+    "phase_gaps": {
+     "open": {
+      "n": 1031,
+      "p50_ms": 5.0,
+      "p95_ms": 5.9,
+      "p99_ms": 6.5,
+      "max_ms": 19.6,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 5.179
+     },
+     "filter": {
+      "n": 2777,
+      "p50_ms": 5.0,
+      "p95_ms": 6.4,
+      "p99_ms": 9.2,
+      "max_ms": 12.5,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 13.956
+     }
+    },
+    "peak_rss": 198287360,
+    "cpu_user": 15.938,
+    "cpu_system": 4.141
+   },
+   "peak_rss": 199016448
+  },
+  "sort_export_10m": {
+   "spec": {
+    "name": "sort_export_10m",
+    "scenario": "sort_export",
+    "data": "syn_10m",
+    "params": [
+     [
+      "key",
+      "name"
+     ]
+    ],
+    "is_sort": true,
+    "quick": true,
+    "out_ext": ".jsonl"
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 65.6749,
+     "peak_rss": 467316736,
+     "peak_rss_tree": 467316736,
+     "peak_rss_child": 467316736,
+     "peak_private": 440188928,
+     "peak_rss_sum": 452898816,
+     "peak_private_sum": 426979328,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 30212,
+       "name": "python.exe",
+       "peak_rss": 4800512,
+       "peak_private": 958464,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 41572,
+       "name": "python.exe",
+       "peak_rss": 467316736,
+       "peak_private": 440188928,
+       "cpu_seconds": 66.828
+      }
+     ],
+     "cpu_seconds": 66.828,
+     "load_during": 9.4,
+     "others_cores_during": 1.24,
+     "child": {
+      "scenario": "sort_export",
+      "ok": true,
+      "data_size": 3288547846,
+      "main_called": 0.16317340004025027,
+      "main_returned": 0.32650060002924874,
+      "record_count": 10000000,
+      "rss_before_sort": 131923968,
+      "sort_seconds": 17.1743,
+      "sorted_records": 10000000,
+      "sort_keys": [
+       "name"
+      ],
+      "peak_wset_after_sort": 467316736,
+      "sort_gaps": {
+       "n": 3381,
+       "p50_ms": 5.0,
+       "p95_ms": 7.5,
+       "p99_ms": 12.0,
+       "max_ms": 22.6,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 17.172
+      },
+      "sort_gap_p95_s": 0.0075,
+      "sort_gap_max_s": 0.022600000000000002,
+      "sorted_rows_painted_seconds": 0.0034,
+      "sort_phase_rss": 453201920,
+      "memory_after_sort": {
+       "rss": 151261184,
+       "private": 118329344,
+       "maps": [
+        [
+         "d3f7b98dc34e144c33af59ebff629e24354ad453c17ba68620f472b87a5dff18.jri",
+         160006144
+        ],
+        [
+         "rs-41572-5b2f54d42172.u64",
+         80003072
+        ],
+        [
+         "Qt6Core.dll",
+         10498048
+        ],
+        [
+         "Qt6Gui.dll",
+         9768960
+        ],
+        [
+         "windows.storage.dll",
+         9121792
+        ]
+       ]
+      },
+      "memory_after_export": {
+       "rss": 399327232,
+       "private": 126509056,
+       "maps": [
+        [
+         "d3f7b98dc34e144c33af59ebff629e24354ad453c17ba68620f472b87a5dff18.jri",
+         160006144
+        ],
+        [
+         "rs-41572-5b2f54d42172.u64",
+         80003072
+        ],
+        [
+         "Qt6Core.dll",
+         10498048
+        ],
+        [
+         "Qt6Gui.dll",
+         9768960
+        ],
+        [
+         "windows.storage.dll",
+         9121792
+        ]
+       ]
+      },
+      "export_seconds": 41.8626,
+      "export_core_seconds": 41.8563,
+      "export_records": 10000000,
+      "export_bytes": 3288547846,
+      "export_mb_per_s": 78.6,
+      "export_phase_rss": 425951232,
+      "export_start_rss": 153710592,
+      "export_gaps": {
+       "n": 8372,
+       "p50_ms": 5.0,
+       "p95_ms": 6.0,
+       "p99_ms": 6.3,
+       "max_ms": 8.4,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 41.86
+      },
+      "export_gap_p95_s": 0.006,
+      "export_gap_max_s": 0.008400000000000001,
+      "errors": [],
+      "phase_rss_peak": {
+       "start": 68734976,
+       "open": 133156864,
+       "sort": 453201920,
+       "export": 425951232,
+       "cleanup": 399626240
+      },
+      "phase_gaps": {
+       "open": {
+        "n": 1019,
+        "p50_ms": 5.0,
+        "p95_ms": 5.8,
+        "p99_ms": 6.3,
+        "max_ms": 13.0,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 5.106
+       },
+       "sort": {
+        "n": 3506,
+        "p50_ms": 5.0,
+        "p95_ms": 7.4,
+        "p99_ms": 12.0,
+        "max_ms": 22.6,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 17.803
+       },
+       "export": {
+        "n": 8372,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 6.3,
+        "max_ms": 8.4,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 41.86
+       },
+       "cleanup": {
+        "n": 0
+       }
+      },
+      "peak_rss": 467316736,
+      "cpu_user": 38.922,
+      "cpu_system": 27.906
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 4.6,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 4.6
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 65.3722,
+     "peak_rss": 470446080,
+     "peak_rss_tree": 470446080,
+     "peak_rss_child": 470446080,
+     "peak_private": 443527168,
+     "peak_rss_sum": 464244736,
+     "peak_private_sum": 442077184,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 57080,
+       "name": "python.exe",
+       "peak_rss": 4796416,
+       "peak_private": 942080,
+       "cpu_seconds": 0.016
+      },
+      {
+       "pid": 7456,
+       "name": "python.exe",
+       "peak_rss": 470446080,
+       "peak_private": 443527168,
+       "cpu_seconds": 67.797
+      }
+     ],
+     "cpu_seconds": 67.813,
+     "load_during": 9.5,
+     "others_cores_during": 1.24,
+     "child": {
+      "scenario": "sort_export",
+      "ok": true,
+      "data_size": 3288547846,
+      "main_called": 0.17836689995601773,
+      "main_returned": 0.3426804000046104,
+      "record_count": 10000000,
+      "rss_before_sort": 134606848,
+      "sort_seconds": 17.2211,
+      "sorted_records": 10000000,
+      "sort_keys": [
+       "name"
+      ],
+      "peak_wset_after_sort": 470446080,
+      "sort_gaps": {
+       "n": 3384,
+       "p50_ms": 5.0,
+       "p95_ms": 6.8,
+       "p99_ms": 10.5,
+       "max_ms": 37.3,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 17.22
+      },
+      "sort_gap_p95_s": 0.0068,
+      "sort_gap_max_s": 0.0373,
+      "sorted_rows_painted_seconds": 0.0033,
+      "sort_phase_rss": 453419008,
+      "memory_after_sort": {
+       "rss": 157265920,
+       "private": 123805696,
+       "maps": [
+        [
+         "d3f7b98dc34e144c33af59ebff629e24354ad453c17ba68620f472b87a5dff18.jri",
+         160006144
+        ],
+        [
+         "rs-7456-d9950004841a.u64",
+         80003072
+        ],
+        [
+         "Qt6Core.dll",
+         10498048
+        ],
+        [
+         "Qt6Gui.dll",
+         9768960
+        ],
+        [
+         "windows.storage.dll",
+         9121792
+        ]
+       ]
+      },
+      "memory_after_export": {
+       "rss": 403800064,
+       "private": 129540096,
+       "maps": [
+        [
+         "d3f7b98dc34e144c33af59ebff629e24354ad453c17ba68620f472b87a5dff18.jri",
+         160006144
+        ],
+        [
+         "rs-7456-d9950004841a.u64",
+         80003072
+        ],
+        [
+         "Qt6Core.dll",
+         10498048
+        ],
+        [
+         "Qt6Gui.dll",
+         9768960
+        ],
+        [
+         "windows.storage.dll",
+         9121792
+        ]
+       ]
+      },
+      "export_seconds": 41.258,
+      "export_core_seconds": 41.2514,
+      "export_records": 10000000,
+      "export_bytes": 3288547846,
+      "export_mb_per_s": 79.7,
+      "export_phase_rss": 429326336,
+      "export_start_rss": 159080448,
+      "export_gaps": {
+       "n": 8251,
+       "p50_ms": 5.0,
+       "p95_ms": 5.9,
+       "p99_ms": 6.3,
+       "max_ms": 7.5,
+       "over100": 0,
+       "over250": 0,
+       "seconds": 41.256
+      },
+      "export_gap_p95_s": 0.005900000000000001,
+      "export_gap_max_s": 0.0075,
+      "errors": [],
+      "phase_rss_peak": {
+       "start": 66166784,
+       "open": 136089600,
+       "sort": 453419008,
+       "export": 429326336,
+       "cleanup": 403881984
+      },
+      "phase_gaps": {
+       "open": {
+        "n": 1068,
+        "p50_ms": 5.0,
+        "p95_ms": 5.9,
+        "p99_ms": 6.3,
+        "max_ms": 13.7,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 5.351
+       },
+       "sort": {
+        "n": 3508,
+        "p50_ms": 5.0,
+        "p95_ms": 6.8,
+        "p99_ms": 10.3,
+        "max_ms": 37.3,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 17.852
+       },
+       "export": {
+        "n": 8251,
+        "p50_ms": 5.0,
+        "p95_ms": 5.9,
+        "p99_ms": 6.3,
+        "max_ms": 7.5,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 41.256
+       },
+       "cleanup": {
+        "n": 0
+       }
+      },
+      "peak_rss": 470446080,
+      "cpu_user": 41.391,
+      "cpu_system": 26.391
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 4.0,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 4.0
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "scenario": "sort_export",
+    "ok": true,
+    "data_size": 3288547846,
+    "main_called": 0.16317340004025027,
+    "main_returned": 0.32650060002924874,
+    "record_count": 10000000,
+    "rss_before_sort": 131923968,
+    "sort_seconds": 17.1743,
+    "sorted_records": 10000000,
+    "sort_keys": [
+     "name"
+    ],
+    "peak_wset_after_sort": 467316736,
+    "sort_gaps": {
+     "n": 3381,
+     "p50_ms": 5.0,
+     "p95_ms": 7.5,
+     "p99_ms": 12.0,
+     "max_ms": 22.6,
+     "over100": 0,
+     "over250": 0,
+     "seconds": 17.172
+    },
+    "sort_gap_p95_s": 0.0068,
+    "sort_gap_max_s": 0.022600000000000002,
+    "sorted_rows_painted_seconds": 0.0033,
+    "sort_phase_rss": 453419008,
+    "memory_after_sort": {
+     "rss": 151261184,
+     "private": 118329344,
+     "maps": [
+      [
+       "d3f7b98dc34e144c33af59ebff629e24354ad453c17ba68620f472b87a5dff18.jri",
+       160006144
+      ],
+      [
+       "rs-41572-5b2f54d42172.u64",
+       80003072
+      ],
+      [
+       "Qt6Core.dll",
+       10498048
+      ],
+      [
+       "Qt6Gui.dll",
+       9768960
+      ],
+      [
+       "windows.storage.dll",
+       9121792
+      ]
+     ]
+    },
+    "memory_after_export": {
+     "rss": 399327232,
+     "private": 126509056,
+     "maps": [
+      [
+       "d3f7b98dc34e144c33af59ebff629e24354ad453c17ba68620f472b87a5dff18.jri",
+       160006144
+      ],
+      [
+       "rs-41572-5b2f54d42172.u64",
+       80003072
+      ],
+      [
+       "Qt6Core.dll",
+       10498048
+      ],
+      [
+       "Qt6Gui.dll",
+       9768960
+      ],
+      [
+       "windows.storage.dll",
+       9121792
+      ]
+     ]
+    },
+    "export_seconds": 41.258,
+    "export_core_seconds": 41.8563,
+    "export_records": 10000000,
+    "export_bytes": 3288547846,
+    "export_mb_per_s": 79.7,
+    "export_phase_rss": 429326336,
+    "export_start_rss": 159080448,
+    "export_gaps": {
+     "n": 8372,
+     "p50_ms": 5.0,
+     "p95_ms": 6.0,
+     "p99_ms": 6.3,
+     "max_ms": 8.4,
+     "over100": 0,
+     "over250": 0,
+     "seconds": 41.86
+    },
+    "export_gap_p95_s": 0.006,
+    "export_gap_max_s": 0.0075,
+    "errors": [],
+    "phase_rss_peak": {
+     "start": 68734976,
+     "open": 133156864,
+     "sort": 453201920,
+     "export": 425951232,
+     "cleanup": 399626240
+    },
+    "phase_gaps": {
+     "open": {
+      "n": 1019,
+      "p50_ms": 5.0,
+      "p95_ms": 5.8,
+      "p99_ms": 6.3,
+      "max_ms": 13.0,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 5.106
+     },
+     "sort": {
+      "n": 3506,
+      "p50_ms": 5.0,
+      "p95_ms": 7.4,
+      "p99_ms": 12.0,
+      "max_ms": 22.6,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 17.803
+     },
+     "export": {
+      "n": 8372,
+      "p50_ms": 5.0,
+      "p95_ms": 6.0,
+      "p99_ms": 6.3,
+      "max_ms": 8.4,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 41.86
+     },
+     "cleanup": {
+      "n": 0
+     }
+    },
+    "peak_rss": 467316736,
+    "cpu_user": 38.922,
+    "cpu_system": 27.906
+   },
+   "peak_rss": 470446080
+  },
+  "session_2g": {
+   "spec": {
+    "name": "session_2g",
+    "scenario": "session",
+    "data": "syn_2g",
+    "params": [
+     [
+      "query",
+      "Qoraqalpog'iston"
+     ],
+     [
+      "expr",
+      "contact.address.city == \"Toshkent\""
+     ]
+    ],
+    "is_sort": false,
+    "quick": true,
+    "out_ext": ".jsonl"
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 22.7475,
+     "peak_rss": 289484800,
+     "peak_rss_tree": 289484800,
+     "peak_rss_child": 289484800,
+     "peak_private": 153980928,
+     "peak_rss_sum": 280723456,
+     "peak_private_sum": 151334912,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 540,
+       "name": "python.exe",
+       "peak_rss": 4800512,
+       "peak_private": 950272,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 24400,
+       "name": "python.exe",
+       "peak_rss": 289484800,
+       "peak_private": 153980928,
+       "cpu_seconds": 16.562
+      }
+     ],
+     "cpu_seconds": 16.562,
+     "load_during": 7.9,
+     "others_cores_during": 1.17,
+     "child": {
+      "scenario": "session",
+      "ok": true,
+      "data_size": 2147483913,
+      "main_called": 0.16427700000349432,
+      "main_returned": 0.30030930001521483,
+      "rss_before_open": 115470336,
+      "record_count": 6513235,
+      "table_columns": 13,
+      "search_hits": 66,
+      "filtered": 382422,
+      "schema_view": "SchemaView",
+      "export_records": 382422,
+      "rss_before_close": 255983616,
+      "peak_wset_session": 289484800,
+      "rss_after_close": 148717568,
+      "errors": [],
+      "phase_rss_peak": {
+       "start": 115556352,
+       "open": 132952064,
+       "scroll": 133578752,
+       "table": 177741824,
+       "search": 202608640,
+       "filter": 206688256,
+       "schema": 185806848,
+       "text": 184950784,
+       "export": 286699520,
+       "close": 169467904
+      },
+      "phase_gaps": {
+       "start": {
+        "n": 204,
+        "p50_ms": 5.0,
+        "p95_ms": 5.8,
+        "p99_ms": 6.1,
+        "max_ms": 22.8,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 1.034
+       },
+       "open": {
+        "n": 561,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 9.2,
+        "max_ms": 22.8,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 2.836
+       },
+       "scroll": {
+        "n": 126,
+        "p50_ms": 5.0,
+        "p95_ms": 6.1,
+        "p99_ms": 10.3,
+        "max_ms": 17.7,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.647
+       },
+       "table": {
+        "n": 96,
+        "p50_ms": 5.0,
+        "p95_ms": 6.5,
+        "p99_ms": 25.1,
+        "max_ms": 25.1,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.515
+       },
+       "search": {
+        "n": 393,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 8.0,
+        "max_ms": 10.4,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 1.98
+       },
+       "filter": {
+        "n": 1789,
+        "p50_ms": 5.0,
+        "p95_ms": 6.3,
+        "p99_ms": 7.7,
+        "max_ms": 11.7,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 8.964
+       },
+       "schema": {
+        "n": 202,
+        "p50_ms": 5.0,
+        "p95_ms": 6.1,
+        "p99_ms": 6.5,
+        "max_ms": 9.1,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 1.014
+       },
+       "text": {
+        "n": 206,
+        "p50_ms": 5.0,
+        "p95_ms": 5.9,
+        "p99_ms": 6.4,
+        "max_ms": 7.0,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 1.032
+       },
+       "export": {
+        "n": 252,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 6.9,
+        "max_ms": 30.8,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 1.287
+       },
+       "close": {
+        "n": 605,
+        "p50_ms": 5.0,
+        "p95_ms": 5.9,
+        "p99_ms": 6.2,
+        "max_ms": 30.8,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 3.048
+       }
+      },
+      "peak_rss": 289484800,
+      "cpu_user": 11.375,
+      "cpu_system": 5.172
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 4.6,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 4.6
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 22.9974,
+     "peak_rss": 288411648,
+     "peak_rss_tree": 288411648,
+     "peak_rss_child": 288411648,
+     "peak_private": 152875008,
+     "peak_rss_sum": 273989632,
+     "peak_private_sum": 151314432,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 48232,
+       "name": "python.exe",
+       "peak_rss": 4800512,
+       "peak_private": 954368,
+       "cpu_seconds": 0.016
+      },
+      {
+       "pid": 37336,
+       "name": "python.exe",
+       "peak_rss": 288411648,
+       "peak_private": 152875008,
+       "cpu_seconds": 16.484
+      }
+     ],
+     "cpu_seconds": 16.5,
+     "load_during": 7.6,
+     "others_cores_during": 1.11,
+     "child": {
+      "scenario": "session",
+      "ok": true,
+      "data_size": 2147483913,
+      "main_called": 0.16626049997285008,
+      "main_returned": 0.30312850000336766,
+      "rss_before_open": 114143232,
+      "record_count": 6513235,
+      "table_columns": 13,
+      "search_hits": 66,
+      "filtered": 382422,
+      "schema_view": "SchemaView",
+      "export_records": 382422,
+      "rss_before_close": 256315392,
+      "peak_wset_session": 288411648,
+      "rss_after_close": 146468864,
+      "errors": [],
+      "phase_rss_peak": {
+       "start": 114139136,
+       "open": 132853760,
+       "scroll": 132448256,
+       "table": 176197632,
+       "search": 200593408,
+       "filter": 205438976,
+       "schema": 183255040,
+       "text": 183427072,
+       "export": 272904192,
+       "close": 146468864
+      },
+      "phase_gaps": {
+       "start": {
+        "n": 204,
+        "p50_ms": 5.1,
+        "p95_ms": 5.8,
+        "p99_ms": 6.3,
+        "max_ms": 22.6,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 1.037
+       },
+       "open": {
+        "n": 628,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 7.0,
+        "max_ms": 22.6,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 3.165
+       },
+       "scroll": {
+        "n": 126,
+        "p50_ms": 5.1,
+        "p95_ms": 6.3,
+        "p99_ms": 9.5,
+        "max_ms": 14.0,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.644
+       },
+       "table": {
+        "n": 97,
+        "p50_ms": 5.0,
+        "p95_ms": 6.3,
+        "p99_ms": 22.5,
+        "max_ms": 22.5,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 0.511
+       },
+       "search": {
+        "n": 395,
+        "p50_ms": 5.0,
+        "p95_ms": 6.0,
+        "p99_ms": 7.3,
+        "max_ms": 8.6,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 1.976
+       },
+       "filter": {
+        "n": 1788,
+        "p50_ms": 5.0,
+        "p95_ms": 6.3,
+        "p99_ms": 7.8,
+        "max_ms": 11.6,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 8.959
+       },
+       "schema": {
+        "n": 206,
+        "p50_ms": 5.1,
+        "p95_ms": 6.0,
+        "p99_ms": 6.3,
+        "max_ms": 9.5,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 1.037
+       },
+       "text": {
+        "n": 202,
+        "p50_ms": 5.0,
+        "p95_ms": 5.9,
+        "p99_ms": 6.5,
+        "max_ms": 9.2,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 1.012
+       },
+       "export": {
+        "n": 239,
+        "p50_ms": 5.0,
+        "p95_ms": 6.1,
+        "p99_ms": 6.9,
+        "max_ms": 36.0,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 1.227
+       },
+       "close": {
+        "n": 601,
+        "p50_ms": 5.0,
+        "p95_ms": 5.9,
+        "p99_ms": 6.3,
+        "max_ms": 36.0,
+        "over100": 0,
+        "over250": 0,
+        "seconds": 3.035
+       }
+      },
+      "peak_rss": 288411648,
+      "cpu_user": 12.828,
+      "cpu_system": 3.641
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 2.9,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 2.9
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "scenario": "session",
+    "ok": true,
+    "data_size": 2147483913,
+    "main_called": 0.16427700000349432,
+    "main_returned": 0.30030930001521483,
+    "rss_before_open": 115470336,
+    "record_count": 6513235,
+    "table_columns": 13,
+    "search_hits": 66,
+    "filtered": 382422,
+    "schema_view": "SchemaView",
+    "export_records": 382422,
+    "rss_before_close": 255983616,
+    "peak_wset_session": 289484800,
+    "rss_after_close": 146468864,
+    "errors": [],
+    "phase_rss_peak": {
+     "start": 115556352,
+     "open": 132952064,
+     "scroll": 133578752,
+     "table": 177741824,
+     "search": 202608640,
+     "filter": 206688256,
+     "schema": 185806848,
+     "text": 184950784,
+     "export": 286699520,
+     "close": 169467904
+    },
+    "phase_gaps": {
+     "start": {
+      "n": 204,
+      "p50_ms": 5.0,
+      "p95_ms": 5.8,
+      "p99_ms": 6.1,
+      "max_ms": 22.8,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 1.034
+     },
+     "open": {
+      "n": 561,
+      "p50_ms": 5.0,
+      "p95_ms": 6.0,
+      "p99_ms": 9.2,
+      "max_ms": 22.8,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 2.836
+     },
+     "scroll": {
+      "n": 126,
+      "p50_ms": 5.0,
+      "p95_ms": 6.1,
+      "p99_ms": 10.3,
+      "max_ms": 17.7,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 0.647
+     },
+     "table": {
+      "n": 96,
+      "p50_ms": 5.0,
+      "p95_ms": 6.5,
+      "p99_ms": 25.1,
+      "max_ms": 25.1,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 0.515
+     },
+     "search": {
+      "n": 393,
+      "p50_ms": 5.0,
+      "p95_ms": 6.0,
+      "p99_ms": 8.0,
+      "max_ms": 10.4,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 1.98
+     },
+     "filter": {
+      "n": 1789,
+      "p50_ms": 5.0,
+      "p95_ms": 6.3,
+      "p99_ms": 7.7,
+      "max_ms": 11.7,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 8.964
+     },
+     "schema": {
+      "n": 202,
+      "p50_ms": 5.0,
+      "p95_ms": 6.1,
+      "p99_ms": 6.5,
+      "max_ms": 9.1,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 1.014
+     },
+     "text": {
+      "n": 206,
+      "p50_ms": 5.0,
+      "p95_ms": 5.9,
+      "p99_ms": 6.4,
+      "max_ms": 7.0,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 1.032
+     },
+     "export": {
+      "n": 252,
+      "p50_ms": 5.0,
+      "p95_ms": 6.0,
+      "p99_ms": 6.9,
+      "max_ms": 30.8,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 1.287
+     },
+     "close": {
+      "n": 605,
+      "p50_ms": 5.0,
+      "p95_ms": 5.9,
+      "p99_ms": 6.2,
+      "max_ms": 30.8,
+      "over100": 0,
+      "over250": 0,
+      "seconds": 3.048
+     }
+    },
+    "peak_rss": 289484800,
+    "cpu_user": 11.375,
+    "cpu_system": 5.172
+   },
+   "peak_rss": 289484800
+  }
+ },
+ "finished": "2026-10-19T19:45:32",
+ "duration_seconds": 303.5,
+ "rows": [
+  {
+   "id": "open_2g_first",
+   "section": "main",
+   "action": "Ochish: jarayon ishga tushganidan daraxtda birinchi yozuvlar chizilguncha (syn_2g.json, 2.1 GB)",
+   "target": "< 1 s",
+   "result": "641 ms (`main()` chaqirilganidan 463 ms; interpretator yaratilganidan 635 ms; ko'rinadigan qatorlar to'liq: 463 ms)",
+   "ok": true,
+   "status": "✅"
+  },
+  {
+   "id": "open_2g_index",
+   "section": "main",
+   "action": "To'liq indeks GUI ichida, UI javob berib turadi (syn_2g.json)",
+   "target": "≥ 150 MB/s; 5 ms taymer oralig'i max < 250 ms",
+   "result": "772 MB/s (2.1 GB, 2.78 s, 6 513 235 ta yozuv); taymer oraliqlari p95 6.0 ms, max 8.9 ms",
+   "ok": true,
+   "status": "✅"
+  },
+  {
+   "id": "open_2g_scroll",
+   "section": "extra",
+   "action": "Skrollbarni oxiriga sakratish: ko'rinadigan qatorlar to'liq chizilguncha (syn_2g.json, 6 513 235 ta yozuv)",
+   "target": "— (§12 da yo'q)",
+   "result": "5.8 ms (o'rtaga sakrash 7.0 ms)",
+   "ok": null,
+   "status": "—"
+  },
+  {
+   "id": "open_5g_first",
+   "section": "main",
+   "action": "Ochish: jarayon ishga tushganidan daraxtda birinchi yozuvlar chizilguncha (syn_5g.json, 5.4 GB)",
+   "target": "< 1 s",
+   "result": "627 ms (`main()` chaqirilganidan 456 ms; interpretator yaratilganidan 622 ms; ko'rinadigan qatorlar to'liq: 456 ms)",
+   "ok": true,
+   "status": "✅"
+  },
+  {
+   "id": "open_5g_index",
+   "section": "main",
+   "action": "To'liq indeks GUI ichida, UI javob berib turadi (syn_5g.json)",
+   "target": "≥ 150 MB/s; 5 ms taymer oralig'i max < 250 ms",
+   "result": "749 MB/s (5.4 GB, 7.17 s, 16 222 716 ta yozuv); taymer oraliqlari p95 5.9 ms, max 9.5 ms",
+   "ok": true,
+   "status": "✅"
+  },
+  {
+   "id": "open_5g_scroll",
+   "section": "extra",
+   "action": "Skrollbarni oxiriga sakratish: ko'rinadigan qatorlar to'liq chizilguncha (syn_5g.json, 16 222 716 ta yozuv)",
+   "target": "— (§12 da yo'q)",
+   "result": "5.6 ms (o'rtaga sakrash 7.0 ms)",
+   "ok": null,
+   "status": "—"
+  },
+  {
+   "id": "open_10m_first",
+   "section": "extra",
+   "action": "Ochish: jarayon ishga tushganidan daraxtda birinchi yozuvlar chizilguncha (syn_10m.jsonl, 3.3 GB)",
+   "target": "< 1 s",
+   "result": "621 ms (`main()` chaqirilganidan 457 ms; interpretator yaratilganidan 616 ms; ko'rinadigan qatorlar to'liq: 457 ms)",
+   "ok": true,
+   "status": "✅"
+  },
+  {
+   "id": "open_10m_index",
+   "section": "extra",
+   "action": "To'liq indeks GUI ichida, UI javob berib turadi (syn_10m.jsonl)",
+   "target": "≥ 150 MB/s; 5 ms taymer oralig'i max < 250 ms",
+   "result": "722 MB/s (3.3 GB, 4.56 s, 10 000 000 ta yozuv); taymer oraliqlari p95 5.9 ms, max 7.4 ms",
+   "ok": true,
+   "status": "✅"
+  },
+  {
+   "id": "open_10m_scroll",
+   "section": "extra",
+   "action": "Skrollbarni oxiriga sakratish: ko'rinadigan qatorlar to'liq chizilguncha (syn_10m.jsonl, 10 000 000 ta yozuv)",
+   "target": "— (§12 da yo'q)",
+   "result": "5.6 ms (o'rtaga sakrash 7.4 ms)",
+   "ok": null,
+   "status": "—"
+  },
+  {
+   "id": "node_1m",
+   "section": "main",
+   "action": "1 000 000 bolali tugunni ochish (node_1m.json): bolalari indekslangandan keyin chizilguncha",
+   "target": "< 200 ms (virtual)",
+   "result": "qayta ochish 3.0 ms; birinchi marta: bolalar indeksi 98 ms + chizish 6.0 ms = 104 ms; oxirgi bolaga sakrash 4.7 ms; 1 000 000 ta bola",
+   "ok": true,
+   "status": "✅"
+  },
+  {
+   "id": "node_1m_select",
+   "section": "extra",
+   "action": "1 000 000 elementli tugunni tanlash (node_1m.json): matn paneli uni formatlab ko'rsatguncha",
+   "target": "— (§12 da yo'q)",
+   "result": "780 ms; RSS 125.6 MB → 203.5 MB; taymer p95 19 ms, max 19 ms",
+   "ok": null,
+   "status": "—"
+  },
+  {
+   "id": "search_2g_0",
+   "section": "main",
+   "action": "To'liq qidiruv «Qoraqalpog'iston» (syn_2g.json), qidiruv panelidan: birinchi natija chizilguncha va tezlik",
+   "target": "≥ 100 MB/s, birinchi natija < 1 s",
+   "result": "1 086 MB/s (1.98 s; 66 ta moslik); birinchi natija chizildi: 46 ms; taymer p95 5.9 ms, max 7.5 ms",
+   "ok": true,
+   "status": "✅"
+  },
+  {
+   "id": "search_2g_1",
+   "section": "extra",
+   "action": "To'liq qidiruv «Toshkent» (syn_2g.json), qidiruv panelidan: birinchi natija chizilguncha va tezlik",
+   "target": "≥ 100 MB/s, birinchi natija < 1 s",
+   "result": "818 MB/s (2.63 s; 382 422 ta moslik); birinchi natija chizildi: 20 ms; taymer p95 6.0 ms, max 15 ms",
+   "ok": true,
+   "status": "✅"
+  },
+  {
+   "id": "filter_10m",
+   "section": "extra",
+   "action": "Filtr `contact.address.city == \"Toshkent\"` filtr panelidan (syn_10m.jsonl, 10 000 000 ta yozuv): qisman natijalar",
+   "target": "— (§12 da yo'q)",
+   "result": "birinchi qisman qatorlar chizildi: 143 ms; hammasi 14.0 s (236 MB/s; 587 025 ta mos yozuv); taymer p95 6.3 ms, max 12 ms",
+   "ok": null,
+   "status": "—"
+  },
+  {
+   "id": "sort_10m",
+   "section": "main",
+   "action": "10 000 000 ta yozuvni `name` bo'yicha tartiblash, sessiya orqali (syn_10m.jsonl)",
+   "target": "< 2 daqiqa, RAM < 1 GB",
+   "result": "17.2 s, peak RSS 470.4 MB (tartiblash bosqichida 453.4 MB); taymer p95 6.8 ms, max 23 ms; tartiblangan qatorlar chizildi 3.3 ms keyin",
+   "ok": true,
+   "status": "✅"
+  },
+  {
+   "id": "export_sorted_10m",
+   "section": "main",
+   "action": "Tartiblangan ko'rinishni JSONL ga eksport, eksport oynasi orqali (syn_10m.jsonl)",
+   "target": "≥ 50 MB/s, RAM < 300 MB",
+   "result": "79.7 MB/s (41.3 s; 10 000 000 ta yozuv, chiqish 3.3 GB); eksport bosqichida RSS 429.3 MB (bosqich boshida 159.1 MB); taymer max 7.5 ms",
+   "ok": false,
+   "status": "❌"
+  },
+  {
+   "id": "memory",
+   "section": "main",
+   "action": "Butun GUI sessiyasining xotirasi, tartiblashsiz (syn_2g.json: ochish, indeks, skroll, jadval, qidiruv, filtr, tuzilma, matn, eksport)",
+   "target": "< 500 MB",
+   "result": "peak RSS 289.5 MB (tartiblashsiz barcha o'lchovlarning eng kattasi: 289.5 MB — session_2g)",
+   "ok": true,
+   "status": "✅"
+  },
+  {
+   "id": "rss_after_close",
+   "section": "extra",
+   "action": "Tab yopilgandan keyin RSS (syn_2g.json)",
+   "target": "— (§12 da yo'q)",
+   "result": "146.5 MB (fayl ochilishidan oldin 115.5 MB; sessiya davomida eng ko'pi 289.5 MB)",
+   "ok": null,
+   "status": "—"
+  }
+ ],
+ "all_ok": true,
+ "files": {
+  "json": "E:\\Projects\\json flatting\\bench\\results\\gui_20261019-194028.json",
+  "md": "E:\\Projects\\json flatting\\bench\\results\\gui_20261019-194028.md",
+  "latest": "E:\\Projects\\json flatting\\bench\\results\\gui_latest.md"
+ }
+}

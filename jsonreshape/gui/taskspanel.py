@@ -39,6 +39,7 @@ from PySide6.QtWidgets import (
 )
 
 from jsonreshape.errors import JsonReshapeError
+from jsonreshape.gui import theme
 from jsonreshape.gui.qtasks import state_text
 from jsonreshape.i18n import t
 from jsonreshape.tasks import ProgressInfo, format_bytes, format_duration
@@ -374,21 +375,11 @@ class TasksPanel(QWidget):
 
     @staticmethod
     def _danger_color() -> QColor:
-        try:
-            from jsonreshape.gui import theme
-
-            return QColor(theme.color("danger"))
-        except Exception:
-            return QColor("#b23434")
+        return QColor(theme.color("danger"))
 
     @staticmethod
     def _muted_color() -> QColor:
-        try:
-            from jsonreshape.gui import theme
-
-            return QColor(theme.color("muted"))
-        except Exception:
-            return QColor("#5b6677")
+        return QColor(theme.color("muted"))
 
     # ------------------------------------------------------------------ manager signals
     def _on_added(self, task: Any) -> None:

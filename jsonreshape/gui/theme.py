@@ -7,7 +7,10 @@ blue accent and one color per JSON type, in a light and a dark scheme.
 * :func:`color` resolves a role for the *effective* scheme (cached);
 * :func:`apply_theme` installs the Fusion style plus a full :class:`QPalette` and follows
   the system scheme in ``"system"`` mode; every change emits ``notifier().theme_changed``;
-* :func:`mono_font` / :func:`ui_font` build fonts (need a ``QGuiApplication``).
+* :func:`mono_font` / :func:`ui_font` build fonts (need a ``QGuiApplication``);
+* :func:`role_style` fills ``$role`` references of a style sheet with the role colours; :func:`bind_style` sets
+  such a style sheet on a widget and sets it again after every theme change (stage 6: no colour is hard-coded
+  outside this module -- ``tests/test_theme_colours.py`` enforces it).
 
 Roles (keys of :func:`colors`):
 
@@ -25,6 +28,7 @@ Roles (keys of :func:`colors`):
 ``badge_text``     glyph on a *filled* badge (type badges are tinted, see below)
 ``diff_added``     diff row tints: added        ``diff_removed``  removed
 ``diff_changed``   changed                      ``diff_moved``  moved (array key matching)
+``danger_soft``    background of a field in error (``fg`` text; quick find "not found")
 =================  ==============================================================
 
 ``boolean`` is accepted as an alias of ``bool`` everywhere.
@@ -33,8 +37,9 @@ Roles (keys of :func:`colors`):
 from __future__ import annotations
 
 import logging
+import re
 
-from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtCore import QObject, Qt, Signal, Slot
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QGuiApplication, QPalette
 
 log = logging.getLogger(__name__)
@@ -58,6 +63,7 @@ _TABLE: dict[str, dict[str, str]] = {
         "badge_text": "#ffffff",
         # row tints of the structural diff (text in any type color stays readable on them)
         "diff_added": "#dcf3e2", "diff_removed": "#fbe2e2", "diff_changed": "#fcefcf", "diff_moved": "#d8eff8",
+        "danger_soft": "#f7d4d4",
     },
     "dark": {
         "bg": "#0e1117", "panel": "#151a22", "panel_alt": "#1a2029", "line": "#29303c",
@@ -71,6 +77,7 @@ _TABLE: dict[str, dict[str, str]] = {
         "badge_text": "#0e1117",
         # row tints of the structural diff (text in any type color stays readable on them)
         "diff_added": "#17382a", "diff_removed": "#43222a", "diff_changed": "#3b3016", "diff_moved": "#14344a",
+        "danger_soft": "#4d2229",
     },
 }
 _ALIASES = {"error": "danger", "link": "accent", "boolean": "bool"}
@@ -216,6 +223,63 @@ def badge_background(kind: str | None) -> QColor:
 
 def badge_glyph(kind: str | None) -> str:
     return BADGES.get(kind or "", "?")
+
+
+# ---------------------------------------------------------------------------------
+# style sheets with role colours
+# ---------------------------------------------------------------------------------
+_ROLE_REF = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")
+_BINDING_NAME = "jsonreshape-theme-style"
+
+
+def role_style(template: str) -> str:
+    """``template`` with every ``$role`` replaced by that role's colour (``#rrggbb``) in the effective scheme:
+    ``role_style("color: $danger;")``. ``ValueError`` for an unknown role."""
+
+    def sub(match: re.Match[str]) -> str:
+        role = match.group(1)
+        if role not in ROLES:
+            raise ValueError(f"unknown colour role: {role!r}")
+        return color(role).name()
+
+    return _ROLE_REF.sub(sub, template)
+
+
+class _StyleBinding(QObject):
+    """Child of a widget: sets its style sheet from a ``$role`` template, again after every theme change (the
+    connection ends with the widget)."""
+
+    def __init__(self, widget: QObject, template: str) -> None:
+        super().__init__(widget)
+        self.setObjectName(_BINDING_NAME)
+        self.template = template
+        notifier().theme_changed.connect(self.apply)
+
+    @Slot()
+    def apply(self) -> None:
+        widget = self.parent()
+        if widget is not None:
+            widget.setStyleSheet(role_style(self.template))
+
+
+def bind_style(widget: QObject, template: str) -> None:
+    """``widget.setStyleSheet(role_style(template))`` now and after every theme change, until the widget is
+    destroyed or the next call for it; ``template == ""`` clears the style sheet and ends the binding."""
+    binding = widget.findChild(QObject, _BINDING_NAME, Qt.FindChildOption.FindDirectChildrenOnly)
+    if not isinstance(binding, _StyleBinding):
+        binding = None
+    if not template:
+        if binding is not None:
+            notifier().theme_changed.disconnect(binding.apply)
+            binding.setParent(None)
+            binding.deleteLater()
+        widget.setStyleSheet("")
+        return
+    if binding is None:
+        binding = _StyleBinding(widget, template)
+    else:
+        binding.template = template
+    binding.apply()
 
 
 # ---------------------------------------------------------------------------------

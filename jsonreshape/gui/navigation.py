@@ -55,7 +55,7 @@ from PySide6.QtWidgets import (
 from shiboken6 import isValid
 
 from jsonreshape.errors import JsonReshapeError, PathSyntaxError, QuerySyntaxError
-from jsonreshape.gui import copyfmt
+from jsonreshape.gui import copyfmt, theme
 from jsonreshape.gui.vgrid import Cell, Column, VirtualGrid
 from jsonreshape.gui.widgets import format_count, mono_font
 from jsonreshape.i18n import t
@@ -127,13 +127,7 @@ RESOLVE_RETRIES = 3
 
 
 def _set_error_style(label: QLabel) -> None:
-    try:
-        from jsonreshape.gui import theme
-
-        color = theme.color("danger").name()
-    except Exception:
-        color = "#b23434"
-    label.setStyleSheet(f"color: {color};")
+    theme.bind_style(label, "color: $danger;")
 
 
 # ==================================================================================

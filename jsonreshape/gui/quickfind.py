@@ -16,6 +16,7 @@ from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QCheckBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QToolButton, QWidget
 
 from jsonreshape.errors import JsonReshapeError
+from jsonreshape.gui import theme
 from jsonreshape.i18n import t
 from jsonreshape.textmatch import TextQuery
 
@@ -164,8 +165,8 @@ class QuickFindBar(QFrame):
         (``notfound`` also tints the text field)."""
         self._status.setText(text)
         self._edit.setProperty("notfound", state == "notfound")
-        self._edit.setStyleSheet("QLineEdit { background: #f5c6c6; color: #17202c; }"
-                                 if state == "notfound" else "")
+        theme.bind_style(self._edit, "QLineEdit { background: $danger_soft; color: $fg; }"
+                         if state == "notfound" else "")
 
     def status_text(self) -> str:
         return self._status.text()

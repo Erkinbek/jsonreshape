@@ -96,6 +96,7 @@ from PySide6.QtWidgets import (
 
 from jsonreshape.bulk import KINDS, BulkPreview, BulkSpec, kind_title
 from jsonreshape.errors import Cancelled, JsonReshapeError, UserInputError
+from jsonreshape.gui import theme
 from jsonreshape.i18n import t
 from jsonreshape.recordset import RecordSet
 from jsonreshape.tasks import format_bytes, format_duration
@@ -140,15 +141,6 @@ def _apply_done(ref: Any, preview: Any, cs: Any) -> None:
     dlg = ref()
     if dlg is not None and _alive(dlg) and not dlg._closing:
         dlg._apply_finished(preview, cs)
-
-
-def _color(role: str, fallback: str) -> str:
-    try:
-        from jsonreshape.gui import theme
-
-        return theme.color(role).name()
-    except Exception:  # pragma: no cover
-        return fallback
 
 
 def _count(n: int) -> str:
@@ -398,7 +390,7 @@ class BulkDialog(QDialog):
         params_layout.addWidget(self.pages)
         help_label = QLabel(t("gui.bulk.param.path.help"), params)
         help_label.setWordWrap(True)
-        help_label.setStyleSheet(f"color: {_color('muted', '#5b6677')};")
+        theme.bind_style(help_label, "color: $muted;")
         params_layout.addWidget(help_label)
         self.summary_label = QLabel(params)
         self.summary_label.setObjectName("bulk_summary")
@@ -409,7 +401,7 @@ class BulkDialog(QDialog):
         self.error_label.setObjectName("bulk_error")
         self.error_label.setWordWrap(True)
         self.error_label.setTextFormat(Qt.TextFormat.PlainText)
-        self.error_label.setStyleSheet(f"color: {_color('danger', '#b23434')};")
+        theme.bind_style(self.error_label, "color: $danger;")
         self.error_label.setVisible(False)
         params_layout.addWidget(self.error_label)
         layout.addWidget(params)
@@ -432,14 +424,14 @@ class BulkDialog(QDialog):
         self.huge_label.setObjectName("bulk_huge_note")
         self.huge_label.setWordWrap(True)
         self.huge_label.setTextFormat(Qt.TextFormat.PlainText)
-        self.huge_label.setStyleSheet(f"color: {_color('warn', '#9a5a08')};")
+        theme.bind_style(self.huge_label, "color: $warn;")
         self.huge_label.setVisible(False)
         layout.addWidget(self.huge_label)
         self.unavailable_label = QLabel(self)
         self.unavailable_label.setObjectName("bulk_unavailable")
         self.unavailable_label.setWordWrap(True)
         self.unavailable_label.setTextFormat(Qt.TextFormat.PlainText)
-        self.unavailable_label.setStyleSheet(f"color: {_color('warn', '#9a5a08')};")
+        theme.bind_style(self.unavailable_label, "color: $warn;")
         self.unavailable_label.setVisible(False)
         layout.addWidget(self.unavailable_label)
 
@@ -489,7 +481,7 @@ class BulkDialog(QDialog):
         self.warnings_label.setObjectName("bulk_warnings")
         self.warnings_label.setWordWrap(True)
         self.warnings_label.setTextFormat(Qt.TextFormat.PlainText)
-        self.warnings_label.setStyleSheet(f"color: {_color('warn', '#9a5a08')};")
+        theme.bind_style(self.warnings_label, "color: $warn;")
         result_layout.addWidget(self.warnings_label)
         layout.addWidget(result, 1)
 
@@ -695,8 +687,7 @@ class BulkDialog(QDialog):
         for kind, fields in self.fields.items():
             for name, widget in fields.items():
                 bad = kind == spec.kind and name == param
-                widget.setStyleSheet(f"border: 1px solid {_color('danger', '#b23434')};"
-                                     if bad and isinstance(widget, QLineEdit) else "")
+                theme.bind_style(widget, "border: 1px solid $danger;" if bad and isinstance(widget, QLineEdit) else "")
         if error is None:
             self.error_label.setVisible(False)
             self.summary_label.setText(spec.label())
@@ -942,7 +933,7 @@ class BulkDialog(QDialog):
 
     def _set_status(self, text: str, kind: str = "info") -> None:
         role = {"error": "danger", "warning": "warn", "ok": "ok"}.get(kind)
-        self.status_label.setStyleSheet(f"color: {_color(role, '#5b6677')};" if role else "")
+        theme.bind_style(self.status_label, f"color: ${role};" if role else "")
         self.status_label.setText(text or "")
 
     # ---------------------------------------------------------------------------------- preview

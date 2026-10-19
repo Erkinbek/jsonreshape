@@ -1536,7 +1536,7 @@ def test_a_new_tree_drops_menus_drags_and_renames_of_the_old_one(qtbot, opened, 
     v.tree.setFocus()
     QTest.keyClick(v.tree, K.Key_F2)
     qtbot.waitUntil(v.renaming, timeout=TIMEOUT)
-    QApplication.focusWidget().setText("shahar")
+    v.tree.delegate.editing[0].setText("shahar")         # the rename editor itself (focus is racy under load)
     old = st.designer
     st.full_scan()
     qtbot.waitUntil(lambda: st.designer is not old, timeout=TIMEOUT)
@@ -1554,14 +1554,14 @@ def test_a_pending_rename_is_committed_before_toolbar_commands(qtbot, opened, vi
     v.tree.setFocus()
     QTest.keyClick(v.tree, K.Key_F2)
     qtbot.waitUntil(v.renaming, timeout=TIMEOUT)
-    QTest.keyClicks(QApplication.focusWidget(), "ism")
+    QTest.keyClicks(v.tree.delegate.editing[0], "ism")
     QTest.mouseClick(v.buttons["mapview_expand"], LEFT)               # a tool button does not take the focus
     assert not v.renaming() and st.tree.find("[].ism") is not None and st.designer.changes == 2
     row_of(v, "[].ism")
     v.tree.setFocus()
     QTest.keyClick(v.tree, K.Key_F2)
     qtbot.waitUntil(v.renaming, timeout=TIMEOUT)
-    QTest.keyClicks(QApplication.focusWidget(), "boshqa")
+    QTest.keyClicks(v.tree.delegate.editing[0], "boshqa")
     QTest.mouseClick(v.buttons["mapview_undo"], LEFT)                 # the rename, then its own undo
     qtbot.wait(20)
     assert st.tree.find("[].ism") is not None and st.tree.find("[].boshqa") is None

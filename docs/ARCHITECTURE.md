@@ -2103,7 +2103,7 @@ fixed, each fix with a regression test that failed before it). Changes to the co
   millions of entries no longer adds the layer file to the working set (export of the 2 GB "every record edited"
   state: RSS 267 MB -> ~120 MB). `write_array_layer` writes the natural runs of a spilled batch straight from the
   batch arrays (no copy of a run: a 4 M-entry batch no longer doubles while it is spilled).
-* Still below target: CSV export 28–41 MB/s (per-record row building in writer.py, also without edits); options: rows in worker processes or in Rust. Restore of a 6.5 M-record bulk layer 1.7 s (crc check ~0.8 s/GB).
+* After P6 (§14.10 writer): CSV export 86–226 MB/s in every edit scenario (rows in worker processes); restore: checksummed ranges ≥ 64 MiB verified by 4 threads (6.5 M-record bulk layer 1.04 → 0.41 s); numbers in `bench/results/export_latest.md` / `edit_latest.md`.
 
 ---------------------------------------------------------------------------------
 
@@ -2233,6 +2233,10 @@ class ApplyReport: records_in: int; items_out: int; bytes_written: int; files: l
   blocks of record bytes, return the output bytes; the parent writes in order; `cancel` stops the pool); the number of
   workers = `min(os.cpu_count() - 1, 8)` and 1 when the file is small (< 64 MiB); memory stays within
   `memory_limit_bytes` (bounded in-flight blocks). Measured numbers go into the README.
+  As built (stage 6): `engine.auto_workers` also caps the count at half the memory budget / `WORKER_MEMORY` (80 MiB:
+  a worker measures ~62–66 MB, plus its share of the parent's blocks in flight) — 3 with the default 512 MiB, which
+  keeps the whole program under the §12 300 MB (2 GB benchmark: `apply` 264 MB / 97.5 MB/s, `flatten` 299 MB /
+  129 MB/s; with 4 workers it was 321–355 MB for at most 20 % more speed).
 
 ### 13.3 Streaming decomposition (engine_map §14, verified on 4 000 cases)
 
@@ -2522,6 +2526,70 @@ naturally; `_document(ctx, *, build=True, path=None)` for multi-input commands; 
   underlined URLs (Ctrl+click → confirm → open), colour swatches, image thumbnails in the full-value window.
 * **Schema view**: show nulls / missing (column or tooltip) and the integer share.
 
+### 14.10 As built (stage 5 after two reviews and the follow-ups; module docstrings are authoritative)
+
+* **stats.py**: the budget is checked inside a chunk (`FEED_SLICE` 16 384 values; mid-record spill with markers so a
+  record counts once per value), zero-copy quads, `array('Q')` buckets, records with more commas than
+  `memory_limit_bytes / 256` streamed for multi-valued fields, lazy `_resolve` (each record's tokens read once per
+  field; cancel checked); one token cache shared by all fields (≤ 65 536 entries and budget / 8); Misra–Gries counters
+  per field `k = (budget/2) / (sketched fields × 500 B)` within `[max(1000, 2·top), 10 000]` (`MG_MIN`), bound
+  `D ≤ values/(k+1)` reported as `top_bound`; HyperLogLog with Ertl's improved estimator (bias ≤ 0.24 %); spilled
+  fields keep a small HLL + MG for monotone live snapshots (`distinct_rse`, `top_bound`); `NumberStats.sum_skipped` +
+  `stats.warn.sum_skipped` (numbers beyond any exact sum are counted, never make the rest approximate); the sum is
+  written with the finest scale of every spelling it saw, in every mode and on both cores.
+* **jschema.py**: `validate(..., on_issues=)` streams issue batches (≤ `ISSUE_BATCH` 256, flushed every
+  `ISSUE_FLUSH_SECONDS` 0.25 s at the check points, never after an exception); exact numbers beyond Decimal
+  (`_BeyondDecimal`); count keywords clamped to `sys.maxsize`; whole-document fallback `_WholeCtx` (per-record caps,
+  every invalid record counted, ≤ 500 000 errors kept, `jschema.warn.whole_dropped`); repeated source positions
+  validated once; stricter ECMA-262 regex (Python-only `(?…)` groups and possessive quantifiers refused, `{,n}`
+  literal); `ValidationReport.complete` (`skipped == 0`; `ok` unchanged).
+* **stream.py / reader.py / schema.py / mapping.py (ijson safety)**: ijson 3.6 yajl2_c leaves a pending ValueError for
+  an integer over 4300 digits and emits `("number", NULL)` → reading it is an access violation. Heads flagged by
+  `stream.needs_exact()` (a digit run > 640 or a surrogate escape not in a plain pair) are parsed by the exact
+  pure-Python `stream.exact_events` (no ijson, no recursion; 5–10 MB/s, heads ≤ 4 MiB); huge records use a careful
+  mode (long ints exact, lone low surrogates → `?`); `mapping._parse_iterative` uses `exact_events`; an AST test
+  forbids direct ijson parsing outside the protected modules. `schema._num_key` / `is_integral` exact beyond Decimal.
+* **codec.py**: `dumps` returns a compact copy (an orjson result holds its ≥ 4 KiB output buffer: kept results
+  ballooned memory); `dumps_transient` keeps the old no-copy behaviour for results written / concatenated / decoded at
+  once (writer, engine, sortkeys, query, bulk runner); `diff._token` and `stats._dump` keep compact copies.
+* **engine.py**: `_RecursionRoom(depth)` raises the recursion limit for an evaluation and restores it (re-entrant,
+  counter under a lock); `_spawn_safe()` (and `bulk._spawn_safe()`) is True in a frozen executable.
+* **repair.py**: extra fix code `line_split`; `dropped_tail` (category `dropped`) for every partial cut;
+  `RepairReport.data_path`, `check_report_path` (a report is never written over the source, its prepared copy or the
+  repaired output); `fixes_file` None when all fixes fit; `check_only` never raises; wrapped documents: every child of
+  a container on the record path is a cut point; top-level streams split like the strict stream scanner.
+* **filetools.py**: `part_names(doc, opts, source=None, *, count) -> list[Path]` (exactly the files split writes),
+  `SplitOptions.remove_stale` (default False; plausible earlier parts of the same pattern removed in the same commit,
+  never the source / read-only / edited files), `SplitReport.removed`, stale-parts warning naming the files; split /
+  merge / extract (and every writer output, `writer.edited_targets` / `refuse_edited_targets`) never replace a file
+  with unsaved edits in a tab or a pending layer (`filetools.error.part_open_edited`).
+* **diff.py**: `DiffReport.sources`, `write_diff(..., sources=)` refuses the inputs up front; public `align`,
+  `OP_EQ / OP_PAIRS / OP_DEL / OP_INS`; SequenceMatcher limited to 4 M element pairs (above: patience, then Myers capped
+  at 1 000 edits, then position pairing); sampling above `PATIENCE_MAX` (1 M per side).
+* **fileio.py / index.py**: `commit_files(remove=)`, `fileio.error.restore_failed` names every failed restore,
+  `.jrold` asides older than 600 s swept; `sniff` needs the UTF-16 NUL pattern in two code units; a UTF-16 file cut
+  inside a character drops the 1–3 byte tail (`fileio.warning.utf16_truncated`); `same_file`,
+  `scan_prepared_entries`; index eviction keeps a per-process tally and rescans at most every `SCAN_INTERVAL` 600 s.
+* **editstore.py**: `layer_sources()` (one cheap index read); checksummed ranges ≥ 64 MiB are verified by up to 4
+  threads at restore (same check, still before restore returns).
+* **writer.py** (P6): `export(..., workers=None)`, `discover_columns(..., workers=None)`, `ExportReport.workers`: CSV
+  rows and the CSV/XLSX column scan run in worker processes (the `bulk.auto_workers` / `_spawn_safe` rule; 1 MiB jobs,
+  ≤ 2 × workers in flight, ordered, byte-identical to one thread); huge, undecodable and > 4 096-bracket records are
+  done in the calling thread; BrokenProcessPool → the calling thread; the scan merge is exact unless map-like paths,
+  more than `SCAN_MAX_PATHS` paths or inferred rows mode (then the one-thread scan); XLSX value preparation in ≤ 2
+  workers with xlsxwriter in the parent; gzip outputs feed zlib 1 MiB pieces (pooled `.csv.gz` byte-identical).
+* **CLI**: every output refuses an input (any spelling / hard link) and a file with unsaved edits before any work;
+  `split --remove-stale`; `diff -o` checked up front; `validate` exit 5 when records could not be checked (`--json`
+  `ok` = the exit verdict).
+* **GUI round A/B + leftovers**: the tools are wired into Tools ▸ (compare / stats, dupes, JSON Schema ▸, repair /
+  split, merge), the stats dock, the node menu (Statistika, split node, compare mark / with marked; two selected nodes
+  in tree/table), the tab bars ("Ta'mirlash…"), the export dialog (scopes view / all / selected / node / records,
+  `writer.export_node`, node CSV/XLSX/SQLite, keep wrapper for every format); smart values in tree / table / full-value
+  window (`vgrid` `Cell.link` / `link_span` / `swatch`, `link_activated`, `widgets.open_url` asks first); schema view
+  null / yo'q column, integer share, stats / dupes signals; `fields.store`; `DocSession.filter_by_condition`; every
+  tool output checked with `editing.target_conflict` (verdicts unsaved / locked / pending / open) through
+  `searchpanel.open_target_check` / `reload_tabs` / `target_conflict_text`.
+
 ---------------------------------------------------------------------------------
 
 ## 15. Polish (stage 6): command palette, key settings, session, workspace, themes, "Open with", `.exe`
@@ -2603,3 +2671,44 @@ palette [M], shortcuts in settings [K], "Open with" [K], themes [M], workspace [
   `tests/test_packaging.py`, the static colour test + dark-mode audit fixes in the stage-3–5 GUI modules.
 * S6-D (last, alone on the machine): test 26 completion and the full benchmark + README §14.
   Shared files (`mainwindow.py`, `settingsdialog.py`, `i18n.py`) take small anchored edits only.
+
+### 15.2 As built (stage 6; module docstrings are authoritative)
+
+* **`gui/palette.py`** (`show_palette(window)` → one `CommandPalette` per window; Ctrl+Shift+P; View menu, first item):
+  entries = every menu-bar QAction (the menus' `aboutToShow` are fired first so dynamic menus are current — they must
+  stay cheap), the current node's context-menu commands ("Tugun ▸ …", without the Edit-menu duplicates), "Tab: …",
+  "Ochish: …"; ranking exact prefix > word start > word initials > inside a word > subsequence, then the menu path;
+  ties: enabled, earliest match, recently used, shorter, menu order; `gui_state["palette_recent"]` (20); disabled
+  entries greyed with their reason; the document area is found through `window.central`. Measured with 330 entries:
+  first open 29 ms (one-time imports), then ~6 ms; filtering ~0.7 ms per keystroke.
+* **`gui/keymap.py`** (`KeyMap` attached as `window.keymap`; Settings ▸ "Klaviatura" `KeymapPage`): stable ids = the
+  `_act` keys; overrides in `gui_state["shortcuts"]` (cleaned on load: invalid / fixed / taken keys dropped and
+  logged); one key combination per sequence (no chords); the grids' keys (`FIXED_KEYS`: arrows, `*`, `+`/`-`, Space,
+  Enter, Shift+Enter, F2, Ins, Shift+Ins, Del, Ctrl+D, Alt+↑/↓, Ctrl+V, Ctrl+C, Ctrl+Shift+C, Ctrl+A, Ctrl+Space, Esc,
+  Tab, PgUp/PgDn/Home/End with modifiers, Alt+menu letters) are refused and listed read-only; the page edits a working
+  copy applied on "Saqlash".
+* **`gui/sessionstore.py`** (Qt-free) + **`gui/workspace.py`** (`window.workspaces` = `WorkspaceController`):
+  `gui_state["session"]` written at close and every `AUTOSAVE_MS` (60 s) after `at_start`; `at_start(tabs)` →
+  "command_line" | "restore" | "ask" (a non-modal bar) | "never" | "nothing"; `TreeView.expanded_locations()` /
+  `restore_expanded()` (loaded rows only; one silent task); search result views are not restored (their inputs are);
+  `.jrworkspace` v1 written one member per line (a deep embedded mapping stays small); `MappingState.install_tree`
+  installs an embedded mapping; recent workspaces ≤ 10.
+* **`gui/osintegration.py`** ("Open with", Settings ▸ Umumiy): `WinregBackend` confined to `Software\Classes` of HKCU,
+  `MemoryRegistry` fake (also the default under pytest); the ProgID `jsonreshape.document` gets its own command and
+  type name; a `JsonReshapeCreatedKeys` (REG_MULTI_SZ) record makes the removal exact (only own values, then own empty
+  keys, then the recorded shared keys if empty); adding and removing ask first; `SHChangeNotify(SHCNE_ASSOCCHANGED)`.
+* **Packaging** (`packaging/jsonreshape.spec`, `scripts/build_exe.ps1`, `tests/test_packaging.py` marker `packaging`):
+  PyInstaller 6.22.3 onedir `dist\jsonreshape\` (78 MB, 160 files: Qt 44 MB) with `jsonreshape-gui.exe` (windowed) and
+  `jsonreshape.exe` (console) sharing `_internal\`; both entry scripts call `multiprocessing.freeze_support()` first
+  (automatic worker pools work frozen); excluded: QtWebEngine / Qml / Quick / 3D / multimedia, TUIO and virtual-keyboard
+  plugins, the PDF plugin, `opengl32sw.dll`, Qt translations, tkinter, `ssl`, tests. Start (final build): CLI `--version`
+  ~0.10 s, GUI window ~0.28 s, a file opened and indexed ~0.31 s.
+* **Themes**: `theme.role_style(template)` / `bind_style(widget, template)` (style sheets re-applied on theme
+  change), role `danger_soft`; a static test forbids hard-coded colours outside `theme.py` (allow-listed: the app icon,
+  transparency checkerboards, `Qt.GlobalColor.transparent`); a contrast test and a dark-mode smoke over every stage 3–5
+  window.
+* **`fileio.read_limited(f, limit)`** (found by the final benchmark): every bounded read of a small file — mapping
+  (128 MiB limit), JSON Schema and workspace (64 MiB), GUI state and the edit-layer index (16 MiB), search history and
+  filter presets (8 MiB), settings (1 MiB) — asks for the file's size + 1 instead of `read(limit + 1)`, which
+  allocated (and on Windows put in the working set) the whole limit at once: `jsonreshape apply` peaked at 186 MB in
+  the parent alone, 94 MB after. A file that grew after the size check is read on in 1 MiB pieces up to the limit.

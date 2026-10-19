@@ -3691,6 +3691,135 @@ class TreeView(widgets.ViewBase):
                 self.flat.collapse(e)
                 self._kinds.pop(e, None)
 
+    # -- session restore / workspaces (stage 6, docs/ARCHITECTURE.md §15.0; gui/sessionstore.py) ------------
+    def expanded_locations(self, limit: int = 2000) -> list[str]:
+        """Location texts (:meth:`DocSession.location_text`) of the expanded nodes, parents first, at most
+        ``limit``: what the session restore and workspaces keep. Only the loaded row data is used (no I/O): a
+        node whose data is no longer loaded is left out -- except top-level records and the elements of
+        expanded arrays, which are named without it. A single document's root (open on its own) and the
+        wrapper's record container are not listed."""
+        out: list[str] = []
+        if not self._ready() or limit <= 0:
+            return out
+        named: dict[tuple, str] = {}
+        session = self.session
+        for kp in self.flat.expanded_keypaths():
+            if len(out) >= limit:
+                break
+            top = kp[0]
+            if kp == (ROOT,):
+                named[kp] = "$"
+                continue
+            info = self._peek_info(kp)
+            text: str | None = None
+            if info is not None:
+                if info.records:
+                    continue
+                text = session.location_text(self._ref_for(kp, info))
+            elif len(kp) == 1:
+                text = "$" if top == WRAPPER else f"#{top}" if isinstance(top, int) and not isinstance(top, bool) \
+                    else None
+            elif self._kinds.get(kp[:-1]) == "array" and kp[:-1] in named:
+                parent = named[kp[:-1]]
+                text = ("" if parent == "$" else parent) + f"[{kp[-1]}]"
+            if text:
+                named[kp] = text
+                out.append(text)
+        return out
+
+    def restore_expanded(self, locations: Any, *, on_done: Callable[[int], Any] | None = None,
+                         limit: int = 2000) -> bool:
+        """Expand the nodes at ``locations`` (texts of :meth:`expanded_locations`): resolved, counted
+        (children indexed where needed) and ordered like :meth:`expand_node` would, in ONE silent task, then
+        expanded at once in the GUI thread -- no "expand N rows?" question (they were open). Nodes that no
+        longer exist or are no containers are skipped (best effort; at most ``limit``). ``on_done(count)``
+        once applied. False -- nothing started -- while the view has no ready document."""
+        if not self._ready():
+            return False
+        texts = [x for x in locations if isinstance(x, str) and x][:max(0, int(limit))]
+        src = self._src
+        assert src is not None
+        doc = self._doc
+        session = self.session
+        kind = self._kind
+        sort_keys = self._sort_keys
+        orders = dict(self._orders)
+        elems = dict(self._elem_sorts)
+        gen = self._data_gen
+
+        def keypath(ref: NodeRef) -> tuple | None:
+            path, ipath = tuple(ref.path), ref.ipath
+            if ipath is None or len(ipath) != len(path):
+                return None
+            if ref.record is None or kind == "single":
+                top: Any = ROOT if kind == "single" else WRAPPER if kind == "wrapped" else None
+                if top is None:
+                    return None
+            else:
+                top = int(ref.record)
+            return (top,) + tuple(int(i) for i in ipath)
+
+        def order_for(kp: tuple, node: Any, count: int, cancel: Any) -> Any:
+            cached = orders.get(kp)
+            if cached is not None and len(cached[1]) == count:
+                return cached
+            if kp in elems:
+                field_, desc = elems[kp]
+                order = src.element_order(node, count, SortKey(field_, descending=desc), cancel)
+                return "elements", DisplayOrder(order, count)
+            if sort_keys and node.kind == "object" and count > 1:
+                return "keys", DisplayOrder(src.key_order(node, count, cancel), count)
+            return None
+
+        def work(ctx: Any) -> list[tuple]:
+            from jsonreshape.errors import Cancelled
+            from jsonreshape.paths import parse_location
+
+            items: list[tuple] = []
+            seen: set[tuple] = set()
+            for text in texts:
+                check(ctx.cancel)
+                try:
+                    kp = keypath(session.ref_for_location(parse_location(text), ctx.cancel))
+                    if kp is None or kp in seen:
+                        continue
+                    seen.add(kp)
+                    node = src.node(kp, ctx.cancel)
+                    if node.kind not in ("object", "array") or src.is_records(node):
+                        continue
+                    count = int(node.child_count(cancel=ctx.cancel))
+                    if count > 0:
+                        items.append((kp, count, order_for(kp, node, count, ctx.cancel), node.kind))
+                except Cancelled:
+                    raise
+                except Exception:  # noqa: BLE001 - gone / changed: skipped
+                    log.debug("restore: %r is not expanded", text, exc_info=True)
+            return items
+
+        def done(items: list[tuple]) -> None:
+            if self._dead or self._doc is not doc or gen != self._data_gen:
+                return
+            count = 0
+            with self._structure():
+                for kp, n, order, node_kind in items:
+                    if self.flat.is_expanded(kp):
+                        continue
+                    arr = None
+                    if order is not None:
+                        mode, arr = order
+                        self._store_order(kp, mode, arr)
+                    if self._flat_expand(kp, n, arr, node_kind):
+                        count += 1
+            if on_done is not None:
+                on_done(count)
+
+        def failed(exc: BaseException) -> None:
+            log.warning("restoring the expanded nodes of %s failed: %s", session.name, exc)
+
+        self.session.app.tasks.run(work, title=t("gui.sessionstore.task.expand"), kind="children", owner=self,
+                                   silent=True, on_done=done, on_error=failed)
+        return True
+
     def _run_plan(self, roots: list[tuple] | None, levels: int | None, root: tuple | None) -> None:
         if not self._ready():
             return

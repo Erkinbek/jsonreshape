@@ -41,7 +41,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from jsonreshape.errors import JsonReshapeError
-from jsonreshape.fileio import atomic_write, long_path, open_shared
+from jsonreshape.fileio import atomic_write, long_path, open_shared, read_limited
 
 log = logging.getLogger(__name__)
 
@@ -75,6 +75,10 @@ DEFAULTS: dict[str, Any] = {
     "geometry": None,       # base64 text of QWidget.saveGeometry()
     "window_state": None,   # base64 text of QMainWindow.saveState()
     "last_dir": "",
+    # stage 6 (docs/ARCHITECTURE.md §15.0)
+    "palette_recent": [],          # gui/palette.py: ids of the commands run from the palette, most recent first
+    "shortcuts": {},               # gui/keymap.py: the user's keys {action id: ["Ctrl+Alt+E", ...]}
+    "restore_session": "always",   # gui/sessionstore.py RESTORE_KEY: "always" | "ask" | "never"
 }
 
 
@@ -197,7 +201,7 @@ class GuiState:
     def _read_file(self) -> dict[str, Any]:
         try:
             with open_shared(self.path, "rb") as f:
-                raw = f.read(MAX_FILE_BYTES + 1)
+                raw = read_limited(f, MAX_FILE_BYTES)
         except FileNotFoundError:
             return _empty()
         except Exception as exc:
@@ -338,12 +342,16 @@ class GuiState:
 
     # -- settings ----------------------------------------------------------------------------
     def get(self, key: str, default: Any = None) -> Any:
-        """The value of setting ``key``; when unset: ``default``, else :data:`DEFAULTS`."""
+        """The value of setting ``key``; when unset: ``default``, else :data:`DEFAULTS` (a list or mapping
+        default as a copy: the table itself is never handed out)."""
         with self._lock:
             settings = self._data["settings"]
             if key in settings:
                 return settings[key]
-        return default if default is not None else DEFAULTS.get(key)
+        if default is not None:
+            return default
+        value = DEFAULTS.get(key)
+        return _copy(value) if isinstance(value, (list, dict)) else value
 
     def set(self, key: str, value: Any) -> None:
         """Set a setting (a JSON value; ``None`` removes it). ``theme`` must be one of

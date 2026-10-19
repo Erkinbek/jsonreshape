@@ -115,6 +115,18 @@ repairs, validations, schema generations, comparisons and search exports. Closin
 while any of them runs asks first (closing stops them). Closing a tab lets the jobs reading its
 document go on (they keep it open; the status bar says so) -- except a validation, whose window
 closes with the document: the tab asks first then (headless: no question).
+
+Command palette and keys (stage 6, docs/ARCHITECTURE.md §15.0): **Ko'rinish** ▸ Buyruqlar palitrasi… (Ctrl+Shift+P,
+window level) opens :mod:`jsonreshape.gui.palette` (:meth:`MainWindow.show_palette`); right after the actions and menus
+exist :meth:`_attach_keymap` makes ``self.keymap`` (:class:`jsonreshape.gui.keymap.KeyMap`): the keys the actions have
+then are the defaults, the user's ``gui_state["shortcuts"]`` are applied over them -- at start, when the Settings
+"Klaviatura" page is saved and when ``settings_changed`` says another window saved new keys.
+
+Session restore and workspaces (stage 6, docs/ARCHITECTURE.md §15.0): ``self.workspaces``
+(:class:`jsonreshape.gui.workspace.WorkspaceController`) -- **Fayl** ▸ Workspace'ni ochish… / Oxirgi workspace'lar /
+Workspace'ni saqlash…; the session is put into the GUI state when the window closes (before the tabs shut down) and
+every minute; ``app.main`` makes the start-up decision through ``workspaces.at_start``. :meth:`MainWindow.open_path`
+takes ``panes`` (the two panes' view kinds) in ``options``.
 """
 
 from __future__ import annotations
@@ -488,10 +500,15 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.status)
         self.status.tasks_clicked.connect(self.show_tasks)
 
+        # stage 6 (§15.0): session restore and workspace files (File menu, autosave, start-up: gui/workspace.py)
+        from jsonreshape.gui.workspace import WorkspaceController
+
+        self.workspaces = WorkspaceController(self)
         self._create_docks()
         self._create_actions()
         self._create_menus()
         self._create_toolbar()
+        self.keymap = self._attach_keymap()     # stage 6: the user's keys over the defaults (§15.0)
 
         app_ctx.open_requested.connect(self._on_open_requested)
         app_ctx.settings_changed.connect(self._on_settings_changed)
@@ -519,7 +536,7 @@ class MainWindow(QMainWindow):
 
     def open_path(self, path: str | os.PathLike[str], options: dict[str, Any] | None = None, *,
                   focus_existing: bool = False, from_recent: bool = False) -> DocumentTab:
-        """Open ``path`` in a new tab (``options``: ``record_path``, ``format``, ``ref``).
+        """Open ``path`` in a new tab (``options``: ``record_path``, ``format``, ``ref``, ``panes``).
         With ``focus_existing`` and no options, a tab already showing the file is focused
         instead."""
         from jsonreshape.gui.session import DocSession
@@ -533,7 +550,9 @@ class MainWindow(QMainWindow):
                     self.tabs.setCurrentWidget(tab)
                     return tab
         session = DocSession(self.app, path, record_path=options.get("record_path"), format=options.get("format"))
-        tab = DocumentTab(session, view_registry=self._registry, parent=self.tabs)
+        panes = options.get("panes")     # stage 6: the session restore / a workspace choose the panes' views
+        tab = DocumentTab(session, view_registry=self._registry, parent=self.tabs,
+                          **({"panes": tuple(panes)} if panes else {}))
         tab.pending_ref = options.get("ref")              # revealed after the first open
         if bool(self.state.get(STATE_SPLIT_VERTICAL, False)):
             tab.set_orientation(Qt.Orientation.Vertical)
@@ -1470,6 +1489,11 @@ class MainWindow(QMainWindow):
                   tip=t("gui.main.act.export.tip")).setIcon(export_icon())
         self._act("close_tab", t("gui.main.act.close_tab"), self.close_tab, shortcut=["Ctrl+W", "Ctrl+F4"])
         self._act("quit", t("gui.main.act.quit"), self.close, shortcut="Ctrl+Q")
+        # stage 6 (§15.0): workspace files (gui/workspace.py)
+        self._act("workspace_open", t("gui.workspace.act.open"), lambda: self.workspaces.open_workspace(),
+                  tip=t("gui.workspace.act.open.tip"))
+        self._act("workspace_save", t("gui.workspace.act.save"), lambda: self.workspaces.save_workspace(),
+                  tip=t("gui.workspace.act.save.tip"))
         # -- edit: undo / redo (window level; a focused line edit keeps its own Ctrl+Z)
         # no standard pixmap fits (the arrows are Back / Forward): compact symbols in the toolbar
         self._act("undo", t("gui.main.act.undo"), self.undo, shortcut=list(UNDO_KEYS),
@@ -1571,6 +1595,9 @@ class MainWindow(QMainWindow):
         self._act("open_logs", t("gui.main.act.open_logs"), self.open_logs)
         self._act("environment", t("gui.main.act.environment"), self.show_environment)
         self._act("about", t("gui.main.act.about"), self.show_about)
+        # stage 6 (§15.0): the command palette (window level: it opens from the docks too)
+        self._act("palette", t("gui.palette.action"), self.show_palette, shortcut="Ctrl+Shift+P",
+                  tip=t("gui.palette.action.tip"))
         # dock toggles
         for key in ("tasks",) + DOCK_PANELS:
             dock = self.docks.get(key)
@@ -1597,6 +1624,12 @@ class MainWindow(QMainWindow):
         recent.aboutToShow.connect(self._fill_recent_menu)
         file_menu.addAction(a["reopen"])
         file_menu.addAction(a["record_path"])
+        file_menu.addSeparator()
+        # stage 6 (§15.0): workspace files
+        file_menu.addAction(a["workspace_open"])
+        recent_ws = menu("recent_workspaces", t("gui.workspace.menu.recent"), file_menu)
+        recent_ws.aboutToShow.connect(lambda m=recent_ws: self.workspaces.fill_recent_menu(m))
+        file_menu.addAction(a["workspace_save"])
         file_menu.addSeparator()
         file_menu.addAction(a["save"])
         file_menu.addAction(a["save_as"])
@@ -1637,6 +1670,8 @@ class MainWindow(QMainWindow):
         edit.addAction(a["discard"])
 
         view = menu("view", t("gui.main.menu.view"))
+        view.addAction(a["palette"])            # stage 6: Ctrl+Shift+P
+        view.addSeparator()
         for kind in VIEW_KINDS:
             view.addAction(a[f"view_{kind}"])
         view.addSeparator()
@@ -2292,6 +2327,29 @@ class MainWindow(QMainWindow):
     def show_settings(self) -> Any:
         return self._show_dialog("settings", self.app, self)
 
+    def show_palette(self) -> Any:
+        """Ctrl+Shift+P: the command palette over the window (:func:`jsonreshape.gui.palette.show_palette`)."""
+        from jsonreshape.gui.palette import show_palette
+
+        try:
+            return show_palette(self)
+        except Exception as exc:
+            log.exception("opening the command palette failed")
+            self.app.report_error(exc, self)
+            return None
+
+    def _attach_keymap(self) -> Any:
+        """The keyboard settings (:class:`jsonreshape.gui.keymap.KeyMap`): the actions' keys now are the defaults,
+        ``gui_state["shortcuts"]`` is applied over them (again whenever it changes). A broken entry never stops
+        the window (logged; the defaults stay)."""
+        from jsonreshape.gui.keymap import KeyMap
+
+        try:
+            return KeyMap.attach(self)
+        except Exception:
+            log.exception("applying the keyboard settings failed")
+            return None
+
     def _show_dialog(self, key: str, *args: Any, **kwargs: Any) -> Any:
         factory = self._factories.get(key)
         if factory is None:
@@ -2533,6 +2591,7 @@ class MainWindow(QMainWindow):
                     event.ignore()         # Cancel: the window stays
                     return
                 # every tab answered at once (e.g. headless): close now
+        self.workspaces.at_close()          # stage 6 (§15.0): the session into the GUI state (tabs still open)
         self.save_window_state()
         self._closing = True
         # the panels first: they release their results (record sets) before the sessions close

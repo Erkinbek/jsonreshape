@@ -1,0 +1,245 @@
+{
+ "started": 1792413324.3009994,
+ "args": {
+  "child": "False",
+  "op": "",
+  "scen": "base",
+  "home": "base",
+  "keep": "",
+  "patch": "",
+  "data": "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+  "work": "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\65e44ff0-18e2-413f-b083-b5e57d67f8f7\\scratchpad\\p6\\w2g",
+  "pkg": "C:/Users/user34/AppData/Local/Temp/claude/e--Projects-json-flatting/65e44ff0-18e2-413f-b083-b5e57d67f8f7/scratchpad/p6/pkg_before",
+  "repeat": "2",
+  "max_repeat_seconds": "400.0",
+  "only": "export_csv:base,export_csv_auto:base",
+  "label": "ab-before-base",
+  "results_dir": "C:/Users/user34/AppData/Local/Temp/claude/e--Projects-json-flatting/65e44ff0-18e2-413f-b083-b5e57d67f8f7/scratchpad/p6/results",
+  "quiet_load": "35.0",
+  "quiet_timeout": "90.0",
+  "keep_work": "True",
+  "report": "",
+  "baseline": "",
+  "lang": "uz",
+  "md": "",
+  "workers": "0",
+  "export_report": "False"
+ },
+ "machine": {
+  "python": "3.14.3",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "cpus": 24,
+  "ram_gb": 205.6,
+  "processor": "Intel64 Family 6 Model 198 Stepping 2, GenuineIntel"
+ },
+ "runs": [
+  {
+   "op": "export_csv",
+   "scen": "base",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 43.4,
+     "private_peak_mb": 32.4,
+     "workers": 0,
+     "seconds": 0.01,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 0,
+     "count": 6513235,
+     "layers": 1,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 44.0,
+     "private_peak_mb": 32.6,
+     "workers": 0,
+     "seconds": 0.004,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2147483913,
+     "records": 6513235,
+     "rows": 6513235,
+     "written": 659119646,
+     "columns": 9,
+     "files": 1,
+     "warnings": [],
+     "phase": "op",
+     "rss_peak_mb": 104.0,
+     "private_peak_mb": 96.5,
+     "workers": 0,
+     "seconds": 38.307,
+     "fsync_s": 0.386
+    }
+   },
+   "effective_bytes": 2147483913,
+   "process_peak_wset_mb": 108.6,
+   "process_peak_pagefile_mb": 106.6,
+   "backend": "rust",
+   "wall": 38.71,
+   "load_before": 21.3,
+   "load_mean": 23.7,
+   "load_max": 34.6,
+   "repeat": 1
+  },
+  {
+   "op": "export_csv",
+   "scen": "base",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 43.5,
+     "private_peak_mb": 32.4,
+     "workers": 0,
+     "seconds": 0.01,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 0,
+     "count": 6513235,
+     "layers": 1,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 44.2,
+     "private_peak_mb": 32.7,
+     "workers": 0,
+     "seconds": 0.004,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2147483913,
+     "records": 6513235,
+     "rows": 6513235,
+     "written": 659119646,
+     "columns": 9,
+     "files": 1,
+     "warnings": [],
+     "phase": "op",
+     "rss_peak_mb": 105.3,
+     "private_peak_mb": 97.6,
+     "workers": 0,
+     "seconds": 37.133,
+     "fsync_s": 0.698
+    }
+   },
+   "effective_bytes": 2147483913,
+   "process_peak_wset_mb": 108.6,
+   "process_peak_pagefile_mb": 106.9,
+   "backend": "rust",
+   "wall": 37.52,
+   "load_before": 21.3,
+   "load_mean": 17.4,
+   "load_max": 25.6,
+   "repeat": 2
+  },
+  {
+   "op": "export_csv_auto",
+   "scen": "base",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 43.6,
+     "private_peak_mb": 32.5,
+     "workers": 0,
+     "seconds": 0.01,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 0,
+     "count": 6513235,
+     "layers": 1,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 44.1,
+     "private_peak_mb": 32.7,
+     "workers": 0,
+     "seconds": 0.004,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2147483913,
+     "records": 6513235,
+     "rows": 6513235,
+     "written": 1385963704,
+     "columns": 13,
+     "files": 1,
+     "warnings": [],
+     "phase": "op",
+     "rss_peak_mb": 110.7,
+     "private_peak_mb": 102.9,
+     "workers": 0,
+     "seconds": 76.413,
+     "fsync_s": 0.584
+    }
+   },
+   "effective_bytes": 2147483913,
+   "process_peak_wset_mb": 114.4,
+   "process_peak_pagefile_mb": 113.3,
+   "backend": "rust",
+   "wall": 76.83,
+   "load_before": 8.5,
+   "load_mean": 13.8,
+   "load_max": 27.2,
+   "repeat": 1
+  },
+  {
+   "op": "export_csv_auto",
+   "scen": "base",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 43.7,
+     "private_peak_mb": 32.7,
+     "workers": 0,
+     "seconds": 0.012,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 0,
+     "count": 6513235,
+     "layers": 1,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 44.1,
+     "private_peak_mb": 32.9,
+     "workers": 0,
+     "seconds": 0.005,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2147483913,
+     "records": 6513235,
+     "rows": 6513235,
+     "written": 1385963704,
+     "columns": 13,
+     "files": 1,
+     "warnings": [],
+     "phase": "op",
+     "rss_peak_mb": 111.9,
+     "private_peak_mb": 103.7,
+     "workers": 0,
+     "seconds": 77.504,
+     "fsync_s": 1.22
+    }
+   },
+   "effective_bytes": 2147483913,
+   "process_peak_wset_mb": 115.9,
+   "process_peak_pagefile_mb": 113.9,
+   "backend": "rust",
+   "wall": 77.93,
+   "load_before": 21.5,
+   "load_mean": 14.0,
+   "load_max": 24.2,
+   "repeat": 2
+  }
+ ]
+}

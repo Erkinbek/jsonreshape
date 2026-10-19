@@ -1,0 +1,5050 @@
+{
+ "version": 1,
+ "kind": "tools",
+ "run_id": "20261019-204632",
+ "mode": "full",
+ "only": null,
+ "started": "2026-10-19T20:46:32",
+ "command": [
+  "tools_bench.py",
+  "--work-dir",
+  "E:/Projects/json flatting/bench/data/work/tools-s6d"
+ ],
+ "lang": "uz",
+ "machine": {
+  "cpu": "Intel(R) Core(TM) Ultra 9 285",
+  "cores_physical": 24,
+  "cores_logical": 24,
+  "efficiency_classes": {
+   "0": 16,
+   "1": 8
+  },
+  "p_cores": 8,
+  "e_cores": 16,
+  "ram_total": 205550673920,
+  "ram_available_at_start": 175782445056,
+  "disk": {
+   "free": 376302284800,
+   "total": 1024191361024,
+   "drive": "E:",
+   "fs": "NTFS",
+   "model": "SAMSUNG MZVL81T0HELB-00BH1",
+   "bus": "NVMe",
+   "media": "SSD",
+   "number": 1,
+   "io_key": "PhysicalDrive1"
+  },
+  "os": "Windows-11-10.0.26200-SP0",
+  "python": "3.14.3",
+  "python_impl": "CPython",
+  "power_plan": "Balanced",
+  "core_backend": "rust",
+  "core_backends": [
+   "rust",
+   "python"
+  ],
+  "ijson_backend": "yajl2_c",
+  "versions": {
+   "orjson": "3.13.0",
+   "ijson": "3.6.0",
+   "xlsxwriter": "3.2.9",
+   "jmespath": "1.1.0",
+   "psutil": "7.2.2",
+   "PySide6": "6.12.0"
+  },
+  "app_version": "0.1.0"
+ },
+ "conditions": {
+  "quiet_load_limit": 35.0,
+  "quiet_timeout": 60.0,
+  "wait_for_quiet": true,
+  "repeat_override": null,
+  "max_repeat_seconds": 400.0,
+  "poll_seconds": 0.02,
+  "data_dir": "E:\\Projects\\json flatting\\bench\\data",
+  "work_dir": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d",
+  "fresh_home_per_run": true,
+  "load_before": {
+   "min": 1.5,
+   "max": 8.6,
+   "avg": 3.8
+  }
+ },
+ "data": {
+  "syn_2g": {
+   "path": "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+   "generated": false,
+   "bytes": 2147483913
+  }
+ },
+ "prepared": {
+  "changed": {
+   "path": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_2g_changed.json",
+   "bytes": 2146728482
+  },
+  "inplace": {
+   "path": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_2g_inplace.json",
+   "bytes": 2147432411
+  },
+  "broken1": {
+   "path": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_2g_broken1.json",
+   "bytes": 2147640733
+  },
+  "a190": {
+   "path": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_190m_a.json",
+   "bytes": 199229119
+  },
+  "b190": {
+   "path": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_190m_b.json",
+   "bytes": 199158129
+  }
+ },
+ "prepared_seconds": 7.1,
+ "ops": {
+  "stats_1": {
+   "spec": {
+    "name": "stats_1",
+    "inputs": [
+     "syn_2g"
+    ],
+    "args": [
+     "stats",
+     "{in}",
+     "--field",
+     "contact.address.city",
+     "-q"
+    ],
+    "out_ext": null,
+    "expect": "0",
+    "capture": "stats:field_stats",
+    "detail": "stats",
+    "repeats": 2,
+    "groups": [
+     "full"
+    ]
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 6.8532,
+     "peak_rss": 80551936,
+     "peak_rss_tree": 80551936,
+     "peak_rss_child": 80551936,
+     "peak_private": 64389120,
+     "peak_rss_sum": 79933440,
+     "peak_private_sum": 64299008,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 52628,
+       "name": "python.exe",
+       "peak_rss": 5369856,
+       "peak_private": 1036288,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 37336,
+       "name": "python.exe",
+       "peak_rss": 80551936,
+       "peak_private": 64389120,
+       "cpu_seconds": 6.703
+      }
+     ],
+     "cpu_seconds": 6.703,
+     "load_during": 6.7,
+     "others_cores_during": 0.63,
+     "child": {
+      "op": "cli",
+      "pid": 37336,
+      "import_seconds": 0.042815,
+      "command": "stats",
+      "argv": [
+       "stats",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "--field",
+       "contact.address.city",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 6.557681,
+      "index_seconds": 2.692455,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 3.865226,
+      "input_bytes": 2147483913,
+      "mb_per_s": 555.591,
+      "total_mb_per_s": 327.476,
+      "bytes_written": 0,
+      "files": 0,
+      "out_mb_per_s": 0.0,
+      "stdout_tail": "Maydon: contact.address.city    6 513 235 ta yozuv · 3,8 s\n  Mavjud: 6 513 235 (100%)    null: 382 975 (5,9%)    yo'q: 0 (0%)\n  Turlar: satr 94,1% · null 5,9%\n  Noyob qiymatlar: 17 (aniq)\n  Satr uzunligi: 4–9 (bo'sh satrlar: 0)\n  Eng ko'p uchragan 17 ta qiymat:\n      1. \"Xiva\"            384 096     5,9%\n      2. \"Nukus\"           383 757     5,9%\n      3. \"Namangan\"        383 635     5,9%\n      4. \"Andijon\"         383 387     5,9%\n      5. \"Termiz\"          383 374     5,9%\n      6. \"Navoiy\"          383 313     5,9%\n      7. \"Urganch\"         383 286     5,9%\n      8. \"Qarshi\"          383 184     5,9%\n      9. \"Jizzax\"          383 134     5,9%\n     10. \"Тошкент\"         383 067     5,9%\n     11. null              382 975     5,9%\n     12. \"Buxoro\"          382 858     5,9%\n     13. \"Fargʻona\"        382 814     5,9%\n     14. \"Farg'ona\"        382 760     5,9%\n     15. \"Guliston\"        382 688     5,9%\n     16. \"Samarqand\"       382 485     5,9%\n     17. \"Toshkent\"        382 422     5,9%\n",
+      "captured": {
+       "stats:field_stats": [
+        [
+         {
+          "field": "contact.address.city",
+          "is_key": false,
+          "scanned": 6513235,
+          "skipped": 0,
+          "base": 6513235,
+          "present": 6513235,
+          "missing": 0,
+          "values": 6513235,
+          "nulls": 382975,
+          "distinct": 17,
+          "distinct_exact": true,
+          "distinct_rse": null,
+          "top_exact": true,
+          "top_bound": 0,
+          "number": null,
+          "arr_len": null,
+          "obj_keys": null,
+          "gen": 0,
+          "elapsed": 3.796196199953556,
+          "uncounted": 0,
+          "multi": false,
+          "context": "$",
+          "partial": false
+         }
+        ]
+       ]
+      },
+      "op_seconds": 6.665263,
+      "ok": true,
+      "process_seconds": 6.728138,
+      "rss_end": 57528320,
+      "peak_rss": 80551936,
+      "peak_private": 64389120,
+      "cpu_user": 4.312,
+      "cpu_system": 2.359,
+      "io_read_bytes": 4421472060,
+      "io_write_bytes": 104218744,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\stats_1-1"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 2.1,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 2.1
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 7.0519,
+     "peak_rss": 79659008,
+     "peak_rss_tree": 79659008,
+     "peak_rss_child": 79659008,
+     "peak_private": 64024576,
+     "peak_rss_sum": 79626240,
+     "peak_private_sum": 63963136,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 39880,
+       "name": "python.exe",
+       "peak_rss": 5369856,
+       "peak_private": 1036288,
+       "cpu_seconds": 0.016
+      },
+      {
+       "pid": 46864,
+       "name": "python.exe",
+       "peak_rss": 79659008,
+       "peak_private": 64024576,
+       "cpu_seconds": 6.812
+      }
+     ],
+     "cpu_seconds": 6.828,
+     "load_during": 10.2,
+     "others_cores_during": 1.48,
+     "child": {
+      "op": "cli",
+      "pid": 46864,
+      "import_seconds": 0.043498,
+      "command": "stats",
+      "argv": [
+       "stats",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "--field",
+       "contact.address.city",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 6.747847,
+      "index_seconds": 2.70669,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 4.041157,
+      "input_bytes": 2147483913,
+      "mb_per_s": 531.403,
+      "total_mb_per_s": 318.247,
+      "bytes_written": 0,
+      "files": 0,
+      "out_mb_per_s": 0.0,
+      "stdout_tail": "Maydon: contact.address.city    6 513 235 ta yozuv · 4 s\n  Mavjud: 6 513 235 (100%)    null: 382 975 (5,9%)    yo'q: 0 (0%)\n  Turlar: satr 94,1% · null 5,9%\n  Noyob qiymatlar: 17 (aniq)\n  Satr uzunligi: 4–9 (bo'sh satrlar: 0)\n  Eng ko'p uchragan 17 ta qiymat:\n      1. \"Xiva\"            384 096     5,9%\n      2. \"Nukus\"           383 757     5,9%\n      3. \"Namangan\"        383 635     5,9%\n      4. \"Andijon\"         383 387     5,9%\n      5. \"Termiz\"          383 374     5,9%\n      6. \"Navoiy\"          383 313     5,9%\n      7. \"Urganch\"         383 286     5,9%\n      8. \"Qarshi\"          383 184     5,9%\n      9. \"Jizzax\"          383 134     5,9%\n     10. \"Тошкент\"         383 067     5,9%\n     11. null              382 975     5,9%\n     12. \"Buxoro\"          382 858     5,9%\n     13. \"Fargʻona\"        382 814     5,9%\n     14. \"Farg'ona\"        382 760     5,9%\n     15. \"Guliston\"        382 688     5,9%\n     16. \"Samarqand\"       382 485     5,9%\n     17. \"Toshkent\"        382 422     5,9%\n",
+      "captured": {
+       "stats:field_stats": [
+        [
+         {
+          "field": "contact.address.city",
+          "is_key": false,
+          "scanned": 6513235,
+          "skipped": 0,
+          "base": 6513235,
+          "present": 6513235,
+          "missing": 0,
+          "values": 6513235,
+          "nulls": 382975,
+          "distinct": 17,
+          "distinct_exact": true,
+          "distinct_rse": null,
+          "top_exact": true,
+          "top_bound": 0,
+          "number": null,
+          "arr_len": null,
+          "obj_keys": null,
+          "gen": 0,
+          "elapsed": 3.969287300016731,
+          "uncounted": 0,
+          "multi": false,
+          "context": "$",
+          "partial": false
+         }
+        ]
+       ]
+      },
+      "op_seconds": 6.854871,
+      "ok": true,
+      "process_seconds": 6.91987,
+      "rss_end": 58023936,
+      "peak_rss": 79659008,
+      "peak_private": 64024576,
+      "cpu_user": 4.875,
+      "cpu_system": 1.906,
+      "io_read_bytes": 4421472060,
+      "io_write_bytes": 104218744,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\stats_1-2"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 6.6,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 6.6
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "op": "cli",
+    "pid": 37336,
+    "import_seconds": 0.042815,
+    "command": "stats",
+    "argv": [
+     "stats",
+     "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+     "--field",
+     "contact.address.city",
+     "-q"
+    ],
+    "exit_code": 0,
+    "total_seconds": 6.557681,
+    "index_seconds": 2.692455,
+    "indexes": 1,
+    "record_count": 6513235,
+    "seconds": 3.865226,
+    "input_bytes": 2147483913,
+    "mb_per_s": 555.591,
+    "total_mb_per_s": 327.476,
+    "bytes_written": 0,
+    "files": 0,
+    "out_mb_per_s": 0.0,
+    "stdout_tail": "Maydon: contact.address.city    6 513 235 ta yozuv · 3,8 s\n  Mavjud: 6 513 235 (100%)    null: 382 975 (5,9%)    yo'q: 0 (0%)\n  Turlar: satr 94,1% · null 5,9%\n  Noyob qiymatlar: 17 (aniq)\n  Satr uzunligi: 4–9 (bo'sh satrlar: 0)\n  Eng ko'p uchragan 17 ta qiymat:\n      1. \"Xiva\"            384 096     5,9%\n      2. \"Nukus\"           383 757     5,9%\n      3. \"Namangan\"        383 635     5,9%\n      4. \"Andijon\"         383 387     5,9%\n      5. \"Termiz\"          383 374     5,9%\n      6. \"Navoiy\"          383 313     5,9%\n      7. \"Urganch\"         383 286     5,9%\n      8. \"Qarshi\"          383 184     5,9%\n      9. \"Jizzax\"          383 134     5,9%\n     10. \"Тошкент\"         383 067     5,9%\n     11. null              382 975     5,9%\n     12. \"Buxoro\"          382 858     5,9%\n     13. \"Fargʻona\"        382 814     5,9%\n     14. \"Farg'ona\"        382 760     5,9%\n     15. \"Guliston\"        382 688     5,9%\n     16. \"Samarqand\"       382 485     5,9%\n     17. \"Toshkent\"        382 422     5,9%\n",
+    "captured": {
+     "stats:field_stats": [
+      [
+       {
+        "field": "contact.address.city",
+        "is_key": false,
+        "scanned": 6513235,
+        "skipped": 0,
+        "base": 6513235,
+        "present": 6513235,
+        "missing": 0,
+        "values": 6513235,
+        "nulls": 382975,
+        "distinct": 17,
+        "distinct_exact": true,
+        "distinct_rse": null,
+        "top_exact": true,
+        "top_bound": 0,
+        "number": null,
+        "arr_len": null,
+        "obj_keys": null,
+        "gen": 0,
+        "elapsed": 3.796196199953556,
+        "uncounted": 0,
+        "multi": false,
+        "context": "$",
+        "partial": false
+       }
+      ]
+     ]
+    },
+    "op_seconds": 6.665263,
+    "ok": true,
+    "process_seconds": 6.728138,
+    "rss_end": 57528320,
+    "peak_rss": 80551936,
+    "peak_private": 64389120,
+    "cpu_user": 4.312,
+    "cpu_system": 2.359,
+    "io_read_bytes": 4421472060,
+    "io_write_bytes": 104218744,
+    "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\stats_1-1"
+   },
+   "best_wall_seconds": 6.8532,
+   "repeats_done": 2,
+   "peak_rss": 80551936,
+   "peak_private": 64389120,
+   "peak_rss_sum": 79933440,
+   "peak_private_sum": 64299008,
+   "processes_max": 1
+  },
+  "stats_4": {
+   "spec": {
+    "name": "stats_4",
+    "inputs": [
+     "syn_2g"
+    ],
+    "args": [
+     "stats",
+     "{in}",
+     "--field",
+     "name",
+     "--field",
+     "score",
+     "--field",
+     "contact.address.city",
+     "--field",
+     "orders[*].sum",
+     "-q"
+    ],
+    "out_ext": null,
+    "expect": "0",
+    "capture": "stats:field_stats",
+    "detail": "stats",
+    "repeats": 2,
+    "groups": [
+     "full"
+    ]
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 20.7681,
+     "peak_rss": 104624128,
+     "peak_rss_tree": 104624128,
+     "peak_rss_child": 104624128,
+     "peak_private": 88760320,
+     "peak_rss_sum": 102719488,
+     "peak_private_sum": 87089152,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 52072,
+       "name": "python.exe",
+       "peak_rss": 5373952,
+       "peak_private": 1036288,
+       "cpu_seconds": 0.016
+      },
+      {
+       "pid": 31804,
+       "name": "python.exe",
+       "peak_rss": 104624128,
+       "peak_private": 88760320,
+       "cpu_seconds": 20.656
+      }
+     ],
+     "cpu_seconds": 20.672,
+     "load_during": 8.4,
+     "others_cores_during": 1.02,
+     "child": {
+      "op": "cli",
+      "pid": 31804,
+      "import_seconds": 0.044106,
+      "command": "stats",
+      "argv": [
+       "stats",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "--field",
+       "name",
+       "--field",
+       "score",
+       "--field",
+       "contact.address.city",
+       "--field",
+       "orders[*].sum",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 20.461583,
+      "index_seconds": 2.777761,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 17.683822,
+      "input_bytes": 2147483913,
+      "mb_per_s": 121.438,
+      "total_mb_per_s": 104.952,
+      "bytes_written": 0,
+      "files": 0,
+      "out_mb_per_s": 0.0,
+      "stdout_tail": "%\n\nMaydon: orders[*].sum    6 513 235 ta yozuv · 17,6 s\n  Kontekst: orders[*] (9 774 338 ta element)\n  Mavjud: 9 774 338 (100%)    null: 0 (0%)    yo'q: 0 (0%)\n  Turlar: son 100%\n  Noyob qiymatlar: 50 001 (aniq)\n  Sonlar: 9 774 338 ta (butun: 98 006) · min 0.0 · max 500.0 · o'rtacha 249.962720350984 · yig'indi 2443220116.11\n  Eng ko'p uchragan 20 ta qiymat:\n      1. 218.53           257    <0,1%  (257 ta yozuvda)\n      2. 495.83           254    <0,1%  (254 ta yozuvda)\n      3. 323.55           249    <0,1%  (249 ta yozuvda)\n      4. 156.75           248    <0,1%  (248 ta yozuvda)\n      5. 306.82           248    <0,1%  (248 ta yozuvda)\n      6. 392.32           248    <0,1%  (248 ta yozuvda)\n      7. 299.11           248    <0,1%  (248 ta yozuvda)\n      8. 330.55           247    <0,1%  (247 ta yozuvda)\n      9. 456.59           247    <0,1%  (247 ta yozuvda)\n     10. 81.88            247    <0,1%  (247 ta yozuvda)\n     11. 200.74           247    <0,1%  (247 ta yozuvda)\n     12. 460.52           247    <0,1%  (247 ta yozuvda)\n     13. 67.75            246    <0,1%  (246 ta yozuvda)\n     14. 142.73           246    <0,1%  (246 ta yozuvda)\n     15. 475.17           246    <0,1%  (246 ta yozuvda)\n     16. 370.0            246    <0,1%  (246 ta yozuvda)\n     17. 75.8             246    <0,1%  (246 ta yozuvda)\n     18. 281.97           246    <0,1%  (246 ta yozuvda)\n     19. 162.67           245    <0,1%  (245 ta yozuvda)\n     20. 449.61           244    <0,1%  (244 ta yozuvda)\n",
+      "captured": {
+       "stats:field_stats": [
+        [
+         {
+          "field": "name",
+          "is_key": false,
+          "scanned": 6513235,
+          "skipped": 0,
+          "base": 6513235,
+          "present": 6513235,
+          "missing": 0,
+          "values": 6513235,
+          "nulls": 0,
+          "distinct": 286,
+          "distinct_exact": true,
+          "distinct_rse": null,
+          "top_exact": true,
+          "top_bound": 0,
+          "number": null,
+          "arr_len": null,
+          "obj_keys": null,
+          "gen": 0,
+          "elapsed": 17.61285560001852,
+          "uncounted": 0,
+          "multi": false,
+          "context": "$",
+          "partial": false
+         },
+         {
+          "field": "score",
+          "is_key": false,
+          "scanned": 6513235,
+          "skipped": 0,
+          "base": 6513235,
+          "present": 6513235,
+          "missing": 0,
+          "values": 6513235,
+          "nulls": 0,
+          "distinct": 100001,
+          "distinct_exact": true,
+          "distinct_rse": null,
+          "top_exact": true,
+          "top_bound": 0,
+          "string": null,
+          "arr_len": null,
+          "obj_keys": null,
+          "gen": 0,
+          "elapsed": 17.61285560001852,
+          "uncounted": 0,
+          "multi": false,
+          "context": "$",
+          "partial": false
+         },
+         {
+          "field": "contact.address.city",
+          "is_key": false,
+          "scanned": 6513235,
+          "skipped": 0,
+          "base": 6513235,
+          "present": 6513235,
+          "missing": 0,
+          "values": 6513235,
+          "nulls": 382975,
+          "distinct": 17,
+          "distinct_exact": true,
+          "distinct_rse": null,
+          "top_exact": true,
+          "top_bound": 0,
+          "number": null,
+          "arr_len": null,
+          "obj_keys": null,
+          "gen": 0,
+          "elapsed": 17.61285560001852,
+          "uncounted": 0,
+          "multi": false,
+          "context": "$",
+          "partial": false
+         },
+         {
+          "field": "orders[*].sum",
+          "is_key": false,
+          "scanned": 6513235,
+          "skipped": 0,
+          "base": 9774338,
+          "present": 9774338,
+          "missing": 0,
+          "values": 9774338,
+          "nulls": 0,
+          "distinct": 50001,
+          "distinct_exact": true,
+          "distinct_rse": null,
+          "top_exact": true,
+          "top_bound": 0,
+          "string": null,
+          "arr_len": null,
+          "obj_keys": null,
+          "gen": 0,
+          "elapsed": 17.61285560001852,
+          "uncounted": 0,
+          "multi": true,
+          "context": "orders[*]",
+          "partial": false
+         }
+        ]
+       ]
+      },
+      "op_seconds": 20.569915,
+      "ok": true,
+      "process_seconds": 20.635006,
+      "rss_end": 87887872,
+      "peak_rss": 104624128,
+      "peak_private": 88760320,
+      "cpu_user": 18.703,
+      "cpu_system": 1.922,
+      "io_read_bytes": 4421472060,
+      "io_write_bytes": 104218824,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\stats_4-1"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 7.9,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 7.9
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 20.2603,
+     "peak_rss": 104574976,
+     "peak_rss_tree": 104574976,
+     "peak_rss_child": 104574976,
+     "peak_private": 89141248,
+     "peak_rss_sum": 104255488,
+     "peak_private_sum": 89034752,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 52164,
+       "name": "python.exe",
+       "peak_rss": 5369856,
+       "peak_private": 1036288,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 42316,
+       "name": "python.exe",
+       "peak_rss": 104574976,
+       "peak_private": 89141248,
+       "cpu_seconds": 20.031
+      }
+     ],
+     "cpu_seconds": 20.031,
+     "load_during": 6.8,
+     "others_cores_during": 0.64,
+     "child": {
+      "op": "cli",
+      "pid": 42316,
+      "import_seconds": 0.046598,
+      "command": "stats",
+      "argv": [
+       "stats",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "--field",
+       "name",
+       "--field",
+       "score",
+       "--field",
+       "contact.address.city",
+       "--field",
+       "orders[*].sum",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 19.955488,
+      "index_seconds": 2.646052,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 17.309435,
+      "input_bytes": 2147483913,
+      "mb_per_s": 124.064,
+      "total_mb_per_s": 107.614,
+      "bytes_written": 0,
+      "files": 0,
+      "out_mb_per_s": 0.0,
+      "stdout_tail": "%\n\nMaydon: orders[*].sum    6 513 235 ta yozuv · 17,2 s\n  Kontekst: orders[*] (9 774 338 ta element)\n  Mavjud: 9 774 338 (100%)    null: 0 (0%)    yo'q: 0 (0%)\n  Turlar: son 100%\n  Noyob qiymatlar: 50 001 (aniq)\n  Sonlar: 9 774 338 ta (butun: 98 006) · min 0.0 · max 500.0 · o'rtacha 249.962720350984 · yig'indi 2443220116.11\n  Eng ko'p uchragan 20 ta qiymat:\n      1. 218.53           257    <0,1%  (257 ta yozuvda)\n      2. 495.83           254    <0,1%  (254 ta yozuvda)\n      3. 323.55           249    <0,1%  (249 ta yozuvda)\n      4. 156.75           248    <0,1%  (248 ta yozuvda)\n      5. 306.82           248    <0,1%  (248 ta yozuvda)\n      6. 392.32           248    <0,1%  (248 ta yozuvda)\n      7. 299.11           248    <0,1%  (248 ta yozuvda)\n      8. 330.55           247    <0,1%  (247 ta yozuvda)\n      9. 456.59           247    <0,1%  (247 ta yozuvda)\n     10. 81.88            247    <0,1%  (247 ta yozuvda)\n     11. 200.74           247    <0,1%  (247 ta yozuvda)\n     12. 460.52           247    <0,1%  (247 ta yozuvda)\n     13. 67.75            246    <0,1%  (246 ta yozuvda)\n     14. 142.73           246    <0,1%  (246 ta yozuvda)\n     15. 475.17           246    <0,1%  (246 ta yozuvda)\n     16. 370.0            246    <0,1%  (246 ta yozuvda)\n     17. 75.8             246    <0,1%  (246 ta yozuvda)\n     18. 281.97           246    <0,1%  (246 ta yozuvda)\n     19. 162.67           245    <0,1%  (245 ta yozuvda)\n     20. 449.61           244    <0,1%  (244 ta yozuvda)\n",
+      "captured": {
+       "stats:field_stats": [
+        [
+         {
+          "field": "name",
+          "is_key": false,
+          "scanned": 6513235,
+          "skipped": 0,
+          "base": 6513235,
+          "present": 6513235,
+          "missing": 0,
+          "values": 6513235,
+          "nulls": 0,
+          "distinct": 286,
+          "distinct_exact": true,
+          "distinct_rse": null,
+          "top_exact": true,
+          "top_bound": 0,
+          "number": null,
+          "arr_len": null,
+          "obj_keys": null,
+          "gen": 0,
+          "elapsed": 17.239198600000236,
+          "uncounted": 0,
+          "multi": false,
+          "context": "$",
+          "partial": false
+         },
+         {
+          "field": "score",
+          "is_key": false,
+          "scanned": 6513235,
+          "skipped": 0,
+          "base": 6513235,
+          "present": 6513235,
+          "missing": 0,
+          "values": 6513235,
+          "nulls": 0,
+          "distinct": 100001,
+          "distinct_exact": true,
+          "distinct_rse": null,
+          "top_exact": true,
+          "top_bound": 0,
+          "string": null,
+          "arr_len": null,
+          "obj_keys": null,
+          "gen": 0,
+          "elapsed": 17.239198600000236,
+          "uncounted": 0,
+          "multi": false,
+          "context": "$",
+          "partial": false
+         },
+         {
+          "field": "contact.address.city",
+          "is_key": false,
+          "scanned": 6513235,
+          "skipped": 0,
+          "base": 6513235,
+          "present": 6513235,
+          "missing": 0,
+          "values": 6513235,
+          "nulls": 382975,
+          "distinct": 17,
+          "distinct_exact": true,
+          "distinct_rse": null,
+          "top_exact": true,
+          "top_bound": 0,
+          "number": null,
+          "arr_len": null,
+          "obj_keys": null,
+          "gen": 0,
+          "elapsed": 17.239198600000236,
+          "uncounted": 0,
+          "multi": false,
+          "context": "$",
+          "partial": false
+         },
+         {
+          "field": "orders[*].sum",
+          "is_key": false,
+          "scanned": 6513235,
+          "skipped": 0,
+          "base": 9774338,
+          "present": 9774338,
+          "missing": 0,
+          "values": 9774338,
+          "nulls": 0,
+          "distinct": 50001,
+          "distinct_exact": true,
+          "distinct_rse": null,
+          "top_exact": true,
+          "top_bound": 0,
+          "string": null,
+          "arr_len": null,
+          "obj_keys": null,
+          "gen": 0,
+          "elapsed": 17.239198600000236,
+          "uncounted": 0,
+          "multi": true,
+          "context": "orders[*]",
+          "partial": false
+         }
+        ]
+       ]
+      },
+      "op_seconds": 20.061987,
+      "ok": true,
+      "process_seconds": 20.13041,
+      "rss_end": 87691264,
+      "peak_rss": 104574976,
+      "peak_private": 89141248,
+      "cpu_user": 18.125,
+      "cpu_system": 1.875,
+      "io_read_bytes": 4421472060,
+      "io_write_bytes": 104218824,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\stats_4-2"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 2.2,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 2.2
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "op": "cli",
+    "pid": 42316,
+    "import_seconds": 0.046598,
+    "command": "stats",
+    "argv": [
+     "stats",
+     "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+     "--field",
+     "name",
+     "--field",
+     "score",
+     "--field",
+     "contact.address.city",
+     "--field",
+     "orders[*].sum",
+     "-q"
+    ],
+    "exit_code": 0,
+    "total_seconds": 19.955488,
+    "index_seconds": 2.646052,
+    "indexes": 1,
+    "record_count": 6513235,
+    "seconds": 17.309435,
+    "input_bytes": 2147483913,
+    "mb_per_s": 124.064,
+    "total_mb_per_s": 107.614,
+    "bytes_written": 0,
+    "files": 0,
+    "out_mb_per_s": 0.0,
+    "stdout_tail": "%\n\nMaydon: orders[*].sum    6 513 235 ta yozuv · 17,2 s\n  Kontekst: orders[*] (9 774 338 ta element)\n  Mavjud: 9 774 338 (100%)    null: 0 (0%)    yo'q: 0 (0%)\n  Turlar: son 100%\n  Noyob qiymatlar: 50 001 (aniq)\n  Sonlar: 9 774 338 ta (butun: 98 006) · min 0.0 · max 500.0 · o'rtacha 249.962720350984 · yig'indi 2443220116.11\n  Eng ko'p uchragan 20 ta qiymat:\n      1. 218.53           257    <0,1%  (257 ta yozuvda)\n      2. 495.83           254    <0,1%  (254 ta yozuvda)\n      3. 323.55           249    <0,1%  (249 ta yozuvda)\n      4. 156.75           248    <0,1%  (248 ta yozuvda)\n      5. 306.82           248    <0,1%  (248 ta yozuvda)\n      6. 392.32           248    <0,1%  (248 ta yozuvda)\n      7. 299.11           248    <0,1%  (248 ta yozuvda)\n      8. 330.55           247    <0,1%  (247 ta yozuvda)\n      9. 456.59           247    <0,1%  (247 ta yozuvda)\n     10. 81.88            247    <0,1%  (247 ta yozuvda)\n     11. 200.74           247    <0,1%  (247 ta yozuvda)\n     12. 460.52           247    <0,1%  (247 ta yozuvda)\n     13. 67.75            246    <0,1%  (246 ta yozuvda)\n     14. 142.73           246    <0,1%  (246 ta yozuvda)\n     15. 475.17           246    <0,1%  (246 ta yozuvda)\n     16. 370.0            246    <0,1%  (246 ta yozuvda)\n     17. 75.8             246    <0,1%  (246 ta yozuvda)\n     18. 281.97           246    <0,1%  (246 ta yozuvda)\n     19. 162.67           245    <0,1%  (245 ta yozuvda)\n     20. 449.61           244    <0,1%  (244 ta yozuvda)\n",
+    "captured": {
+     "stats:field_stats": [
+      [
+       {
+        "field": "name",
+        "is_key": false,
+        "scanned": 6513235,
+        "skipped": 0,
+        "base": 6513235,
+        "present": 6513235,
+        "missing": 0,
+        "values": 6513235,
+        "nulls": 0,
+        "distinct": 286,
+        "distinct_exact": true,
+        "distinct_rse": null,
+        "top_exact": true,
+        "top_bound": 0,
+        "number": null,
+        "arr_len": null,
+        "obj_keys": null,
+        "gen": 0,
+        "elapsed": 17.239198600000236,
+        "uncounted": 0,
+        "multi": false,
+        "context": "$",
+        "partial": false
+       },
+       {
+        "field": "score",
+        "is_key": false,
+        "scanned": 6513235,
+        "skipped": 0,
+        "base": 6513235,
+        "present": 6513235,
+        "missing": 0,
+        "values": 6513235,
+        "nulls": 0,
+        "distinct": 100001,
+        "distinct_exact": true,
+        "distinct_rse": null,
+        "top_exact": true,
+        "top_bound": 0,
+        "string": null,
+        "arr_len": null,
+        "obj_keys": null,
+        "gen": 0,
+        "elapsed": 17.239198600000236,
+        "uncounted": 0,
+        "multi": false,
+        "context": "$",
+        "partial": false
+       },
+       {
+        "field": "contact.address.city",
+        "is_key": false,
+        "scanned": 6513235,
+        "skipped": 0,
+        "base": 6513235,
+        "present": 6513235,
+        "missing": 0,
+        "values": 6513235,
+        "nulls": 382975,
+        "distinct": 17,
+        "distinct_exact": true,
+        "distinct_rse": null,
+        "top_exact": true,
+        "top_bound": 0,
+        "number": null,
+        "arr_len": null,
+        "obj_keys": null,
+        "gen": 0,
+        "elapsed": 17.239198600000236,
+        "uncounted": 0,
+        "multi": false,
+        "context": "$",
+        "partial": false
+       },
+       {
+        "field": "orders[*].sum",
+        "is_key": false,
+        "scanned": 6513235,
+        "skipped": 0,
+        "base": 9774338,
+        "present": 9774338,
+        "missing": 0,
+        "values": 9774338,
+        "nulls": 0,
+        "distinct": 50001,
+        "distinct_exact": true,
+        "distinct_rse": null,
+        "top_exact": true,
+        "top_bound": 0,
+        "string": null,
+        "arr_len": null,
+        "obj_keys": null,
+        "gen": 0,
+        "elapsed": 17.239198600000236,
+        "uncounted": 0,
+        "multi": true,
+        "context": "orders[*]",
+        "partial": false
+       }
+      ]
+     ]
+    },
+    "op_seconds": 20.061987,
+    "ok": true,
+    "process_seconds": 20.13041,
+    "rss_end": 87691264,
+    "peak_rss": 104574976,
+    "peak_private": 89141248,
+    "cpu_user": 18.125,
+    "cpu_system": 1.875,
+    "io_read_bytes": 4421472060,
+    "io_write_bytes": 104218824,
+    "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\stats_4-2"
+   },
+   "best_wall_seconds": 20.2603,
+   "repeats_done": 2,
+   "peak_rss": 104624128,
+   "peak_private": 89141248,
+   "peak_rss_sum": 104255488,
+   "peak_private_sum": 89034752,
+   "processes_max": 1
+  },
+  "stats_exact": {
+   "spec": {
+    "name": "stats_exact",
+    "inputs": [
+     "syn_2g"
+    ],
+    "args": [
+     "stats",
+     "{in}",
+     "--field",
+     "contact.phone",
+     "--exact",
+     "-q"
+    ],
+    "out_ext": null,
+    "expect": "0",
+    "capture": "stats:field_stats",
+    "detail": "stats",
+    "repeats": 2,
+    "groups": [
+     "full"
+    ]
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 22.8574,
+     "peak_rss": 196714496,
+     "peak_rss_tree": 196714496,
+     "peak_rss_child": 196714496,
+     "peak_private": 181723136,
+     "peak_rss_sum": 194088960,
+     "peak_private_sum": 181428224,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 15120,
+       "name": "python.exe",
+       "peak_rss": 5369856,
+       "peak_private": 1032192,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 57280,
+       "name": "python.exe",
+       "peak_rss": 196714496,
+       "peak_private": 181723136,
+       "cpu_seconds": 22.656
+      }
+     ],
+     "cpu_seconds": 22.656,
+     "load_during": 6.9,
+     "others_cores_during": 0.66,
+     "child": {
+      "op": "cli",
+      "pid": 57280,
+      "import_seconds": 0.042825,
+      "command": "stats",
+      "argv": [
+       "stats",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "--field",
+       "contact.phone",
+       "--exact",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 22.567721,
+      "index_seconds": 2.636415,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 19.931306,
+      "input_bytes": 2147483913,
+      "mb_per_s": 107.744,
+      "total_mb_per_s": 95.157,
+      "bytes_written": 0,
+      "files": 0,
+      "out_mb_per_s": 0.0,
+      "stdout_tail": "Maydon: contact.phone    6 513 235 ta yozuv · 19,8 s\n  Mavjud: 6 513 235 (100%)    null: 0 (0%)    yo'q: 0 (0%)\n  Turlar: satr 100%\n  Noyob qiymatlar: 4 636 210 (aniq)\n  Satr uzunligi: 13–13 (bo'sh satrlar: 0)\n  Eng ko'p uchragan 20 ta qiymat:\n      1. \"+998904971568\"             9    <0,1%\n      2. \"+998906481727\"             8    <0,1%\n      3. \"+998905304898\"             8    <0,1%\n      4. \"+998904893904\"             8    <0,1%\n      5. \"+998903641150\"             8    <0,1%\n      6. \"+998904590175\"             8    <0,1%\n      7. \"+998906636065\"             7    <0,1%\n      8. \"+998908595712\"             7    <0,1%\n      9. \"+998906684610\"             7    <0,1%\n     10. \"+998902671618\"             7    <0,1%\n     11. \"+998905681665\"             7    <0,1%\n     12. \"+998905760777\"             7    <0,1%\n     13. \"+998907965504\"             7    <0,1%\n     14. \"+998908100370\"             7    <0,1%\n     15. \"+998905549258\"             7    <0,1%\n     16. \"+998907893677\"             7    <0,1%\n     17. \"+998909320783\"             7    <0,1%\n     18. \"+998903959101\"             7    <0,1%\n     19. \"+998904195168\"             7    <0,1%\n     20. \"+998907420213\"             7    <0,1%\n",
+      "captured": {
+       "stats:field_stats": [
+        [
+         {
+          "field": "contact.phone",
+          "is_key": false,
+          "scanned": 6513235,
+          "skipped": 0,
+          "base": 6513235,
+          "present": 6513235,
+          "missing": 0,
+          "values": 6513235,
+          "nulls": 0,
+          "distinct": 4636210,
+          "distinct_exact": true,
+          "distinct_rse": null,
+          "top_exact": true,
+          "top_bound": 0,
+          "number": null,
+          "arr_len": null,
+          "obj_keys": null,
+          "gen": 0,
+          "elapsed": 19.849337099993136,
+          "uncounted": 0,
+          "multi": false,
+          "context": "$",
+          "partial": false
+         }
+        ]
+       ]
+      },
+      "op_seconds": 22.672279,
+      "ok": true,
+      "process_seconds": 22.736263,
+      "rss_end": 103239680,
+      "peak_rss": 196714496,
+      "peak_private": 181723136,
+      "cpu_user": 20.672,
+      "cpu_system": 1.953,
+      "io_read_bytes": 4562192340,
+      "io_write_bytes": 244939026,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\stats_exact-1"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 1.9,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 1.9
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 22.8584,
+     "peak_rss": 196751360,
+     "peak_rss_tree": 196751360,
+     "peak_rss_child": 196751360,
+     "peak_private": 182747136,
+     "peak_rss_sum": 193634304,
+     "peak_private_sum": 180277248,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 53260,
+       "name": "python.exe",
+       "peak_rss": 5369856,
+       "peak_private": 1032192,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 44840,
+       "name": "python.exe",
+       "peak_rss": 196751360,
+       "peak_private": 182747136,
+       "cpu_seconds": 22.5
+      }
+     ],
+     "cpu_seconds": 22.5,
+     "load_during": 6.4,
+     "others_cores_during": 0.55,
+     "child": {
+      "op": "cli",
+      "pid": 44840,
+      "import_seconds": 0.041786,
+      "command": "stats",
+      "argv": [
+       "stats",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "--field",
+       "contact.phone",
+       "--exact",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 22.557947,
+      "index_seconds": 2.668974,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 19.888972,
+      "input_bytes": 2147483913,
+      "mb_per_s": 107.974,
+      "total_mb_per_s": 95.199,
+      "bytes_written": 0,
+      "files": 0,
+      "out_mb_per_s": 0.0,
+      "stdout_tail": "Maydon: contact.phone    6 513 235 ta yozuv · 19,8 s\n  Mavjud: 6 513 235 (100%)    null: 0 (0%)    yo'q: 0 (0%)\n  Turlar: satr 100%\n  Noyob qiymatlar: 4 636 210 (aniq)\n  Satr uzunligi: 13–13 (bo'sh satrlar: 0)\n  Eng ko'p uchragan 20 ta qiymat:\n      1. \"+998904971568\"             9    <0,1%\n      2. \"+998906481727\"             8    <0,1%\n      3. \"+998905304898\"             8    <0,1%\n      4. \"+998904893904\"             8    <0,1%\n      5. \"+998903641150\"             8    <0,1%\n      6. \"+998904590175\"             8    <0,1%\n      7. \"+998906636065\"             7    <0,1%\n      8. \"+998908595712\"             7    <0,1%\n      9. \"+998906684610\"             7    <0,1%\n     10. \"+998902671618\"             7    <0,1%\n     11. \"+998905681665\"             7    <0,1%\n     12. \"+998905760777\"             7    <0,1%\n     13. \"+998907965504\"             7    <0,1%\n     14. \"+998908100370\"             7    <0,1%\n     15. \"+998905549258\"             7    <0,1%\n     16. \"+998907893677\"             7    <0,1%\n     17. \"+998909320783\"             7    <0,1%\n     18. \"+998903959101\"             7    <0,1%\n     19. \"+998904195168\"             7    <0,1%\n     20. \"+998907420213\"             7    <0,1%\n",
+      "captured": {
+       "stats:field_stats": [
+        [
+         {
+          "field": "contact.phone",
+          "is_key": false,
+          "scanned": 6513235,
+          "skipped": 0,
+          "base": 6513235,
+          "present": 6513235,
+          "missing": 0,
+          "values": 6513235,
+          "nulls": 0,
+          "distinct": 4636210,
+          "distinct_exact": true,
+          "distinct_rse": null,
+          "top_exact": true,
+          "top_bound": 0,
+          "number": null,
+          "arr_len": null,
+          "obj_keys": null,
+          "gen": 0,
+          "elapsed": 19.754597200022545,
+          "uncounted": 0,
+          "multi": false,
+          "context": "$",
+          "partial": false
+         }
+        ]
+       ]
+      },
+      "op_seconds": 22.670557,
+      "ok": true,
+      "process_seconds": 22.73348,
+      "rss_end": 110997504,
+      "peak_rss": 196751360,
+      "peak_private": 182747136,
+      "cpu_user": 20.688,
+      "cpu_system": 1.781,
+      "io_read_bytes": 4562192340,
+      "io_write_bytes": 244939025,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\stats_exact-2"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 4.7,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 4.7
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "op": "cli",
+    "pid": 44840,
+    "import_seconds": 0.041786,
+    "command": "stats",
+    "argv": [
+     "stats",
+     "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+     "--field",
+     "contact.phone",
+     "--exact",
+     "-q"
+    ],
+    "exit_code": 0,
+    "total_seconds": 22.557947,
+    "index_seconds": 2.668974,
+    "indexes": 1,
+    "record_count": 6513235,
+    "seconds": 19.888972,
+    "input_bytes": 2147483913,
+    "mb_per_s": 107.974,
+    "total_mb_per_s": 95.199,
+    "bytes_written": 0,
+    "files": 0,
+    "out_mb_per_s": 0.0,
+    "stdout_tail": "Maydon: contact.phone    6 513 235 ta yozuv · 19,8 s\n  Mavjud: 6 513 235 (100%)    null: 0 (0%)    yo'q: 0 (0%)\n  Turlar: satr 100%\n  Noyob qiymatlar: 4 636 210 (aniq)\n  Satr uzunligi: 13–13 (bo'sh satrlar: 0)\n  Eng ko'p uchragan 20 ta qiymat:\n      1. \"+998904971568\"             9    <0,1%\n      2. \"+998906481727\"             8    <0,1%\n      3. \"+998905304898\"             8    <0,1%\n      4. \"+998904893904\"             8    <0,1%\n      5. \"+998903641150\"             8    <0,1%\n      6. \"+998904590175\"             8    <0,1%\n      7. \"+998906636065\"             7    <0,1%\n      8. \"+998908595712\"             7    <0,1%\n      9. \"+998906684610\"             7    <0,1%\n     10. \"+998902671618\"             7    <0,1%\n     11. \"+998905681665\"             7    <0,1%\n     12. \"+998905760777\"             7    <0,1%\n     13. \"+998907965504\"             7    <0,1%\n     14. \"+998908100370\"             7    <0,1%\n     15. \"+998905549258\"             7    <0,1%\n     16. \"+998907893677\"             7    <0,1%\n     17. \"+998909320783\"             7    <0,1%\n     18. \"+998903959101\"             7    <0,1%\n     19. \"+998904195168\"             7    <0,1%\n     20. \"+998907420213\"             7    <0,1%\n",
+    "captured": {
+     "stats:field_stats": [
+      [
+       {
+        "field": "contact.phone",
+        "is_key": false,
+        "scanned": 6513235,
+        "skipped": 0,
+        "base": 6513235,
+        "present": 6513235,
+        "missing": 0,
+        "values": 6513235,
+        "nulls": 0,
+        "distinct": 4636210,
+        "distinct_exact": true,
+        "distinct_rse": null,
+        "top_exact": true,
+        "top_bound": 0,
+        "number": null,
+        "arr_len": null,
+        "obj_keys": null,
+        "gen": 0,
+        "elapsed": 19.754597200022545,
+        "uncounted": 0,
+        "multi": false,
+        "context": "$",
+        "partial": false
+       }
+      ]
+     ]
+    },
+    "op_seconds": 22.670557,
+    "ok": true,
+    "process_seconds": 22.73348,
+    "rss_end": 110997504,
+    "peak_rss": 196751360,
+    "peak_private": 182747136,
+    "cpu_user": 20.688,
+    "cpu_system": 1.781,
+    "io_read_bytes": 4562192340,
+    "io_write_bytes": 244939025,
+    "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\stats_exact-2"
+   },
+   "best_wall_seconds": 22.8584,
+   "repeats_done": 2,
+   "peak_rss": 196751360,
+   "peak_private": 182747136,
+   "peak_rss_sum": 194088960,
+   "peak_private_sum": 181428224,
+   "processes_max": 1
+  },
+  "dupes": {
+   "spec": {
+    "name": "dupes",
+    "inputs": [
+     "syn_2g"
+    ],
+    "args": [
+     "dupes",
+     "{in}",
+     "--key",
+     "contact.phone",
+     "-q"
+    ],
+    "out_ext": null,
+    "expect": "0",
+    "capture": "dupes:find_duplicates",
+    "detail": "dupes",
+    "repeats": 2,
+    "groups": [
+     "full"
+    ]
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 15.6428,
+     "peak_rss": 262795264,
+     "peak_rss_tree": 262795264,
+     "peak_rss_child": 262795264,
+     "peak_private": 252551168,
+     "peak_rss_sum": 246722560,
+     "peak_private_sum": 252502016,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 38880,
+       "name": "python.exe",
+       "peak_rss": 5369856,
+       "peak_private": 1036288,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 47036,
+       "name": "python.exe",
+       "peak_rss": 262795264,
+       "peak_private": 252551168,
+       "cpu_seconds": 15.453
+      }
+     ],
+     "cpu_seconds": 15.453,
+     "load_during": 7.1,
+     "others_cores_during": 0.72,
+     "child": {
+      "op": "cli",
+      "pid": 47036,
+      "import_seconds": 0.043326,
+      "command": "dupes",
+      "argv": [
+       "dupes",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "--key",
+       "contact.phone",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 15.358017,
+      "index_seconds": 2.703991,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 12.654027,
+      "input_bytes": 2147483913,
+      "mb_per_s": 169.708,
+      "total_mb_per_s": 139.828,
+      "bytes_written": 0,
+      "files": 0,
+      "out_mb_per_s": 0.0,
+      "stdout_tail": "Kalit: contact.phone\nGuruhlar: 1 476 797; takroriy yozuvlar: 1 877 025 (har guruhning birinchisidan tashqari)\nKaliti bor: 6 513 235; kalitsiz: 0; o'qib bo'lmagan: 0; noyob qiymatlar: 4 636 210\nMisollar (dastlabki 20 ta guruh):\n  \"+998909362688\"  (2 ta yozuv): #2, #3246218\n  \"+998905938778\"  (2 ta yozuv): #4, #737847\n  \"+998908136260\"  (2 ta yozuv): #11, #3229525\n  \"+998901456084\"  (2 ta yozuv): #13, #3338931\n  \"+998903719991\"  (2 ta yozuv): #17, #5911356\n  \"+998901637682\"  (2 ta yozuv): #19, #1475363\n  \"+998903579994\"  (2 ta yozuv): #21, #5254197\n  \"+998901748986\"  (2 ta yozuv): #22, #1998373\n  \"+998903866978\"  (2 ta yozuv): #24, #52453\n  \"+998906835100\"  (3 ta yozuv): #26, #3058461, #5667826\n  \"+998905470387\"  (2 ta yozuv): #28, #2576586\n  \"+998907143605\"  (3 ta yozuv): #33, #2423206, #5030602\n  \"+998909733249\"  (2 ta yozuv): #35, #4671120\n  \"+998907102640\"  (2 ta yozuv): #36, #5026296\n  \"+998906044039\"  (2 ta yozuv): #38, #1152704\n  \"+998904209933\"  (2 ta yozuv): #39, #2755181\n  \"+998906179249\"  (3 ta yozuv): #40, #428002, #4161964\n  \"+998904175914\"  (2 ta yozuv): #41, #2283255\n  \"+998901702516\"  (2 ta yozuv): #43, #499640\n  \"+998901441202\"  (3 ta yozuv): #46, #3165107, #3615556\n",
+      "captured": {
+       "dupes:find_duplicates": [
+        {
+         "groups": 1476797,
+         "duplicates": 1877025,
+         "records_with_key": 6513235,
+         "missing": 0,
+         "key": "contact.phone",
+         "keep": "first",
+         "scanned": 6513235,
+         "skipped": 0,
+         "gen": 0,
+         "runs": 2,
+         "elapsed": 12.572074600029737
+        }
+       ]
+      },
+      "op_seconds": 15.458326,
+      "ok": true,
+      "process_seconds": 15.5224,
+      "rss_end": 71221248,
+      "peak_rss": 262795264,
+      "peak_private": 252551168,
+      "cpu_user": 13.422,
+      "cpu_system": 2.016,
+      "io_read_bytes": 4528667539,
+      "io_write_bytes": 226779624,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\dupes-1"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 4.5,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 4.5
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 16.5103,
+     "peak_rss": 262803456,
+     "peak_rss_tree": 262803456,
+     "peak_rss_child": 262803456,
+     "peak_private": 252477440,
+     "peak_rss_sum": 250654720,
+     "peak_private_sum": 252473344,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 54652,
+       "name": "python.exe",
+       "peak_rss": 5369856,
+       "peak_private": 1032192,
+       "cpu_seconds": 0.016
+      },
+      {
+       "pid": 50280,
+       "name": "python.exe",
+       "peak_rss": 262803456,
+       "peak_private": 252477440,
+       "cpu_seconds": 16.266
+      }
+     ],
+     "cpu_seconds": 16.282,
+     "load_during": 10.2,
+     "others_cores_during": 1.46,
+     "child": {
+      "op": "cli",
+      "pid": 50280,
+      "import_seconds": 0.043588,
+      "command": "dupes",
+      "argv": [
+       "dupes",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "--key",
+       "contact.phone",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 16.217235,
+      "index_seconds": 2.702998,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 13.514237,
+      "input_bytes": 2147483913,
+      "mb_per_s": 158.905,
+      "total_mb_per_s": 132.42,
+      "bytes_written": 0,
+      "files": 0,
+      "out_mb_per_s": 0.0,
+      "stdout_tail": "Kalit: contact.phone\nGuruhlar: 1 476 797; takroriy yozuvlar: 1 877 025 (har guruhning birinchisidan tashqari)\nKaliti bor: 6 513 235; kalitsiz: 0; o'qib bo'lmagan: 0; noyob qiymatlar: 4 636 210\nMisollar (dastlabki 20 ta guruh):\n  \"+998909362688\"  (2 ta yozuv): #2, #3246218\n  \"+998905938778\"  (2 ta yozuv): #4, #737847\n  \"+998908136260\"  (2 ta yozuv): #11, #3229525\n  \"+998901456084\"  (2 ta yozuv): #13, #3338931\n  \"+998903719991\"  (2 ta yozuv): #17, #5911356\n  \"+998901637682\"  (2 ta yozuv): #19, #1475363\n  \"+998903579994\"  (2 ta yozuv): #21, #5254197\n  \"+998901748986\"  (2 ta yozuv): #22, #1998373\n  \"+998903866978\"  (2 ta yozuv): #24, #52453\n  \"+998906835100\"  (3 ta yozuv): #26, #3058461, #5667826\n  \"+998905470387\"  (2 ta yozuv): #28, #2576586\n  \"+998907143605\"  (3 ta yozuv): #33, #2423206, #5030602\n  \"+998909733249\"  (2 ta yozuv): #35, #4671120\n  \"+998907102640\"  (2 ta yozuv): #36, #5026296\n  \"+998906044039\"  (2 ta yozuv): #38, #1152704\n  \"+998904209933\"  (2 ta yozuv): #39, #2755181\n  \"+998906179249\"  (3 ta yozuv): #40, #428002, #4161964\n  \"+998904175914\"  (2 ta yozuv): #41, #2283255\n  \"+998901702516\"  (2 ta yozuv): #43, #499640\n  \"+998901441202\"  (3 ta yozuv): #46, #3165107, #3615556\n",
+      "captured": {
+       "dupes:find_duplicates": [
+        {
+         "groups": 1476797,
+         "duplicates": 1877025,
+         "records_with_key": 6513235,
+         "missing": 0,
+         "key": "contact.phone",
+         "keep": "first",
+         "scanned": 6513235,
+         "skipped": 0,
+         "gen": 0,
+         "runs": 2,
+         "elapsed": 13.435560400015675
+        }
+       ]
+      },
+      "op_seconds": 16.317146,
+      "ok": true,
+      "process_seconds": 16.381975,
+      "rss_end": 69828608,
+      "peak_rss": 262803456,
+      "peak_private": 252477440,
+      "cpu_user": 14.047,
+      "cpu_system": 2.203,
+      "io_read_bytes": 4528667539,
+      "io_write_bytes": 226779625,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\dupes-2"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 3.3,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 3.3
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "op": "cli",
+    "pid": 47036,
+    "import_seconds": 0.043326,
+    "command": "dupes",
+    "argv": [
+     "dupes",
+     "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+     "--key",
+     "contact.phone",
+     "-q"
+    ],
+    "exit_code": 0,
+    "total_seconds": 15.358017,
+    "index_seconds": 2.703991,
+    "indexes": 1,
+    "record_count": 6513235,
+    "seconds": 12.654027,
+    "input_bytes": 2147483913,
+    "mb_per_s": 169.708,
+    "total_mb_per_s": 139.828,
+    "bytes_written": 0,
+    "files": 0,
+    "out_mb_per_s": 0.0,
+    "stdout_tail": "Kalit: contact.phone\nGuruhlar: 1 476 797; takroriy yozuvlar: 1 877 025 (har guruhning birinchisidan tashqari)\nKaliti bor: 6 513 235; kalitsiz: 0; o'qib bo'lmagan: 0; noyob qiymatlar: 4 636 210\nMisollar (dastlabki 20 ta guruh):\n  \"+998909362688\"  (2 ta yozuv): #2, #3246218\n  \"+998905938778\"  (2 ta yozuv): #4, #737847\n  \"+998908136260\"  (2 ta yozuv): #11, #3229525\n  \"+998901456084\"  (2 ta yozuv): #13, #3338931\n  \"+998903719991\"  (2 ta yozuv): #17, #5911356\n  \"+998901637682\"  (2 ta yozuv): #19, #1475363\n  \"+998903579994\"  (2 ta yozuv): #21, #5254197\n  \"+998901748986\"  (2 ta yozuv): #22, #1998373\n  \"+998903866978\"  (2 ta yozuv): #24, #52453\n  \"+998906835100\"  (3 ta yozuv): #26, #3058461, #5667826\n  \"+998905470387\"  (2 ta yozuv): #28, #2576586\n  \"+998907143605\"  (3 ta yozuv): #33, #2423206, #5030602\n  \"+998909733249\"  (2 ta yozuv): #35, #4671120\n  \"+998907102640\"  (2 ta yozuv): #36, #5026296\n  \"+998906044039\"  (2 ta yozuv): #38, #1152704\n  \"+998904209933\"  (2 ta yozuv): #39, #2755181\n  \"+998906179249\"  (3 ta yozuv): #40, #428002, #4161964\n  \"+998904175914\"  (2 ta yozuv): #41, #2283255\n  \"+998901702516\"  (2 ta yozuv): #43, #499640\n  \"+998901441202\"  (3 ta yozuv): #46, #3165107, #3615556\n",
+    "captured": {
+     "dupes:find_duplicates": [
+      {
+       "groups": 1476797,
+       "duplicates": 1877025,
+       "records_with_key": 6513235,
+       "missing": 0,
+       "key": "contact.phone",
+       "keep": "first",
+       "scanned": 6513235,
+       "skipped": 0,
+       "gen": 0,
+       "runs": 2,
+       "elapsed": 12.572074600029737
+      }
+     ]
+    },
+    "op_seconds": 15.458326,
+    "ok": true,
+    "process_seconds": 15.5224,
+    "rss_end": 71221248,
+    "peak_rss": 262795264,
+    "peak_private": 252551168,
+    "cpu_user": 13.422,
+    "cpu_system": 2.016,
+    "io_read_bytes": 4528667539,
+    "io_write_bytes": 226779624,
+    "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\dupes-1"
+   },
+   "best_wall_seconds": 15.6428,
+   "repeats_done": 2,
+   "peak_rss": 262803456,
+   "peak_private": 252551168,
+   "peak_rss_sum": 250654720,
+   "peak_private_sum": 252502016,
+   "processes_max": 1
+  },
+  "schema_gen": {
+   "spec": {
+    "name": "schema_gen",
+    "inputs": [
+     "syn_2g"
+    ],
+    "args": [
+     "schema",
+     "{in}",
+     "{out}",
+     "-q"
+    ],
+    "out_ext": ".schema.json",
+    "expect": "0",
+    "capture": "",
+    "detail": "schema",
+    "repeats": 2,
+    "groups": [
+     "full"
+    ]
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 53.3994,
+     "peak_rss": 79917056,
+     "peak_rss_tree": 79917056,
+     "peak_rss_child": 79917056,
+     "peak_private": 64114688,
+     "peak_rss_sum": 79818752,
+     "peak_private_sum": 63995904,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 51152,
+       "name": "python.exe",
+       "peak_rss": 5369856,
+       "peak_private": 1032192,
+       "cpu_seconds": 0.031
+      },
+      {
+       "pid": 25628,
+       "name": "python.exe",
+       "peak_rss": 79917056,
+       "peak_private": 64114688,
+       "cpu_seconds": 53.016
+      }
+     ],
+     "cpu_seconds": 53.047,
+     "load_during": 6.0,
+     "others_cores_during": 0.45,
+     "child": {
+      "op": "cli",
+      "pid": 25628,
+      "import_seconds": 0.045881,
+      "command": "schema",
+      "argv": [
+       "schema",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\schema_gen-1.schema.json",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 53.102478,
+      "index_seconds": 2.62987,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 50.472607,
+      "input_bytes": 2147483913,
+      "mb_per_s": 42.548,
+      "total_mb_per_s": 40.44,
+      "bytes_written": 5274,
+      "files": 1,
+      "out_mb_per_s": 0.0,
+      "stdout_tail": "",
+      "captured": {},
+      "op_seconds": 53.201008,
+      "ok": true,
+      "process_seconds": 53.267252,
+      "rss_end": 58372096,
+      "peak_rss": 79917056,
+      "peak_private": 64114688,
+      "cpu_user": 51.484,
+      "cpu_system": 1.516,
+      "io_read_bytes": 4423568121,
+      "io_write_bytes": 104224144,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\schema_gen-1"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 3.6,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 3.6
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 53.8873,
+     "peak_rss": 80875520,
+     "peak_rss_tree": 80875520,
+     "peak_rss_child": 80875520,
+     "peak_private": 65064960,
+     "peak_rss_sum": 80875520,
+     "peak_private_sum": 65024000,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 45048,
+       "name": "python.exe",
+       "peak_rss": 5369856,
+       "peak_private": 1032192,
+       "cpu_seconds": 0.016
+      },
+      {
+       "pid": 4404,
+       "name": "python.exe",
+       "peak_rss": 80875520,
+       "peak_private": 65064960,
+       "cpu_seconds": 53.641
+      }
+     ],
+     "cpu_seconds": 53.657,
+     "load_during": 5.9,
+     "others_cores_during": 0.42,
+     "child": {
+      "op": "cli",
+      "pid": 4404,
+      "import_seconds": 0.04297,
+      "command": "schema",
+      "argv": [
+       "schema",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\schema_gen-2.schema.json",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 53.602085,
+      "index_seconds": 2.648826,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 50.953259,
+      "input_bytes": 2147483913,
+      "mb_per_s": 42.146,
+      "total_mb_per_s": 40.063,
+      "bytes_written": 5274,
+      "files": 1,
+      "out_mb_per_s": 0.0,
+      "stdout_tail": "",
+      "captured": {},
+      "op_seconds": 53.700453,
+      "ok": true,
+      "process_seconds": 53.764908,
+      "rss_end": 58257408,
+      "peak_rss": 80875520,
+      "peak_private": 65064960,
+      "cpu_user": 51.859,
+      "cpu_system": 1.672,
+      "io_read_bytes": 4423568121,
+      "io_write_bytes": 104224132,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\schema_gen-2"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 1.9,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 1.9
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "op": "cli",
+    "pid": 25628,
+    "import_seconds": 0.045881,
+    "command": "schema",
+    "argv": [
+     "schema",
+     "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+     "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\schema_gen-1.schema.json",
+     "-q"
+    ],
+    "exit_code": 0,
+    "total_seconds": 53.102478,
+    "index_seconds": 2.62987,
+    "indexes": 1,
+    "record_count": 6513235,
+    "seconds": 50.472607,
+    "input_bytes": 2147483913,
+    "mb_per_s": 42.548,
+    "total_mb_per_s": 40.44,
+    "bytes_written": 5274,
+    "files": 1,
+    "out_mb_per_s": 0.0,
+    "stdout_tail": "",
+    "captured": {},
+    "op_seconds": 53.201008,
+    "ok": true,
+    "process_seconds": 53.267252,
+    "rss_end": 58372096,
+    "peak_rss": 79917056,
+    "peak_private": 64114688,
+    "cpu_user": 51.484,
+    "cpu_system": 1.516,
+    "io_read_bytes": 4423568121,
+    "io_write_bytes": 104224144,
+    "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\schema_gen-1"
+   },
+   "best_wall_seconds": 53.3994,
+   "repeats_done": 2,
+   "peak_rss": 80875520,
+   "peak_private": 65064960,
+   "peak_rss_sum": 80875520,
+   "peak_private_sum": 65024000,
+   "processes_max": 1
+  },
+  "validate": {
+   "spec": {
+    "name": "validate",
+    "inputs": [
+     "syn_2g"
+    ],
+    "args": [
+     "validate",
+     "{in}",
+     "--schema",
+     "{schema}",
+     "--max-issues",
+     "0",
+     "-q"
+    ],
+    "out_ext": null,
+    "expect": "0",
+    "capture": "jschema:validate",
+    "detail": "validate",
+    "repeats": 2,
+    "groups": [
+     "full"
+    ]
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 32.2495,
+     "peak_rss": 80429056,
+     "peak_rss_tree": 80429056,
+     "peak_rss_child": 80429056,
+     "peak_private": 64466944,
+     "peak_rss_sum": 79872000,
+     "peak_private_sum": 64409600,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 39032,
+       "name": "python.exe",
+       "peak_rss": 5373952,
+       "peak_private": 1032192,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 25448,
+       "name": "python.exe",
+       "peak_rss": 80429056,
+       "peak_private": 64466944,
+       "cpu_seconds": 32.078
+      }
+     ],
+     "cpu_seconds": 32.078,
+     "load_during": 6.2,
+     "others_cores_during": 0.49,
+     "child": {
+      "op": "cli",
+      "pid": 25448,
+      "import_seconds": 0.044908,
+      "command": "validate",
+      "argv": [
+       "validate",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "--schema",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_2g.schema.json",
+       "--max-issues",
+       "0",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 31.917188,
+      "index_seconds": 2.661878,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 29.25531,
+      "input_bytes": 2147483913,
+      "mb_per_s": 73.405,
+      "total_mb_per_s": 67.283,
+      "bytes_written": 0,
+      "files": 0,
+      "out_mb_per_s": 0.0,
+      "stdout_tail": "",
+      "captured": {
+       "jschema:validate": [
+        {
+         "scope": "document",
+         "scanned": 6513235,
+         "invalid": 0,
+         "issue_count": 0,
+         "document_issues": 0,
+         "skipped": 0,
+         "too_large": 0,
+         "unreadable": 0,
+         "too_deep": 0,
+         "truncated": false,
+         "limited_records": 0,
+         "gen": 0,
+         "formats": false,
+         "elapsed": 29.17225939995842
+        }
+       ]
+      },
+      "op_seconds": 32.05298,
+      "ok": true,
+      "process_seconds": 32.12098,
+      "rss_end": 56672256,
+      "peak_rss": 80429056,
+      "peak_private": 64466944,
+      "cpu_user": 30.406,
+      "cpu_system": 1.656,
+      "io_read_bytes": 4421709080,
+      "io_write_bytes": 104218959,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\validate-1"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 2.0,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 2.0
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 32.0326,
+     "peak_rss": 80879616,
+     "peak_rss_tree": 80879616,
+     "peak_rss_child": 80879616,
+     "peak_private": 65245184,
+     "peak_rss_sum": 80867328,
+     "peak_private_sum": 65208320,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 40488,
+       "name": "python.exe",
+       "peak_rss": 5369856,
+       "peak_private": 1032192,
+       "cpu_seconds": 0.016
+      },
+      {
+       "pid": 23648,
+       "name": "python.exe",
+       "peak_rss": 80879616,
+       "peak_private": 65245184,
+       "cpu_seconds": 31.766
+      }
+     ],
+     "cpu_seconds": 31.782,
+     "load_during": 6.2,
+     "others_cores_during": 0.5,
+     "child": {
+      "op": "cli",
+      "pid": 23648,
+      "import_seconds": 0.043077,
+      "command": "validate",
+      "argv": [
+       "validate",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "--schema",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_2g.schema.json",
+       "--max-issues",
+       "0",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 31.693777,
+      "index_seconds": 2.672939,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 29.020837,
+      "input_bytes": 2147483913,
+      "mb_per_s": 73.998,
+      "total_mb_per_s": 67.757,
+      "bytes_written": 0,
+      "files": 0,
+      "out_mb_per_s": 0.0,
+      "stdout_tail": "",
+      "captured": {
+       "jschema:validate": [
+        {
+         "scope": "document",
+         "scanned": 6513235,
+         "invalid": 0,
+         "issue_count": 0,
+         "document_issues": 0,
+         "skipped": 0,
+         "too_large": 0,
+         "unreadable": 0,
+         "too_deep": 0,
+         "truncated": false,
+         "limited_records": 0,
+         "gen": 0,
+         "formats": false,
+         "elapsed": 28.95058310002787
+        }
+       ]
+      },
+      "op_seconds": 31.829686,
+      "ok": true,
+      "process_seconds": 31.89312,
+      "rss_end": 56889344,
+      "peak_rss": 80879616,
+      "peak_private": 65245184,
+      "cpu_user": 30.109,
+      "cpu_system": 1.625,
+      "io_read_bytes": 4421709080,
+      "io_write_bytes": 104218960,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\validate-2"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 4.8,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 4.8
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "op": "cli",
+    "pid": 23648,
+    "import_seconds": 0.043077,
+    "command": "validate",
+    "argv": [
+     "validate",
+     "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+     "--schema",
+     "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_2g.schema.json",
+     "--max-issues",
+     "0",
+     "-q"
+    ],
+    "exit_code": 0,
+    "total_seconds": 31.693777,
+    "index_seconds": 2.672939,
+    "indexes": 1,
+    "record_count": 6513235,
+    "seconds": 29.020837,
+    "input_bytes": 2147483913,
+    "mb_per_s": 73.998,
+    "total_mb_per_s": 67.757,
+    "bytes_written": 0,
+    "files": 0,
+    "out_mb_per_s": 0.0,
+    "stdout_tail": "",
+    "captured": {
+     "jschema:validate": [
+      {
+       "scope": "document",
+       "scanned": 6513235,
+       "invalid": 0,
+       "issue_count": 0,
+       "document_issues": 0,
+       "skipped": 0,
+       "too_large": 0,
+       "unreadable": 0,
+       "too_deep": 0,
+       "truncated": false,
+       "limited_records": 0,
+       "gen": 0,
+       "formats": false,
+       "elapsed": 28.95058310002787
+      }
+     ]
+    },
+    "op_seconds": 31.829686,
+    "ok": true,
+    "process_seconds": 31.89312,
+    "rss_end": 56889344,
+    "peak_rss": 80879616,
+    "peak_private": 65245184,
+    "cpu_user": 30.109,
+    "cpu_system": 1.625,
+    "io_read_bytes": 4421709080,
+    "io_write_bytes": 104218960,
+    "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\validate-2"
+   },
+   "best_wall_seconds": 32.0326,
+   "repeats_done": 2,
+   "peak_rss": 80879616,
+   "peak_private": 65245184,
+   "peak_rss_sum": 80867328,
+   "peak_private_sum": 65208320,
+   "processes_max": 1
+  },
+  "split_copy": {
+   "spec": {
+    "name": "split_copy",
+    "inputs": [
+     "syn_2g"
+    ],
+    "args": [
+     "split",
+     "{in}",
+     "--parts",
+     "4",
+     "-o",
+     "{out}",
+     "-q"
+    ],
+    "out_ext": "dir",
+    "expect": "0",
+    "capture": "filetools:split",
+    "detail": "split",
+    "repeats": 2,
+    "groups": [
+     "full"
+    ]
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 6.1152,
+     "peak_rss": 64643072,
+     "peak_rss_tree": 64643072,
+     "peak_rss_child": 64643072,
+     "peak_private": 50049024,
+     "peak_rss_sum": 64643072,
+     "peak_private_sum": 49983488,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 34512,
+       "name": "python.exe",
+       "peak_rss": 5373952,
+       "peak_private": 1036288,
+       "cpu_seconds": 0.016
+      },
+      {
+       "pid": 35916,
+       "name": "python.exe",
+       "peak_rss": 64643072,
+       "peak_private": 50049024,
+       "cpu_seconds": 6.828
+      }
+     ],
+     "cpu_seconds": 6.844,
+     "load_during": 7.9,
+     "others_cores_during": 0.78,
+     "child": {
+      "op": "cli",
+      "pid": 35916,
+      "import_seconds": 0.048596,
+      "command": "split",
+      "argv": [
+       "split",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "--parts",
+       "4",
+       "-o",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_copy-1",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 5.640503,
+      "index_seconds": 2.710949,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 2.929554,
+      "input_bytes": 2147483913,
+      "mb_per_s": 733.041,
+      "total_mb_per_s": 380.726,
+      "bytes_written": 2147483922,
+      "files": 4,
+      "out_mb_per_s": 733.041,
+      "stdout_tail": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_copy-1\\syn_2g_1.json\nE:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_copy-1\\syn_2g_2.json\nE:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_copy-1\\syn_2g_3.json\nE:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_copy-1\\syn_2g_4.json\n",
+      "captured": {
+       "filetools:split": [
+        {
+         "records": 6513235,
+         "bytes_written": 2147483922,
+         "elapsed": 2.8143721000524238,
+         "engine": "same",
+         "fmt": "array",
+         "rows": 0,
+         "skipped": 0
+        }
+       ]
+      },
+      "op_seconds": 5.916056,
+      "ok": true,
+      "process_seconds": 5.985956,
+      "rss_end": 53940224,
+      "peak_rss": 64643072,
+      "peak_private": 50049024,
+      "cpu_user": 4.062,
+      "cpu_system": 2.75,
+      "io_read_bytes": 4388416925,
+      "io_write_bytes": 2251702917,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\split_copy-1"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 2.0,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 2.0
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 5.9598,
+     "peak_rss": 64798720,
+     "peak_rss_tree": 64798720,
+     "peak_rss_child": 64798720,
+     "peak_private": 50274304,
+     "peak_rss_sum": 64798720,
+     "peak_private_sum": 50204672,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 35228,
+       "name": "python.exe",
+       "peak_rss": 5369856,
+       "peak_private": 1032192,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 48984,
+       "name": "python.exe",
+       "peak_rss": 64798720,
+       "peak_private": 50274304,
+       "cpu_seconds": 6.547
+      }
+     ],
+     "cpu_seconds": 6.547,
+     "load_during": 7.2,
+     "others_cores_during": 0.63,
+     "child": {
+      "op": "cli",
+      "pid": 48984,
+      "import_seconds": 0.043908,
+      "command": "split",
+      "argv": [
+       "split",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "--parts",
+       "4",
+       "-o",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_copy-2",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 5.503267,
+      "index_seconds": 2.671722,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 2.831545,
+      "input_bytes": 2147483913,
+      "mb_per_s": 758.414,
+      "total_mb_per_s": 390.22,
+      "bytes_written": 2147483922,
+      "files": 4,
+      "out_mb_per_s": 758.414,
+      "stdout_tail": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_copy-2\\syn_2g_1.json\nE:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_copy-2\\syn_2g_2.json\nE:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_copy-2\\syn_2g_3.json\nE:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_copy-2\\syn_2g_4.json\n",
+      "captured": {
+       "filetools:split": [
+        {
+         "records": 6513235,
+         "bytes_written": 2147483922,
+         "elapsed": 2.761246799957007,
+         "engine": "same",
+         "fmt": "array",
+         "rows": 0,
+         "skipped": 0
+        }
+       ]
+      },
+      "op_seconds": 5.777316,
+      "ok": true,
+      "process_seconds": 5.843398,
+      "rss_end": 54095872,
+      "peak_rss": 64798720,
+      "peak_private": 50274304,
+      "cpu_user": 4.234,
+      "cpu_system": 2.281,
+      "io_read_bytes": 4388416925,
+      "io_write_bytes": 2251702917,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\split_copy-2"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 8.6,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 8.6
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "op": "cli",
+    "pid": 48984,
+    "import_seconds": 0.043908,
+    "command": "split",
+    "argv": [
+     "split",
+     "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+     "--parts",
+     "4",
+     "-o",
+     "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_copy-2",
+     "-q"
+    ],
+    "exit_code": 0,
+    "total_seconds": 5.503267,
+    "index_seconds": 2.671722,
+    "indexes": 1,
+    "record_count": 6513235,
+    "seconds": 2.831545,
+    "input_bytes": 2147483913,
+    "mb_per_s": 758.414,
+    "total_mb_per_s": 390.22,
+    "bytes_written": 2147483922,
+    "files": 4,
+    "out_mb_per_s": 758.414,
+    "stdout_tail": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_copy-2\\syn_2g_1.json\nE:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_copy-2\\syn_2g_2.json\nE:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_copy-2\\syn_2g_3.json\nE:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_copy-2\\syn_2g_4.json\n",
+    "captured": {
+     "filetools:split": [
+      {
+       "records": 6513235,
+       "bytes_written": 2147483922,
+       "elapsed": 2.761246799957007,
+       "engine": "same",
+       "fmt": "array",
+       "rows": 0,
+       "skipped": 0
+      }
+     ]
+    },
+    "op_seconds": 5.777316,
+    "ok": true,
+    "process_seconds": 5.843398,
+    "rss_end": 54095872,
+    "peak_rss": 64798720,
+    "peak_private": 50274304,
+    "cpu_user": 4.234,
+    "cpu_system": 2.281,
+    "io_read_bytes": 4388416925,
+    "io_write_bytes": 2251702917,
+    "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\split_copy-2"
+   },
+   "best_wall_seconds": 5.9598,
+   "repeats_done": 2,
+   "peak_rss": 64798720,
+   "peak_private": 50274304,
+   "peak_rss_sum": 64798720,
+   "peak_private_sum": 50204672,
+   "processes_max": 1
+  },
+  "split_jsonl": {
+   "spec": {
+    "name": "split_jsonl",
+    "inputs": [
+     "syn_2g"
+    ],
+    "args": [
+     "split",
+     "{in}",
+     "--parts",
+     "4",
+     "--to",
+     "jsonl",
+     "-o",
+     "{out}",
+     "-q"
+    ],
+    "out_ext": "dir",
+    "expect": "0",
+    "capture": "filetools:split",
+    "detail": "split",
+    "repeats": 2,
+    "groups": [
+     "full"
+    ]
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 10.7053,
+     "peak_rss": 101810176,
+     "peak_rss_tree": 101810176,
+     "peak_rss_child": 101810176,
+     "peak_private": 87711744,
+     "peak_rss_sum": 99491840,
+     "peak_private_sum": 87662592,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 55744,
+       "name": "python.exe",
+       "peak_rss": 5369856,
+       "peak_private": 1032192,
+       "cpu_seconds": 0.016
+      },
+      {
+       "pid": 39376,
+       "name": "python.exe",
+       "peak_rss": 101810176,
+       "peak_private": 87711744,
+       "cpu_seconds": 10.062
+      }
+     ],
+     "cpu_seconds": 10.078,
+     "load_during": 6.6,
+     "others_cores_during": 0.64,
+     "child": {
+      "op": "cli",
+      "pid": 39376,
+      "import_seconds": 0.048395,
+      "command": "split",
+      "argv": [
+       "split",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "--parts",
+       "4",
+       "--to",
+       "jsonl",
+       "-o",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_jsonl-1",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 10.223189,
+      "index_seconds": 2.691831,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 7.531357,
+      "input_bytes": 2147483913,
+      "mb_per_s": 285.139,
+      "total_mb_per_s": 210.06,
+      "bytes_written": 2140970675,
+      "files": 4,
+      "out_mb_per_s": 284.274,
+      "stdout_tail": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_jsonl-1\\syn_2g_1.jsonl\nE:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_jsonl-1\\syn_2g_2.jsonl\nE:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_jsonl-1\\syn_2g_3.jsonl\nE:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_jsonl-1\\syn_2g_4.jsonl\n",
+      "captured": {
+       "filetools:split": [
+        {
+         "records": 6513235,
+         "bytes_written": 2140970675,
+         "elapsed": 7.467482200008817,
+         "engine": "export",
+         "fmt": "jsonl",
+         "rows": 6513235,
+         "skipped": 0
+        }
+       ]
+      },
+      "op_seconds": 10.506955,
+      "ok": true,
+      "process_seconds": 10.576055,
+      "rss_end": 57139200,
+      "peak_rss": 101810176,
+      "peak_private": 87711744,
+      "cpu_user": 6.938,
+      "cpu_system": 3.109,
+      "io_read_bytes": 4434084705,
+      "io_write_bytes": 2245190766,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\split_jsonl-1"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 4.4,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 4.4
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 10.6373,
+     "peak_rss": 101535744,
+     "peak_rss_tree": 101535744,
+     "peak_rss_child": 101535744,
+     "peak_private": 87588864,
+     "peak_rss_sum": 99500032,
+     "peak_private_sum": 87531520,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 30252,
+       "name": "python.exe",
+       "peak_rss": 5373952,
+       "peak_private": 1036288,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 37532,
+       "name": "python.exe",
+       "peak_rss": 101535744,
+       "peak_private": 87588864,
+       "cpu_seconds": 10.0
+      }
+     ],
+     "cpu_seconds": 10.0,
+     "load_during": 6.0,
+     "others_cores_during": 0.5,
+     "child": {
+      "op": "cli",
+      "pid": 37532,
+      "import_seconds": 0.043462,
+      "command": "split",
+      "argv": [
+       "split",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "--parts",
+       "4",
+       "--to",
+       "jsonl",
+       "-o",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_jsonl-2",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 10.1798,
+      "index_seconds": 2.715825,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 7.463975,
+      "input_bytes": 2147483913,
+      "mb_per_s": 287.713,
+      "total_mb_per_s": 210.955,
+      "bytes_written": 2140970675,
+      "files": 4,
+      "out_mb_per_s": 286.841,
+      "stdout_tail": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_jsonl-2\\syn_2g_1.jsonl\nE:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_jsonl-2\\syn_2g_2.jsonl\nE:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_jsonl-2\\syn_2g_3.jsonl\nE:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_jsonl-2\\syn_2g_4.jsonl\n",
+      "captured": {
+       "filetools:split": [
+        {
+         "records": 6513235,
+         "bytes_written": 2140970675,
+         "elapsed": 7.397926300007384,
+         "engine": "export",
+         "fmt": "jsonl",
+         "rows": 6513235,
+         "skipped": 0
+        }
+       ]
+      },
+      "op_seconds": 10.454074,
+      "ok": true,
+      "process_seconds": 10.519256,
+      "rss_end": 57151488,
+      "peak_rss": 101535744,
+      "peak_private": 87588864,
+      "cpu_user": 6.562,
+      "cpu_system": 3.406,
+      "io_read_bytes": 4434084705,
+      "io_write_bytes": 2245190766,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\split_jsonl-2"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 3.0,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 3.0
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "op": "cli",
+    "pid": 37532,
+    "import_seconds": 0.043462,
+    "command": "split",
+    "argv": [
+     "split",
+     "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+     "--parts",
+     "4",
+     "--to",
+     "jsonl",
+     "-o",
+     "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_jsonl-2",
+     "-q"
+    ],
+    "exit_code": 0,
+    "total_seconds": 10.1798,
+    "index_seconds": 2.715825,
+    "indexes": 1,
+    "record_count": 6513235,
+    "seconds": 7.463975,
+    "input_bytes": 2147483913,
+    "mb_per_s": 287.713,
+    "total_mb_per_s": 210.955,
+    "bytes_written": 2140970675,
+    "files": 4,
+    "out_mb_per_s": 286.841,
+    "stdout_tail": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_jsonl-2\\syn_2g_1.jsonl\nE:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_jsonl-2\\syn_2g_2.jsonl\nE:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_jsonl-2\\syn_2g_3.jsonl\nE:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\split_jsonl-2\\syn_2g_4.jsonl\n",
+    "captured": {
+     "filetools:split": [
+      {
+       "records": 6513235,
+       "bytes_written": 2140970675,
+       "elapsed": 7.397926300007384,
+       "engine": "export",
+       "fmt": "jsonl",
+       "rows": 6513235,
+       "skipped": 0
+      }
+     ]
+    },
+    "op_seconds": 10.454074,
+    "ok": true,
+    "process_seconds": 10.519256,
+    "rss_end": 57151488,
+    "peak_rss": 101535744,
+    "peak_private": 87588864,
+    "cpu_user": 6.562,
+    "cpu_system": 3.406,
+    "io_read_bytes": 4434084705,
+    "io_write_bytes": 2245190766,
+    "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\split_jsonl-2"
+   },
+   "best_wall_seconds": 10.6373,
+   "repeats_done": 2,
+   "peak_rss": 101810176,
+   "peak_private": 87711744,
+   "peak_rss_sum": 99500032,
+   "peak_private_sum": 87662592,
+   "processes_max": 1
+  },
+  "merge_dedupe": {
+   "spec": {
+    "name": "merge_dedupe",
+    "inputs": [
+     "syn_2g",
+     "changed"
+    ],
+    "args": [
+     "merge",
+     "{in}",
+     "{in2}",
+     "-o",
+     "{out}",
+     "--dedupe-by",
+     "id",
+     "-q"
+    ],
+    "out_ext": ".json",
+    "expect": "0",
+    "capture": "filetools:merge",
+    "detail": "merge",
+    "repeats": 2,
+    "groups": [
+     "full"
+    ]
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 42.8598,
+     "peak_rss": 264343552,
+     "peak_rss_tree": 264343552,
+     "peak_rss_child": 264343552,
+     "peak_private": 254787584,
+     "peak_rss_sum": 258093056,
+     "peak_private_sum": 249225216,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 57228,
+       "name": "python.exe",
+       "peak_rss": 5369856,
+       "peak_private": 1036288,
+       "cpu_seconds": 0.031
+      },
+      {
+       "pid": 29364,
+       "name": "python.exe",
+       "peak_rss": 264343552,
+       "peak_private": 254787584,
+       "cpu_seconds": 41.828
+      }
+     ],
+     "cpu_seconds": 41.859,
+     "load_during": 6.3,
+     "others_cores_during": 0.54,
+     "child": {
+      "op": "cli",
+      "pid": 29364,
+      "import_seconds": 0.045499,
+      "command": "merge",
+      "argv": [
+       "merge",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_2g_changed.json",
+       "-o",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\merge_dedupe-1.json",
+       "--dedupe-by",
+       "id",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 42.268295,
+      "index_seconds": 5.575541,
+      "indexes": 2,
+      "record_count": 13026450,
+      "seconds": 36.692753,
+      "input_bytes": 4294212395,
+      "mb_per_s": 117.032,
+      "total_mb_per_s": 101.594,
+      "bytes_written": 3667799385,
+      "files": 1,
+      "out_mb_per_s": 99.96,
+      "stdout_tail": "",
+      "captured": {
+       "filetools:merge": [
+        {
+         "duplicates": 6506702,
+         "groups": 6506702,
+         "records": 6519748
+        }
+       ]
+      },
+      "op_seconds": 42.657862,
+      "ok": true,
+      "process_seconds": 42.724987,
+      "rss_end": 80326656,
+      "peak_rss": 264343552,
+      "peak_private": 254787584,
+      "cpu_user": 34.703,
+      "cpu_system": 7.109,
+      "io_read_bytes": 11256790539,
+      "io_write_bytes": 4144935536,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\merge_dedupe-1"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 4.7,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 4.7
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 42.8613,
+     "peak_rss": 263675904,
+     "peak_rss_tree": 263675904,
+     "peak_rss_child": 263675904,
+     "peak_private": 253677568,
+     "peak_rss_sum": 258289664,
+     "peak_private_sum": 249335808,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 3848,
+       "name": "python.exe",
+       "peak_rss": 5369856,
+       "peak_private": 1028096,
+       "cpu_seconds": 0.016
+      },
+      {
+       "pid": 50468,
+       "name": "python.exe",
+       "peak_rss": 263675904,
+       "peak_private": 253677568,
+       "cpu_seconds": 41.594
+      }
+     ],
+     "cpu_seconds": 41.61,
+     "load_during": 5.9,
+     "others_cores_during": 0.45,
+     "child": {
+      "op": "cli",
+      "pid": 50468,
+      "import_seconds": 0.042195,
+      "command": "merge",
+      "argv": [
+       "merge",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_2g_changed.json",
+       "-o",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\merge_dedupe-2.json",
+       "--dedupe-by",
+       "id",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 42.287365,
+      "index_seconds": 5.547181,
+      "indexes": 2,
+      "record_count": 13026450,
+      "seconds": 36.740183,
+      "input_bytes": 4294212395,
+      "mb_per_s": 116.881,
+      "total_mb_per_s": 101.548,
+      "bytes_written": 3667799385,
+      "files": 1,
+      "out_mb_per_s": 99.831,
+      "stdout_tail": "",
+      "captured": {
+       "filetools:merge": [
+        {
+         "duplicates": 6506702,
+         "groups": 6506702,
+         "records": 6519748
+        }
+       ]
+      },
+      "op_seconds": 42.674296,
+      "ok": true,
+      "process_seconds": 42.738237,
+      "rss_end": 80560128,
+      "peak_rss": 263675904,
+      "peak_private": 253677568,
+      "cpu_user": 34.75,
+      "cpu_system": 6.828,
+      "io_read_bytes": 11256790539,
+      "io_write_bytes": 4144935534,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\merge_dedupe-2"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 3.6,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 3.6
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "op": "cli",
+    "pid": 29364,
+    "import_seconds": 0.045499,
+    "command": "merge",
+    "argv": [
+     "merge",
+     "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+     "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_2g_changed.json",
+     "-o",
+     "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\merge_dedupe-1.json",
+     "--dedupe-by",
+     "id",
+     "-q"
+    ],
+    "exit_code": 0,
+    "total_seconds": 42.268295,
+    "index_seconds": 5.575541,
+    "indexes": 2,
+    "record_count": 13026450,
+    "seconds": 36.692753,
+    "input_bytes": 4294212395,
+    "mb_per_s": 117.032,
+    "total_mb_per_s": 101.594,
+    "bytes_written": 3667799385,
+    "files": 1,
+    "out_mb_per_s": 99.96,
+    "stdout_tail": "",
+    "captured": {
+     "filetools:merge": [
+      {
+       "duplicates": 6506702,
+       "groups": 6506702,
+       "records": 6519748
+      }
+     ]
+    },
+    "op_seconds": 42.657862,
+    "ok": true,
+    "process_seconds": 42.724987,
+    "rss_end": 80326656,
+    "peak_rss": 264343552,
+    "peak_private": 254787584,
+    "cpu_user": 34.703,
+    "cpu_system": 7.109,
+    "io_read_bytes": 11256790539,
+    "io_write_bytes": 4144935536,
+    "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\merge_dedupe-1"
+   },
+   "best_wall_seconds": 42.8598,
+   "repeats_done": 2,
+   "peak_rss": 264343552,
+   "peak_private": 254787584,
+   "peak_rss_sum": 258289664,
+   "peak_private_sum": 249335808,
+   "processes_max": 1
+  },
+  "extract": {
+   "spec": {
+    "name": "extract",
+    "inputs": [
+     "syn_2g"
+    ],
+    "args": [
+     "extract",
+     "{in}",
+     "{out}",
+     "--gather",
+     "orders[*]",
+     "-q"
+    ],
+    "out_ext": ".jsonl",
+    "expect": "0",
+    "capture": "filetools:extract",
+    "detail": "extract",
+    "repeats": 2,
+    "groups": [
+     "full"
+    ]
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 8.6604,
+     "peak_rss": 86953984,
+     "peak_rss_tree": 86953984,
+     "peak_rss_child": 86953984,
+     "peak_private": 72278016,
+     "peak_rss_sum": 86462464,
+     "peak_private_sum": 71438336,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 31500,
+       "name": "python.exe",
+       "peak_rss": 5369856,
+       "peak_private": 1032192,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 34396,
+       "name": "python.exe",
+       "peak_rss": 86953984,
+       "peak_private": 72278016,
+       "cpu_seconds": 8.453
+      }
+     ],
+     "cpu_seconds": 8.453,
+     "load_during": 8.1,
+     "others_cores_during": 0.97,
+     "child": {
+      "op": "cli",
+      "pid": 34396,
+      "import_seconds": 0.043006,
+      "command": "extract",
+      "argv": [
+       "extract",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\extract-1.jsonl",
+       "--gather",
+       "orders[*]",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 8.328925,
+      "index_seconds": 2.705936,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 5.622988,
+      "input_bytes": 2147483913,
+      "mb_per_s": 381.912,
+      "total_mb_per_s": 257.834,
+      "bytes_written": 386179041,
+      "files": 1,
+      "out_mb_per_s": 68.679,
+      "stdout_tail": "",
+      "captured": {
+       "filetools:extract": [
+        {
+         "fmt": "jsonl",
+         "records": 9774338,
+         "rows": 9774338,
+         "bytes_written": 386179041,
+         "elapsed": 5.55937420000555,
+         "skipped": 0,
+         "workers": 1
+        }
+       ]
+      },
+      "op_seconds": 8.467164,
+      "ok": true,
+      "process_seconds": 8.531137,
+      "rss_end": 56401920,
+      "peak_rss": 86953984,
+      "peak_private": 72278016,
+      "cpu_user": 6.453,
+      "cpu_system": 1.969,
+      "io_read_bytes": 4423271269,
+      "io_write_bytes": 490398007,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\extract-1"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 6.4,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 6.4
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 8.6106,
+     "peak_rss": 86499328,
+     "peak_rss_tree": 86499328,
+     "peak_rss_child": 86499328,
+     "peak_private": 71794688,
+     "peak_rss_sum": 85839872,
+     "peak_private_sum": 70729728,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 41612,
+       "name": "python.exe",
+       "peak_rss": 5373952,
+       "peak_private": 1040384,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 39000,
+       "name": "python.exe",
+       "peak_rss": 86499328,
+       "peak_private": 71794688,
+       "cpu_seconds": 8.422
+      }
+     ],
+     "cpu_seconds": 8.422,
+     "load_during": 6.7,
+     "others_cores_during": 0.63,
+     "child": {
+      "op": "cli",
+      "pid": 39000,
+      "import_seconds": 0.041291,
+      "command": "extract",
+      "argv": [
+       "extract",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\extract-2.jsonl",
+       "--gather",
+       "orders[*]",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 8.281918,
+      "index_seconds": 2.673267,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 5.608651,
+      "input_bytes": 2147483913,
+      "mb_per_s": 382.888,
+      "total_mb_per_s": 259.298,
+      "bytes_written": 386179041,
+      "files": 1,
+      "out_mb_per_s": 68.854,
+      "stdout_tail": "",
+      "captured": {
+       "filetools:extract": [
+        {
+         "fmt": "jsonl",
+         "records": 9774338,
+         "rows": 9774338,
+         "bytes_written": 386179041,
+         "elapsed": 5.5370119999861345,
+         "skipped": 0,
+         "workers": 1
+        }
+       ]
+      },
+      "op_seconds": 8.422291,
+      "ok": true,
+      "process_seconds": 8.484597,
+      "rss_end": 56180736,
+      "peak_rss": 86499328,
+      "peak_private": 71794688,
+      "cpu_user": 6.25,
+      "cpu_system": 2.141,
+      "io_read_bytes": 4423271269,
+      "io_write_bytes": 490398008,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\extract-2"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 1.5,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 1.5
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "op": "cli",
+    "pid": 39000,
+    "import_seconds": 0.041291,
+    "command": "extract",
+    "argv": [
+     "extract",
+     "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+     "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\extract-2.jsonl",
+     "--gather",
+     "orders[*]",
+     "-q"
+    ],
+    "exit_code": 0,
+    "total_seconds": 8.281918,
+    "index_seconds": 2.673267,
+    "indexes": 1,
+    "record_count": 6513235,
+    "seconds": 5.608651,
+    "input_bytes": 2147483913,
+    "mb_per_s": 382.888,
+    "total_mb_per_s": 259.298,
+    "bytes_written": 386179041,
+    "files": 1,
+    "out_mb_per_s": 68.854,
+    "stdout_tail": "",
+    "captured": {
+     "filetools:extract": [
+      {
+       "fmt": "jsonl",
+       "records": 9774338,
+       "rows": 9774338,
+       "bytes_written": 386179041,
+       "elapsed": 5.5370119999861345,
+       "skipped": 0,
+       "workers": 1
+      }
+     ]
+    },
+    "op_seconds": 8.422291,
+    "ok": true,
+    "process_seconds": 8.484597,
+    "rss_end": 56180736,
+    "peak_rss": 86499328,
+    "peak_private": 71794688,
+    "cpu_user": 6.25,
+    "cpu_system": 2.141,
+    "io_read_bytes": 4423271269,
+    "io_write_bytes": 490398008,
+    "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\extract-2"
+   },
+   "best_wall_seconds": 8.6106,
+   "repeats_done": 2,
+   "peak_rss": 86953984,
+   "peak_private": 72278016,
+   "peak_rss_sum": 86462464,
+   "peak_private_sum": 71438336,
+   "processes_max": 1
+  },
+  "repair_clean": {
+   "spec": {
+    "name": "repair_clean",
+    "inputs": [
+     "syn_2g"
+    ],
+    "args": [
+     "repair",
+     "{in}",
+     "{out}",
+     "-q"
+    ],
+    "out_ext": ".json",
+    "expect": "0",
+    "capture": "repair:repair_file",
+    "detail": "repair",
+    "repeats": 2,
+    "groups": [
+     "full"
+    ]
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 6.9121,
+     "peak_rss": 101634048,
+     "peak_rss_tree": 101634048,
+     "peak_rss_child": 101634048,
+     "peak_private": 86339584,
+     "peak_rss_sum": 101625856,
+     "peak_private_sum": 86269952,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 30236,
+       "name": "python.exe",
+       "peak_rss": 5369856,
+       "peak_private": 1024000,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 31260,
+       "name": "python.exe",
+       "peak_rss": 101634048,
+       "peak_private": 86339584,
+       "cpu_seconds": 8.453
+      }
+     ],
+     "cpu_seconds": 8.453,
+     "load_during": 7.9,
+     "others_cores_during": 0.67,
+     "child": {
+      "op": "cli",
+      "pid": 31260,
+      "import_seconds": 0.042408,
+      "command": "repair",
+      "argv": [
+       "repair",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\repair_clean-1.json",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 6.443503,
+      "index_seconds": 0.0,
+      "indexes": 0,
+      "record_count": null,
+      "seconds": 6.443503,
+      "input_bytes": 2147483913,
+      "mb_per_s": 333.279,
+      "total_mb_per_s": 333.279,
+      "bytes_written": 2147483913,
+      "files": 1,
+      "out_mb_per_s": 333.279,
+      "stdout_tail": "",
+      "captured": {
+       "repair:repair_file": [
+        {
+         "kind": "array",
+         "output_kind": "array",
+         "encoding": "utf-8",
+         "compression": null,
+         "bytes_in": 2147483913,
+         "bytes_out": 2147483913,
+         "records": 6513235,
+         "elapsed": 6.37969139998313,
+         "fixes_file": null,
+         "truncated": null,
+         "problem": null,
+         "written": true,
+         "record_path": null,
+         "check_only": false,
+         "backend": "rust",
+         "accelerated": true,
+         "data_path": null,
+         "total": 0
+        }
+       ]
+      },
+      "op_seconds": 6.722788,
+      "ok": true,
+      "process_seconds": 6.786805,
+      "rss_end": 62861312,
+      "peak_rss": 101634048,
+      "peak_private": 86339584,
+      "cpu_user": 6.5,
+      "cpu_system": 1.938,
+      "io_read_bytes": 2167345717,
+      "io_write_bytes": 2147485274,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\repair_clean-1"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 4.1,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 4.1
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 6.8845,
+     "peak_rss": 101130240,
+     "peak_rss_tree": 101130240,
+     "peak_rss_child": 101130240,
+     "peak_private": 85557248,
+     "peak_rss_sum": 101003264,
+     "peak_private_sum": 85491712,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 24268,
+       "name": "python.exe",
+       "peak_rss": 5373952,
+       "peak_private": 1032192,
+       "cpu_seconds": 0.016
+      },
+      {
+       "pid": 5572,
+       "name": "python.exe",
+       "peak_rss": 101130240,
+       "peak_private": 85557248,
+       "cpu_seconds": 8.391
+      }
+     ],
+     "cpu_seconds": 8.407,
+     "load_during": 7.5,
+     "others_cores_during": 0.58,
+     "child": {
+      "op": "cli",
+      "pid": 5572,
+      "import_seconds": 0.048425,
+      "command": "repair",
+      "argv": [
+       "repair",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\repair_clean-2.json",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 6.40927,
+      "index_seconds": 0.0,
+      "indexes": 0,
+      "record_count": null,
+      "seconds": 6.40927,
+      "input_bytes": 2147483913,
+      "mb_per_s": 335.059,
+      "total_mb_per_s": 335.059,
+      "bytes_written": 2147483913,
+      "files": 1,
+      "out_mb_per_s": 335.059,
+      "stdout_tail": "",
+      "captured": {
+       "repair:repair_file": [
+        {
+         "kind": "array",
+         "output_kind": "array",
+         "encoding": "utf-8",
+         "compression": null,
+         "bytes_in": 2147483913,
+         "bytes_out": 2147483913,
+         "records": 6513235,
+         "elapsed": 6.347953599994071,
+         "fixes_file": null,
+         "truncated": null,
+         "problem": null,
+         "written": true,
+         "record_path": null,
+         "check_only": false,
+         "backend": "rust",
+         "accelerated": true,
+         "data_path": null,
+         "total": 0
+        }
+       ]
+      },
+      "op_seconds": 6.683063,
+      "ok": true,
+      "process_seconds": 6.752507,
+      "rss_end": 63643648,
+      "peak_rss": 101130240,
+      "peak_private": 85557248,
+      "cpu_user": 6.266,
+      "cpu_system": 2.094,
+      "io_read_bytes": 2167345717,
+      "io_write_bytes": 2147485267,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\repair_clean-2"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 2.9,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 2.9
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "op": "cli",
+    "pid": 5572,
+    "import_seconds": 0.048425,
+    "command": "repair",
+    "argv": [
+     "repair",
+     "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+     "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\repair_clean-2.json",
+     "-q"
+    ],
+    "exit_code": 0,
+    "total_seconds": 6.40927,
+    "index_seconds": 0.0,
+    "indexes": 0,
+    "record_count": null,
+    "seconds": 6.40927,
+    "input_bytes": 2147483913,
+    "mb_per_s": 335.059,
+    "total_mb_per_s": 335.059,
+    "bytes_written": 2147483913,
+    "files": 1,
+    "out_mb_per_s": 335.059,
+    "stdout_tail": "",
+    "captured": {
+     "repair:repair_file": [
+      {
+       "kind": "array",
+       "output_kind": "array",
+       "encoding": "utf-8",
+       "compression": null,
+       "bytes_in": 2147483913,
+       "bytes_out": 2147483913,
+       "records": 6513235,
+       "elapsed": 6.347953599994071,
+       "fixes_file": null,
+       "truncated": null,
+       "problem": null,
+       "written": true,
+       "record_path": null,
+       "check_only": false,
+       "backend": "rust",
+       "accelerated": true,
+       "data_path": null,
+       "total": 0
+      }
+     ]
+    },
+    "op_seconds": 6.683063,
+    "ok": true,
+    "process_seconds": 6.752507,
+    "rss_end": 63643648,
+    "peak_rss": 101130240,
+    "peak_private": 85557248,
+    "cpu_user": 6.266,
+    "cpu_system": 2.094,
+    "io_read_bytes": 2167345717,
+    "io_write_bytes": 2147485267,
+    "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\repair_clean-2"
+   },
+   "best_wall_seconds": 6.8845,
+   "repeats_done": 2,
+   "peak_rss": 101634048,
+   "peak_private": 86339584,
+   "peak_rss_sum": 101625856,
+   "peak_private_sum": 86269952,
+   "processes_max": 1
+  },
+  "repair_broken": {
+   "spec": {
+    "name": "repair_broken",
+    "inputs": [
+     "broken1"
+    ],
+    "args": [
+     "repair",
+     "{in}",
+     "{out}",
+     "-q"
+    ],
+    "out_ext": ".json",
+    "expect": "0",
+    "capture": "repair:repair_file",
+    "detail": "repair",
+    "repeats": 2,
+    "groups": [
+     "full"
+    ]
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 10.4758,
+     "peak_rss": 68435968,
+     "peak_rss_tree": 68435968,
+     "peak_rss_child": 68435968,
+     "peak_private": 53293056,
+     "peak_rss_sum": 63381504,
+     "peak_private_sum": 48402432,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 40852,
+       "name": "python.exe",
+       "peak_rss": 5369856,
+       "peak_private": 1036288,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 43580,
+       "name": "python.exe",
+       "peak_rss": 68435968,
+       "peak_private": 53293056,
+       "cpu_seconds": 12.172
+      }
+     ],
+     "cpu_seconds": 12.172,
+     "load_during": 7.2,
+     "others_cores_during": 0.57,
+     "child": {
+      "op": "cli",
+      "pid": 43580,
+      "import_seconds": 0.042538,
+      "command": "repair",
+      "argv": [
+       "repair",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_2g_broken1.json",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\repair_broken-1.json",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 10.005712,
+      "index_seconds": 0.0,
+      "indexes": 0,
+      "record_count": null,
+      "seconds": 10.005712,
+      "input_bytes": 2147640733,
+      "mb_per_s": 214.641,
+      "total_mb_per_s": 214.641,
+      "bytes_written": 2147473617,
+      "files": 1,
+      "out_mb_per_s": 214.625,
+      "stdout_tail": "",
+      "captured": {
+       "repair:repair_file": [
+        {
+         "kind": "array",
+         "output_kind": "array",
+         "encoding": "utf-8",
+         "compression": null,
+         "bytes_in": 2147640733,
+         "bytes_out": 2147473617,
+         "records": 6513235,
+         "elapsed": 9.938420600024983,
+         "truncated": null,
+         "problem": null,
+         "written": true,
+         "record_path": null,
+         "check_only": false,
+         "backend": "rust",
+         "accelerated": true,
+         "data_path": null,
+         "total": 78160
+        }
+       ]
+      },
+      "op_seconds": 10.279671,
+      "ok": true,
+      "process_seconds": 10.342936,
+      "rss_end": 59604992,
+      "peak_rss": 68435968,
+      "peak_private": 53293056,
+      "cpu_user": 9.828,
+      "cpu_system": 2.312,
+      "io_read_bytes": 2834283656,
+      "io_write_bytes": 2154556934,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\repair_broken-1"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 4.6,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 4.6
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 10.3745,
+     "peak_rss": 68702208,
+     "peak_rss_tree": 68702208,
+     "peak_rss_child": 68702208,
+     "peak_private": 55414784,
+     "peak_rss_sum": 63832064,
+     "peak_private_sum": 48599040,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 32624,
+       "name": "python.exe",
+       "peak_rss": 5369856,
+       "peak_private": 1036288,
+       "cpu_seconds": 0.016
+      },
+      {
+       "pid": 49184,
+       "name": "python.exe",
+       "peak_rss": 68702208,
+       "peak_private": 55414784,
+       "cpu_seconds": 11.859
+      }
+     ],
+     "cpu_seconds": 11.875,
+     "load_during": 6.4,
+     "others_cores_during": 0.39,
+     "child": {
+      "op": "cli",
+      "pid": 49184,
+      "import_seconds": 0.040677,
+      "command": "repair",
+      "argv": [
+       "repair",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_2g_broken1.json",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\repair_broken-2.json",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 9.919007,
+      "index_seconds": 0.0,
+      "indexes": 0,
+      "record_count": null,
+      "seconds": 9.919007,
+      "input_bytes": 2147640733,
+      "mb_per_s": 216.518,
+      "total_mb_per_s": 216.518,
+      "bytes_written": 2147473617,
+      "files": 1,
+      "out_mb_per_s": 216.501,
+      "stdout_tail": "",
+      "captured": {
+       "repair:repair_file": [
+        {
+         "kind": "array",
+         "output_kind": "array",
+         "encoding": "utf-8",
+         "compression": null,
+         "bytes_in": 2147640733,
+         "bytes_out": 2147473617,
+         "records": 6513235,
+         "elapsed": 9.846708500001114,
+         "truncated": null,
+         "problem": null,
+         "written": true,
+         "record_path": null,
+         "check_only": false,
+         "backend": "rust",
+         "accelerated": true,
+         "data_path": null,
+         "total": 78160
+        }
+       ]
+      },
+      "op_seconds": 10.189874,
+      "ok": true,
+      "process_seconds": 10.250988,
+      "rss_end": 59666432,
+      "peak_rss": 68702208,
+      "peak_private": 55414784,
+      "cpu_user": 9.469,
+      "cpu_system": 2.359,
+      "io_read_bytes": 2834283656,
+      "io_write_bytes": 2154556933,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\repair_broken-2"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 2.8,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 2.8
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "op": "cli",
+    "pid": 49184,
+    "import_seconds": 0.040677,
+    "command": "repair",
+    "argv": [
+     "repair",
+     "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_2g_broken1.json",
+     "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\out\\repair_broken-2.json",
+     "-q"
+    ],
+    "exit_code": 0,
+    "total_seconds": 9.919007,
+    "index_seconds": 0.0,
+    "indexes": 0,
+    "record_count": null,
+    "seconds": 9.919007,
+    "input_bytes": 2147640733,
+    "mb_per_s": 216.518,
+    "total_mb_per_s": 216.518,
+    "bytes_written": 2147473617,
+    "files": 1,
+    "out_mb_per_s": 216.501,
+    "stdout_tail": "",
+    "captured": {
+     "repair:repair_file": [
+      {
+       "kind": "array",
+       "output_kind": "array",
+       "encoding": "utf-8",
+       "compression": null,
+       "bytes_in": 2147640733,
+       "bytes_out": 2147473617,
+       "records": 6513235,
+       "elapsed": 9.846708500001114,
+       "truncated": null,
+       "problem": null,
+       "written": true,
+       "record_path": null,
+       "check_only": false,
+       "backend": "rust",
+       "accelerated": true,
+       "data_path": null,
+       "total": 78160
+      }
+     ]
+    },
+    "op_seconds": 10.189874,
+    "ok": true,
+    "process_seconds": 10.250988,
+    "rss_end": 59666432,
+    "peak_rss": 68702208,
+    "peak_private": 55414784,
+    "cpu_user": 9.469,
+    "cpu_system": 2.359,
+    "io_read_bytes": 2834283656,
+    "io_write_bytes": 2154556933,
+    "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\repair_broken-2"
+   },
+   "best_wall_seconds": 10.3745,
+   "repeats_done": 2,
+   "peak_rss": 68702208,
+   "peak_private": 55414784,
+   "peak_rss_sum": 63832064,
+   "peak_private_sum": 48599040,
+   "processes_max": 1
+  },
+  "diff_key": {
+   "spec": {
+    "name": "diff_key",
+    "inputs": [
+     "syn_2g",
+     "changed"
+    ],
+    "args": [
+     "diff",
+     "{in}",
+     "{in2}",
+     "--key",
+     "id",
+     "--summary",
+     "-q"
+    ],
+    "out_ext": null,
+    "expect": "0",
+    "capture": "cli:_diff_summary@0",
+    "detail": "diff",
+    "repeats": 2,
+    "groups": [
+     "full"
+    ]
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 49.2784,
+     "peak_rss": 402399232,
+     "peak_rss_tree": 402399232,
+     "peak_rss_child": 402399232,
+     "peak_private": 217247744,
+     "peak_rss_sum": 395239424,
+     "peak_private_sum": 210862080,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 28212,
+       "name": "python.exe",
+       "peak_rss": 5369856,
+       "peak_private": 1036288,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 17028,
+       "name": "python.exe",
+       "peak_rss": 402399232,
+       "peak_private": 217247744,
+       "cpu_seconds": 48.922
+      }
+     ],
+     "cpu_seconds": 48.922,
+     "load_during": 6.2,
+     "others_cores_during": 0.5,
+     "child": {
+      "op": "cli",
+      "pid": 17028,
+      "import_seconds": 0.045296,
+      "command": "diff",
+      "argv": [
+       "diff",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_2g_changed.json",
+       "--key",
+       "id",
+       "--summary",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 48.984883,
+      "index_seconds": 5.590625,
+      "indexes": 2,
+      "record_count": 13026450,
+      "seconds": 43.394258,
+      "input_bytes": 4294212395,
+      "mb_per_s": 98.958,
+      "total_mb_per_s": 87.664,
+      "bytes_written": 0,
+      "files": 0,
+      "out_mb_per_s": 0.0,
+      "stdout_tail": "",
+      "captured": {
+       "cli:_diff_summary@0": [
+        {
+         "mode": "key",
+         "key": "id",
+         "a_records": 6513235,
+         "b_records": 6513215,
+         "equal": 6441635,
+         "changed": 65067,
+         "added": 6513,
+         "removed": 6533,
+         "moved": 0,
+         "elapsed": 43.24953839997761,
+         "bytes_read": 4294211197,
+         "results_file": null,
+         "results_count": 0,
+         "wrapper": null,
+         "details": 0,
+         "a_name": "syn_2g.json",
+         "b_name": "syn_2g_changed.json",
+         "a_gen": 0,
+         "b_gen": 0,
+         "_temp": null,
+         "identical": false
+        }
+       ]
+      },
+      "op_seconds": 49.082067,
+      "ok": true,
+      "process_seconds": 49.148858,
+      "rss_end": 65445888,
+      "peak_rss": 402399232,
+      "peak_private": 217247744,
+      "cpu_user": 44.797,
+      "cpu_system": 4.109,
+      "io_read_bytes": 9104910103,
+      "io_write_bytes": 581842071,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\diff_key-1"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 5.7,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 5.7
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 48.9346,
+     "peak_rss": 399618048,
+     "peak_rss_tree": 399618048,
+     "peak_rss_child": 399618048,
+     "peak_private": 215851008,
+     "peak_rss_sum": 395603968,
+     "peak_private_sum": 209055744,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 37032,
+       "name": "python.exe",
+       "peak_rss": 5369856,
+       "peak_private": 1032192,
+       "cpu_seconds": 0.016
+      },
+      {
+       "pid": 24292,
+       "name": "python.exe",
+       "peak_rss": 399618048,
+       "peak_private": 215851008,
+       "cpu_seconds": 48.625
+      }
+     ],
+     "cpu_seconds": 48.641,
+     "load_during": 6.1,
+     "others_cores_during": 0.47,
+     "child": {
+      "op": "cli",
+      "pid": 24292,
+      "import_seconds": 0.042925,
+      "command": "diff",
+      "argv": [
+       "diff",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_2g_changed.json",
+       "--key",
+       "id",
+       "--summary",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 48.653714,
+      "index_seconds": 5.547789,
+      "indexes": 2,
+      "record_count": 13026450,
+      "seconds": 43.105925,
+      "input_bytes": 4294212395,
+      "mb_per_s": 99.62,
+      "total_mb_per_s": 88.261,
+      "bytes_written": 0,
+      "files": 0,
+      "out_mb_per_s": 0.0,
+      "stdout_tail": "",
+      "captured": {
+       "cli:_diff_summary@0": [
+        {
+         "mode": "key",
+         "key": "id",
+         "a_records": 6513235,
+         "b_records": 6513215,
+         "equal": 6441635,
+         "changed": 65067,
+         "added": 6513,
+         "removed": 6533,
+         "moved": 0,
+         "elapsed": 42.9615071999724,
+         "bytes_read": 4294211197,
+         "results_file": null,
+         "results_count": 0,
+         "wrapper": null,
+         "details": 0,
+         "a_name": "syn_2g.json",
+         "b_name": "syn_2g_changed.json",
+         "a_gen": 0,
+         "b_gen": 0,
+         "_temp": null,
+         "identical": false
+        }
+       ]
+      },
+      "op_seconds": 48.75157,
+      "ok": true,
+      "process_seconds": 48.817045,
+      "rss_end": 65765376,
+      "peak_rss": 399618048,
+      "peak_private": 215851008,
+      "cpu_user": 43.969,
+      "cpu_system": 4.641,
+      "io_read_bytes": 9104910103,
+      "io_write_bytes": 581842071,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\diff_key-2"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 3.3,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 3.3
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "op": "cli",
+    "pid": 24292,
+    "import_seconds": 0.042925,
+    "command": "diff",
+    "argv": [
+     "diff",
+     "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+     "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_2g_changed.json",
+     "--key",
+     "id",
+     "--summary",
+     "-q"
+    ],
+    "exit_code": 0,
+    "total_seconds": 48.653714,
+    "index_seconds": 5.547789,
+    "indexes": 2,
+    "record_count": 13026450,
+    "seconds": 43.105925,
+    "input_bytes": 4294212395,
+    "mb_per_s": 99.62,
+    "total_mb_per_s": 88.261,
+    "bytes_written": 0,
+    "files": 0,
+    "out_mb_per_s": 0.0,
+    "stdout_tail": "",
+    "captured": {
+     "cli:_diff_summary@0": [
+      {
+       "mode": "key",
+       "key": "id",
+       "a_records": 6513235,
+       "b_records": 6513215,
+       "equal": 6441635,
+       "changed": 65067,
+       "added": 6513,
+       "removed": 6533,
+       "moved": 0,
+       "elapsed": 42.9615071999724,
+       "bytes_read": 4294211197,
+       "results_file": null,
+       "results_count": 0,
+       "wrapper": null,
+       "details": 0,
+       "a_name": "syn_2g.json",
+       "b_name": "syn_2g_changed.json",
+       "a_gen": 0,
+       "b_gen": 0,
+       "_temp": null,
+       "identical": false
+      }
+     ]
+    },
+    "op_seconds": 48.75157,
+    "ok": true,
+    "process_seconds": 48.817045,
+    "rss_end": 65765376,
+    "peak_rss": 399618048,
+    "peak_private": 215851008,
+    "cpu_user": 43.969,
+    "cpu_system": 4.641,
+    "io_read_bytes": 9104910103,
+    "io_write_bytes": 581842071,
+    "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\diff_key-2"
+   },
+   "best_wall_seconds": 48.9346,
+   "repeats_done": 2,
+   "peak_rss": 402399232,
+   "peak_private": 217247744,
+   "peak_rss_sum": 395603968,
+   "peak_private_sum": 210862080,
+   "processes_max": 1
+  },
+  "diff_position": {
+   "spec": {
+    "name": "diff_position",
+    "inputs": [
+     "syn_2g",
+     "inplace"
+    ],
+    "args": [
+     "diff",
+     "{in}",
+     "{in2}",
+     "--by-position",
+     "--summary",
+     "-q"
+    ],
+    "out_ext": null,
+    "expect": "0",
+    "capture": "cli:_diff_summary@0",
+    "detail": "diff",
+    "repeats": 2,
+    "groups": [
+     "full"
+    ]
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 27.1627,
+     "peak_rss": 96686080,
+     "peak_rss_tree": 96686080,
+     "peak_rss_child": 96686080,
+     "peak_private": 80912384,
+     "peak_rss_sum": 95707136,
+     "peak_private_sum": 80400384,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 55084,
+       "name": "python.exe",
+       "peak_rss": 5373952,
+       "peak_private": 1032192,
+       "cpu_seconds": 0.016
+      },
+      {
+       "pid": 51548,
+       "name": "python.exe",
+       "peak_rss": 96686080,
+       "peak_private": 80912384,
+       "cpu_seconds": 26.734
+      }
+     ],
+     "cpu_seconds": 26.75,
+     "load_during": 6.5,
+     "others_cores_during": 0.58,
+     "child": {
+      "op": "cli",
+      "pid": 51548,
+      "import_seconds": 0.04931,
+      "command": "diff",
+      "argv": [
+       "diff",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_2g_inplace.json",
+       "--by-position",
+       "--summary",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 26.852877,
+      "index_seconds": 5.681932,
+      "indexes": 2,
+      "record_count": 13026470,
+      "seconds": 21.170945,
+      "input_bytes": 4294916324,
+      "mb_per_s": 202.868,
+      "total_mb_per_s": 159.943,
+      "bytes_written": 0,
+      "files": 0,
+      "out_mb_per_s": 0.0,
+      "stdout_tail": "",
+      "captured": {
+       "cli:_diff_summary@0": [
+        {
+         "mode": "position",
+         "key": null,
+         "a_records": 6513235,
+         "b_records": 6513235,
+         "equal": 6448102,
+         "changed": 65133,
+         "added": 0,
+         "removed": 0,
+         "moved": 0,
+         "elapsed": 21.083993099979125,
+         "bytes_read": 4294915126,
+         "results_file": null,
+         "results_count": 0,
+         "wrapper": null,
+         "details": 0,
+         "a_name": "syn_2g.json",
+         "b_name": "syn_2g_inplace.json",
+         "a_gen": 0,
+         "b_gen": 0,
+         "_temp": null,
+         "identical": false
+        }
+       ]
+      },
+      "op_seconds": 26.957593,
+      "ok": true,
+      "process_seconds": 27.03099,
+      "rss_end": 56868864,
+      "peak_rss": 96686080,
+      "peak_private": 80912384,
+      "cpu_user": 23.062,
+      "cpu_system": 3.641,
+      "io_read_bytes": 8832798489,
+      "io_write_bytes": 208436377,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\diff_position-1"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 2.4,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 2.4
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 26.9386,
+     "peak_rss": 96641024,
+     "peak_rss_tree": 96641024,
+     "peak_rss_child": 96641024,
+     "peak_private": 80728064,
+     "peak_rss_sum": 95047680,
+     "peak_private_sum": 80224256,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 49660,
+       "name": "python.exe",
+       "peak_rss": 5373952,
+       "peak_private": 1040384,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 34140,
+       "name": "python.exe",
+       "peak_rss": 96641024,
+       "peak_private": 80728064,
+       "cpu_seconds": 26.719
+      }
+     ],
+     "cpu_seconds": 26.719,
+     "load_during": 6.0,
+     "others_cores_during": 0.45,
+     "child": {
+      "op": "cli",
+      "pid": 34140,
+      "import_seconds": 0.042024,
+      "command": "diff",
+      "argv": [
+       "diff",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_2g_inplace.json",
+       "--by-position",
+       "--summary",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 26.652753,
+      "index_seconds": 5.493831,
+      "indexes": 2,
+      "record_count": 13026470,
+      "seconds": 21.158922,
+      "input_bytes": 4294916324,
+      "mb_per_s": 202.984,
+      "total_mb_per_s": 161.143,
+      "bytes_written": 0,
+      "files": 0,
+      "out_mb_per_s": 0.0,
+      "stdout_tail": "",
+      "captured": {
+       "cli:_diff_summary@0": [
+        {
+         "mode": "position",
+         "key": null,
+         "a_records": 6513235,
+         "b_records": 6513235,
+         "equal": 6448102,
+         "changed": 65133,
+         "added": 0,
+         "removed": 0,
+         "moved": 0,
+         "elapsed": 21.07466199999908,
+         "bytes_read": 4294915126,
+         "results_file": null,
+         "results_count": 0,
+         "wrapper": null,
+         "details": 0,
+         "a_name": "syn_2g.json",
+         "b_name": "syn_2g_inplace.json",
+         "a_gen": 0,
+         "b_gen": 0,
+         "_temp": null,
+         "identical": false
+        }
+       ]
+      },
+      "op_seconds": 26.751403,
+      "ok": true,
+      "process_seconds": 26.814214,
+      "rss_end": 57151488,
+      "peak_rss": 96641024,
+      "peak_private": 80728064,
+      "cpu_user": 23.219,
+      "cpu_system": 3.469,
+      "io_read_bytes": 8832798489,
+      "io_write_bytes": 208436378,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\diff_position-2"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 1.9,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 1.9
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "op": "cli",
+    "pid": 34140,
+    "import_seconds": 0.042024,
+    "command": "diff",
+    "argv": [
+     "diff",
+     "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+     "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_2g_inplace.json",
+     "--by-position",
+     "--summary",
+     "-q"
+    ],
+    "exit_code": 0,
+    "total_seconds": 26.652753,
+    "index_seconds": 5.493831,
+    "indexes": 2,
+    "record_count": 13026470,
+    "seconds": 21.158922,
+    "input_bytes": 4294916324,
+    "mb_per_s": 202.984,
+    "total_mb_per_s": 161.143,
+    "bytes_written": 0,
+    "files": 0,
+    "out_mb_per_s": 0.0,
+    "stdout_tail": "",
+    "captured": {
+     "cli:_diff_summary@0": [
+      {
+       "mode": "position",
+       "key": null,
+       "a_records": 6513235,
+       "b_records": 6513235,
+       "equal": 6448102,
+       "changed": 65133,
+       "added": 0,
+       "removed": 0,
+       "moved": 0,
+       "elapsed": 21.07466199999908,
+       "bytes_read": 4294915126,
+       "results_file": null,
+       "results_count": 0,
+       "wrapper": null,
+       "details": 0,
+       "a_name": "syn_2g.json",
+       "b_name": "syn_2g_inplace.json",
+       "a_gen": 0,
+       "b_gen": 0,
+       "_temp": null,
+       "identical": false
+      }
+     ]
+    },
+    "op_seconds": 26.751403,
+    "ok": true,
+    "process_seconds": 26.814214,
+    "rss_end": 57151488,
+    "peak_rss": 96641024,
+    "peak_private": 80728064,
+    "cpu_user": 23.219,
+    "cpu_system": 3.469,
+    "io_read_bytes": 8832798489,
+    "io_write_bytes": 208436378,
+    "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\diff_position-2"
+   },
+   "best_wall_seconds": 26.9386,
+   "repeats_done": 2,
+   "peak_rss": 96686080,
+   "peak_private": 80912384,
+   "peak_rss_sum": 95707136,
+   "peak_private_sum": 80400384,
+   "processes_max": 1
+  },
+  "diff_align": {
+   "spec": {
+    "name": "diff_align",
+    "inputs": [
+     "a190",
+     "b190"
+    ],
+    "args": [
+     "diff",
+     "{in}",
+     "{in2}",
+     "--align",
+     "--summary",
+     "-q"
+    ],
+    "out_ext": null,
+    "expect": "0",
+    "capture": "cli:_diff_summary@0",
+    "detail": "diff",
+    "repeats": 2,
+    "groups": [
+     "full"
+    ]
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 3.1063,
+     "peak_rss": 166895616,
+     "peak_rss_tree": 166895616,
+     "peak_rss_child": 166895616,
+     "peak_private": 153047040,
+     "peak_rss_sum": 160821248,
+     "peak_private_sum": 146882560,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 2564,
+       "name": "python.exe",
+       "peak_rss": 5373952,
+       "peak_private": 1036288,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 35224,
+       "name": "python.exe",
+       "peak_rss": 166895616,
+       "peak_private": 153047040,
+       "cpu_seconds": 2.938
+      }
+     ],
+     "cpu_seconds": 2.938,
+     "load_during": 7.3,
+     "others_cores_during": 0.81,
+     "child": {
+      "op": "cli",
+      "pid": 35224,
+      "import_seconds": 0.043654,
+      "command": "diff",
+      "argv": [
+       "diff",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_190m_a.json",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_190m_b.json",
+       "--align",
+       "--summary",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 2.800194,
+      "index_seconds": 0.556149,
+      "indexes": 2,
+      "record_count": 1218054,
+      "seconds": 2.244045,
+      "input_bytes": 398387248,
+      "mb_per_s": 177.531,
+      "total_mb_per_s": 142.271,
+      "bytes_written": 0,
+      "files": 0,
+      "out_mb_per_s": 0.0,
+      "stdout_tail": "",
+      "captured": {
+       "cli:_diff_summary@0": [
+        {
+         "mode": "align",
+         "key": null,
+         "a_records": 609028,
+         "b_records": 609026,
+         "equal": 602333,
+         "changed": 6085,
+         "added": 608,
+         "removed": 610,
+         "moved": 0,
+         "elapsed": 2.155658499978017,
+         "bytes_read": 398387130,
+         "results_file": null,
+         "results_count": 0,
+         "wrapper": null,
+         "details": 0,
+         "a_name": "syn_190m_a.json",
+         "b_name": "syn_190m_b.json",
+         "a_gen": 0,
+         "b_gen": 0,
+         "_temp": null,
+         "identical": false
+        }
+       ]
+      },
+      "op_seconds": 2.907873,
+      "ok": true,
+      "process_seconds": 2.972797,
+      "rss_end": 66007040,
+      "peak_rss": 166895616,
+      "peak_private": 153047040,
+      "cpu_user": 2.5,
+      "cpu_system": 0.422,
+      "io_read_bytes": 850806761,
+      "io_write_bytes": 19501808,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\diff_align-1"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 2.3,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 2.3
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 3.1236,
+     "peak_rss": 169361408,
+     "peak_rss_tree": 169361408,
+     "peak_rss_child": 169361408,
+     "peak_private": 155152384,
+     "peak_rss_sum": 161132544,
+     "peak_private_sum": 146231296,
+     "processes_max": 1,
+     "processes": [
+      {
+       "pid": 42936,
+       "name": "python.exe",
+       "peak_rss": 5369856,
+       "peak_private": 1032192,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 46840,
+       "name": "python.exe",
+       "peak_rss": 169361408,
+       "peak_private": 155152384,
+       "cpu_seconds": 2.984
+      }
+     ],
+     "cpu_seconds": 2.984,
+     "load_during": 8.2,
+     "others_cores_during": 1.01,
+     "child": {
+      "op": "cli",
+      "pid": 46840,
+      "import_seconds": 0.044368,
+      "command": "diff",
+      "argv": [
+       "diff",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_190m_a.json",
+       "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_190m_b.json",
+       "--align",
+       "--summary",
+       "-q"
+      ],
+      "exit_code": 0,
+      "total_seconds": 2.812804,
+      "index_seconds": 0.570315,
+      "indexes": 2,
+      "record_count": 1218054,
+      "seconds": 2.242489,
+      "input_bytes": 398387248,
+      "mb_per_s": 177.654,
+      "total_mb_per_s": 141.633,
+      "bytes_written": 0,
+      "files": 0,
+      "out_mb_per_s": 0.0,
+      "stdout_tail": "",
+      "captured": {
+       "cli:_diff_summary@0": [
+        {
+         "mode": "align",
+         "key": null,
+         "a_records": 609028,
+         "b_records": 609026,
+         "equal": 602333,
+         "changed": 6085,
+         "added": 608,
+         "removed": 610,
+         "moved": 0,
+         "elapsed": 2.1121636999887414,
+         "bytes_read": 398387130,
+         "results_file": null,
+         "results_count": 0,
+         "wrapper": null,
+         "details": 0,
+         "a_name": "syn_190m_a.json",
+         "b_name": "syn_190m_b.json",
+         "a_gen": 0,
+         "b_gen": 0,
+         "_temp": null,
+         "identical": false
+        }
+       ]
+      },
+      "op_seconds": 2.920131,
+      "ok": true,
+      "process_seconds": 2.989189,
+      "rss_end": 65593344,
+      "peak_rss": 169361408,
+      "peak_private": 155152384,
+      "cpu_user": 2.562,
+      "cpu_system": 0.391,
+      "io_read_bytes": 850806761,
+      "io_write_bytes": 19501807,
+      "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\diff_align-2"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 3.5,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 3.5
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "op": "cli",
+    "pid": 46840,
+    "import_seconds": 0.044368,
+    "command": "diff",
+    "argv": [
+     "diff",
+     "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_190m_a.json",
+     "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\inputs\\syn_190m_b.json",
+     "--align",
+     "--summary",
+     "-q"
+    ],
+    "exit_code": 0,
+    "total_seconds": 2.812804,
+    "index_seconds": 0.570315,
+    "indexes": 2,
+    "record_count": 1218054,
+    "seconds": 2.242489,
+    "input_bytes": 398387248,
+    "mb_per_s": 177.654,
+    "total_mb_per_s": 141.633,
+    "bytes_written": 0,
+    "files": 0,
+    "out_mb_per_s": 0.0,
+    "stdout_tail": "",
+    "captured": {
+     "cli:_diff_summary@0": [
+      {
+       "mode": "align",
+       "key": null,
+       "a_records": 609028,
+       "b_records": 609026,
+       "equal": 602333,
+       "changed": 6085,
+       "added": 608,
+       "removed": 610,
+       "moved": 0,
+       "elapsed": 2.1121636999887414,
+       "bytes_read": 398387130,
+       "results_file": null,
+       "results_count": 0,
+       "wrapper": null,
+       "details": 0,
+       "a_name": "syn_190m_a.json",
+       "b_name": "syn_190m_b.json",
+       "a_gen": 0,
+       "b_gen": 0,
+       "_temp": null,
+       "identical": false
+      }
+     ]
+    },
+    "op_seconds": 2.920131,
+    "ok": true,
+    "process_seconds": 2.989189,
+    "rss_end": 65593344,
+    "peak_rss": 169361408,
+    "peak_private": 155152384,
+    "cpu_user": 2.562,
+    "cpu_system": 0.391,
+    "io_read_bytes": 850806761,
+    "io_write_bytes": 19501807,
+    "home": "E:\\Projects\\json flatting\\bench\\data\\work\\tools-s6d\\homes\\diff_align-2"
+   },
+   "best_wall_seconds": 3.1236,
+   "repeats_done": 2,
+   "peak_rss": 169361408,
+   "peak_private": 155152384,
+   "peak_rss_sum": 161132544,
+   "peak_private_sum": 146882560,
+   "processes_max": 1
+  }
+ },
+ "finished": "2026-10-19T20:58:40",
+ "duration_seconds": 728.1,
+ "rows": [
+  {
+   "id": "stats_1",
+   "section": "main",
+   "action": "Statistika, 1 ta maydon: `stats --field contact.address.city`",
+   "target": "dastur < 500 MB (§12); tezlik — §12 da yo'q",
+   "result": "556 MB/s (3.87 s; jami 6.56 s, shundan indeks 2.69 s); RAM 80.6 MB; contact.address.city: 17 xil, 6 513 235 ta qiymat",
+   "status": "✅",
+   "ok": true,
+   "details": {
+    "op": "stats_1",
+    "peak_rss": 80551936,
+    "processes": 1,
+    "seconds": 3.865226,
+    "total_seconds": 6.557681,
+    "index_seconds": 2.692455,
+    "mb_per_s": 555.591,
+    "input_bytes": 2147483913,
+    "bytes_written": 0
+   }
+  },
+  {
+   "id": "stats_4",
+   "section": "main",
+   "action": "Statistika, 4 ta maydon: `stats --field name --field score --field contact.address.city --field \"orders[*].sum\"`",
+   "target": "dastur < 500 MB (§12); tezlik — §12 da yo'q",
+   "result": "124 MB/s (17.3 s; jami 20.0 s, shundan indeks 2.65 s); RAM 104.6 MB; name: 286 xil, 6 513 235 ta qiymat; score: 100 001 xil, 6 513 235 ta qiymat; contact.address.city: 17 xil, 6 513 235 ta qiymat; orders[*].sum: 50 001 xil, 9 774 338 ta qiymat",
+   "status": "✅",
+   "ok": true,
+   "details": {
+    "op": "stats_4",
+    "peak_rss": 104624128,
+    "processes": 1,
+    "seconds": 17.309435,
+    "total_seconds": 19.955488,
+    "index_seconds": 2.646052,
+    "mb_per_s": 124.064,
+    "input_bytes": 2147483913,
+    "bytes_written": 0
+   }
+  },
+  {
+   "id": "stats_exact",
+   "section": "main",
+   "action": "Statistika, aniq hisoblash (deyarli takrorlanmaydigan maydon): `stats --field contact.phone --exact`",
+   "target": "dastur < 500 MB (§12); tezlik — §12 da yo'q",
+   "result": "108 MB/s (19.9 s; jami 22.6 s, shundan indeks 2.67 s); RAM 196.8 MB; contact.phone: 4 636 210 xil, 6 513 235 ta qiymat",
+   "status": "✅",
+   "ok": true,
+   "details": {
+    "op": "stats_exact",
+    "peak_rss": 196751360,
+    "processes": 1,
+    "seconds": 19.888972,
+    "total_seconds": 22.557947,
+    "index_seconds": 2.668974,
+    "mb_per_s": 107.974,
+    "input_bytes": 2147483913,
+    "bytes_written": 0
+   }
+  },
+  {
+   "id": "dupes",
+   "section": "main",
+   "action": "Dublikatlar: `dupes --key contact.phone`",
+   "target": "dastur < 500 MB (§12); tezlik — §12 da yo'q",
+   "result": "170 MB/s (12.7 s; jami 15.4 s, shundan indeks 2.70 s); RAM 262.8 MB; 1 476 797 ta guruh, 1 877 025 ta dublikat",
+   "status": "✅",
+   "ok": true,
+   "details": {
+    "op": "dupes",
+    "peak_rss": 262803456,
+    "processes": 1,
+    "seconds": 12.654027,
+    "total_seconds": 15.358017,
+    "index_seconds": 2.703991,
+    "mb_per_s": 169.708,
+    "input_bytes": 2147483913,
+    "bytes_written": 0
+   }
+  },
+  {
+   "id": "schema_gen",
+   "section": "main",
+   "action": "JSON Schema yaratish, barcha yozuvlardan: `schema IN OUT`",
+   "target": "dastur < 500 MB (§12); tezlik — §12 da yo'q",
+   "result": "42.5 MB/s (50.5 s; jami 53.1 s, shundan indeks 2.63 s); RAM 80.9 MB; sxema 5.3 KB",
+   "status": "✅",
+   "ok": true,
+   "details": {
+    "op": "schema_gen",
+    "peak_rss": 80875520,
+    "processes": 1,
+    "seconds": 50.472607,
+    "total_seconds": 53.102478,
+    "index_seconds": 2.62987,
+    "mb_per_s": 42.548,
+    "input_bytes": 2147483913,
+    "bytes_written": 5274
+   }
+  },
+  {
+   "id": "validate",
+   "section": "main",
+   "action": "JSON Schema bo'yicha tekshirish: `validate --schema syn_2g.schema.json`",
+   "target": "dastur < 500 MB (§12); tezlik — §12 da yo'q",
+   "result": "74.0 MB/s (29.0 s; jami 31.7 s, shundan indeks 2.67 s); RAM 80.9 MB; 6 513 235 ta yozuv tekshirildi, 0 ta xato",
+   "status": "✅",
+   "ok": true,
+   "details": {
+    "op": "validate",
+    "peak_rss": 80879616,
+    "processes": 1,
+    "seconds": 29.020837,
+    "total_seconds": 31.693777,
+    "index_seconds": 2.672939,
+    "mb_per_s": 73.998,
+    "input_bytes": 2147483913,
+    "bytes_written": 0
+   }
+  },
+  {
+   "id": "split_copy",
+   "section": "main",
+   "action": "Bo'lish, 4 qism, bayt nusxa (o'sha format): `split --parts 4`",
+   "target": "dastur < 500 MB (§12); tezlik — §12 da yo'q",
+   "result": "758 MB/s (2.83 s; jami 5.50 s, shundan indeks 2.67 s); RAM 64.8 MB; 4 ta qism, 6 513 235 ta yozuv, 2.1 GB",
+   "status": "✅",
+   "ok": true,
+   "details": {
+    "op": "split_copy",
+    "peak_rss": 64798720,
+    "processes": 1,
+    "seconds": 2.831545,
+    "total_seconds": 5.503267,
+    "index_seconds": 2.671722,
+    "mb_per_s": 758.414,
+    "input_bytes": 2147483913,
+    "bytes_written": 2147483922
+   }
+  },
+  {
+   "id": "split_jsonl",
+   "section": "main",
+   "action": "Bo'lish, 4 qism, JSON Lines'ga: `split --parts 4 --to jsonl`",
+   "target": "dastur < 500 MB (§12); tezlik — §12 da yo'q",
+   "result": "288 MB/s (7.46 s; jami 10.2 s, shundan indeks 2.72 s); RAM 101.8 MB; 4 ta qism, 6 513 235 ta yozuv, 2.1 GB",
+   "status": "✅",
+   "ok": true,
+   "details": {
+    "op": "split_jsonl",
+    "peak_rss": 101810176,
+    "processes": 1,
+    "seconds": 7.463975,
+    "total_seconds": 10.1798,
+    "index_seconds": 2.715825,
+    "mb_per_s": 287.713,
+    "input_bytes": 2147483913,
+    "bytes_written": 2140970675
+   }
+  },
+  {
+   "id": "merge_dedupe",
+   "section": "main",
+   "action": "Birlashtirish, dublikatlarni tozalash bilan (syn_2g.json + uning yangi versiyasi, 4.3 GB): `merge A B -o OUT --dedupe-by id`",
+   "target": "dastur < 500 MB (§12); tezlik — §12 da yo'q",
+   "result": "117 MB/s (36.7 s; jami 42.3 s, shundan indeks 5.58 s); RAM 264.3 MB; 6 519 748 ta yozuv yozildi, 6 506 702 ta dublikat tashlandi, 3.7 GB",
+   "status": "✅",
+   "ok": true,
+   "details": {
+    "op": "merge_dedupe",
+    "peak_rss": 264343552,
+    "processes": 1,
+    "seconds": 36.692753,
+    "total_seconds": 42.268295,
+    "index_seconds": 5.575541,
+    "mb_per_s": 117.032,
+    "input_bytes": 4294212395,
+    "bytes_written": 3667799385
+   }
+  },
+  {
+   "id": "extract",
+   "section": "main",
+   "action": "Ajratish, har yozuvdan yig'ish: `extract IN OUT.jsonl --gather \"orders[*]\"`",
+   "target": "dastur < 500 MB (§12); tezlik — §12 da yo'q",
+   "result": "383 MB/s (5.61 s; jami 8.28 s, shundan indeks 2.67 s); RAM 87.0 MB; 9 774 338 ta qiymat, 386.2 MB",
+   "status": "✅",
+   "ok": true,
+   "details": {
+    "op": "extract",
+    "peak_rss": 86953984,
+    "processes": 1,
+    "seconds": 5.608651,
+    "total_seconds": 8.281918,
+    "index_seconds": 2.673267,
+    "mb_per_s": 382.888,
+    "input_bytes": 2147483913,
+    "bytes_written": 386179041
+   }
+  },
+  {
+   "id": "repair_clean",
+   "section": "main",
+   "action": "Ta'mirlash, buzilmagan fayl: `repair IN OUT`",
+   "target": "dastur < 500 MB (§12); tezlik — §12 da yo'q",
+   "result": "335 MB/s (6.41 s; indeks kerak emas); RAM 101.6 MB; 6 513 235 ta yozuv, 0 ta tuzatish, 2.1 GB",
+   "status": "✅",
+   "ok": true,
+   "details": {
+    "op": "repair_clean",
+    "peak_rss": 101634048,
+    "processes": 1,
+    "seconds": 6.40927,
+    "total_seconds": 6.40927,
+    "index_seconds": 0.0,
+    "mb_per_s": 335.059,
+    "input_bytes": 2147483913,
+    "bytes_written": 2147483913
+   }
+  },
+  {
+   "id": "repair_broken",
+   "section": "main",
+   "action": "Ta'mirlash, yozuvlarning 1 % i buzilgan (NaN, ortiqcha vergul, bitta tirnoq, tirnoqsiz kalit, izoh): `repair IN OUT`",
+   "target": "dastur < 500 MB (§12); tezlik — §12 da yo'q",
+   "result": "217 MB/s (9.92 s; indeks kerak emas); RAM 68.7 MB; 6 513 235 ta yozuv, 78 160 ta tuzatish, 2.1 GB",
+   "status": "✅",
+   "ok": true,
+   "details": {
+    "op": "repair_broken",
+    "peak_rss": 68702208,
+    "processes": 1,
+    "seconds": 9.919007,
+    "total_seconds": 9.919007,
+    "index_seconds": 0.0,
+    "mb_per_s": 216.518,
+    "input_bytes": 2147640733,
+    "bytes_written": 2147473617
+   }
+  },
+  {
+   "id": "diff_key",
+   "section": "main",
+   "action": "Solishtirish kalit bo'yicha (2.1 GB va uning yangi versiyasi): `diff A B --key id --summary`",
+   "target": "dastur < 500 MB (§12); tezlik — §12 da yo'q",
+   "result": "99.6 MB/s (43.1 s; jami 48.7 s, shundan indeks 5.55 s); RAM 402.4 MB; 6 441 635 ta bir xil, 65 067 ta o'zgargan, 6 513 ta qo'shilgan, 6 533 ta o'chirilgan",
+   "status": "✅",
+   "ok": true,
+   "details": {
+    "op": "diff_key",
+    "peak_rss": 402399232,
+    "processes": 1,
+    "seconds": 43.105925,
+    "total_seconds": 48.653714,
+    "index_seconds": 5.547789,
+    "mb_per_s": 99.62,
+    "input_bytes": 4294212395,
+    "bytes_written": 0
+   }
+  },
+  {
+   "id": "diff_position",
+   "section": "main",
+   "action": "Solishtirish o'rin bo'yicha (2.1 GB, 1 % yozuv o'zgargan): `diff A B --by-position --summary`",
+   "target": "dastur < 500 MB (§12); tezlik — §12 da yo'q",
+   "result": "203 MB/s (21.2 s; jami 26.7 s, shundan indeks 5.49 s); RAM 96.7 MB; 6 448 102 ta bir xil, 65 133 ta o'zgargan, 0 ta qo'shilgan, 0 ta o'chirilgan",
+   "status": "✅",
+   "ok": true,
+   "details": {
+    "op": "diff_position",
+    "peak_rss": 96686080,
+    "processes": 1,
+    "seconds": 21.158922,
+    "total_seconds": 26.652753,
+    "index_seconds": 5.493831,
+    "mb_per_s": 202.984,
+    "input_bytes": 4294916324,
+    "bytes_written": 0
+   }
+  },
+  {
+   "id": "diff_align",
+   "section": "main",
+   "action": "Solishtirish mazmun bo'yicha tekislab (~190 MiB fayllar: kalitsiz tekislash chegarasi 200 MiB): `diff A B --align --summary`",
+   "target": "dastur < 500 MB (§12); tezlik — §12 da yo'q",
+   "result": "178 MB/s (2.24 s; jami 2.81 s, shundan indeks 570 ms); RAM 169.4 MB; 602 333 ta bir xil, 6 085 ta o'zgargan, 608 ta qo'shilgan, 610 ta o'chirilgan",
+   "status": "✅",
+   "ok": true,
+   "details": {
+    "op": "diff_align",
+    "peak_rss": 169361408,
+    "processes": 1,
+    "seconds": 2.242489,
+    "total_seconds": 2.812804,
+    "index_seconds": 0.570315,
+    "mb_per_s": 177.654,
+    "input_bytes": 398387248,
+    "bytes_written": 0
+   }
+  }
+ ],
+ "all_ok": true,
+ "files": {
+  "json": "E:\\Projects\\json flatting\\bench\\results\\tools-20261019-204632.json",
+  "md": "E:\\Projects\\json flatting\\bench\\results\\tools-20261019-204632.md",
+  "latest": "E:\\Projects\\json flatting\\bench\\results\\tools_latest.md"
+ }
+}

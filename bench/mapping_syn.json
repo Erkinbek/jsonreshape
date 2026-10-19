@@ -1,0 +1,45 @@
+{
+ "version": 1,
+ "input": {"source":"bench/data/syn_2g.json","kind":"array","record_path":null,"sample":10000,"full_scan":false,"records":6513235,"created":"2026-10-19T19:02:07+05:00","app":"0.1.0"},
+ "root_kind": "records",
+ "tree": {"key":"","kind":"array","src":[],"is_root":true,"types":["array"],"count":1,"pcount":null,"samples":[],"open":true, "children": [
+   {"key":"","kind":"object","src":[null],"is_elem":true,"types":["object"],"count":10000,"pcount":null,"samples":[],"open":true, "children": [
+    {"key":"id","kind":"value","src":[null,"id"],"types":["number"],"count":10000,"pcount":10000,"samples":["0","651","1302"],"open":true, "children": []},
+    {"key":"oid","kind":"value","src":[null,"orders",null,"oid"],"types":["number"],"count":14849,"pcount":14849,"samples":["6510","13020","13021"],"open":true, "children": []},
+    {"key":"city","kind":"value","src":[null,"contact","address","city"],"types":["string","null"],"count":10000,"pcount":10000,"samples":["\"Navoiy\"","\"Тошкент\"","\"Urganch\""],"open":true, "children": []},
+    {"key":"name","kind":"value","src":[null,"name"],"types":["string"],"count":10000,"pcount":10000,"samples":["\"Nodira Ergashev\"","\"Gulnora Каримов\"","\"Madina Qodirova\""],"open":true, "children": []},
+    {"key":"ball","kind":"value","src":[null,"score"],"types":["number"],"count":10000,"pcount":10000,"samples":["511.82","402.82","361.31"],"open":true, "children": []},
+    {"key":"created_at","kind":"value","src":[null,"created_at"],"types":["number"],"count":10000,"pcount":10000,"samples":["1627551368","1637779462","1622291789"],"open":true, "children": []},
+    {"key":"phone","kind":"value","src":[null,"contact","phone"],"types":["string"],"count":10000,"pcount":10000,"samples":["\"+998904746093\"","\"+998904576286\"","\"+998909253356\""],"open":true, "children": []},
+    {"key":"address","kind":"object","src":[null,"contact","address"],"types":["object"],"count":10000,"pcount":10000,"samples":[],"open":true, "children": [
+     {"key":"street","kind":"value","src":[null,"contact","address","street"],"types":["string"],"count":10000,"pcount":10000,"samples":["\"Chilonzor 9-kvartal\"","\"Мустақиллик кўчаси\"","\"Navoiy ko'chasi\""],"open":true, "children": []},
+     {"key":"zip","kind":"value","src":[null,"contact","address","zip"],"types":["number"],"count":10000,"pcount":10000,"samples":["674421","635737","238818"],"open":true, "children": []}
+    ]},
+    {"key":"orders","kind":"array","src":[null,"orders"],"types":["array"],"count":10000,"pcount":10000,"samples":[],"open":true, "children": [
+     {"key":"","kind":"object","src":[null,"orders",null],"is_elem":true,"types":["object"],"count":14849,"pcount":null,"samples":[],"open":true, "children": [
+      {"key":"sum","kind":"value","src":[null,"orders",null,"sum"],"types":["number"],"count":14849,"pcount":14849,"samples":["124.24","16.81","410.27"],"open":true, "children": []},
+      {"key":"items","kind":"value","src":[null,"orders",null,"items"],"types":["number"],"count":14849,"pcount":14849,"samples":["8","1","4"],"open":true, "children": []}
+     ]}
+    ]},
+    {"key":"children","kind":"array","src":[null,"children"],"types":["array"],"count":2977,"pcount":10000,"samples":[],"open":true, "children": [
+     {"key":"","kind":"object","src":[null,"children",null],"is_elem":true,"types":["object"],"count":4459,"pcount":null,"samples":[],"open":true, "children": [
+      {"key":"name","kind":"value","src":[null,"children",null,"name"],"types":["string"],"count":4459,"pcount":4459,"samples":["\"child1\"","\"child2\""],"open":true, "children": []},
+      {"key":"children","kind":"array","src":[null,"children",null,"children"],"types":["array"],"count":4459,"pcount":4459,"samples":[],"open":true, "children": [
+       {"key":"","kind":"object","src":[null,"children",null,"children",null],"is_elem":true,"types":["object"],"count":4373,"pcount":null,"samples":[],"open":true, "children": [
+        {"key":"name","kind":"value","src":[null,"children",null,"children",null,"name"],"types":["string"],"count":4373,"pcount":4373,"samples":["\"child1.0\"","\"child2.0\"","\"child2.1\""],"open":false, "children": []}
+       ]}
+      ]}
+     ]}
+    ]},
+    {"key":"note","kind":"value","src":[null,"note"],"types":["string","null"],"count":965,"pcount":10000,"samples":["\"Qoraqalpog'iston-maxsus-0\""],"open":true, "children": []},
+    {"key":"holat","kind":"object","src":null,"synthetic":true,"types":["object"],"count":0,"pcount":null,"samples":[],"open":true, "children": [
+     {"key":"active","kind":"value","src":[null,"active"],"types":["boolean"],"count":10000,"pcount":10000,"samples":["true","false"],"open":true, "children": []}
+    ]}
+   ]}
+  ]},
+ "known_paths": [
+  [null,"contact"],
+  [null,"tags"],
+  [null,"tags",null]
+ ]
+}

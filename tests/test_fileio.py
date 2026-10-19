@@ -960,6 +960,72 @@ def test_read_range(tmp_path: Path) -> None:
 
 
 # ----------------------------------------------------------------------------------
+# read_limited (stage 6): small settings / state / mapping files read without a limit-sized buffer
+# ----------------------------------------------------------------------------------
+def test_read_limited_returns_the_rest_up_to_one_byte_over_the_limit(tmp_path: Path) -> None:
+    data = bytes(range(256)) * 20
+    p = tmp_path / "s.json"
+    p.write_bytes(data)
+    with open_shared(p) as f:
+        assert fileio.read_limited(f, 1 << 20) == data
+        assert fileio.read_limited(f, 1 << 20) == b""                 # at the end
+        f.seek(5000)
+        assert fileio.read_limited(f, 1 << 20) == data[5000:]         # from the current position
+        f.seek(0)
+        assert fileio.read_limited(f, len(data)) == data              # exactly the limit: not "too big"
+        f.seek(0)
+        assert fileio.read_limited(f, 100) == data[:101]              # over the limit: limit + 1 bytes
+    empty = tmp_path / "e.json"
+    empty.write_bytes(b"")
+    with open_shared(empty) as f:
+        assert fileio.read_limited(f, 1 << 20) == b""
+    assert fileio.read_limited(io.BytesIO(data), 1 << 20) == data     # no file number: read in pieces
+    assert fileio.read_limited(io.BytesIO(data), 10) == data[:11]
+    assert fileio.read_limited(io.BufferedReader(_Trickle(data)), 1 << 20) == data   # short reads
+
+
+def test_read_limited_reads_a_file_that_grew_after_the_size_check(tmp_path: Path,
+                                                                  monkeypatch: pytest.MonkeyPatch) -> None:
+    data = b"x" * 3_000_000
+    p = tmp_path / "g.json"
+    p.write_bytes(data)
+    real = os.fstat
+
+    def stale(fd: int):  # noqa: ANN202 - the size before the file grew
+        st = real(fd)
+        return os.stat_result((st.st_mode, st.st_ino, st.st_dev, st.st_nlink, st.st_uid, st.st_gid, 10,
+                               int(st.st_atime), int(st.st_mtime), int(st.st_ctime)))
+
+    monkeypatch.setattr(fileio.os, "fstat", stale)
+    with open_shared(p) as f:
+        assert fileio.read_limited(f, 8 << 20) == data
+    with open_shared(p) as f:
+        assert fileio.read_limited(f, 2_500_000) == data[:2_500_001]
+
+
+def test_read_limited_does_not_allocate_the_limit(tmp_path: Path) -> None:
+    import tracemalloc
+
+    from jsonreshape import mapping
+
+    p = tmp_path / "m.json"
+    p.write_bytes(b'{"a": 1}' * 600)
+    tracemalloc.start()
+    try:
+        with open_shared(p) as f:
+            assert len(fileio.read_limited(f, 128 << 20)) == 4800
+        assert tracemalloc.get_traced_memory()[1] < 1 << 20
+        tree = mapping.infer_tree([{"a": 1, "b": [1, 2]}])
+        target = tmp_path / "t.mapping.json"
+        mapping.save_mapping(tree, target, input_info={"kind": "array"})
+        tracemalloc.reset_peak()
+        mapping.load_mapping(target)        # was f.read(128 MiB + 1): +134 MB peak working set on Windows
+        assert tracemalloc.get_traced_memory()[1] < 8 << 20
+    finally:
+        tracemalloc.stop()
+
+
+# ----------------------------------------------------------------------------------
 # stage 5 (docs/ARCHITECTURE.md §14.4): free_space, move_replace, commit_files
 # ----------------------------------------------------------------------------------
 def _files(folder: Path) -> dict[str, bytes]:

@@ -2244,6 +2244,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "sheets (new sheets) or files (new files)",
     },
     "writer.expected.sample": {"uz": "1 yoki undan katta butun son", "en": "a whole number of at least 1"},
+    "writer.expected.workers": {
+        "uz": "ishchi jarayonlar soni: 1 yoki undan katta butun son (1 — hammasi bitta oqimda)",
+        "en": "the number of worker processes: a whole number of at least 1 (1: everything in one thread)",
+    },
     "writer.expected.sort_keys": {
         "uz": "true/false, alpha (alifbo bo'yicha) yoki codepoint (belgi kodlari bo'yicha)",
         "en": "true/false, alpha (alphabetical) or codepoint (by character code)",
@@ -4154,6 +4158,57 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "JSON Lines faqat yozuvlarni saqlaydi: o'rovchi obyektning boshqa maydonlari yozilmadi.",
         "en": "JSON Lines holds only the records: the other fields of the wrapper were not written.",
     },
+    # ---- workspace ----
+    "workspace.error.invalid": {
+        "uz": "Workspace fayli noto'g'ri ({pointer}).",
+        "en": "The workspace file is invalid ({pointer}).",
+    },
+    "workspace.error.json": {
+        "uz": "Workspace fayli JSON sifatida o'qilmadi: {detail}",
+        "en": "The workspace file is not valid JSON: {detail}",
+    },
+    "workspace.error.json.hint": {
+        "uz": "Fayl buzilgan yoki boshqa turdagi fayl bo'lishi mumkin. Workspace'ni qaytadan saqlang.",
+        "en": "The file may be damaged or of another kind. Save the workspace again.",
+    },
+    "workspace.error.not_object": {
+        "uz": "Workspace fayli JSON obyekt bo'lishi kerak.",
+        "en": "A workspace file must be a JSON object.",
+    },
+    "workspace.error.version": {
+        "uz": "Workspace fayli versiyasi ({version}) qo'llab-quvvatlanmaydi: bu dastur {expected}-versiyani o'qiydi.",
+        "en": "Workspace file version {version} is not supported: this program reads version {expected}.",
+    },
+    "workspace.error.missing": {
+        "uz": "Workspace faylida {pointer} yo'q.",
+        "en": "The workspace file has no {pointer}.",
+    },
+    "workspace.error.type": {
+        "uz": "Workspace faylidagi {pointer} noto'g'ri: {expected} bo'lishi kerak.",
+        "en": "{pointer} in the workspace file is wrong: it must be {expected}.",
+    },
+    "workspace.error.value": {
+        "uz": "Workspace faylidagi {pointer} qiymati noto'g'ri: {detail}",
+        "en": "{pointer} in the workspace file has an invalid value: {detail}",
+    },
+    "workspace.error.too_many": {
+        "uz": "Workspace faylidagi {pointer} juda ko'p: {count} ta (ko'pi bilan {limit} ta).",
+        "en": "{pointer} in the workspace file has too many items: {count} (at most {limit}).",
+    },
+    "workspace.error.mapping": {
+        "uz": "Workspace'dagi tuzilma noto'g'ri ({pointer}): {detail}",
+        "en": "The structure in the workspace is invalid ({pointer}): {detail}",
+    },
+    "workspace.error.too_big": {
+        "uz": "Workspace fayli juda katta: {size} (ko'pi bilan {limit}): {path}",
+        "en": "The workspace file is too large: {size} (at most {limit}): {path}",
+    },
+    "workspace.type.string": {"uz": "matn", "en": "a string"},
+    "workspace.type.bool": {"uz": "true yoki false", "en": "true or false"},
+    "workspace.type.int": {"uz": "butun son", "en": "a whole number"},
+    "workspace.type.list": {"uz": "ro'yxat (JSON massiv)", "en": "a list (JSON array)"},
+    "workspace.type.object": {"uz": "JSON obyekt", "en": "a JSON object"},
+    "workspace.type.string_or_list": {"uz": "matn yoki ro'yxat", "en": "a string or a list"},
     # ---- cli ----
     # argparse's own phrases (cli.ARGPARSE_MESSAGES maps argparse msgids to these keys)
     "cli.argparse.usage": {"uz": "foydalanish: ", "en": "usage: "},
@@ -6617,6 +6672,77 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Birozdan keyin yana urinib ko'ring.",
         "en": "Try again in a moment.",
     },
+    # ---- gui.sessionstore ----
+    "gui.sessionstore.ask": {
+        "uz": "Oxirgi sessiyani tiklash? ({count} ta fayl)",
+        "en": "Restore the last session? ({count} file(s))",
+    },
+    "gui.sessionstore.restore": {"uz": "Tiklash", "en": "Restore"},
+    "gui.sessionstore.skip": {"uz": "Yo'q", "en": "No"},
+    "gui.sessionstore.more": {"uz": "va yana {count} ta", "en": "and {count} more"},
+    "gui.sessionstore.restored": {
+        "uz": "Oxirgi sessiya tiklandi: {count} ta fayl.",
+        "en": "The last session was restored: {count} file(s).",
+    },
+    "gui.sessionstore.missing": {
+        "uz": "{count} ta fayl topilmadi va ochilmadi: {names}.",
+        "en": "{count} file(s) were not found and were not opened: {names}.",
+    },
+    "gui.sessionstore.failed": {
+        "uz": "Oxirgi sessiyani tiklab bo'lmadi: {error}",
+        "en": "The last session could not be restored: {error}",
+    },
+    "gui.sessionstore.task.plan": {"uz": "Sessiya fayllari tekshirilmoqda", "en": "Checking the files of the session"},
+    "gui.sessionstore.task.expand": {"uz": "Ochilgan tugunlar tiklanmoqda", "en": "Restoring the expanded nodes"},
+    # ---- gui.workspace ----
+    "gui.workspace.act.open": {"uz": "Workspace'ni ochish…", "en": "Open workspace…"},
+    "gui.workspace.act.open.tip": {
+        "uz": "Saqlangan ish maydonini ochadi: fayllar, ko'rinishlar, filtrlar, saralash, xatcho'plar, jadval "
+              "ustunlari va tuzilma quruvchi daraxti.",
+        "en": "Opens a saved workspace: files, views, filters, sort, bookmarks, table columns and the structure "
+              "builder's tree.",
+    },
+    "gui.workspace.act.save": {"uz": "Workspace'ni saqlash…", "en": "Save workspace…"},
+    "gui.workspace.act.save.tip": {
+        "uz": "Ochiq fayllar va ularning holatini (ko'rinishlar, filtrlar, saralash, xatcho'plar, jadval ustunlari, "
+              "tuzilma quruvchi daraxti) .jrworkspace fayliga yozadi. Saqlanmagan o'zgarishlar unga ko'chirilmaydi.",
+        "en": "Writes the open files and their state (views, filters, sort, bookmarks, table columns, the structure "
+              "builder's tree) to a .jrworkspace file. Unsaved changes are not copied into it.",
+    },
+    "gui.workspace.menu.recent": {"uz": "Oxirgi workspace'lar", "en": "Recent workspaces"},
+    "gui.workspace.recent.empty": {"uz": "Ro'yxat bo'sh", "en": "No recent workspaces"},
+    "gui.workspace.recent.clear": {"uz": "Ro'yxatni tozalash", "en": "Clear the list"},
+    "gui.workspace.recent.missing": {
+        "uz": "Workspace fayli topilmadi va ro'yxatdan olib tashlandi: {path}",
+        "en": "The workspace file was not found and was removed from the list: {path}",
+    },
+    "gui.workspace.filter": {"uz": "Workspace fayllari ({patterns})", "en": "Workspace files ({patterns})"},
+    "gui.workspace.open.title": {"uz": "Workspace'ni ochish", "en": "Open workspace"},
+    "gui.workspace.save.title": {"uz": "Workspace'ni saqlash", "en": "Save workspace"},
+    "gui.workspace.ask.title": {"uz": "Ochiq fayllar", "en": "Open files"},
+    "gui.workspace.ask": {
+        "uz": "Hozir {count} ta fayl ochiq. Workspace ochilishidan oldin ular yopilsinmi yoki workspace fayllari "
+              "ularga qo'shilsinmi? (Saqlanmagan o'zgarishlar yopishda har bir fayl uchun alohida so'raladi.)",
+        "en": "{count} file(s) are open now. Close them before the workspace opens, or add the workspace's files to "
+              "them? (Unsaved changes are asked about file by file when closing.)",
+    },
+    "gui.workspace.ask.replace": {"uz": "Yopib ochish", "en": "Close them"},
+    "gui.workspace.ask.add": {"uz": "Qo'shish", "en": "Add"},
+    "gui.workspace.opened": {
+        "uz": "Workspace ochildi: {name} ({count} ta fayl).",
+        "en": "Workspace opened: {name} ({count} file(s)).",
+    },
+    "gui.workspace.saved": {"uz": "Workspace saqlandi: {path}", "en": "Workspace saved: {path}"},
+    "gui.workspace.empty": {"uz": "Saqlash uchun ochiq fayl yo'q.", "en": "No file is open to save."},
+    "gui.workspace.pending_edits": {
+        "uz": "{count} ta faylda saqlanmagan o'zgarishlar bor edi: ular workspace'ga ko'chirilmagan; fayl ochilgach "
+              "tiklash paneli ularni taklif qiladi.",
+        "en": "{count} file(s) had unsaved changes: they are not part of the workspace; the recovery bar offers them "
+              "once the file is open.",
+    },
+    "gui.workspace.task.read": {"uz": "Workspace o'qilmoqda: {name}", "en": "Reading the workspace {name}"},
+    "gui.workspace.task.save": {"uz": "Workspace saqlanmoqda: {name}", "en": "Saving the workspace {name}"},
+    "gui.workspace.task.mapping": {"uz": "Tuzilma tiklanmoqda: {name}", "en": "Restoring the structure of {name}"},
     # ---- gui.copy ----
     "gui.copy.style.dotted": {"uz": "Nuqtali", "en": "Dotted"},
     "gui.copy.style.jsonpath": {"uz": "JSONPath", "en": "JSONPath"},
@@ -10586,12 +10712,174 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Natijalar eskirgan — yangilash uchun qayta taqqoslang.",
         "en": "The results are out of date — compare again to refresh them.",
     },
+    # ---- gui.palette ----
+    "gui.palette.action": {"uz": "Buyruqlar palitrasi…", "en": "Command palette…"},
+    "gui.palette.action.tip": {
+        "uz": "Istalgan buyruqni nomi bo'yicha topib ishga tushirish",
+        "en": "Find any command by its name and run it",
+    },
+    "gui.palette.placeholder": {
+        "uz": "Buyruq nomini yozing: saqlash, eksport, filtr…",
+        "en": "Type a command name: save, export, filter…",
+    },
+    "gui.palette.node": {"uz": "Tugun", "en": "Node"},
+    "gui.palette.tab": {"uz": "Tab: {name}", "en": "Tab: {name}"},
+    "gui.palette.open": {"uz": "Ochish: {name}", "en": "Open: {name}"},
+    "gui.palette.reason.unavailable": {
+        "uz": "Joriy ko'rinish yoki faylning holati bunga mos emas.",
+        "en": "The current view or the file's state does not allow it.",
+    },
+    "gui.palette.reason.no_file": {"uz": "Ochiq fayl yo'q.", "en": "No file is open."},
+    "gui.palette.disabled_tip": {"uz": "Hozir ishlamaydi — {reason}", "en": "Not available now — {reason}"},
+    "gui.palette.cannot_run": {
+        "uz": "Bu buyruqni hozir ishga tushirib bo'lmaydi — {reason}",
+        "en": "This command cannot run now — {reason}",
+    },
+    "gui.palette.recent_tag": {"uz": "yaqinda", "en": "recent"},
+    "gui.palette.empty": {"uz": "Hech narsa topilmadi", "en": "Nothing found"},
+    "gui.palette.status": {
+        "uz": "{shown} / {total} ta buyruq · Enter — ishga tushirish, Esc — yopish",
+        "en": "{shown} of {total} commands · Enter runs, Esc closes",
+    },
+    # ---- gui.keymap ----
+    "gui.keymap.col.action": {"uz": "Buyruq", "en": "Command"},
+    "gui.keymap.col.path": {"uz": "Menyu", "en": "Menu"},
+    "gui.keymap.col.default": {"uz": "Asl tugma", "en": "Default key"},
+    "gui.keymap.col.current": {"uz": "Joriy tugma", "en": "Current key"},
+    "gui.keymap.filter.placeholder": {
+        "uz": "Buyruq, menyu yoki tugma bo'yicha qidirish…",
+        "en": "Filter by command, menu or key…",
+    },
+    "gui.keymap.record.label": {"uz": "Yangi tugma:", "en": "New key:"},
+    "gui.keymap.record.tip": {
+        "uz": "Jadvalda buyruqni tanlang, so'ng shu yerni bosib, yangi tugmalar birikmasini bosing "
+              "(masalan, Ctrl+Alt+E).",
+        "en": "Select a command in the table, click here and press the new key combination (e.g. Ctrl+Alt+E).",
+    },
+    "gui.keymap.none": {"uz": "Tugmasiz", "en": "No key"},
+    "gui.keymap.none.tip": {
+        "uz": "Tanlangan buyruqdan barcha tugmalarni olib tashlash",
+        "en": "Remove every key of the selected command",
+    },
+    "gui.keymap.reset": {"uz": "Asl holiga", "en": "Reset"},
+    "gui.keymap.reset.tip": {"uz": "Bu buyruqning asl tugmasini qaytarish", "en": "Give this command its default key back"},
+    "gui.keymap.reset_all": {"uz": "Hammasini asl holiga", "en": "Reset all"},
+    "gui.keymap.reset_all.tip": {
+        "uz": "Barcha buyruqlarning asl tugmalarini qaytarish (\"Saqlash\" bosilganda qo'llanadi)",
+        "en": "Give every command its default keys back (applied when you press \"Save\")",
+    },
+    "gui.keymap.no_keys": {"uz": "(yo'q)", "en": "(none)"},
+    "gui.keymap.changed.tip": {"uz": "O'zgartirilgan; asl tugma: {keys}", "en": "Changed; the default is {keys}"},
+    "gui.keymap.hint": {
+        "uz": "Buyruqni tanlang va yangi tugmani bosing. O'zgarishlar \"Saqlash\" bosilganda darhol qo'llanadi.",
+        "en": "Select a command and press its new key. The changes apply as soon as you press \"Save\".",
+    },
+    "gui.keymap.unavailable": {
+        "uz": "Tugmalarni o'zgartirish uchun Sozlamalarni asosiy oynaning menyusidan oching "
+              "(Asboblar ▸ Sozlamalar…).",
+        "en": "Open Settings from the main window's menu (Tools ▸ Settings…) to change the keys.",
+    },
+    "gui.keymap.assigned": {
+        "uz": "«{action}» buyrug'ining tugmasi endi: {keys}",
+        "en": "«{action}» now has the key {keys}",
+    },
+    "gui.keymap.cleared": {"uz": "«{action}» endi tugmasiz.", "en": "«{action}» has no key now."},
+    "gui.keymap.reset_done": {
+        "uz": "«{action}» asl tugmasiga qaytdi: {keys}",
+        "en": "«{action}» has its default key again: {keys}",
+    },
+    "gui.keymap.all_reset": {
+        "uz": "Barcha tugmalar asl holiga qaytarildi (\"Saqlash\" bosilganda qo'llanadi).",
+        "en": "Every key is back to its default (applied when you press \"Save\").",
+    },
+    "gui.keymap.conflict": {
+        "uz": "«{keys}» band: u «{action}» ({path}) buyrug'iga berilgan. Avval o'sha buyruqning tugmasini "
+              "o'zgartiring.",
+        "en": "«{keys}» is taken by «{action}» ({path}). Change that command's key first.",
+    },
+    "gui.keymap.fixed_conflict": {
+        "uz": "«{keys}» daraxt va jadvalning o'z tugmasi ({what}); uni boshqa buyruqqa berib bo'lmaydi.",
+        "en": "«{keys}» is a key of the tree and the table themselves ({what}); it cannot be given to another "
+              "command.",
+    },
+    "gui.keymap.menu_conflict": {
+        "uz": "«{keys}» «{menu}» menyusini ochadi; boshqa tugmani tanlang.",
+        "en": "«{keys}» opens the «{menu}» menu; choose another key.",
+    },
+    "gui.keymap.reset_conflict": {
+        "uz": "Asl tugma «{keys}» hozir «{action}» buyrug'ida; avval o'sha buyruqning tugmasini o'zgartiring.",
+        "en": "The default key «{keys}» is used by «{action}» now; change that command's key first.",
+    },
+    "gui.keymap.multi": {
+        "uz": "Faqat bitta tugmalar birikmasi ishlatiladi (masalan, Ctrl+Alt+E), ketma-ket bir nechtasi emas: {keys}",
+        "en": "Only one key combination can be used (e.g. Ctrl+Alt+E), not several in a row: {keys}",
+    },
+    "gui.keymap.invalid": {
+        "uz": "Bu tugmalar birikmasini ishlatib bo'lmaydi: {keys}",
+        "en": "This key combination cannot be used: {keys}",
+    },
+    "gui.keymap.twice": {"uz": "«{keys}» ikki marta berilgan.", "en": "«{keys}» is given twice."},
+    "gui.keymap.unknown": {"uz": "Bunday buyruq yo'q: {action}", "en": "There is no such command: {action}"},
+    "gui.keymap.fixed.title": {"uz": "O'zgarmas tugmalar (daraxt va jadvalda)", "en": "Fixed keys (tree and table)"},
+    "gui.keymap.fixed.note": {
+        "uz": "Bu tugmalar ko'rinishlarning o'zida ishlaydi; ularni o'zgartirib ham, boshqa buyruqqa berib ham "
+              "bo'lmaydi.",
+        "en": "These keys work inside the views themselves; they cannot be changed or given to another command.",
+    },
+    "gui.keymap.fixed.col.keys": {"uz": "Tugma", "en": "Key"},
+    "gui.keymap.fixed.col.what": {"uz": "Vazifasi", "en": "What it does"},
+    "gui.keymap.fixed.move": {
+        "uz": "Yurish; daraxtda → ochadi, ← yopadi",
+        "en": "Move; in the tree → expands, ← collapses",
+    },
+    "gui.keymap.fixed.page": {
+        "uz": "Sahifalab yurish, boshiga / oxiriga o'tish",
+        "en": "Move by pages, to the first / last row",
+    },
+    "gui.keymap.fixed.extend": {"uz": "Tanlovni kengaytirish", "en": "Extend the selection"},
+    "gui.keymap.fixed.select_all": {"uz": "Hammasini tanlash", "en": "Select everything"},
+    "gui.keymap.fixed.toggle_select": {
+        "uz": "Qatorni tanlovga qo'shish / tanlovdan olib tashlash",
+        "en": "Add the row to the selection / remove it",
+    },
+    "gui.keymap.fixed.expand_all": {"uz": "Hammasini ochish (daraxt)", "en": "Expand everything (tree)"},
+    "gui.keymap.fixed.expand_collapse": {
+        "uz": "Tugunni ochish / yopish (daraxt)",
+        "en": "Expand / collapse the node (tree)",
+    },
+    "gui.keymap.fixed.full_value": {"uz": "To'liq qiymatni ko'rish (daraxt)", "en": "Show the full value (tree)"},
+    "gui.keymap.fixed.edit": {
+        "uz": "Qiymatni tahrirlash (jadvalda konteyner daraxtda ko'rsatiladi)",
+        "en": "Edit the value (in the table a container is shown in the tree)",
+    },
+    "gui.keymap.fixed.edit_json": {"uz": "JSON sifatida tahrirlash", "en": "Edit as JSON"},
+    "gui.keymap.fixed.rename": {"uz": "Kalit nomini o'zgartirish", "en": "Rename the key"},
+    "gui.keymap.fixed.insert": {"uz": "Qo'shish", "en": "Insert"},
+    "gui.keymap.fixed.delete": {"uz": "O'chirish", "en": "Delete"},
+    "gui.keymap.fixed.duplicate": {"uz": "Nusxasini qo'shish (dublikat)", "en": "Duplicate"},
+    "gui.keymap.fixed.move_node": {
+        "uz": "Tugunni yuqoriga / pastga surish (daraxt)",
+        "en": "Move the node up / down (tree)",
+    },
+    "gui.keymap.fixed.quick_filter": {"uz": "Ustunning tezkor filtri (jadval)", "en": "The column's quick filter (table)"},
+    "gui.keymap.fixed.paste": {"uz": "JSON'ni joylash", "en": "Paste JSON"},
+    "gui.keymap.fixed.copy_value": {"uz": "Qiymatni nusxalash", "en": "Copy the value"},
+    "gui.keymap.fixed.copy_path": {"uz": "Yo'lni nusxalash", "en": "Copy the path"},
+    "gui.keymap.fixed.cancel": {
+        "uz": "Bekor qilish, qidiruv qatorini yopish",
+        "en": "Cancel, close the find bar",
+    },
+    "gui.keymap.fixed.focus": {
+        "uz": "Keyingi / oldingi maydonga o'tish",
+        "en": "Move to the next / previous field",
+    },
     # ---- gui.settings ----
     "gui.settings.title": {"uz": "Sozlamalar", "en": "Settings"},
     "gui.settings.tab.general": {"uz": "Umumiy", "en": "General"},
     "gui.settings.tab.export": {"uz": "Eksport", "en": "Export"},
     "gui.settings.tab.view": {"uz": "Ko'rinish", "en": "Appearance"},
     "gui.settings.tab.advanced": {"uz": "Qo'shimcha", "en": "Advanced"},
+    "gui.settings.tab.keys": {"uz": "Klaviatura", "en": "Keyboard"},
     "gui.settings.save": {"uz": "Saqlash", "en": "Save"},
     "gui.settings.defaults": {"uz": "Standartga qaytarish", "en": "Restore defaults"},
     "gui.settings.defaults.tip": {
@@ -10741,6 +11029,94 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "How many steps Undo (Ctrl+Z) can go back (at least 200). Older steps stay applied; they just "
         "can no longer be undone.",
     },
+    "gui.settings.startup": {"uz": "Ishga tushirish", "en": "Start-up"},
+    "gui.settings.restore_session": {"uz": "Oxirgi sessiyani tiklash", "en": "Restore the last session"},
+    "gui.settings.restore_session.always": {"uz": "Har doim", "en": "Always"},
+    "gui.settings.restore_session.ask": {"uz": "Har safar so'rash", "en": "Ask every time"},
+    "gui.settings.restore_session.never": {"uz": "Hech qachon", "en": "Never"},
+    "gui.settings.restore_session.tip": {
+        "uz": "Dastur faylsiz ishga tushirilganda oxirgi marta ochiq bo'lgan fayllar qayta ochiladi: ko'rinishlari, "
+              "joriy tuguni, ochilgan tugunlari, filtri va saralashi bilan. Fayl buyruq satrida (yoki «Open with» "
+              "orqali) berilsa, faqat o'sha fayl ochiladi va saqlangan sessiya keyingi safarga qoladi.",
+        "en": "When the program starts without a file, the files that were open last time open again: with their "
+              "views, current node, expanded nodes, filter and sort. When a file is given on the command line (or "
+              "through \"Open with\"), only that file opens and the saved session is kept for the next start.",
+    },
+    # ---- gui.os ----
+    "gui.os.settings.label": {"uz": "Windows «Open with»:", "en": "Windows \"Open with\":"},
+    "gui.os.add": {"uz": ".json fayllarni «Open with» ro'yxatiga qo'shish", "en": "Add to \"Open with\" for .json files"},
+    "gui.os.add.tip": {
+        "uz": "Explorer'da faylni o'ng tugma bilan bosganda «Open with» ro'yxatida JSON Reshape chiqadi ({command}). "
+        "Faqat sizning foydalanuvchingiz uchun yoziladi; standart dastur o'zgarmaydi.",
+        "en": "JSON Reshape appears in Explorer's \"Open with\" list when you right-click a file ({command}). "
+        "Written for your user account only; the default program does not change.",
+    },
+    "gui.os.remove": {"uz": "«Open with» ro'yxatidan olib tashlash", "en": "Remove from \"Open with\""},
+    "gui.os.remove.tip": {
+        "uz": "Dastur Windows ro'yxatiga yozgan yozuvlarni o'chiradi; boshqa dasturlarning yozuvlari o'zgarmaydi.",
+        "en": "Deletes the entries the program wrote to the Windows registry; other programs' entries stay as "
+        "they are.",
+    },
+    "gui.os.status.none": {"uz": "Hozir «Open with» ro'yxatida yo'q.", "en": "Not in the \"Open with\" list now."},
+    "gui.os.status.current": {"uz": "«Open with» ro'yxatiga qo'shilgan.", "en": "Added to the \"Open with\" list."},
+    "gui.os.status.other": {
+        "uz": "Ro'yxatda dasturning boshqa nusxasi turibdi: {command}. Qo'shish uni shu nusxaga almashtiradi.",
+        "en": "Another copy of the program is in the list: {command}. Adding replaces it with this copy.",
+    },
+    "gui.os.status.partial": {
+        "uz": "Ro'yxatga qisman qo'shilgan (ba'zi yozuvlar yo'q). Qayta qo'shish buni tuzatadi.",
+        "en": "Partly added (some entries are missing). Adding again repairs it.",
+    },
+    "gui.os.status.unknown": {
+        "uz": "Windows ro'yxatini o'qib bo'lmadi: {error}",
+        "en": "Could not read the Windows registry: {error}",
+    },
+    "gui.os.unavailable.platform": {"uz": "Bu faqat Windows'da ishlaydi.", "en": "This works on Windows only."},
+    "gui.os.unavailable.exe": {"uz": "Bu faqat {name} dasturidan ishlaydi.", "en": "This works only from {name}."},
+    "gui.os.unavailable.python": {
+        "uz": "pythonw.exe topilmadi: {path}. Ishlab chiqish rejimida ro'yxatga «pythonw.exe -m jsonreshape.gui» "
+        "qo'shiladi.",
+        "en": "pythonw.exe was not found: {path}. In development the list gets \"pythonw.exe -m jsonreshape.gui\".",
+    },
+    "gui.os.confirm.title": {"uz": "Windows «Open with»", "en": "Windows \"Open with\""},
+    "gui.os.confirm.add": {
+        "uz": "JSON Reshape Windows'ning «Open with» ro'yxatiga qo'shilsinmi? U {extensions} fayllar uchun "
+        "chiqadi.\n\nFaqat sizning foydalanuvchingiz uchun yoziladi (HKCU\\Software\\Classes). Standart dastur "
+        "o'zgarmaydi: xohlasangiz, uni Windows'da o'zingiz tanlaysiz.\n\nBuyruq: {command}",
+        "en": "Add JSON Reshape to the Windows \"Open with\" list? It appears for {extensions} files.\n\nOnly "
+        "your user account is changed (HKCU\\Software\\Classes). The default program stays as it is: you can "
+        "choose it yourself in Windows.\n\nCommand: {command}",
+    },
+    "gui.os.confirm.remove": {
+        "uz": "JSON Reshape Windows'ning «Open with» ro'yxatidan olib tashlansinmi? Faqat dastur yozgan yozuvlar "
+        "o'chiriladi.",
+        "en": "Remove JSON Reshape from the Windows \"Open with\" list? Only the entries the program wrote are "
+        "deleted.",
+    },
+    "gui.os.done.add": {
+        "uz": "Qo'shildi. Explorer'da faylni o'ng tugma bilan bosing ▸ «Open with» ▸ JSON Reshape.",
+        "en": "Added. In Explorer right-click a file ▸ \"Open with\" ▸ JSON Reshape.",
+    },
+    "gui.os.done.remove": {"uz": "«Open with» ro'yxatidan olib tashlandi.", "en": "Removed from the \"Open with\" list."},
+    "gui.os.error.add": {
+        "uz": "JSON Reshape'ni «Open with» ro'yxatiga qo'shib bo'lmadi: {detail}",
+        "en": "Could not add JSON Reshape to the \"Open with\" list: {detail}",
+    },
+    "gui.os.error.add.hint": {
+        "uz": "Windows ro'yxatiga yozishga ruxsat yo'q bo'lishi mumkin (masalan, tashkilot siyosati). Yozilgan "
+        "qismini «olib tashlash» o'chiradi.",
+        "en": "Writing to the registry may not be allowed (for example by an organization policy). \"Remove\" "
+        "deletes whatever was written.",
+    },
+    "gui.os.error.remove": {
+        "uz": "«Open with» ro'yxatidan olib tashlab bo'lmadi: {detail}",
+        "en": "Could not remove from the \"Open with\" list: {detail}",
+    },
+    "gui.os.error.remove.hint": {
+        "uz": "Windows ro'yxatini o'zgartirishga ruxsat yo'q bo'lishi mumkin. Keyinroq qayta urinib ko'ring.",
+        "en": "Changing the registry may not be allowed. Try again later.",
+    },
+    "gui.os.type_name": {"uz": "JSON fayl (JSON Reshape)", "en": "JSON file (JSON Reshape)"},
     # ---- gui.nav ----
     "gui.nav.unexpected": {"uz": "Kutilmagan xato: {error}", "en": "Unexpected error: {error}"},
     "gui.nav.goto.title": {"uz": "Yo'lga o'tish", "en": "Go to"},

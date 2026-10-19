@@ -219,6 +219,37 @@ CSV and XLSX
 * CSV: :mod:`csv` writer, ``csv_delimiter``, minimal quoting, ``\r\n`` line ends, UTF-8 with
   a BOM when ``csv_bom`` (Excel); a lone surrogate (from a ``\ud800`` escape) is written as
   the text ``\ud800``.
+* CSV rows in worker processes (stage-6 performance work, P6; like ``engine.apply``,
+  ``bulk.preview`` and the JSON Patch export, docs/ARCHITECTURE.md §12.12, §13.2):
+  ``export(..., workers=None)`` -- automatic: a selection of at least ``bulk.POOL_MIN_BYTES``
+  (64 MiB) gets ``bulk.auto_workers`` spawned processes (4 with the default memory limit) when
+  ``bulk._spawn_safe()``; ``workers=1`` keeps everything in the calling thread, ``n > 1`` asks
+  for n. The workers receive the columns once and jobs of :data:`POOL_BLOCK_BYTES` of record
+  bytes (at most ``2 * workers`` in flight); a job returns the block's rows as encoded CSV text
+  (:class:`_RowsJob`, the same per-record code as the one-thread writer: decode, row, ``csv``
+  module, ``utf-8``/``backslashreplace``) and the explicit columns it found. The calling thread
+  reads the blocks and writes the results in block order; huge records, records that cannot be
+  decoded in memory and records with more than :data:`POOL_SAFE_BRACKETS` opening brackets
+  (whose decoding depends on the stack of the process) are handled there exactly as without
+  workers, so the file is byte for byte the one-thread file (``csv`` writes every row on its
+  own). XLSX: at most :data:`XLSX_POOL_WORKERS` workers prepare the typed cells the same way
+  and the calling thread writes them with xlsxwriter in their order (xlsxwriter is the bound;
+  the workbook is the same). A job stops once its text exceeds :data:`POOL_JOB_TEXT` characters
+  (XLSX: :data:`POOL_JOB_CELLS` cells; rows mode can multiply a record); the rest of its block
+  is the next job. A job a worker cannot do is done in the calling thread (its error, if any,
+  is raised as without workers); ``BrokenProcessPool`` -- the workers cannot run -- moves the
+  rest of the export to the calling thread. ``cancel`` is checked every :data:`POOL_WAIT`
+  seconds while a result is awaited; the workers are stopped on any error. A ``.csv.gz``
+  output is byte for byte the same too (:class:`_Sink` feeds zlib fixed pieces of the plain
+  stream). :attr:`ExportReport.workers`: the worker processes used (1 = the calling thread).
+* The column scan of automatic CSV/XLSX columns (and :func:`discover_columns` /
+  :func:`plan_columns` of every record) runs in worker processes too, by the same rule
+  (``discover_columns(..., workers=None)``): every job scans its block with its own
+  :class:`_ColumnScan` and the calling thread merges the results in order
+  (:class:`_ScanMerge`). The merge is exact -- the same columns, in the same order, as one
+  scan -- unless an object path may become a map, the scan would track more than
+  ``SCAN_MAX_PATHS`` paths, or rows mode infers the expanded array: then the scan is done
+  (again) in the calling thread (its progress resumes where the workers' stopped).
 * XLSX: ``xlsxwriter`` in ``constant_memory`` mode (rows streamed to disk) with
   ``strings_to_numbers``/``strings_to_formulas``/``strings_to_urls`` disabled; a bold,
   frozen header row on every sheet. Numbers are real numbers when they have at most 15
@@ -365,7 +396,15 @@ from . import stream as _stream
 from .appdirs import tmp_dir, work_dir
 from .codec import JsonFloat, JsonInt
 from .core import FLAG_ESCAPES, FLAG_U_ESCAPES, MODE_CONTAINER
-from .errors import EditError, ExportError, JsonDecodeError, JsonReshapeError, PathSyntaxError, UserInputError
+from .errors import (
+    Cancelled,
+    EditError,
+    ExportError,
+    JsonDecodeError,
+    JsonReshapeError,
+    PathSyntaxError,
+    UserInputError,
+)
 from .fileio import (
     FileIdentity,
     atomic_path,
@@ -426,6 +465,7 @@ FORMATS = ("json", "jsonl", "csv", "xlsx", "sqlite")
 GZIP_FORMATS = ("json", "jsonl", "csv")   # formats written gzip-compressed to a ".gz" name
 FORMAT_NAMES = {"json": "JSON", "jsonl": "JSON Lines", "csv": "CSV", "xlsx": "Excel (XLSX)", "sqlite": "SQLite"}
 GZIP_LEVEL = 6                    # zlib level of ".gz" outputs (one member, header mtime 0)
+GZIP_FEED = 1 << 20               # ... fed to zlib in pieces of exactly this many bytes (_Sink)
 ARRAY_MODES = ("join", "rows")
 XLSX_SPLITS = ("sheets", "files")
 SORT_KEYS = ("alpha", "codepoint")
@@ -479,6 +519,15 @@ STREAM_CHECK_EVENTS = 1 << 14     # ijson events between cancel checks when cell
 DUP_KEYS_MAX = 1_000_000          # as_keyed: member keys remembered for the duplicate-key warning, at most ...
 DUP_KEY_OVERHEAD = 96             # ... (estimated bytes per remembered key besides its text) ...
 DUP_MEMORY_DIVISOR = 4            # ... and at most memory_limit_bytes // 4 bytes of them
+POOL_BLOCK_BYTES = 1 * MiB        # worker processes: record bytes per job (2 MiB: the same speed, ~25 MB more)
+POOL_JOB_TEXT = 8 * MiB           # ... a job stops once its CSV text has this many characters ...
+POOL_JOB_CELLS = 1 << 20          # ... or its XLSX rows this many cells
+POOL_JOB_ROWS = 1024              # ... rows built at a time by a job (its memory: a few MB per worker) ...
+POOL_PIECE_CHARS = 256 * KiB      # ... and CSV text encoded once this many characters are buffered
+XLSX_POOL_WORKERS = 2             # ... XLSX: at most this many prepare the cells (xlsxwriter is the bound)
+POOL_WAIT = 0.05                  # ... seconds between cancellation checks while a result is awaited
+POOL_SAFE_BRACKETS = 4096         # ... records with more "[" / "{" bytes are decoded by the calling thread
+POOL_MAX_PROCESSES = 61           # ... at most (ProcessPoolExecutor's limit on Windows)
 
 _COMMA_KINDS = frozenset({"array", "keyed", "wrapped", "brace_list"})
 _EXT_FORMATS = {
@@ -775,7 +824,9 @@ class ExportReport:
     ``_wrapper`` description tables are not listed); ``per_input``: :func:`export_many` --
     the records written of each input, in input order; ``warning_params``: the parameters of
     each warning (parallel to ``warning_keys``; ``count`` included) -- what a caller that
-    combines several reports needs to add counts up (the parts of a split).
+    combines several reports needs to add counts up (the parts of a split); ``workers``: the
+    worker processes that built the CSV rows or scanned for the CSV/XLSX columns (1 = the calling
+    thread only; module docstring, "CSV and XLSX").
     """
 
     fmt: str
@@ -791,6 +842,7 @@ class ExportReport:
     warning_keys: list[str] = field(default_factory=list)
     per_input: list[int] = field(default_factory=list)
     warning_params: list[dict[str, Any]] = field(default_factory=list)
+    workers: int = 1
 
     @property
     def mb_per_s(self) -> float:
@@ -811,6 +863,7 @@ class ExportReport:
             "columns": list(self.columns),
             "tables": list(self.tables),
             "per_input": list(self.per_input),
+            "workers": self.workers,
         }
 
 
@@ -1171,13 +1224,15 @@ def _apply_maps(kinds: dict[tuple, int], plans: dict[tuple, _MapPlan]) -> dict[t
 class _Node:
     """An object path seen by the column scan."""
 
-    __slots__ = ("path", "keys", "nslow", "widest", "sigs", "kids", "collapsed", "exempt", "force", "map", "kbits")
+    __slots__ = ("path", "keys", "nslow", "widest", "first", "sigs", "kids", "collapsed", "exempt", "force", "map",
+                 "kbits")
 
     def __init__(self, path: tuple, exempt: bool, force: Any = None) -> None:
         self.path = path
         self.keys: Counter[str] = Counter()      # keys of the objects walked by _slow
         self.nslow = 0                           # objects walked by _slow
         self.widest = 0                          # most keys of one object here
+        self.first = 0                           # keys of the first non-empty object here (_ScanMerge)
         self.sigs: dict[tuple, list] = {}        # (keys, value types) -> [objects _fast saw, what to descend into]
         self.kids: dict[str, _Node] = {}         # nodes of the object-valued members
         self.collapsed = False                   # one JSON column (too deep, or the scan's path limit)
@@ -1274,6 +1329,7 @@ class _ColumnScan:
         self.budget = SCAN_SIG_BUDGET
         self.records = 0
         self.undecodable = 0
+        self.workers = 1                      # worker processes that scanned (_ScanPool)
         self._plans: dict[tuple, _MapPlan] | None = None
 
     def _node(self, path: tuple) -> _Node:
@@ -1446,6 +1502,8 @@ class _ColumnScan:
                 keys = tuple(v)
                 node.keys.update(keys)
                 if len(keys) > node.widest:
+                    if not node.widest:
+                        node.first = len(keys)
                     node.widest = len(keys)
                 if _map_like(len(node.keys), node.widest) and path != self.explode:
                     self._to_map(space, node)
@@ -1625,9 +1683,12 @@ class _ColumnScan:
 
 
 def _discover(doc: Document, src: Any, count: int, sample: int | None, rows: bool, explode: tuple | None,
-              cancel: CancelToken | None, on_block: Callable[[Any], None] | None = None) -> _ColumnScan:
+              cancel: CancelToken | None, on_block: Callable[[Any], None] | None = None,
+              workers: int = 1) -> _ColumnScan:
     """Scan the selection (every record, or an evenly spread deterministic sample of
-    ``sample`` records; huge records are left out) for :class:`_ColumnScan`."""
+    ``sample`` records; huge records are left out) for :class:`_ColumnScan`. ``workers > 1``: a scan of
+    every record runs in worker processes (:class:`_ScanPool`; the same result) unless rows mode infers
+    the expanded array; when their merge cannot be exact, the scan is done again in this thread."""
     scan = _ColumnScan(rows, explode)
     if count <= 0:
         return scan
@@ -1636,6 +1697,12 @@ def _discover(doc: Document, src: Any, count: int, sample: int | None, rows: boo
         indices = positions if src is None else [int(src[p]) for p in positions]
         blocks = doc.iter_blocks(indices, block_bytes=SAMPLE_BLOCK_BYTES, cancel=cancel)
     else:
+        if workers > 1 and not (rows and explode is None):
+            pool = _ScanPool(doc, src, rows, explode, cancel, on_block, workers)
+            merged = pool.run()
+            if merged is not None:
+                return merged
+            on_block = pool.catch_up(on_block)
         blocks = doc.iter_blocks(src, block_bytes=BLOCK_BYTES, cancel=cancel)
     member = doc.member_records
     split = doc.split_member
@@ -1672,7 +1739,7 @@ def _column_text(path: tuple) -> str:
 
 def discover_columns(doc: Document, source: Any = None, *, sample: int | None = None, array_mode: str = "join",
                      explode: str | None = None, progress: Progress | None = None,
-                     cancel: CancelToken | None = None) -> list[str]:
+                     cancel: CancelToken | None = None, workers: int | None = None) -> list[str]:
     """CSV/XLSX columns of ``doc`` (see the module docstring), exactly those of an export
     with automatic columns: the leaf paths of every record of ``source`` (``sample=N``: of
     an evenly spread, deterministic sample of N records instead) in first-seen order, as
@@ -1680,13 +1747,16 @@ def discover_columns(doc: Document, source: Any = None, *, sample: int | None = 
     for scalar records, ``attrs.*`` / ``*`` for the pooled keys of a map -- as an explicit
     column that text keeps its wildcard meaning); ``$key`` first for member records. Builds the index when needed;
     huge records and records that cannot be decoded in memory are not scanned. Progress
-    as for :func:`export` (one pass)."""
+    as for :func:`export` (one pass). ``workers``: worker processes for a scan of every record (``None``:
+    automatic, as :func:`export`; the columns are the same either way)."""
     mode = _choice("array_mode", array_mode, ARRAY_MODES, "writer.expected.array_mode")
     explode_text = _norm_explode(explode)
     if explode_text is not None:
         mode = "rows"
     if sample is not None and (isinstance(sample, bool) or not isinstance(sample, int) or sample < 1):
         raise _invalid("sample", sample, "writer.expected.sample")
+    if workers is not None and (isinstance(workers, bool) or not isinstance(workers, int) or workers < 1):
+        raise _invalid("workers", workers, "writer.expected.workers")
     doc = _pin(doc, source)
     _ensure_index(doc, progress, cancel)
     src, count = _normalize_source(doc, source)
@@ -1696,8 +1766,9 @@ def discover_columns(doc: Document, source: Any = None, *, sample: int | None = 
         progress.set_message(t("writer.progress.columns"))
         meter.start(1)
     everything = sample is None or count <= sample
+    nworkers = _auto_workers(workers, count, meter.unit, doc.settings) if everything else 1
     scan = _discover(doc, src, count, sample, mode == "rows", explode_path, cancel,
-                     meter.advance if everything else None)
+                     meter.advance if everything else None, workers=nworkers)
     if progress is not None:
         progress.finish()
     paths, _ = scan.columns()
@@ -1712,27 +1783,45 @@ def discover_columns(doc: Document, source: Any = None, *, sample: int | None = 
 class _Sink:
     """A binary file that ignores empty writes (the Reformatter often returns ``b""``);
     ``gzip``: the bytes are compressed (``zlib.compressobj(GZIP_LEVEL, DEFLATED, 31)``: one gzip
-    member, header mtime 0) -- :meth:`finish` writes the end of the stream."""
+    member, header mtime 0) -- :meth:`finish` writes the end of the stream. The compressor is fed
+    pieces of exactly :data:`GZIP_FEED` bytes of the plain stream (and the rest at the end): zlib's
+    output depends on how its input is cut, so this way the compressed bytes depend only on the
+    data, never on the sizes of the writes (the CSV rows of worker processes arrive in other pieces
+    than the one-thread export writes them; the files are byte for byte the same)."""
 
-    __slots__ = ("f", "z")
+    __slots__ = ("f", "z", "pend")
 
     def __init__(self, f: Any, gzip: bool = False) -> None:
         self.f = f
         self.z = zlib.compressobj(GZIP_LEVEL, zlib.DEFLATED, 31) if gzip else None
+        self.pend = bytearray()
 
     def write(self, data: bytes) -> None:
         if data:
             z = self.z
-            if z is not None:
-                data = z.compress(data)
-                if not data:
-                    return
-            self.f.write(data)
+            if z is None:
+                self.f.write(data)
+                return
+            pend = self.pend
+            pend += data
+            if len(pend) >= GZIP_FEED:
+                n = len(pend) - len(pend) % GZIP_FEED
+                with memoryview(pend) as view:
+                    for i in range(0, n, GZIP_FEED):
+                        out = z.compress(view[i:i + GZIP_FEED])
+                        if out:
+                            self.f.write(out)
+                del pend[:n]
 
     def finish(self) -> None:
         z = self.z
         if z is not None:
             self.z = None
+            if self.pend:
+                out = z.compress(self.pend)
+                if out:
+                    self.f.write(out)
+                self.pend = bytearray()
             self.f.write(z.flush())
 
 
@@ -1775,6 +1864,8 @@ class _Ctx:
         self.tables: list[str] = []
         self.sorter: _KeySorter | None = None
         self.gzip = False                       # the output is compressed (a ".gz" name)
+        self.want_workers: int | None = None    # export(workers=): None = automatic (_pool_workers)
+        self.workers = 1                        # worker processes used (ExportReport.workers)
         self._warnings: dict[str, dict[str, Any]] = {}
         self._fh: Any = None
 
@@ -2011,9 +2102,10 @@ class ColumnPlan:
 def plan_columns(doc: Document, opts: ExportOptions, source: Any = None, *, progress: Progress | None = None,
                  cancel: CancelToken | None = None) -> ColumnPlan:
     """The CSV/XLSX columns an :func:`export` of ``source`` with ``opts`` would use (automatic
-    columns: one scan of every selected record, like the export's first pass; explicit columns:
-    parsed, and in rows mode the expanded array found), to be passed as ``column_plan=`` to
-    exports of parts of that selection. Progress: one pass, as :func:`export`."""
+    columns: one scan of every selected record, like the export's first pass -- in worker processes
+    by the same automatic rule; explicit columns: parsed, and in rows mode the expanded array
+    found), to be passed as ``column_plan=`` to exports of parts of that selection. Progress: one
+    pass, as :func:`export`."""
     if not isinstance(opts, ExportOptions):
         raise TypeError("opts must be an ExportOptions instance")
     opts.validate()
@@ -2061,7 +2153,7 @@ def _check_gzip(opts: ExportOptions, out: Path, gzip: bool | None) -> bool:
 
 def export(doc: Document, out_path: StrPath, opts: ExportOptions, source: Any = None, *,
            progress: Progress | None = None, cancel: CancelToken | None = None, gzip: bool | None = None,
-           column_plan: ColumnPlan | None = None) -> ExportReport:
+           column_plan: ColumnPlan | None = None, workers: int | None = None) -> ExportReport:
     """Write the records of ``doc`` (all, or the ``source`` selection in its order) to
     ``out_path`` as described by ``opts`` (see the module docstring). The file appears
     atomically; on an error, a cancellation or a change of the source no temporary file is
@@ -2069,9 +2161,14 @@ def export(doc: Document, out_path: StrPath, opts: ExportOptions, source: Any = 
 
     ``gzip``: compress the JSON / JSON Lines / CSV output (default: when ``out_path`` ends with
     ``.gz``). ``column_plan``: CSV/XLSX columns found by :func:`plan_columns` for a selection this
-    ``source`` is a part of (no column scan; the plan's own warnings are not repeated)."""
+    ``source`` is a part of (no column scan; the plan's own warnings are not repeated).
+    ``workers``: worker processes for the CSV rows and the CSV/XLSX column scan (``None``: automatic;
+    ``1``: the calling thread only; the file is the same either way -- module docstring, "CSV and
+    XLSX"). The other formats ignore it."""
     if not isinstance(opts, ExportOptions):
         raise TypeError("opts must be an ExportOptions instance")
+    if workers is not None and (isinstance(workers, bool) or not isinstance(workers, int) or workers < 1):
+        raise _invalid("workers", workers, "writer.expected.workers")
     opts.validate()
     doc = _pin(doc, source)
     started = time.perf_counter()
@@ -2084,6 +2181,7 @@ def export(doc: Document, out_path: StrPath, opts: ExportOptions, source: Any = 
     src, count = _normalize_source(doc, source)
     ctx = _Ctx(doc, opts, src, count, progress, cancel, out)
     ctx.gzip = gz
+    ctx.want_workers = workers
     planned = column_plan is not None and opts.fmt in ("csv", "xlsx")
     try:
         ctx.begin(1 if planned else _scan_passes(opts))
@@ -2117,9 +2215,11 @@ def export(doc: Document, out_path: StrPath, opts: ExportOptions, source: Any = 
         tables=list(ctx.tables),
         warning_keys=keys,
         warning_params=ctx.warning_params(),
+        workers=ctx.workers,
     )
-    log.info("exported %d records (%d rows) of %s to %s as %s: %d bytes in %.2f s%s", report.records, report.rows,
+    log.info("exported %d records (%d rows) of %s to %s as %s: %d bytes in %.2f s%s%s", report.records, report.rows,
              doc.source_path.name, out, opts.fmt, size, report.elapsed,
+             f" ({ctx.workers} worker processes)" if ctx.workers > 1 else "",
              f"; warnings: {', '.join(keys)}" if keys else "")
     return report
 
@@ -3948,7 +4048,9 @@ def _prepare_columns(ctx: _Ctx) -> None:
                 explode = _infer_explode(ctx, columns)
     else:
         ctx.message("writer.progress.columns")
-        scan = _discover(ctx.doc, ctx.src, ctx.count, None, rows, explode, ctx.cancel, ctx.advance)
+        scan = _discover(ctx.doc, ctx.src, ctx.count, None, rows, explode, ctx.cancel, ctx.advance,
+                         workers=_pool_workers(ctx))
+        ctx.workers = max(ctx.workers, scan.workers)
         ctx.next_pass()
         ctx.message("writer.progress.export")
         paths, found = scan.columns()
@@ -4074,6 +4176,17 @@ def _warn_unfound(ctx: _Ctx, builder: _RowBuilder) -> None:
         ctx.warn("writer.warn.columns_not_found", add=len(names), columns=_names_text(names, 10), names=names)
 
 
+def _csv_writer(buf: io.StringIO, delimiter: str) -> Any:
+    """The :mod:`csv` writer of every CSV export (minimal quoting, ``\\r\\n`` line ends)."""
+    return csv.writer(buf, delimiter=delimiter, quotechar='"', doublequote=True, quoting=csv.QUOTE_MINIMAL,
+                      lineterminator="\r\n")
+
+
+def _write_rows(csv_writer: Any, rows: list[list[Any]]) -> None:
+    for i in range(0, len(rows), CSV_ROWS_PER_CALL):
+        csv_writer.writerows(rows[i:i + CSV_ROWS_PER_CALL])
+
+
 def _export_csv(ctx: _Ctx, out: Path) -> list[Path]:
     opts = ctx.opts
     builder = _builder(ctx, _TextCells(opts.join_sep))
@@ -4081,20 +4194,698 @@ def _export_csv(ctx: _Ctx, out: Path) -> list[Path]:
         if opts.csv_bom:
             sink.write(codecs.BOM_UTF8)
         buf = io.StringIO()
-        csv_writer = csv.writer(buf, delimiter=opts.csv_delimiter, quotechar='"', doublequote=True,
-                                quoting=csv.QUOTE_MINIMAL, lineterminator="\r\n")
+        csv_writer = _csv_writer(buf, opts.csv_delimiter)
         if ctx.columns:
             csv_writer.writerow([c.text for c in ctx.columns])
-        for batch in _iter_row_batches(ctx, builder):
-            for i in range(0, len(batch), CSV_ROWS_PER_CALL):
-                csv_writer.writerows(batch[i:i + CSV_ROWS_PER_CALL])
-            ctx.rows += len(batch)
-            if buf.tell() >= CSV_FLUSH_CHARS:
-                _flush_text(buf, sink)
+        workers = _pool_workers(ctx)
+        if workers > 1:
+            _RowsPool(ctx, builder, _CsvOut(csv_writer, buf, sink), workers).run()
+        else:
+            for batch in _iter_row_batches(ctx, builder):
+                _write_rows(csv_writer, batch)
+                ctx.rows += len(batch)
+                if buf.tell() >= CSV_FLUSH_CHARS:
+                    _flush_text(buf, sink)
         _flush_text(buf, sink)
         ctx.commit_check()
     _warn_unfound(ctx, builder)
     return [out]
+
+
+# ----------------------------------------------------------------------------------
+# worker processes: the CSV rows and the column scan (module docstring, "CSV and XLSX")
+# ----------------------------------------------------------------------------------
+_POOL_STATE: dict[str, Any] = {}       # a worker process: its job ("rows" / "scan")
+
+
+def _auto_workers(want: int | None, count: int, nbytes: int, settings: Any) -> int:
+    """Worker processes for ``count`` selected records of ``nbytes`` bytes: ``want`` when given, else
+    automatic -- the rule of the bulk previews and the JSON Patch export (``bulk.auto_workers``, when
+    ``bulk._spawn_safe()``; below ``bulk.POOL_MIN_BYTES`` one)."""
+    if want is not None:
+        return max(1, min(int(want), POOL_MAX_PROCESSES))
+    if count <= 0:
+        return 1
+    from . import bulk     # lazy: bulk imports much of the package
+
+    if not bulk._spawn_safe():
+        return 1
+    return max(1, int(bulk.auto_workers(nbytes, settings)))
+
+
+def _pool_workers(ctx: _Ctx) -> int:
+    """Worker processes of the export ``ctx``: ``export(workers=)``, else automatic."""
+    return _auto_workers(ctx.want_workers, ctx.count, ctx.meter.unit, ctx.doc.settings)
+
+
+def _codec_fast() -> bool:
+    """Whether :func:`codec.loads` of this process uses its fast path (orjson after the core's number check);
+    the workers decode the same way (the values are the same either way; the tests run both)."""
+    if codec._fast_checker is None:
+        codec._init_fast()
+    return bool(codec._fast_checker)
+
+
+def _pool_init_codec(fast: bool) -> None:
+    import gc
+
+    gc.disable()      # the values of a block are acyclic and freed by reference counting
+    codec._init_fast()
+    if not fast:
+        codec._fast_checker = False
+
+
+def _too_deep_maybe(raw: bytes) -> bool:
+    """More than :data:`POOL_SAFE_BRACKETS` opening brackets: the record may be nested so deeply that whether
+    it decodes depends on the stack of the process (~16 800 levels for the json module), so a worker leaves it
+    to the calling thread."""
+    return len(raw) > POOL_SAFE_BRACKETS and raw.count(b"[") + raw.count(b"{") > POOL_SAFE_BRACKETS
+
+
+class _Pool:
+    """The worker processes of one pass (``ProcessPoolExecutor``, spawn: the rule of ``engine.apply``,
+    ``bulk.preview`` and the JSON Patch export). :meth:`submit` and :meth:`result` return ``None`` when the
+    caller must do the job itself: the workers cannot run (``BrokenProcessPool`` -- every later job too) or
+    the job failed in the worker (``("redo",)``, or an exception the worker could not report); so a job's
+    error is raised by the calling thread exactly as without workers. ``cancel`` is checked every
+    :data:`POOL_WAIT` seconds while a result is awaited."""
+
+    def __init__(self, workers: int, init: Callable[..., None], initargs: tuple, cancel: CancelToken | None,
+                 what: str) -> None:
+        import multiprocessing
+        from concurrent.futures import ProcessPoolExecutor
+
+        self.workers = workers
+        self.cancel = cancel
+        self.what = what
+        self.broken = False
+        self.ex: Any = None
+        try:
+            self.ex = ProcessPoolExecutor(max_workers=workers, mp_context=multiprocessing.get_context("spawn"),
+                                          initializer=init, initargs=initargs)
+        except (OSError, ValueError, RuntimeError) as exc:   # pragma: no cover - no processes here
+            self._broken(exc)
+
+    def _broken(self, exc: BaseException) -> None:
+        if not self.broken:
+            log.warning("%s: the worker processes failed (%s); the rest is done in one thread", self.what, exc)
+        self.broken = True
+
+    def submit(self, fn: Callable[..., tuple], *args: Any) -> Any:
+        from concurrent.futures.process import BrokenProcessPool
+
+        if self.ex is None or self.broken:
+            return None
+        try:
+            return self.ex.submit(fn, *args)
+        except (BrokenProcessPool, RuntimeError) as exc:
+            self._broken(exc)
+            return None
+
+    def result(self, fut: Any) -> tuple | None:
+        from concurrent.futures.process import BrokenProcessPool
+
+        if fut is None:
+            return None
+        try:
+            while True:
+                try:
+                    res = fut.result(timeout=POOL_WAIT)
+                    break
+                except TimeoutError:
+                    check(self.cancel)
+        except BrokenProcessPool as exc:
+            self._broken(exc)
+            return None
+        except Cancelled:
+            raise
+        except Exception:  # noqa: BLE001 - e.g. a result the worker could not send: the job is redone here
+            log.debug("%s: a job failed in a worker process; it is redone here", self.what, exc_info=True)
+            return None
+        return None if res[0] == "redo" else res
+
+    def close(self, futures: Iterable[Any] = ()) -> None:
+        """Stop the workers (results not taken are dropped; a running job is finished first)."""
+        for fut in futures:
+            if fut is not None:
+                fut.cancel()
+        ex, self.ex = self.ex, None
+        if ex is not None:
+            ex.shutdown(wait=True, cancel_futures=True)
+
+
+# -- the rows of CSV and XLSX exports -------------------------------------------------------
+class _RowsJob:
+    """The rows of a block of records: what a worker process does for :func:`_export_csv` /
+    :func:`_export_xlsx` (and the calling thread with a block a worker could not do), with the per-record code
+    of :func:`_iter_row_batches` (decode, :class:`_RowBuilder` with the export's cells). CSV: the rows as the
+    text of the :mod:`csv` writer, encoded as :func:`_flush_text` does (``utf-8``, ``backslashreplace``); XLSX:
+    the rows themselves (typed cells of :class:`_XlsxCells`; the calling thread writes them with xlsxwriter).
+
+    :meth:`run` returns ``("ok", pieces, rows, found, stop, as_text)``: ``pieces`` -- CSV text (``bytes``) or
+    lists of XLSX rows, and the numbers ``k`` of the block's records the calling thread does itself (in order:
+    records that cannot be decoded in memory or whose rows fail to build, and records :func:`_too_deep_maybe`);
+    ``rows`` -- rows in the pieces; ``found`` -- the positions of ``pending`` (explicit columns not found so
+    far) that found a value; ``stop`` -- the first record not done (the end of the block, or where the pieces
+    reached :data:`POOL_JOB_TEXT` characters of CSV / :data:`POOL_JOB_CELLS` XLSX cells); ``as_text`` -- XLSX
+    numbers the pieces hold as their text (``writer.warn.xlsx_number_text``). A job builds at most
+    :data:`POOL_JOB_ROWS` rows at a time and encodes its CSV text every :data:`POOL_PIECE_CHARS` characters,
+    so a worker needs a few MB besides the interpreter (measured: 3-5 MB for a block of 2 MiB)."""
+
+    def __init__(self, fmt: str, columns: list[_Column], explode: tuple | None, sep: str, delimiter: str,
+                 track: bool, member: bool, cell_budget: int) -> None:
+        self.csv = fmt == "csv"
+        self.cells: Any = _TextCells(sep) if self.csv else _XlsxCells(sep)
+        self.builder = _RowBuilder(columns, self.cells, explode, sep, track=track)
+        self.probes = dict(self.builder.unfound)
+        self.member = member
+        self.split: Callable[[bytes], tuple[str, int]] | None = None
+        if member:
+            from .reader import split_member
+
+            self.split = split_member
+        self.buf = io.StringIO()
+        self.writer = _csv_writer(self.buf, delimiter)
+        self.limit = max(1, min(ROW_BATCH, POOL_JOB_ROWS, cell_budget // max(1, self.builder.width)))
+
+    def run(self, data: bytes, spans: bytes, indices: Any, start: int, pending: tuple) -> tuple:
+        builder, cells = self.builder, self.cells
+        probes = self.probes
+        builder.unfound = {pos: probes[pos] for pos in pending if pos in probes}
+        as_text = getattr(cells, "numbers_as_text", 0)
+        if type(indices) is not array:
+            indices = _pairs(indices)
+        sp = _pairs(spans)
+        n = len(indices)
+        csv_rows = self.csv
+        buf, writer, limit = self.buf, self.writer, self.limit
+        width = max(1, builder.width)
+        cap = POOL_JOB_TEXT if csv_rows else POOL_JOB_CELLS
+        loads, member, split = codec.loads, self.member, self.split
+        join_row, rows_of = builder.join_row, builder.rows
+        fast = builder.explode is None and not member
+        deep = _too_deep_maybe
+        pieces: list[Any] = []
+        out: list[list[Any]] = []
+        nrows = 0
+        size = 0                       # characters (CSV) / cells (XLSX) of the pieces so far
+
+        def piece() -> None:
+            nonlocal out, nrows, size
+            if out:
+                nrows += len(out)
+                if csv_rows:
+                    _write_rows(writer, out)
+                else:
+                    pieces.append(out)
+                    size += len(out) * width
+                out = []
+            if csv_rows and buf.tell():
+                chunk = buf.getvalue()
+                size += len(chunk)
+                pieces.append(chunk.encode("utf-8", "backslashreplace"))
+                buf.seek(0)
+                buf.truncate(0)
+
+        k = start
+        while k < n:
+            raw = data[sp[2 * k]:sp[2 * k + 1]]
+            if deep(raw):
+                piece()
+                pieces.append(k)
+            else:
+                try:
+                    if fast:
+                        out.append(join_row(loads(raw), None, indices[k]))
+                    else:
+                        key, value = _decode(raw, member, split)
+                        out.extend(rows_of(value, key, indices[k]))
+                except _DECODE_ERRORS:
+                    piece()
+                    pieces.append(k)
+            k += 1
+            if len(out) >= limit:
+                if csv_rows:
+                    _write_rows(writer, out)
+                    nrows += len(out)
+                    out = []
+                    if buf.tell() >= POOL_PIECE_CHARS:
+                        piece()            # (the buffer may hold 4 bytes per character)
+                    if size + buf.tell() >= cap:
+                        break
+                else:
+                    piece()
+                    if size >= cap:
+                        break
+        piece()
+        found = [pos for pos in pending if pos in probes and pos not in builder.unfound]
+        return ("ok", pieces, nrows, found, k, getattr(cells, "numbers_as_text", 0) - as_text)
+
+
+def _rows_pool_init(spec: tuple, fast: bool) -> None:
+    """Worker process start: the job of the export (:class:`_RowsJob` from ``spec``) and the caller's decoding."""
+    _pool_init_codec(fast)
+    _POOL_STATE["rows"] = _RowsJob(*spec)
+
+
+def _rows_pool_block(data: bytes, spans: bytes, indices: bytes, start: int, pending: tuple) -> tuple:
+    """One job in a worker process: :meth:`_RowsJob.run`, or ``("redo",)`` when anything failed (the calling
+    thread then does the block itself, so an error is raised exactly as without workers)."""
+    try:
+        return _POOL_STATE["rows"].run(data, spans, indices, start, pending)
+    except Exception:  # noqa: BLE001 - redone (and raised) by the calling thread
+        log.debug("a rows job failed in a worker process; the calling thread redoes it", exc_info=True)
+        return ("redo",)
+
+
+class _CsvOut:
+    """Where :class:`_RowsPool` puts the rows of a CSV export: the jobs' text straight into the file, rows made
+    in the calling thread through the export's :mod:`csv` writer (its buffer -- the header too -- is written
+    out before the next job's text, so the order is kept)."""
+
+    def __init__(self, csv_writer: Any, buf: io.StringIO, sink: _Sink) -> None:
+        self.writer = csv_writer
+        self.buf = buf
+        self.sink = sink
+
+    def piece(self, text: bytes) -> None:
+        _flush_text(self.buf, self.sink)
+        self.sink.write(text)
+
+    def rows(self, rows: list[list[Any]]) -> None:
+        _write_rows(self.writer, rows)
+        if self.buf.tell() >= CSV_FLUSH_CHARS:
+            _flush_text(self.buf, self.sink)
+
+    def flush(self) -> None:
+        _flush_text(self.buf, self.sink)
+
+
+class _XlsxOut:
+    """Where :class:`_RowsPool` puts the rows of an XLSX export: the workbook (xlsxwriter in the calling thread,
+    the rows in their order -- the workbook is the same as without workers)."""
+
+    def __init__(self, book: _XlsxBook) -> None:
+        self.book = book
+
+    def piece(self, rows: list[list[Any]]) -> None:
+        self.book.write_rows(rows)
+
+    def rows(self, rows: list[list[Any]]) -> None:
+        self.book.write_rows(rows)
+
+    def flush(self) -> None:
+        pass
+
+
+class _RowsPool:
+    """The rows of a CSV / XLSX export built by worker processes (module docstring, "CSV and XLSX"): the calling
+    thread reads the blocks (:data:`POOL_BLOCK_BYTES`), keeps at most ``2 * workers`` jobs in flight, puts the
+    results in block order into ``out`` (:class:`_CsvOut` / :class:`_XlsxOut`) and does itself what
+    :class:`_RowsJob` leaves to it -- huge records and the records a job names -- with the code of the
+    one-thread export. A job a worker could not do, and every job once the workers broke
+    (``BrokenProcessPool``), is done in the calling thread."""
+
+    def __init__(self, ctx: _Ctx, builder: _RowBuilder, out: Any, workers: int) -> None:
+        self.ctx = ctx
+        self.builder = builder
+        self.out = out
+        self.workers = workers
+        self.inflight = max(2, 2 * workers)
+        opts = ctx.opts
+        self.explicit = opts.columns is not None
+        self.member = ctx.member
+        self.split = ctx.doc.split_member
+        self.spec = (opts.fmt, list(ctx.columns), ctx.explode, opts.join_sep, opts.csv_delimiter, self.explicit,
+                     ctx.member, ctx.cell_budget)
+        self.pool: _Pool | None = None
+        self.local: _RowsJob | None = None
+        self.waiting: deque = deque()
+
+    def run(self) -> None:
+        ctx = self.ctx
+        pool = self.pool = _Pool(self.workers, _rows_pool_init, (self.spec, _codec_fast()), ctx.cancel,
+                                 f"{FORMAT_NAMES[ctx.opts.fmt]} export")
+        blocks = ctx.doc.iter_blocks(ctx.src, block_bytes=POOL_BLOCK_BYTES, cancel=ctx.cancel)
+        try:
+            for blk in blocks:
+                check(ctx.cancel)
+                if blk.huge:
+                    self._drain()
+                    self._huge(blk)
+                    continue
+                self._submit(blk, 0)
+                while len(self.waiting) >= self.inflight:
+                    self._take()
+            self._drain()
+        finally:
+            blocks.close()
+            waiting, self.waiting = self.waiting, deque()
+            pool.close(fut for fut, _blk, _start in waiting)
+        ctx.workers = max(ctx.workers, 1 if pool.broken else self.workers)
+
+    def _pending(self) -> tuple:
+        return tuple(self.builder.unfound) if self.builder.unfound else ()
+
+    def _submit(self, blk: Block, start: int, front: bool = False) -> None:
+        """A job for the records ``start..`` of ``blk`` (``front``: the rest of the job being written, so it
+        goes before the later jobs); done here when there are no workers."""
+        assert self.pool is not None
+        fut = self.pool.submit(_rows_pool_block, blk.data, blk.spans, blk.indices.tobytes(), start,
+                               self._pending())
+        if fut is not None:
+            if front:
+                self.waiting.appendleft((fut, blk, start))
+            else:
+                self.waiting.append((fut, blk, start))
+            return
+        if not front:
+            self._drain()                 # the jobs in flight come first (redone here: the workers broke)
+        self._run_here(blk, start)
+
+    def _run_here(self, blk: Block, start: int) -> None:
+        if self.local is None:
+            self.local = _RowsJob(*self.spec)
+        job = self.local
+        while True:
+            check(self.ctx.cancel)
+            res = job.run(blk.data, blk.spans, blk.indices, start, self._pending())
+            start = self._write(blk, res)
+            if start >= len(blk.indices):
+                return
+
+    def _drain(self) -> None:
+        while self.waiting:
+            self._take()
+
+    def _take(self) -> None:
+        assert self.pool is not None
+        fut, blk, start = self.waiting.popleft()
+        res = self.pool.result(fut)
+        if res is None:
+            self._run_here(blk, start)
+            return
+        stop = self._write(blk, res)
+        if stop < len(blk.indices):
+            self._submit(blk, stop, front=True)
+
+    def _write(self, blk: Block, res: tuple) -> int:
+        """Put a job's result out (in order); the first record not done is returned (a whole block: its records
+        and progress are counted)."""
+        _tag, pieces, rows, found, stop, as_text = res
+        unfound = self.builder.unfound
+        for pos in found:
+            unfound.pop(pos, None)
+        if as_text:
+            self.builder.cells.numbers_as_text += as_text
+        ctx, out = self.ctx, self.out
+        for p in pieces:
+            if type(p) is int:
+                self._record(blk, p)
+            else:
+                out.piece(p)
+        ctx.rows += rows
+        if stop >= len(blk.indices):
+            ctx.records += len(blk.indices)
+            ctx.advance(blk)
+        return stop
+
+    def _record(self, blk: Block, k: int) -> None:
+        """Record ``k`` of ``blk`` exactly as :func:`_iter_row_batches` does it (decoded here; when it cannot
+        be: streamed with explicit columns, skipped with automatic ones)."""
+        ctx, builder = self.ctx, self.builder
+        s, e = blk.span(k)
+        index = int(blk.indices[k])
+        try:
+            key, value = _decode(blk.data[s:e], self.member, self.split)
+            rows = builder.rows(value, key, blk.indices[k])
+        except _DECODE_ERRORS:
+            if self.explicit:
+                for batch in builder.streamed_rows(ctx, index, ctx.doc.record_span(index)):
+                    self._rows(batch)
+            else:
+                ctx.skip_deep("writer.warn.deep_skipped")
+            ctx.records -= 1               # (counted with the block)
+        else:
+            self._rows(rows)
+        self.out.flush()
+
+    def _rows(self, rows: list[list[Any]]) -> None:
+        self.out.rows(rows)
+        self.ctx.rows += len(rows)
+
+    def _huge(self, blk: Block) -> None:
+        """A huge record, as :func:`_iter_row_batches` does it."""
+        ctx = self.ctx
+        if self.explicit:
+            for batch in self.builder.streamed_rows(ctx, int(blk.indices[0]), blk.span(0)):
+                self._rows(batch)
+        else:
+            ctx.skip_huge("writer.warn.huge_skipped")
+        self.out.flush()
+        ctx.advance(blk)
+
+
+# -- the column scan -------------------------------------------------------------------------
+def _scan_summary(scan: _ColumnScan) -> tuple:
+    """What :class:`_ScanMerge` needs of a scan of a run of records: the kinds of the paths (first-seen
+    order) of the records and of the expanded array's elements, the collapsed and deep paths, the counts,
+    the keys and first widths of the object paths, and whether the scan left the regime the merge is exact
+    for (a map, a shrink)."""
+    nodes = []
+    stack = [scan.main.root] + ([scan.elements.root] if scan.elements is not None else [])
+    while stack:
+        node = stack.pop()
+        if node.keys:
+            nodes.append((node.path, tuple(node.keys), node.first))
+        stack.extend(node.kids.values())
+    return (list(scan.main.kinds.items()),
+            None if scan.elements is None else list(scan.elements.kinds.items()),
+            list(scan.collapsed), list(scan.deep), scan.records, scan.undecodable, nodes,
+            bool(scan.map_nodes) or scan.depth != MAX_DEPTH)
+
+
+class _ScanMerge:
+    """The column scan of a selection assembled from scans of consecutive runs of its records, in order
+    (:class:`_ScanJob` in worker processes).
+
+    It equals the one-thread :class:`_ColumnScan` as long as no object path becomes a map and the scan never
+    shrinks (not in inferred rows mode, which :func:`_discover` keeps in one thread): the paths and their
+    kinds are then the union of the runs' (in first-seen order: a run's new paths follow the earlier runs'),
+    an object is collapsed at the same depth in every run (bits a run marks at a collapsed path are replaced
+    by the collapsed column), and the counts add up. The regime is checked conservatively: a run that saw a
+    map or shrank; more than ``SCAN_MAX_PATHS`` paths; or an object path whose different keys (all runs so
+    far) would make it map-like even at the width of its first object (the one-thread scan tests every object
+    with its running key count, at most the final one, and its running width, at least the first object's:
+    :func:`_map_like` grows with the first and falls with the second). :attr:`ok` is ``False`` then and the
+    caller scans in one thread instead."""
+
+    def __init__(self, rows: bool, explode: tuple | None) -> None:
+        self.scan = _ColumnScan(rows, explode)
+        self.keys: dict[tuple, set[str]] = {}
+        self.first: dict[tuple, int] = {}
+        self.ok = True
+
+    def add(self, summary: tuple) -> bool:
+        main, elements, collapsed, deep, records, undecodable, nodes, irregular = summary
+        if irregular:
+            self.ok = False
+            return False
+        scan = self.scan
+        kinds = scan.main.kinds
+        for p, bits in main:
+            old = kinds.get(p)
+            kinds[p] = bits if old is None else old | bits
+        tracked = len(kinds)
+        if scan.elements is not None:
+            ekinds = scan.elements.kinds
+            for p, bits in elements or ():
+                old = ekinds.get(p)
+                ekinds[p] = bits if old is None else old | bits
+            tracked += len(ekinds)
+        for p in collapsed:
+            scan.collapsed.setdefault(p, None)
+        for p in deep:
+            scan.deep.setdefault(p, None)
+        scan.records += records
+        scan.undecodable += undecodable
+        scan.tracked = tracked
+        if tracked > SCAN_MAX_PATHS:
+            self.ok = False
+        explode = scan.explode
+        for path, keys, first in nodes:
+            have = self.keys.get(path)
+            if have is None:
+                have = self.keys[path] = set()
+            if first and not self.first.get(path):
+                self.first[path] = first
+            have.update(keys)
+            if len(have) > MAP_MIN_KEYS and path != explode and _map_like(len(have), self.first.get(path) or 1):
+                self.ok = False
+        return self.ok
+
+
+class _ScanJob:
+    """The column scan of a block of records in a worker process (and of the records a worker leaves to the
+    calling thread): :class:`_ColumnScan` s of the runs of records between those records, decoded as
+    :func:`_discover` decodes them, as :func:`_scan_summary` summaries."""
+
+    def __init__(self, rows: bool, explode: tuple | None, member: bool) -> None:
+        self.rows = rows
+        self.explode = explode
+        self.member = member
+        self.split: Callable[[bytes], tuple[str, int]] | None = None
+        if member:
+            from .reader import split_member
+
+            self.split = split_member
+
+    def run(self, data: bytes, spans: bytes) -> tuple:
+        """``("ok", parts)``: summaries and the numbers of the records the calling thread scans itself
+        (:func:`_too_deep_maybe`), in order."""
+        sp = _pairs(spans)
+        member, split, deep = self.member, self.split, _too_deep_maybe
+        oloads, oerror = orjson.loads, orjson.JSONDecodeError
+        parts: list[Any] = []
+        scan: _ColumnScan | None = None
+        for k in range(len(sp) // 2):
+            raw = data[sp[2 * k]:sp[2 * k + 1]]
+            if member:
+                assert split is not None
+                raw = raw[split(raw)[1]:]
+            if deep(raw):
+                if scan is not None:
+                    parts.append(_scan_summary(scan))
+                    scan = None
+                parts.append(k)
+                continue
+            if scan is None:
+                scan = _ColumnScan(self.rows, self.explode)
+            try:
+                value = oloads(raw)          # (as _discover)
+            except oerror:
+                try:
+                    value = codec.loads(raw)
+                except _DECODE_ERRORS:
+                    scan.undecodable += 1
+                    continue
+            scan.add(value)
+        if scan is not None:
+            parts.append(_scan_summary(scan))
+        return ("ok", parts)
+
+    def one(self, raw: bytes) -> tuple:
+        """The summary of one record, scanned here (whatever its nesting)."""
+        scan = _ColumnScan(self.rows, self.explode)
+        if self.member:
+            assert self.split is not None
+            raw = raw[self.split(raw)[1]:]
+        try:
+            value = orjson.loads(raw)
+        except orjson.JSONDecodeError:
+            try:
+                value = codec.loads(raw)
+            except _DECODE_ERRORS:
+                scan.undecodable += 1
+                return _scan_summary(scan)
+        scan.add(value)
+        return _scan_summary(scan)
+
+
+def _scan_pool_init(rows: bool, explode: tuple | None, member: bool, fast: bool) -> None:
+    """Worker process start: the scan job and the caller's decoding."""
+    _pool_init_codec(fast)
+    _POOL_STATE["scan"] = _ScanJob(rows, explode, member)
+
+
+def _scan_pool_block(data: bytes, spans: bytes) -> tuple:
+    """One scan job in a worker process (``("redo",)`` when anything failed: the calling thread redoes it)."""
+    try:
+        return _POOL_STATE["scan"].run(data, spans)
+    except Exception:  # noqa: BLE001 - redone (and raised) by the calling thread
+        log.debug("a column-scan job failed in a worker process; the calling thread redoes it", exc_info=True)
+        return ("redo",)
+
+
+class _ScanPool:
+    """The column scan of a whole selection in worker processes: blocks of :data:`POOL_BLOCK_BYTES`, at most
+    ``2 * workers`` in flight, merged in order (:class:`_ScanMerge`); ``on_block`` (progress) is called for
+    every block in order. :meth:`run` returns ``None`` when the merge cannot be exact (the caller scans in
+    one thread from the start; :meth:`catch_up` keeps its progress from going back)."""
+
+    def __init__(self, doc: Document, src: Any, rows: bool, explode: tuple | None, cancel: CancelToken | None,
+                 on_block: Callable[[Any], None] | None, workers: int) -> None:
+        self.doc = doc
+        self.src = src
+        self.rows = rows
+        self.explode = explode
+        self.cancel = cancel
+        self.on_block = on_block
+        self.workers = workers
+        self.reported = 0                  # records of the blocks reported to on_block
+
+    def run(self) -> _ColumnScan | None:
+        doc, cancel = self.doc, self.cancel
+        member = bool(doc.member_records)
+        merge = _ScanMerge(self.rows, self.explode)
+        job = _ScanJob(self.rows, self.explode, member)
+        pool = _Pool(self.workers, _scan_pool_init, (self.rows, self.explode, member, _codec_fast()), cancel,
+                     "column scan")
+        inflight = max(2, 2 * self.workers)
+        waiting: deque = deque()
+        blocks = doc.iter_blocks(self.src, block_bytes=POOL_BLOCK_BYTES, cancel=cancel)
+        try:
+            for blk in blocks:
+                check(cancel)
+                fut = None if blk.huge else pool.submit(_scan_pool_block, blk.data, blk.spans)
+                waiting.append((fut, blk))
+                while len(waiting) >= inflight:
+                    if not self._take(waiting.popleft(), pool, job, merge):
+                        return None
+            while waiting:
+                if not self._take(waiting.popleft(), pool, job, merge):
+                    return None
+        finally:
+            blocks.close()
+            pool.close(fut for fut, _blk in waiting)
+        merge.scan.workers = 1 if pool.broken else self.workers
+        return merge.scan
+
+    def _take(self, entry: tuple, pool: _Pool, job: _ScanJob, merge: _ScanMerge) -> bool:
+        fut, blk = entry
+        if not blk.huge:                   # (huge records are not scanned: _discover)
+            res = pool.result(fut)
+            if res is None:
+                check(self.cancel)
+                res = job.run(blk.data, blk.spans)
+            for part in res[1]:
+                if type(part) is int:
+                    s, e = blk.span(part)
+                    part = job.one(blk.data[s:e])
+                if not merge.add(part):
+                    log.info("column scan: an object path may be map-like or the paths are many; the scan is "
+                             "done again in one thread")
+                    return False
+        self.reported += len(blk.indices)
+        if self.on_block is not None:
+            self.on_block(blk)
+        return True
+
+    def catch_up(self, on_block: Callable[[Any], None] | None) -> Callable[[Any], None] | None:
+        """``on_block`` for the one-thread scan done after :meth:`run` gave up: the blocks of the records
+        already reported are not reported again (the progress never goes back)."""
+        if on_block is None or not self.reported:
+            return on_block
+        skip = self.reported
+        seen = 0
+
+        def report(blk: Any) -> None:
+            nonlocal seen
+            seen += len(blk.indices)
+            if seen > skip:
+                on_block(blk)
+
+        return report
 
 
 # ----------------------------------------------------------------------------------
@@ -4498,6 +5289,20 @@ class _XlsxBook:
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
 
+def _xlsx_rows(ctx: _Ctx, builder: _RowBuilder, book: _XlsxBook) -> None:
+    """The rows of an XLSX export into ``book``: when the export may use worker processes, at most
+    :data:`XLSX_POOL_WORKERS` of them prepare the cells (:class:`_RowsPool`; xlsxwriter in this thread is the
+    bound, more would only cost memory), else this thread does. The rows reach xlsxwriter in the same order
+    either way."""
+    workers = _pool_workers(ctx)
+    if workers > 1:
+        _RowsPool(ctx, builder, _XlsxOut(book), min(workers, XLSX_POOL_WORKERS)).run()
+        return
+    for batch in _iter_row_batches(ctx, builder):
+        book.write_rows(batch)
+        ctx.rows += len(batch)
+
+
 def _export_xlsx(ctx: _Ctx, out: Path) -> list[Path]:
     opts = ctx.opts
     if len(ctx.columns) > XLSX_MAX_COLUMNS:
@@ -4511,9 +5316,7 @@ def _export_xlsx(ctx: _Ctx, out: Path) -> list[Path]:
             book = _XlsxBook(ctx, header, tmp)
             try:
                 book.open()
-                for batch in _iter_row_batches(ctx, builder):
-                    book.write_rows(batch)
-                    ctx.rows += len(batch)
+                _xlsx_rows(ctx, builder, book)
                 book.close_workbook(final=True)
                 ctx.commit_check()
             except BaseException:
@@ -4528,9 +5331,7 @@ def _export_xlsx(ctx: _Ctx, out: Path) -> list[Path]:
         book = _XlsxBook(ctx, header, None)
         try:
             book.open()
-            for batch in _iter_row_batches(ctx, builder):
-                book.write_rows(batch)
-                ctx.rows += len(batch)
+            _xlsx_rows(ctx, builder, book)
             book.close_workbook(final=True)
             parts = len(book.staged)
             files = book.commit_files()

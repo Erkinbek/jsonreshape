@@ -61,6 +61,25 @@ Grafik interfeys uchun: `.venv\Scripts\python -m pip install -e ".[gui]"` (PySid
 
 Ishga tushirish: `jsonreshape ...` (CLI) yoki `python -m jsonreshape ...`; GUI — `jsonreshape-gui [fayl ...]`
 yoki `python -m jsonreshape.gui` ([3-bo'lim](#gui)).
+
+### Windows uchun `.exe` (Python o'rnatmasdan ishlatish)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\build_exe.ps1     # -SkipTests: faqat qurish; -NoInstall: pip ishlatmaslik
+```
+
+Skript PyInstaller'ni (6.22.3) venv'ga o'rnatadi (faqat shu qadamda tarmoq kerak; dasturning o'zi oflayn), ikonani
+yasaydi, `packaging\jsonreshape.spec` bo'yicha quradi va tayyor exe ustida smoke-testlarni ishga tushiradi
+(`-m packaging`). Natija — `dist\jsonreshape\` papkasi (~78 MB): `jsonreshape-gui.exe` (oyna) va `jsonreshape.exe`
+(CLI) bitta `_internal\` papkasini ishlatadi; foydalanuvchiga butun papka beriladi. Ishga tushish: CLI ~0,10 s,
+GUI oynasi ~0,28 s. Qo'lda:
+
+```powershell
+.venv\Scripts\python -m pip install "pyinstaller==6.22.3" "pyinstaller-hooks-contrib==2026.8"
+.venv\Scripts\python packaging\make_icon.py build\jsonreshape.ico
+.venv\Scripts\python -m PyInstaller --noconfirm --clean --distpath dist --workpath build\pyinstaller packaging\jsonreshape.spec
+.venv\Scripts\python -m pytest -q -m packaging tests\test_packaging.py
+```
 Dastur tarmoqqa hech narsa yubormaydi (telemetriya ham, yangilanish tekshiruvi ham yo'q).
 
 <a id="tez-boshlash-cli"></a>
@@ -373,6 +392,34 @@ hech qachon manba fayl yoki boshqa tabda saqlanmagan o'zgarishlar bilan ochiq fa
 * **Tuzilma ko'rinishi**: «null / yo'q» ustuni (namuna yoki to'liq skanerlash bo'yicha — sarlavhada aytiladi), butun
   sonlar ulushi; «Statistika» (ikki marta bosish ham) va «Takroriy yozuvlar…».
 
+### Qulaylik (6-bosqich)
+
+* **Buyruqlar palitrasi (Ctrl+Shift+P)** — oyna ustida ochiladigan qidiruv oynachasi: menyulardagi barcha buyruqlar
+  («Fayl ▸ …», «Asboblar ▸ …»), joriy tugunning menyusi («Tugun ▸ …»), ochiq tablar («Tab: …») va so'nggi fayllar
+  («Ochish: …»). Har qatorda buyruq nomi, menyu yo'li va tugmasi. Qidiruv katta-kichik harf, apostrof turlari
+  (o' / oʻ / o‘) va lotin–kirill farqini hisobga olmaydi («сақлаш» ham «Saqlash»ni topadi); avval nomi shu so'z bilan
+  boshlanadiganlar, keyin so'z boshidagilar, so'ng harflar ketma-ketligi. Qidiruv bo'sh bo'lsa — oxirgi ishlatilgan
+  20 ta buyruq. Hozir ishlamaydigan buyruq kulrang, sababi bilan. Enter — bajarish, Esc — yopish.
+* **Klaviatura** (Sozlamalar ▸ Klaviatura): har bir buyruqning tugmasini o'zgartirish, olib tashlash, asl holiga
+  qaytarish; band tugma rad etiladi va qaysi buyruqqa berilgani aytiladi. Daraxt va jadvalning o'z tugmalari (↑↓→←,
+  `*`, Space, Enter, F2, Ins, Del, Ctrl+D, Alt+↑/↓, Ctrl+V, Ctrl+C …) o'zgarmaydi va ro'yxat qilib ko'rsatiladi.
+* **Oxirgi sessiyani tiklash.** Dastur faylsiz ishga tushirilganda oxirgi sessiya qayta ochiladi: fayllar (tanlangan
+  format / yozuvlar yo'li bilan), ikki panelning ko'rinishlari, joriy tugun, ochilgan tugunlar (har tabda 2 000
+  tagacha), filtr, tezkor filtrlar, tartib va qidiruv so'rovi. Sessiya oyna yopilganda va har daqiqada saqlanadi
+  (kutilmagan to'xtashdan himoya). Sozlamalar ▸ Umumiy ▸ «Oxirgi sessiyani tiklash»: Har doim (standart) / Har safar
+  so'rash / Hech qachon. Fayl buyruq qatorida yoki «Open with» orqali berilsa — faqat o'sha fayl ochiladi. Topilmagan
+  fayllar o'tkazib yuboriladi; saqlanmagan o'zgarishlar faqat tiklash paneli orqali taklif qilinadi.
+* **Workspace** (Fayl ▸ «Workspace'ni saqlash…» / «Workspace'ni ochish…» / «Oxirgi workspace'lar»): ochiq tablar
+  `*.jrworkspace` fayliga yoziladi — sessiyadagi hamma narsa, xatcho'plar, jadval ustunlari va tuzilma quruvchi
+  daraxti; yo'llar workspace fayliga nisbatan ham saqlanadi (papka ko'chirilsa ham ishlaydi); fayl qat'iy tekshiriladi
+  (xato bo'lsa, buzilgan joyning JSON pointeri aytiladi). Tahrir qatlamlari workspace'ga ko'chirilmaydi.
+* **Windows «Open with»** (Sozlamalar ▸ Umumiy): `.json`, `.jsonl`, `.ndjson`, `.geojson`, `.gz` fayllarning «Open
+  with» ro'yxatiga jsonreshape'ni qo'shish yoki olib tashlash (avval so'raladi). Faqat joriy foydalanuvchi uchun
+  (`HKCU\Software\Classes`) yoziladi, standart dastur o'zgartirilmaydi; olib tashlash faqat o'zi yozgan narsani
+  o'chiradi.
+* **Mavzular**: tizimga ergashish / yorug' / qorong'i — barcha oynalar (3–5-bosqich oynalari ham) faqat mavzu
+  ranglaridan foydalanadi va mavzu almashganda darhol yangilanadi.
+
 ### Sozlamalar va loglar
 
 **Asboblar → Sozlamalar**: namuna hajmi, kesh papkasi va hajm chegarasi, xotira chegarasi, tartiblash xotirasi,
@@ -402,6 +449,8 @@ shrift va o'lchami. Loglar: **Asboblar → Loglar papkasi**; har xato oynasida �
 | Ctrl+H | ommaviy amallar |
 | Ctrl+B / Ctrl+Shift+D | xatcho'p qo'shish / xatcho'plar |
 | Ctrl+E | eksport (tuzilma quruvchida — mapping bilan eksport) |
+| Ctrl+Shift+P | buyruqlar palitrasi |
+| F7 / Shift+F7 | taqqoslash oynasida keyingi / oldingi farq |
 | Ctrl+= / Ctrl+- / Ctrl+0 | shriftni kattalashtirish / kichraytirish / asl holiga |
 | Alt+↓ | jadvalda tezkor filtr qatori |
 
@@ -686,7 +735,9 @@ jsonreshape/
                       quruvchi (mapview.py, mapmodel.py), statistika (statspanel.py), dublikatlar
                       (dupesdialog.py), JSON Schema (validatepanel.py), ta'mirlash (repairdialog.py),
                       bo'lish/birlashtirish (filetoolsdialog.py), taqqoslash (difftree.py, diffview.py,
-                      comparewindow.py)
+                      comparewindow.py), buyruqlar palitrasi (palette.py), tugmalar (keymap.py), sessiya va
+                      workspace (sessionstore.py, workspace.py), Windows «Open with» (osintegration.py)
+packaging/            PyInstaller spec, ishga tushirish skriptlari, versiya ma'lumoti (scripts/build_exe.ps1)
 tests/                pytest (+ hypothesis) testlari
 bench/                sintetik katta fayllar generatori va benchmark
 ```
@@ -699,10 +750,12 @@ bench/                sintetik katta fayllar generatori va benchmark
 $env:JSONRESHAPE_BACKEND="python"; .venv\Scripts\python -m pytest -q  # sof Python fallback bilan
 .venv\Scripts\python -m pytest -q -m bench                         # 2 GB benchmark (test 25) + GUI benchmark
 .venv\Scripts\python -m pytest -q -m gui                           # faqat GUI testlari (ekransiz, pytest-qt)
+.venv\Scripts\python -m pytest -q -m packaging                     # tayyor .exe ustida (avval scripts\build_exe.ps1)
 ```
 
-To'liq to'plam: **12 238 ta test** (5-bosqich oxirida, Rust yadro bilan, ~55 daqiqa; 2-bosqich oxirida 5431 ta
-edi); sof Python yadro bilan GUI'siz qismi — 8 873 ta test (~23 daqiqa). GUI testlari ekransiz
+To'liq to'plam: **12 660 ta test** (6-bosqich oxirida, Rust yadro bilan, ~47 daqiqa; 5-bosqich oxirida 12 238 ta,
+2-bosqich oxirida 5431 ta edi); sof Python yadro bilan GUI'siz qismi — 9 208 ta test (~20 daqiqa). `-m packaging`
+testlari `dist\jsonreshape` bo'lmasa o'tkazib yuboriladi. GUI testlari ekransiz
 (`QT_QPA_PLATFORM=offscreen`) ishlaydi. Qulash va xotira testlari alohida jarayonlarda bajariladi (qulash
 pytest'ni to'xtatmaydi, test xato bo'ladi).
 
@@ -726,7 +779,7 @@ AGENT_PROMPT §14 bo'yicha 1-bosqich qabul testlari:
 
 | № | Mazmun | Test fayllari |
 |---|---|---|
-| 26 (2-bosqich qismi) | faylni ochish (buyruq qatori, sudrab tashlash), daraxtni ochish/yopish, qidiruv natijasiga o'tish, jadvalda tartiblash, filtr, yo'lga o'tish va tarix, eksport tugmasi, yopish — haqiqiy oyna orqali (tahrir va undo 3-bosqichda) | `test_gui_e2e.py` |
+| 26 (2-bosqich qismi) | faylni ochish (buyruq qatori, sudrab tashlash), daraxtni ochish/yopish, qidiruv natijasiga o'tish, jadvalda tartiblash, filtr, yo'lga o'tish va tarix, eksport tugmasi, yopish — haqiqiy oyna orqali (to'liq ssenariy — 6-bosqich jadvalida) | `test_gui_e2e.py` |
 | — | har ko'rinish va panel: daraxt, jadval, matn, xom, tuzilma, qidiruv, filtr, tartib, eksport, sozlamalar, navigatsiya, holat qatori, fon vazifalari | `test_gui_*.py` (37 ta fayl) |
 | — | virtual grid (10¹² qator), FlatTree (hypothesis model testlari), yuklovchi, sessiya | `test_gui_vgrid.py`, `test_flattree.py`, `test_gui_loader.py`, `test_gui_session.py` |
 | — | ko'rib chiqishda topilgan xatolar uchun regressiya testlari (qulash, xotira oqishi, GIL, katta matn) | `test_gui_fix_*.py`, `test_schema_walk.py`, `test_recordset_locks.py` |
@@ -757,45 +810,106 @@ AGENT_PROMPT §14 bo'yicha 1-bosqich qabul testlari:
 | 23 | ta'mirlash: har bir buzilish turi uchun test, hisobot (joyi, sababi, kodlari) to'g'ri, natija doim to'g'ri JSON, har o'zgargan bayt hisobotda | `test_repair.py`, `test_repair_props.py`, `test_cli_repair.py` |
 | — | statistika (oddiy etalon bilan aniqlik, sketch xatolik chegarasi), dublikatlar, JSON Schema (rasmiy test to'plami + `jsonschema` bilan differensial), diff (rejimlar, aniq sonlar), aqlli qiymatlar, CLI buyruqlari, GUI oynalari | `test_stats*.py`, `test_dupes*.py`, `test_jschema*.py`, `test_diff*.py`, `test_smartvalues.py`, `test_cli_*.py`, `test_gui_statspanel.py`, `test_gui_dupesdialog.py`, `test_gui_validatepanel.py`, `test_gui_repairdialog.py`, `test_gui_filetoolsdialog.py`, `test_gui_diffview.py`, `test_gui_comparewindow.py`, `test_fix5_*.py` |
 
+6-bosqich (silliqlash) testlari:
+
+| № | Mazmun | Test fayllari |
+|---|---|---|
+| 26 | butun ssenariy haqiqiy oynada klaviatura va sichqoncha bilan: ochish, daraxtni ochish/yopish, qidiruv natijasidan tugunga, jadval sarlavhasi bilan tartib, Enter bilan tahrir, Ctrl+Z / Ctrl+Y, Ctrl+S (disk baytma-bayt, `.bak`), eksport tugmasi, buyruqlar palitrasi, qayta ishga tushirishda sessiya tiklanishi | `test_gui_e2e.py::test_acceptance_26_the_whole_scenario` |
+| — | buyruqlar palitrasi (yig'ish, lotin/kirill qidiruv, tartib, o'chiq buyruqlar), tugmalarni sozlash (band va qat'iy tugmalar rad etiladi) | `test_gui_palette.py`, `test_gui_keymap.py` |
+| — | sessiyani tiklash va workspace (model, `.jrworkspace` tekshiruvi, nisbiy yo'llar, ochilgan tugunlar, qayta ishga tushirish) | `test_sessionstore.py`, `test_gui_session_restore.py`, `test_workspace.py`, `test_gui_workspace.py` |
+| — | Windows «Open with» (soxta reestr: faqat HKCU, olib tashlash faqat o'zi yozganini o'chiradi) | `test_osintegration.py` |
+| — | mavzular: mavzu tashqarisidagi ranglarni taqiqlovchi statik test, kontrast, qorong'i rejimda 3–5-bosqich oynalari | `test_theme_colours.py` |
+| — | `.exe`: muzlatilgan dasturda ishchi jarayonlar, tayyor exe ustida smoke-testlar (`-m packaging`, `dist\jsonreshape` bo'lsa) | `test_frozen_spawn.py`, `test_packaging.py` |
+| — | P6 unumdorlik: CSV ishchi jarayonlari (bitta oqim bilan baytma-bayt bir xil), qatlam nazorat yig'indilari parallel, benchmark skriptlari | `test_perf6_*.py`, `test_bench_tools.py`, `test_bench.py` |
+
 <a id="olchovlar"></a>
 ## 14. O'lchovlar (benchmark)
 
-To'liq natijalar, o'lchash shartlari va kompyuter tavsifi: yadro va CLI —
-[`bench/results/latest.md`](bench/results/latest.md), GUI — [`bench/results/gui_latest.md`](bench/results/gui_latest.md)
-(2026-10-17; qayta o'lchash: `.venv\Scripts\python bench\run_bench.py` va `bench\gui_bench.py`). Kompyuter:
-Intel Core Ultra 9 285 (24 yadro), 205 GB RAM, NVMe SSD, Windows 11, Python 3.14, Rust yadro. Fayllar OS
-keshida (iliq kesh); bitta sovuq o'qish alohida o'lchandi. 2-bosqich o'lchovlari paytida kompyuterda begona
-jarayonlar ~30–35 % CPU band qilib turgan, shuning uchun ba'zi raqamlar 1-bosqichdagidan 10–20 % pastroq.
-§12 maqsadlari "oddiy noutbuk" uchun yozilgan — noutbukda CPU'ga bog'liq amallar sekinroq bo'ladi.
+Yakuniy o'lchov — 2026-10-19, 6-bosqich oxiridagi kod bilan; kompyuterda boshqa agent yoki og'ir ish yo'q edi
+(o'lchovlardan oldingi tizim yuklamasi ~2–17 %, o'rtacha ~6 %). To'liq natijalar, har bir takror, o'lchash shartlari
+va kompyuter tavsifi: yadro, CLI va mapping — [`bench/results/latest.md`](bench/results/latest.md); GUI —
+[`gui_latest.md`](bench/results/gui_latest.md); tahrirlar — [`edit_latest.md`](bench/results/edit_latest.md);
+jadval eksportlari (CSV, XLSX, SQLite) — [`export_latest.md`](bench/results/export_latest.md); 5-bosqich asboblari —
+[`tools_latest.md`](bench/results/tools_latest.md). Qayta o'lchash: `.venv\Scripts\python bench\run_bench.py`,
+`bench\gui_bench.py`, `bench\edit_bench.py --work PAPKA`, `bench\tools_bench.py --work-dir PAPKA`.
+
+Kompyuter: Intel Core Ultra 9 285 (24 yadro: 8 P + 16 E), 205 GB RAM, ikkita NVMe SSD (ma'lumot fayllari E: da,
+chiqish fayllari C: da — u 89 % to'la, katta fayl yozilganda `fsync` ~2–7 s), Windows 11, Python 3.14, Rust yadro.
+Har amal alohida yangi jarayonda, yangi bo'sh `JSONRESHAPE_HOME` bilan; ma'lumot fayllari OS keshida (iliq kesh),
+bitta sovuq o'qish alohida o'lchandi. **RAM — butun dastur**: ishchi jarayonli amallarda asosiy jarayon va ishchi
+jarayonlar ishchi to'plamlarining bir paytdagi yig'indisi (har 20 ms namuna) yoki bitta jarayonning aniq peak'i —
+qaysi biri katta bo'lsa. §12 maqsadlari 5 GB fayl va «oddiy noutbuk» uchun: tezliklar fayl hajmiga bog'liq emas
+(5.4 GB massiv ham o'lchandi), noutbukda CPU'ga bog'liq amallar sekinroq bo'ladi.
+
+O'lchovlar oxirida bitta tuzatish kiritildi: kichik fayllar (mapping, JSON Schema, workspace, sozlamalar, GUI holati,
+tahrir qatlamlari ro'yxati) endi fayl hajmicha o'qiladi (`fileio.read_limited`; avval `read(chegara + 1)` har safar
+chegara hajmidagi buferni — mapping uchun 128 MiB — ajratib, Windows'da ishchi to'plamni shuncha oshirardi).
+`apply` qatorlari va asboblar benchmarki shu tuzatishdan keyin o'lchandi; qolgan o'lchovlarga u faqat xotirani
+kamaytirishi mumkin (tahrir qatlamini tiklashda ≤ 17 MB).
 
 ### Yadro va CLI
 
 | Amal (AGENT_PROMPT §12) | Maqsad | Natija | Holat |
 |---|---|---|:---:|
-| Ochish, birinchi yozuvlar ko'rinishi (2.1 GB; 5.4 GB) | < 1 s | 11 ms; 12 ms | ✅ |
-| To'liq indeks, Rust yadro (2.1 GB massiv; 5.4 GB; 3.3 GB JSONL) | ≥ 150 MB/s | 741; 668; 676 MB/s (sovuq disk: 777 MB/s) | ✅ |
-| 1 000 000 bolali tugunni ochish (virtual) | < 200 ms | 79 ms (keshdan qayta: 3.9 ms) | ✅ |
-| To'liq matn qidiruvi, bayt rejimi: kam uchraydigan so'z | ≥ 100 MB/s, natijalar darhol | 913 MB/s, birinchi natija 16 ms | ✅ |
-| … o'rtacha so'z «Toshkent» (6 % yozuvda) | ≥ 100 MB/s | 680 MB/s, birinchi natija 12 ms | ✅ |
-| … ko'p uchraydigan so'z «ko'chasi» (60 % yozuvda) | ≥ 100 MB/s | 287 MB/s, birinchi natija 14 ms | ✅ |
-| 10 000 000 yozuvni bitta maydon bo'yicha tartiblash **va natijani yozish** (`jsonreshape sort` kabi, ochishdan oxirigacha) | < 2 daqiqa, RAM < 1 GB | 76.2 s, peak 372 MB (tartiblash 21.7 s, tartiblangan eksport 66.5 MB/s) | ✅ |
-| Eksport JSON → JSONL / JSON (indent 2), 2.1 GB | ≥ 50 MB/s, RAM < 300 MB | 225 / 246 MB/s, peak 81 / 63 MB | ✅ |
-| Dasturning umumiy xotirasi (tartiblashdan boshqa amallarning eng katta peak RSS) | < 500 MB | 248 MB | ✅ |
+| Ochish, birinchi yozuvlar ko'rinishi (2.1 GB; 5.4 GB; sovuq disk) | < 1 s | 11 ms; 12 ms; 36 ms | ✅ |
+| To'liq indeks, Rust yadro (2.1 GB massiv; 5.4 GB; 3.3 GB JSONL) | ≥ 150 MB/s | 725; 634; 666 MB/s (sovuq disk: 805 MB/s) | ✅ |
+| 1 000 000 bolali tugunni ochish (virtual) | < 200 ms | 95 ms (keshdan qayta: 4.3 ms) | ✅ |
+| To'liq matn qidiruvi, bayt rejimi: kam uchraydigan so'z (2.1 GB; 5.4 GB) | ≥ 100 MB/s, natijalar darhol | 745; 854 MB/s, birinchi natija 11–12 ms | ✅ |
+| … o'rtacha so'z «Toshkent» (6 % yozuvda) | ≥ 100 MB/s | 621 MB/s, birinchi natija 12 ms | ✅ |
+| … ko'p uchraydigan so'z «ko'chasi» (60 % yozuvda) | ≥ 100 MB/s | 272 MB/s, birinchi natija 14 ms | ✅ |
+| 10 000 000 yozuvni bitta maydon bo'yicha tartiblash **va natijani yozish** (`jsonreshape sort` kabi, ochishdan oxirigacha) | < 2 daqiqa, RAM < 1 GB | 77.6 s, peak 379 MB (indeks 5.1 s, tartiblash 22.9 s, tartiblangan eksport 66.3 MB/s) | ✅ |
+| Eksport JSON → JSONL / JSON (indent 2), 2.1 GB, mapping va tahrirlarsiz | ≥ 50 MB/s, RAM < 300 MB | 180 / 214 MB/s, peak 89 / 71 MB | ✅ |
+| Eksport CSV: avtomatik ustunlar / 9 ta skalyar ustun (4 ta ishchi jarayon) | ≥ 50 MB/s, RAM < 300 MB | 105 / 224 MB/s, RAM 226 / 222 MB (private 175 / 167 MB) | ✅ |
+| Dasturning umumiy xotirasi (tartiblashdan boshqa barcha amallarning eng kattasi, ishchi jarayonlari bilan) | < 500 MB | 299 MB (`flatten`, 3 ta ishchi jarayon bilan; private 246 MB) | ✅ |
 
-Qo'shimcha: filtr (extract) 200 MB/s; tuzilma namunasi (10 000 yozuv) 167 ms; keshdagi indeks bilan qayta
-ochish 8.7 ms; sof Python yadro bilan indeks 72 MB/s. 2-bosqichda tartiblash GUI'ni qotirmasligi uchun kalitlar
-kichik bo'laklarda tartiblanib birlashtiriladigan bo'ldi (bitta uzun `list.sort` GIL'ni 0.5 s ushlab turardi):
-tartiblash bosqichi ~16 % sekinlashdi, butun amal maqsad ichida.
+Qo'shimcha: filtr (extract) 207 MB/s; filtr + natijani yozish (2.1 GB, ochishdan oxirigacha) 16.9 s; tuzilma namunasi
+(10 000 yozuv) 176 ms; keshdagi indeks bilan qayta ochish 9.2 ms; sof Python yadro bilan indeks 70.8 MB/s (zaxira
+maqsadi ≥ 15 MB/s). 2-bosqichdagi «CSV avtomatik ustunlar 26 MB/s» kamchiligi 6-bosqichda yopildi: qatorlar va
+ustunlarni aniqlash ishchi jarayonlarda (natija bitta oqimdagi bilan baytma-bayt bir xil).
 
-**Maqsadga yetilmagan joy**: CSV eksport **avtomatik ustunlar** bilan — 26.3 MB/s (peak 107 MB); faqat
-tanlangan skalyar ustunlar bilan — 52.7 MB/s ✅. (§12 dagi ≥ 50 MB/s eksport maqsadi mapping/tahrirli eksport
-uchun yozilgan; mapping va tahrirlar 3–4-bosqichlarda.) Sabab: CSV har bir yozuvni parse qiladi, har katakni
-Python'da quradi va massivlarni JSON matniga qayta yozadi; avtomatik ustunlar uchun barcha yozuvlar oldindan
-bir marta o'qiladi (hech bir maydon yo'qolmasligi uchun). Variantlar: 1) kerakli ustunlarni `--columns` bilan
-tanlash; 2) qator qurishni Rust yadroga o'tkazish (Python obyektlari yaratilmaydi); 3) bloklarni parallel
-jarayonlarda tayyorlab, tartib bilan yozish.
+### Tuzilma quruvchi: mapping bilan eksport (`jsonreshape apply` / `flatten`, 2.1 GB → 3.3–3.7 GB)
 
-### GUI (2-bosqich)
+Mapping — `bench/mapping_syn.json`: 10 000 yozuvli namunadan olingan daraxt + 6 qadam (`contact.address.city`
+yozuv darajasiga, `contact` ochildi, `orders[].oid` yig'ildi, `tags` o'chirildi, `score` → `ball`, yangi `holat`
+guruhi). Tezlik — buyruqning indeksdan keyingi qismi (GUI'da indeks fayl ochilganda quriladi; indeks 2.8–3.2 s).
+
+| Amal | Maqsad | Natija | Holat |
+|---|---|---|:---:|
+| `apply` → JSON (indent 2), ishchi jarayonlar avtomatik (3 ta) | ≥ 50 MB/s, RAM < 300 MB | 97.5 MB/s; RAM 264 MB (4 jarayon, private 242 MB) | ✅ |
+| `apply` → JSONL, avtomatik (3 ta) | ≥ 50 MB/s, RAM < 300 MB | 101 MB/s; RAM 258 MB (private 238 MB) | ✅ |
+| `apply --workers 1` (bitta jarayon) | ≥ 50 MB/s, RAM < 300 MB | 47.5 MB/s; RAM 101 MB | ❌ (tezlik) |
+| `flatten --children-key children` → JSON, avtomatik (3 ta) | ≥ 50 MB/s, RAM < 300 MB | 129 MB/s; RAM 299 MB (private 246 MB) | ✅ * |
+| `flatten --workers 1` | ≥ 50 MB/s, RAM < 300 MB | 46.0 MB/s; RAM 141 MB | ❌ (tezlik) |
+
+Ishchi jarayonlar soni xotira chegarasidan hisoblanadi (standart 512 MiB bilan 3 ta; qaror 40): 4 ta bilan `apply`
+13–20 % tezroq (113–127 MB/s), `flatten` esa o'sha tezlikda (127 MB/s) edi, lekin butun dastur 321–355 MB bo'lardi. \* `flatten`'ning
+299 MB'idan ~55 MB — 10 000 yozuvli namunani o'qishda xotiraga proyeksiyalangan kirish fayli sahifalari (OS kerak
+bo'lsa darhol bo'shatadi; asosiy jarayonning xususiy xotirasi `apply`'dagi bilan bir xil, ~77 MB).
+
+### Tahrirlar bilan eksport va saqlash (3-bosqich; 2.1 GB, 6.5 mln yozuv)
+
+To'rt holat: 100 ta nuqtaviy tahrir; har 3-yozuv o'zgargan; hamma yozuv o'zgargan; 10 % yozuv o'chirilgan + 1 000 ta
+qo'shilgan (ommaviy amallar bilan yasalgan). «Oldin» ustuni (3-bosqichning unumdorlik ishidan oldingi kod) va har
+qator — `edit_latest.md` da.
+
+| Amal | Maqsad | Natija (to'rt holat) | Holat |
+|---|---|---|:---:|
+| Eksport JSON (indent 2) | ≥ 50 MB/s, RAM < 300 MB | 147; 84.5; 118; 101 MB/s; RAM 73–135 MB | ✅ |
+| Eksport JSON Lines | ≥ 50 MB/s, RAM < 300 MB | 227; 105; 139; 115 MB/s; RAM 91–126 MB | ✅ |
+| Eksport CSV (9 ta skalyar ustun; 4 ta ishchi jarayon) | ≥ 50 MB/s, RAM < 300 MB | 231; 187; 199; 186 MB/s; RAM 222–244 MB | ✅ |
+| Boshqacha saqlash (Save As) | ≥ 50 MB/s, RAM < 300 MB | 458; 111; 272; 309 MB/s; RAM 57–111 MB | ✅ |
+| Ommaviy amal ko'rib chiqishi, 6.5 mln yozuvning hammasi: set_field, replace, rename_key, delete_field, convert_type | ≥ 50 MB/s, dastur < 500 MB | 102–151 MB/s; RAM 294–303 MB | ✅ |
+| … clean_strings (hech narsa o'zgarmaydi) / dedupe (id bo'yicha) | dastur < 500 MB | 193 / 162 MB/s; RAM 234 / 238 MB | ✅ |
+| JSON Patch eksporti / importi (yangi sessiyaga), hamma yozuv o'zgargan — 6.5 mln amal | dastur < 500 MB | 18.4 s (121 MB/s) / 132 s (49 197 amal/s); RAM 358 / 422 MB | ✅ |
+| Ochish + qatlamni tiklash (keshdagi indeks): 100 tahrir; hamma yozuv o'zgargan | — | 22 ms; 423 ms | — |
+| Undo / redo (hamma yozuv o'zgargan holatda) | — | 6 / 3 ms | — |
+| Dasturning umumiy xotirasi (barcha tahrir amallari) | < 500 MB | 422 MB (JSON Patch importi, 6.5 mln amal) | ✅ |
+
+**Jadval eksportlari** (`export_latest.md`): CSV avtomatik ustunlar bilan — tahrirsiz 117 MB/s, tahrirlar bilan
+84–102 MB/s ✅; **XLSX** (9 ta ustun) 12.0 MB/s (hamma yozuv o'zgarganda 7.3 MB/s) va **SQLite** 16.4 MB/s (8.9 MB/s),
+RAM 138–159 MB — tezlik maqsadidan past ❌ (sabab va variantlar pastda).
+
+### GUI
 
 Har o'lchov alohida jarayonda, haqiqiy oyna (`jsonreshape.gui.app.main`) bilan, Qt offscreen platformasida;
 «UI javob berishi» — GUI oqimidagi 5 ms taymer urishlari orasidagi eng uzun oraliq (foydalanuvchi bosgan tugma
@@ -803,26 +917,58 @@ shuncha kutadi).
 
 | Amal | Maqsad | Natija | Holat |
 |---|---|---|:---:|
-| Jarayon ishga tushganidan daraxtda birinchi yozuvlar chizilguncha (2.1 GB; 5.4 GB; 3.3 GB JSONL) | < 1 s | 627; 621; 622 ms (`main()` dan: 454; 441; 447 ms) | ✅ |
-| To'liq indeks GUI ichida, UI javob berib turadi (2.1 GB; 5.4 GB; 3.3 GB JSONL) | ≥ 150 MB/s | 718; 666; 656 MB/s; UI max oraliq 16–26 ms | ✅ |
-| Skrollbarni oxiriga sakratish (6.5 mln; 16 mln; 10 mln qator) | — | 6.7; 7.2; 6.7 ms | — |
-| 1 000 000 bolali tugunni ochish | < 200 ms | birinchi marta 89 ms (bolalar indeksi 82 + chizish 6); qayta 2.8 ms | ✅ |
-| To'liq qidiruv (qidiruv paneli): kam uchraydigan so'z; «Toshkent» | ≥ 100 MB/s, birinchi natija < 1 s | 921 MB/s, 56 ms; 663 MB/s, 25 ms | ✅ |
-| Filtr 10 mln yozuvda (filtr paneli) | — | birinchi qisman natijalar 117 ms; hammasi 17.0 s (193 MB/s); UI max 25 ms | — |
-| 10 mln yozuvni `name` bo'yicha tartiblash (GUI orqali) | < 2 daqiqa, RAM < 1 GB | 21.7 s, peak RSS 454 MB; UI max 59 ms | ✅ |
-| Tartiblangan ko'rinishni JSONL'ga eksport (eksport oynasi) | ≥ 50 MB/s, RAM < 300 MB | 66.3 MB/s; RSS 413 MB, shundan xususiy xotira 112 MB | ❌ (RSS) |
-| 1 mln elementli tugunni matn panelida ko'rsatish | — | 0.82 s (4 MB gacha), RAM +77 MB | — |
-| Butun GUI sessiyasi, tartiblashsiz (ochish, indeks, skroll, jadval, qidiruv, filtr, tuzilma, matn, eksport) | < 500 MB | peak RSS 276 MB; tab yopilgach 132 MB (ochishdan oldin 99 MB) | ✅ |
+| Jarayon ishga tushganidan daraxtda birinchi yozuvlar chizilguncha (2.1 GB; 5.4 GB; 3.3 GB JSONL) | < 1 s | 641; 627; 621 ms (`main()` dan: 463; 456; 457 ms) | ✅ |
+| To'liq indeks GUI ichida, UI javob berib turadi (2.1 GB; 5.4 GB; 3.3 GB JSONL) | ≥ 150 MB/s | 772; 749; 722 MB/s; UI max oraliq 7–10 ms | ✅ |
+| Skrollbarni oxiriga sakratish (6.5 mln; 16 mln; 10 mln qator) | — | 5.8; 5.6; 5.6 ms | — |
+| 1 000 000 bolali tugunni ochish | < 200 ms | birinchi marta 104 ms (bolalar indeksi 98 + chizish 6); qayta 3.0 ms | ✅ |
+| To'liq qidiruv (qidiruv paneli): kam uchraydigan so'z; «Toshkent» | ≥ 100 MB/s, birinchi natija < 1 s | 1 086 MB/s, 46 ms; 818 MB/s, 20 ms | ✅ |
+| Filtr 10 mln yozuvda (filtr paneli) | — | birinchi qisman natijalar 143 ms; hammasi 14.0 s (236 MB/s); UI max 12 ms | — |
+| 10 mln yozuvni `name` bo'yicha tartiblash (GUI orqali) | < 2 daqiqa, RAM < 1 GB | 17.2 s, peak RSS 470 MB; UI max 23 ms | ✅ |
+| Tartiblangan ko'rinishni JSONL'ga eksport (eksport oynasi) | ≥ 50 MB/s, RAM < 300 MB | 79.7 MB/s; xususiy xotira 127 MB (RSS 429 MB) | ✅ * |
+| 1 mln elementli tugunni matn panelida ko'rsatish | — | 0.78 s, RAM +78 MB | — |
+| Butun GUI sessiyasi, tartiblashsiz (ochish, indeks, skroll, jadval, qidiruv, filtr, tuzilma, matn, eksport) | < 500 MB | peak RSS 290 MB; tab yopilgach 147 MB (ochishdan oldin 116 MB) | ✅ |
 
-**Tartiblangan eksportdagi RSS** maqsaddan oshdi: 413 MB ning 112 MB i jarayonning xususiy xotirasi, qolgani —
-tartib bo'yicha o'qilgan indeks (`.jri`, 160 MB) va RecordSet (`.u64`, 80 MB) fayllarining xotiraga
-proyeksiyalangan sahifalari (OS kerak bo'lsa ularni darhol bo'shatadi). Variantlar: 1) maqsadni xususiy xotira
-bo'yicha hisoblash; 2) indeks oynalarini o'qilgandan keyin ochib-yopib turish (sekinroq); 3) eksportdan oldin
-indeksni tartib bo'yicha qayta yozish (qo'shimcha disk). Qaror kerak bo'lsa — ochiq savollarda.
+\* 2026-10-18 qarori bo'yicha tartiblangan eksportning «RAM < 300 MB» maqsadi jarayonning xususiy xotirasi bilan
+o'lchanadi: RSS'ning qolgan qismi — tartib bo'yicha o'qilgan indeks (`.jri`, 160 MB) va RecordSet (`.u64`, 80 MB)
+fayllarining xotiraga proyeksiyalangan sahifalari (OS kerak bo'lsa darhol bo'shatadi). `gui_latest.md` jadvali RSS
+bo'yicha ❌ ko'rsatadi.
 
-Ko'rib chiqishdan keyingi tuzatishlar natijasi (oldin → keyin): ikki JMESPath filtri parallel ishlaganda UI
-p95 3.9 s → 11 ms; 10 mln tartiblashda UI max 457 → ~40 ms; katta tugunni yig'ish (folding) 4.2 s / +1.5 GB →
-30 ms; 45 MB'lik bitta obyektli fayl 1.28 GB → 108 MB; har yopilgan tab +25 MB oqish → 0.
+Test 26 (`tests/test_gui_e2e.py::test_acceptance_26_the_whole_scenario`) haqiqiy oynada butun ssenariyni
+klaviatura va sichqoncha bilan bajaradi: faylni ochish, daraxtni ochish/yopish, qidiruv natijasidan tugunga o'tish,
+jadval sarlavhasi bilan tartiblash, Enter + yozish + Enter bilan tahrir, Ctrl+Z / Ctrl+Y, Ctrl+S (diskdagi fayl
+baytma-bayt tekshiriladi, `.bak` eski nusxa), eksport tugmasi, buyruqlar palitrasi (Ctrl+Shift+P, «saqlash», Enter)
+va `main()` qayta ishga tushirilganda sessiyaning tiklanishi.
+
+### Asboblar (5-bosqich; `jsonreshape <buyruq>`, 2.1 GB, 6.5 mln yozuv)
+
+§12 asboblar uchun faqat umumiy xotira maqsadini qo'yadi; tezlik — buyruqning indeksdan keyingi qismi (indeks
+2.6–2.7 s, ikki faylli buyruqlarda 5.5 s).
+
+| Amal | Maqsad | Natija | Holat |
+|---|---|---|:---:|
+| Statistika: 1 maydon; 4 maydon; aniq hisoblash (4.6 mln xil qiymat) | dastur < 500 MB | 556; 124; 108 MB/s; RAM 81; 105; 197 MB | ✅ |
+| Takroriy yozuvlar (`--key contact.phone`, 1.5 mln guruh) | dastur < 500 MB | 170 MB/s; RAM 263 MB | ✅ |
+| JSON Schema: barcha yozuvlardan yaratish; tekshirish | dastur < 500 MB | 42.5; 74.0 MB/s; RAM 81 MB | ✅ |
+| Bo'lish 4 qismga: bayt nusxa; JSON Lines'ga | dastur < 500 MB | 758; 288 MB/s; RAM 65; 102 MB | ✅ |
+| Birlashtirish, `--dedupe-by id` (2 × 2.1 GB) | dastur < 500 MB | 117 MB/s; RAM 264 MB | ✅ |
+| Ajratish (`--gather "orders[*]"`, 9.8 mln qiymat) | dastur < 500 MB | 383 MB/s; RAM 87 MB | ✅ |
+| Ta'mirlash: buzilmagan fayl; 1 % yozuv buzilgan (78 160 tuzatish) | dastur < 500 MB | 335; 217 MB/s; RAM 102; 69 MB | ✅ |
+| Taqqoslash: kalit bo'yicha; o'rin bo'yicha; mazmun bo'yicha tekislab (2 × 190 MiB) | dastur < 500 MB | 99.6; 203; 178 MB/s; RAM 402; 97; 169 MB | ✅ |
+
+### Maqsadga yetilmagan joylar va variantlar
+
+* **XLSX eksporti** 12.0 MB/s (hamma yozuv o'zgarganda 7.3 MB/s) va **SQLite eksporti** 16.4 MB/s (8.9 MB/s) — maqsad
+  ≥ 50 MB/s; xotira maqsad ichida (138–159 MB). Sabab: XLSX kataklarini `xlsxwriter` bitta oqimda XML'ga yozadi
+  (cProfile bo'yicha vaqtning ~80 %; qiymatlarni tayyorlash allaqachon ishchi jarayonlarda), SQLite'ga yozuvlar ikki
+  o'tishda Python'da jadvallarga bo'linib, bitta oqimda kiritiladi. Variantlar: 1) o'z XLSX yozuvchimiz — varaq
+  XML'i ishchi jarayonlarda, zip alohida oqimda (qaror 39); 2) SQLite uchun map'larni topish va qatorlarni
+  tayyorlashni ishchi jarayonlarga o'tkazish; hozircha katta jadvallar uchun CSV (100–250 MB/s).
+* **Mapping bitta jarayonda** (`--workers 1`): `apply` 47.5 MB/s, `flatten` 46.0 MB/s — maqsadga yaqin, lekin
+  past. Standart rejimda 64 MB dan katta fayl parallel qayta ishlanadi (yuqoridagi jadval). Variant: mapping
+  qoidalarini Rust yadroda bajarish.
+* 6-bosqichda yopilganlar: CSV avtomatik ustunlar bilan (26 → 105 MB/s), tahrirli CSV eksporti (28–41 → 186–231
+  MB/s), mapping bilan eksportning xotirasi (avtomatik 4 ta ishchi jarayon bilan 321–355 MB → 3 ta bilan
+  258–299 MB; mapping faylini o'qishdagi 134 MB'lik sakrash olib tashlandi).
 
 <a id="qarorlar"></a>
 ## 15. Qabul qilingan qarorlar va ochiq savollar
@@ -935,7 +1081,29 @@ p95 3.9 s → 11 ms; 10 mln tartiblashda UI max 457 → ~40 ms; katta tugunni yi
     beri aniq, yozgi vaqt yo'q; `tzdata` qo'shilmadi; eski sanalar uchun izohda aytiladi); URL'lar faqat «Brauzerda
     ochilsinmi?» tasdig'idan keyin ochiladi — dasturning o'zi tarmoqqa hech narsa yubormaydi; `#rgb` / `#rrggbb`
     ranglar namunasi; base64 rasmlar (PNG/JPEG/GIF/WebP) to'liq qiymat oynasida kichik rasm sifatida.
-39. **XLSX** eksporti `xlsxwriter` bilan qoldi (7–10 MB/s); tezroq o'z yozuvchimiz — 6-bosqichda ixtiyoriy.
+39. **XLSX** eksporti `xlsxwriter` bilan qoldi (~11 MB/s; qiymatlar parallel jarayonlarda tayyorlanadi, kataklarni
+    `xlsxwriter` bitta oqimda yozadi); tezroq o'z yozuvchimiz — keyinroq ixtiyoriy.
+
+**6-bosqich — silliqlash**
+
+40. **Parallel jarayonlar avtomatik**: 64 MB dan katta ishlarda mapping qo'llash, ommaviy amal ko'rib chiqishi, JSON
+    Patch eksporti, CSV/XLSX qatorlari va ustunlarni aniqlash bir nechta jarayonda bajariladi (xotira chegarasiga
+    qarab; standart 512 MiB bilan mapping qo'llashda 3 ta — butun dastur 300 MB dan kam qolishi uchun, qolganlarida
+    4 ta), natija tartib bilan va bitta oqimdagi bilan baytma-bayt bir xil; `.exe` ichida ham. `--workers N` bilan
+    o'zgartiriladi.
+41. **Buyruqlar palitrasi** menyulardan avtomatik yig'iladi (yangi buyruqlar o'z-o'zidan qo'shiladi); qidiruv lotin /
+    kirill / apostroflarga sezgir emas.
+42. **Tugmalar** faqat oyna darajasidagi buyruqlar uchun o'zgartiriladi; daraxt va jadvalning o'z tugmalari qat'iy
+    (ular ko'rinishlarning tugma ishlovchilarida); bitta buyruqqa bitta tugmalar birikmasi (Ctrl+K, Ctrl+S kabi
+    ketma-ketliklar yo'q).
+43. **Sessiya** standart bo'yicha har doim tiklanadi (fayl berilmasa); qidiruv natijasi ko'rinishi tiklanmaydi (so'rov
+    tiklanadi); daraxtdagi faqat-ko'rinish tartiblari va panel o'lchamlari saqlanmaydi.
+44. **Workspace** tahrir qatlamini ko'chirmaydi (saqlanmagan o'zgarishlar faylning o'z tiklash paneli orqali
+    taklif qilinadi); yo'llar nisbiy va mutlaq ko'rinishda saqlanadi.
+45. **«Open with»** faqat joriy foydalanuvchi uchun va standart dasturni o'zgartirmaydi (Windows buni jimgina qilishga
+    ruxsat bermaydi; foydalanuvchi o'zi tanlaydi).
+46. **`.exe` — bitta papka** (onedir): bitta fayl (onefile) har ishga tushishda ~150 MB ni vaqtinchalik papkaga
+    ochadi va sekin ishga tushadi.
 
 ### Ma'lum cheklovlar
 
@@ -946,9 +1114,6 @@ p95 3.9 s → 11 ms; 10 mln tartiblashda UI max 457 → ~40 ms; katta tugunni yi
 * Hajmi va mtime'i saqlangan, faqat hash qilinmagan o'rta baytlarga tegadigan tahrir keshdagi indeks bilan
   sezilmasligi mumkin (`--no-cache` bilan qayta indekslang).
 * Bitta juda uzun satr qiymati (yuzlab MB) tekshirilayotganda xotirada ~2 baravar joy oladi.
-* CSV eksport avtomatik ustunlar bilan ~25–30 MB/s (ustunlar uchun to'liq oldindan o'qish + Python'da
-  katak qurish); `--columns` bilan tezroq (≈ 60 MB/s).
-* Buyruqlar palitrasi, sessiyani tiklash, workspace fayli, `.exe` — 6-bosqichda.
 * Tahrirlash: 50 MB dan katta bitta yozuv va JSON xatosi bor (qisman ochilgan) fayl faqat o'qish uchun; bitta
   faylning saqlanmagan o'zgarishlari boshqa yozilishdagi yo'l (masalan, qisqa 8.3 nom) bilan ochilganda tiklash
   uchun taklif qilinmaydi (tahrir esa baribir bir vaqtda faqat bitta joyda mumkin).
@@ -958,6 +1123,9 @@ p95 3.9 s → 11 ms; 10 mln tartiblashda UI max 457 → ~40 ms; katta tugunni yi
   tartibi hisobga olinadi — faqat massiv tartibi farq qiladigan yozuvlar uchun `--key` kerak.
 * Ta'mirlash xatolar zich fayllarda sekinroq (har tuzatish aniq joyi va bekor qilish ma'lumoti bilan yoziladi):
   1 % buzuq yozuv ~185 MB/s, 10 % ~47 MB/s, JSON5 uslubi ~35 MB/s, hamma satrlar bitta tirnoqda ~2 MB/s.
+* XLSX (~11 MB/s) va SQLite (~15–17 MB/s) eksporti 50 MB/s dan sekin: XLSX kataklarini `xlsxwriter` bitta oqimda
+  yozadi, SQLite'ga yozuvlar bitta oqimda kiritiladi (variantlar 14-bo'limda). CSV, JSON va JSONL maqsaddan tez.
+* Sessiya va workspace daraxtdagi faqat-ko'rinish tartiblarini, panel o'lchamlarini va tab yo'nalishini saqlamaydi.
 * GUI tilini almashtirish to'liq kuchga dastur qayta ishga tushirilgandan keyin kiradi (ochiq oynalardagi
   ba'zi matnlar eski tilda qoladi; sozlamalar oynasi buni aytadi).
 * Tezkor qidiruv (Ctrl+F) faqat yuklangan qismda qidiradi (talab bo'yicha); butun fayl uchun Ctrl+Shift+F.
@@ -965,28 +1133,6 @@ p95 3.9 s → 11 ms; 10 mln tartiblashda UI max 457 → ~40 ms; katta tugunni yi
   ko'tariladi; buning katta qismi indeks va RecordSet fayllarining xotiraga proyeksiyalangan sahifalari (OS
   kerak bo'lsa bo'shatadi); jarayonning xususiy xotirasi ~110–420 MB.
 
-### Javob berilgan savollar (2026-10-17)
-
-1. `json-tuzilma.html` loyiha ildizida — 4-bosqich (mapping) etaloni.
-2. O'zbek kollatsiyasi: rasmiy alifbo tartibi standart bo'lib qoladi (`simple` — tanlov sifatida).
-3. Yozuv raqamlari GUI'da ham 0 dan (`#0`).
-4. JSONL → JSON aylanmasida kalitli obyektni tiklash kerak — `--as-keyed` (CLI) va eksport oynasidagi
-   «Kalitli obyektni tiklash» sifatida qilindi (9-bo'lim; API: `ExportOptions(as_keyed=True)`).
-
-### Javob berilgan savollar (2026-10-18)
-
-Foydalanuvchi ko'rsatmasi: «savollarga o'zing tavsiya qilgan javoblar bo'yicha davom ettir». Shunga ko'ra:
-
-1. **Tahrir qatlami joyi** — dastur papkasi (`%LOCALAPPDATA%\jsonreshape\edits\`), «fayl yonida» tanlovi bilan
-   (qaror 18).
-2. **`.bak` zaxira** — standart bo'yicha yoqilgan (qaror 19).
-3. **Enter** — tahrirlash; ochish/yopish → va ← da (qaror 20).
-4. **Tartiblangan eksport xotirasi** — «RAM < 300 MB» maqsadi jarayonning xususiy xotirasi bo'yicha hisoblanadi
-   (112 MB ✅); RSS ham o'lchovlarda ko'rsatiladi.
-5. 4–5-bosqichlardagi noaniq joylar (qarorlar 27–39) xuddi shu tartibda — tavsiya qilingan variant bo'yicha
-   hal qilindi; har biri yuqorida yozilgan va o'zgartirish mumkin.
-
 ### Ochiq savollar
 
-Hozircha yo'q. 6-bosqichdagi tanlovlar (masalan, `.exe` bitta fayl yoki papka ko'rinishida) ham tavsiya bo'yicha
-qilinadi va shu yerda yoziladi.
+Hozircha yo'q. 6-bosqichdagi tanlovlar ham tavsiya bo'yicha qilindi (qarorlar 40–46) va o'zgartirish mumkin.

@@ -1641,7 +1641,8 @@ def _pool_block(data: bytes, spans: bytes, indices: bytes, want_ex: bool, want_p
 def auto_workers(scope_bytes: int, settings: Any) -> int:
     """Worker processes :func:`preview` uses by itself: none below :data:`POOL_MIN_BYTES` of records, else
     ``min(cpu_count - 1, POOL_MAX_WORKERS)``, and no more than half of ``Settings.memory_limit_bytes``
-    allows at :data:`WORKER_MEMORY` per worker (4 with the default 512 MiB budget, like ``engine.apply``)."""
+    allows at :data:`WORKER_MEMORY` per worker (4 with the default 512 MiB budget; ``engine.apply``'s heavier
+    workers count 80 MiB each: 3)."""
     if scope_bytes < POOL_MIN_BYTES:
         return 1
     by_cpu = min((os.cpu_count() or 1) - 1, POOL_MAX_WORKERS)
@@ -1654,7 +1655,10 @@ def _spawn_safe() -> bool:
     only when that cannot run the caller's program a second time (the rule of ``engine._spawn_safe``: a
     package ``__main__`` such as ``python -m jsonreshape`` / ``python -m pytest``, a console-script launcher,
     jsonreshape's own modules, an interactive interpreter). A plain script asks for ``workers`` explicitly
-    (behind ``if __name__ == "__main__":``)."""
+    (behind ``if __name__ == "__main__":``). A frozen executable (PyInstaller; its entry scripts call
+    ``multiprocessing.freeze_support()`` first) is safe."""
+    if getattr(sys, "frozen", False):
+        return True
     main = sys.modules.get("__main__")
     spec = getattr(main, "__spec__", None)
     name = getattr(spec, "name", None)

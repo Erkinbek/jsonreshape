@@ -31,6 +31,16 @@ change only after a restart: the dialog says so) -- unless the ``JSONRESHAPE_LAN
 environment variable chooses the language, which wins (the dialog says that too) -- then
 ``app.settings_changed.emit()``. The size of the cache folder is computed in a silent task
 that never calls back into a closed dialog.
+
+Stage 6 (docs/ARCHITECTURE.md §15.0): the "Klaviatura" tab is the
+:class:`~jsonreshape.gui.keymap.KeymapPage` of the main window that opened the dialog (the
+dialog's parent; its ``keymap``). The page edits a working copy of the user's keys; "Saqlash"
+applies it to the window at once and keeps it in ``gui_state["shortcuts"]`` (saved with the
+other GUI state), "Bekor qilish" drops it, "Standartga qaytarish" does not touch it.
+
+Stage 6, session restore: the General tab's "Ishga tushirish" row keeps ``restore_session`` of the GUI
+state (``always`` -- the default, also for "Standartga qaytarish" --, ``ask``, ``never``;
+:mod:`jsonreshape.gui.sessionstore`), saved with "Saqlash" (:meth:`SettingsDialog.restore_value`).
 """
 
 from __future__ import annotations
@@ -67,6 +77,7 @@ from jsonreshape.errors import JsonReshapeError, UserInputError
 from jsonreshape.gui import copyfmt, theme
 from jsonreshape.gui.guistate import DEFAULTS as GUI_DEFAULTS
 from jsonreshape.gui.guistate import THEMES
+from jsonreshape.gui.osintegration import add_settings_rows as add_open_with_rows
 from jsonreshape.gui.widgets import format_count, format_size, open_local_path
 from jsonreshape.i18n import SUPPORTED_LANGUAGES, t
 from jsonreshape.settings import (
@@ -369,6 +380,7 @@ class SettingsDialog(QDialog):
         self.tabs.addTab(self._general_tab(), t("gui.settings.tab.general"))
         self.tabs.addTab(self._export_tab(), t("gui.settings.tab.export"))
         self.tabs.addTab(self._view_tab(), t("gui.settings.tab.view"))
+        self.tabs.addTab(self._keys_tab(), t("gui.settings.tab.keys"))     # stage 6 (§15.0)
         self.tabs.addTab(self._advanced_tab(), t("gui.settings.tab.advanced"))
         layout.addWidget(self.tabs, 1)
 
@@ -475,6 +487,9 @@ class SettingsDialog(QDialog):
         form.addRow(t("settings.field.language") + ":", self.language_combo)
         self._fields["language"] = self.language_combo
         self._editing_rows(page, form)
+        self._session_rows(page, form)          # stage 6 (§15.0): restore the last session at start
+        # stage 6: Windows "Open with" (gui/osintegration.py; acts at once after a question, not on "Saqlash")
+        self.open_with_rows = add_open_with_rows(page, form, app=self.app)
         return page
 
     def _editing_rows(self, page: QWidget, form: QFormLayout) -> None:
@@ -506,6 +521,27 @@ class SettingsDialog(QDialog):
         form.addRow("", self.backup_check)
         self._fields["backup_on_save"] = self.backup_check
         self._int_row(form, "undo_limit", UNDO_LIMIT_MIN, UNDO_LIMIT_MAX, "gui.settings.undo_limit.tip")
+
+    def _session_rows(self, page: QWidget, form: QFormLayout) -> None:
+        """Stage 6 (docs/ARCHITECTURE.md §15.0): ``restore_session`` of the GUI state -- restore the last
+        session when the program starts without files: always (default) / ask / never."""
+        from jsonreshape.gui.sessionstore import RESTORE_MODES
+
+        heading = QLabel(t("gui.settings.startup"), page)
+        font = QFont(heading.font())
+        font.setBold(True)
+        heading.setFont(font)
+        form.addRow(heading)
+        self.restore_combo = QComboBox(page)
+        self.restore_combo.setObjectName("restore_session_combo")
+        for mode in RESTORE_MODES:
+            self.restore_combo.addItem(t(f"gui.settings.restore_session.{mode}"), mode)
+        self.restore_combo.setToolTip(t("gui.settings.restore_session.tip"))
+        form.addRow(t("gui.settings.restore_session") + ":", self.restore_combo)
+
+    def restore_value(self) -> str:
+        """The chosen ``restore_session`` (``always`` | ``ask`` | ``never``; saved with "Saqlash")."""
+        return str(self.restore_combo.currentData() or "always")
 
     def _export_tab(self) -> QWidget:
         page, form = self._form_page()
@@ -584,6 +620,15 @@ class SettingsDialog(QDialog):
         self._size_row(form, "diff_align_max_bytes", "gui.settings.diff_align_max_bytes.tip")   # stage 5 (§14.0)
         return page
 
+    def _keys_tab(self) -> QWidget:
+        """The "Klaviatura" page (stage 6, docs/ARCHITECTURE.md §15.0): :class:`~jsonreshape.gui.keymap.KeymapPage`
+        of the main window that opened the dialog (its ``keymap``; without one only the fixed keys are listed). Its
+        working copy is applied by :meth:`save`; "Standartga qaytarish" leaves it alone (the page has its own)."""
+        from jsonreshape.gui.keymap import KeymapPage, keymap_of
+
+        self.keys_page = KeymapPage(keymap_of(self.parent()), self)
+        return self.keys_page
+
     def _style_labels(self) -> None:
         self.error_label.setStyleSheet(f"color: {theme.color('danger').name()};")
         self.note_label.setStyleSheet(f"color: {theme.color('warn').name()};")
@@ -597,7 +642,7 @@ class SettingsDialog(QDialog):
         """Fill the form from ``settings`` and the GUI state (or ``gui``)."""
         state = self.app.state
         gui = gui if gui is not None else {key: state.get(key) for key in ("theme", "mono_font", "mono_size",
-                                                                          "ui_size")}
+                                                                          "ui_size", "restore_session")}
         self._loading = True
         ints = {name: int(getattr(settings, name)) for name in self._int_rows}
         self._loaded_ints = {name: value for name, value in ints.items() if value > self._fields[name].maximum()}
@@ -626,6 +671,8 @@ class SettingsDialog(QDialog):
             self.mono_font_combo.setEnabled(bool(family))
             self.mono_size_spin.setValue(_int_or_zero(gui.get("mono_size")))
             self.ui_size_spin.setValue(_int_or_zero(gui.get("ui_size")))
+            restore = gui.get("restore_session")          # stage 6: unset / unknown = the default
+            self._select(self.restore_combo, restore if self.restore_combo.findData(restore) >= 0 else "always")
         finally:
             self._loading = False
         self._changed()
@@ -873,6 +920,8 @@ class SettingsDialog(QDialog):
         old_ui = _int_or_zero(state.get("ui_size"))
         for key, value in gui.items():
             state.set(key, value)
+        state.set("restore_session", self.restore_value())     # stage 6 (§15.0): the start-up choice
+        self.keys_page.apply()          # stage 6: the keys, applied to the window at once (gui_state["shortcuts"])
         save_state = getattr(self.app, "save_state", None)
         if save_state is not None:
             save_state()                 # in the background (the file lock may be held elsewhere)

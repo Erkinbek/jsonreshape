@@ -1,6 +1,13 @@
-"""End-to-end GUI acceptance scenarios of stage 2 (AGENT_PROMPT §14 test 26: "Faylni ochish,
-daraxtni ochish/yopish, qidiruv natijasiga o'tish, jadvalda tartiblash, ... eksport tugmasi";
-editing / undo come in stage 3).
+"""End-to-end GUI acceptance scenarios (AGENT_PROMPT §14 test 26: "Faylni ochish, daraxtni
+ochish/yopish, qidiruv natijasiga o'tish, jadvalda tartiblash, tahrir va undo, eksport tugmasi").
+
+``test_acceptance_26_the_whole_scenario`` is test 26 as one user session through the real window
+(stage 6, docs/ARCHITECTURE.md §15.0): open a file, expand / collapse in the tree, a full-search hit
+-> its node, a table header sort, an edit with Enter + typing + Enter, Ctrl+Z restores it, Ctrl+Y
+redoes it, Ctrl+S saves (the file on disk has the value, the backup the old bytes), the export
+button writes the view, a second edit saved from the command palette (Ctrl+Shift+P, "saqlash",
+Enter), and the session coming back after a restart of ``main()``. The other scenarios go deeper
+into each step (stage 2 viewer, stage 5 Tools menu).
 
 Every scenario starts the real application (``jsonreshape.gui.app.main(argv, run=False)``:
 the real MainWindow with the default view registry and panel factories, GC policy,
@@ -886,6 +893,187 @@ def test_tools_menu_pass_through_every_stage5_tool(gui, people, tmp_path) -> Non
         dialog.close()
         g.wait(lambda d=dialog: closed(d))
     assert sha256(people) == before                     # no tool touched the source
+
+
+# ----------------------------------------------------------------------------------------
+# 6c. test 26: the whole scenario in one session (stage 3 editing, stage 6 palette and session)
+# ----------------------------------------------------------------------------------------
+def _edit_value(g: Gui, tree: Any, kp: tuple, text: str) -> Any:
+    """Select the node ``kp`` with a click, Enter opens the inline editor, type ``text`` over its
+    value, Enter commits; returns the ChangeSet (the controller is idle again)."""
+    s = g.session
+    g.wait(lambda: tree.row_of(kp) is not None)
+    g.focus(tree.grid)
+    g.click_grid_row(tree.grid, tree.row_of(kp), 0)
+    g.wait(lambda: tree.current_keypath() == kp)
+    g.tree_row_loaded(tree, tree.row_of(kp))
+    g.press(K.Key_Return)
+    g.wait(lambda: tree.inline_editor() is not None)
+    ed = tree.inline_editor()
+    assert ed.kind == "string"
+    ed.selectAll()
+    g.type_text(ed, text)
+    assert ed.text() == text
+    with g.qtbot.waitSignal(s.data_changed, timeout=TIMEOUT) as changed:
+        g.press(K.Key_Return, widget=ed)
+    g.wait(lambda: tree.inline_editor() is None and not s.edit.busy)
+    return changed.args[0]
+
+
+def _saved(g: Gui, tab: Any) -> None:
+    g.wait(lambda: not tab.dirty and tab.session.state == "ready" and tab.edit is not None and tab.edit.available,
+           timeout=60000)
+
+
+def test_acceptance_26_the_whole_scenario(gui, people, tmp_path) -> None:
+    from jsonreshape.gui import palette as P
+
+    before = sha256(people)
+    g = gui([people])
+    tab = g.ready()
+    s = tab.session
+    tree = g.tree()
+    g.activate()
+    g.focus(tree.grid)
+    # -- open: the records are the tree's rows ------------------------------------------------------
+    g.tree_row_loaded(tree, 0)
+    assert tree.row_count() == N and tree.cell_text(0, "key") == "#0"
+    # -- the tree: expand and collapse with the keys -------------------------------------------------
+    g.click_grid_row(tree.grid, 1)
+    g.wait(lambda: same_node(s.current, NodeRef(1, ())))
+    g.press(K.Key_Right)
+    g.wait(lambda: tree.flat.is_expanded((1,)))
+    assert tree.row_count() == N + len(RECORD_KEYS)
+    g.press(K.Key_Right)                                         # to the first child
+    assert tree.current_keypath() == (1, 0)
+    g.press(K.Key_Left)                                          # back to the record ...
+    g.press(K.Key_Left)                                          # ... and collapse it
+    g.wait(lambda: not tree.flat.is_expanded((1,)))
+    assert tree.row_count() == N and tree.current_keypath() == (1,)
+    # -- full search (Ctrl+Shift+F): a hit opens its node in the tree --------------------------------
+    g.press(K.Key_F, CTRL | SHIFT)
+    panel = g.win.panels["search"]
+    edit = panel.query_combo.lineEdit()
+    g.wait(edit.hasFocus)
+    g.type_into(edit, "Samarqand")
+    with g.qtbot.waitSignal(panel.search_finished, timeout=TIMEOUT) as finished:
+        g.press(K.Key_Return, widget=edit)
+    assert finished.args[1] == "done"
+    want = [i for i in range(N) if record(i)["contact"]["city"] == "Samarqand"]
+    assert panel.hit_count_shown() == len(want) > 2
+    hit = panel.hit_at(2)
+    assert hit.record == want[2] and tuple(hit.path) == ("contact", "city")
+    g.click_grid_row(panel.grid, 2, 0, double=True)
+    city_kp = (hit.record, RECORD_KEYS.index("contact"), CONTACT_KEYS.index("city"))
+    g.wait(lambda: same_node(s.current, NodeRef(hit.record, ("contact", "city"))))
+    g.wait(lambda: tree.current_keypath() == city_kp)
+    assert tree.cell_text(tree.row_of(city_kp), "value") == '"Samarqand"'
+    # -- the table: a header click sorts the view (every view follows) ------------------------------
+    g.click(g.view("text").editor.viewport())
+    g.wait(lambda: tab.active_pane_index() == 1)
+    g.press(K.Key_2, CTRL)
+    table = tab.panes[1].current_view()
+    g.wait(lambda: "age" in table.visible_column_paths() and table.cell_text(0, "age") is not None)
+    g.click_header(table.grid, "age")
+    g.wait(lambda: [(k.path, k.descending) for k in s.sort_keys] == [("age", False)] and not s.view_busy)
+    order = stable_order(list(range(N)), lambda i: record(i)["age"])
+    assert g.view_records() == order
+    g.wait(lambda: table.cell_text(0, "age") == str(record(order[0])["age"]))
+    # -- an edit in the tree: Enter, typing, Enter ---------------------------------------------------
+    r = order[0]                                                 # the first row of the sorted tree
+    name_kp = (r, RECORD_KEYS.index("name"))
+    old_name, new_name = record(r)["name"], "Gʻulom Тошкент 26"
+    g.focus(tree.grid)
+    g.wait(lambda: tree.row_keypath(0) == (r,))
+    g.click_grid_row(tree.grid, 0)
+    g.press(K.Key_Right)
+    g.wait(lambda: tree.flat.is_expanded((r,)))
+    cs = _edit_value(g, tree, name_kp, new_name)
+    assert cs.records == frozenset({r})
+    assert s.doc.pinned().record(r)["name"] == new_name
+    g.wait(lambda: tab.dirty)
+    g.wait(lambda: tree.cell_text(tree.row_of(name_kp), "value") == json.dumps(new_name, ensure_ascii=False))
+    assert sha256(people) == before                              # nothing is written before Save
+    # -- Ctrl+Z restores the value, Ctrl+Y redoes it -------------------------------------------------
+    g.focus(tree.grid)
+    g.press(K.Key_Z, CTRL)
+    g.wait(lambda: s.doc.pinned().record(r)["name"] == old_name and not s.edit.busy)
+    g.wait(lambda: tree.cell_text(tree.row_of(name_kp), "value") == f'"{old_name}"')
+    g.wait(lambda: not tab.dirty and g.win.action("redo").isEnabled())
+    g.press(K.Key_Y, CTRL)
+    g.wait(lambda: s.doc.pinned().record(r)["name"] == new_name and not s.edit.busy)
+    g.wait(lambda: tree.cell_text(tree.row_of(name_kp), "value") == json.dumps(new_name, ensure_ascii=False))
+    g.wait(lambda: tab.dirty)
+    # -- Ctrl+S saves: the file has the value, the backup the old bytes ------------------------------
+    g.press(K.Key_S, CTRL)
+    _saved(g, tab)
+    saved_text = people.read_bytes().decode("utf-8")
+    data = json.loads(saved_text)
+    assert data[r]["name"] == new_name and len(data) == N
+    del data[EXACT_RECORD]["nums"]                               # (1e400 etc.: exact, checked byte for byte below)
+    assert data == [dict(record(i), name=new_name) if i == r else record(i) for i in range(N)]
+    original = people_file(tmp_path / "plain.json").read_bytes().decode("utf-8")
+    edited_raw = raw_record(r).replace(f'"name":"{old_name}"', '"name":' + json.dumps(new_name, ensure_ascii=False))
+    assert saved_text == original.replace(raw_record(r), edited_raw)    # every other byte as it was
+    bak = people.with_name(people.name + ".bak")
+    assert bak.is_file() and sha256(bak) == before
+    s = tab.session                                              # (the tab shows the saved file now)
+    g.wait(lambda: [(k.path, k.descending) for k in s.sort_keys] == [("age", False)] and not s.view_busy)
+    tree = g.tree(tab)
+    # -- the export button: the sorted view with the saved edit as JSON Lines -----------------------
+    out = tmp_path / "view.jsonl"
+    g.focus(tree.grid)
+    dialog = _run_export(g, out, toolbar=True)
+    assert dialog.format() == "jsonl" and dialog.outcome.report.records == N
+    lines = out.read_bytes().decode("utf-8").splitlines()
+    assert [json.loads(line)["id"] for line in lines] == g.view_records() == order
+    assert lines == [edited_raw if i == r else raw_record(i) for i in order]     # exact bytes, view order
+    _close_dialogs(g, dialog)
+    # -- the command palette (Ctrl+Shift+P): a second edit saved with "saqlash" + Enter -------------
+    r2 = order[1]
+    name2_kp = (r2, RECORD_KEYS.index("name"))
+    g.wait(lambda: tree.row_of((r2,)) is not None)
+    g.focus(tree.grid)
+    g.click_grid_row(tree.grid, tree.row_of((r2,)))
+    g.wait(lambda: tree.current_keypath() == (r2,))
+    g.press(K.Key_Right)
+    g.wait(lambda: tree.flat.is_expanded((r2,)))
+    _edit_value(g, tree, name2_kp, "Palitra orqali")
+    g.wait(lambda: tab.dirty)
+    g.focus(tree.grid)
+    g.press(K.Key_P, CTRL | SHIFT)
+    pal = P.palette_of(g.win)
+    assert pal is not None and pal.is_open()
+    g.wait(pal.edit.hasFocus)
+    g.type_text(pal.edit, "saqlash")
+    entry = pal.current_entry()
+    assert entry is not None and entry.id == "act:save" and entry.enabled, entry
+    g.press(K.Key_Return, widget=pal.edit)
+    assert not pal.is_open()
+    _saved(g, tab)
+    data = json.loads(people.read_bytes().decode("utf-8"))
+    assert data[r]["name"] == new_name and data[r2]["name"] == "Palitra orqali"
+    s = tab.session
+    g.wait(lambda: not s.view_busy)
+    current = s.current
+    assert current is not None and same_node(current, NodeRef(r2, ("name",)))
+    # -- a restart of main(): the last session comes back ------------------------------------------
+    g.close()
+    g2 = gui([])
+    g2.wait(lambda: bool(g2.win.tab_widgets()))
+    tab2 = g2.ready(g2.win.tab_widgets()[0])
+    s2 = tab2.session
+    assert s2.path == s.path and s2.name == "people.json"
+    g2.wait(lambda: [(k.path, k.descending) for k in s2.sort_keys] == [("age", False)] and not s2.view_busy)
+    assert [s2.record_at(p) for p in range(s2.view_len())] == order
+    g2.wait(lambda: s2.current is not None and same_node(s2.current, NodeRef(r2, ("name",))))
+    g2.wait(lambda: not g2.win.workspaces.restorer.pending_tabs())
+    tree2 = g2.tree(tab2)
+    g2.wait(lambda: tree2.row_of(name2_kp) is not None)
+    g2.tree_row_loaded(tree2, tree2.row_of(name2_kp))
+    assert tree2.cell_text(tree2.row_of(name2_kp), "value") == '"Palitra orqali"'
+    assert s2.doc.pinned().record(r)["name"] == new_name and s2.doc.pinned().record(r2)["name"] == "Palitra orqali"
+    assert tab2.edit is not None and not tab2.dirty
 
 
 # ----------------------------------------------------------------------------------------

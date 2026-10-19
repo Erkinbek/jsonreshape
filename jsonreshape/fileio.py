@@ -462,6 +462,34 @@ def read_range(f: IO[bytes], start: int, end: int) -> bytes:
     return b"".join(parts)
 
 
+def read_limited(f: IO[bytes], limit: int) -> bytes:
+    """Read the rest of the open binary file ``f``, at most ``limit + 1`` bytes (more than ``limit``
+    tells the caller the file is too big).
+
+    The request follows the file's size instead of asking ``read(limit + 1)`` at once: that call
+    allocates the whole ``limit + 1`` buffer first, and on Windows its pages count in the working set
+    (a 128 MiB limit for a 5 KB mapping file raised the peak by 134 MB). A file that grew after the
+    size check is read on in 1 MiB pieces up to the limit.
+    """
+    try:
+        size = os.fstat(f.fileno()).st_size - f.tell()
+    except (OSError, AttributeError, ValueError):   # no real file (BytesIO, ...): read in pieces
+        size = 0
+    want = max(0, min(size, limit)) + 1
+    data = f.read(want) or b""
+    if len(data) < want or len(data) > limit:
+        return data
+    parts = [data]
+    got = len(data)
+    while got <= limit:
+        chunk = f.read(min(1 << 20, limit + 1 - got))
+        if not chunk:
+            break
+        parts.append(chunk)
+        got += len(chunk)
+    return b"".join(parts)
+
+
 # ----------------------------------------------------------------------------------
 # identity
 # ----------------------------------------------------------------------------------

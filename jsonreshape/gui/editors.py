@@ -164,6 +164,7 @@ from PySide6.QtWidgets import (
 
 from jsonreshape import codec, core, editops
 from jsonreshape.errors import EditError, JsonReshapeError, UserInputError
+from jsonreshape.gui import theme
 from jsonreshape.i18n import t
 from jsonreshape.tasks import format_bytes
 
@@ -394,21 +395,7 @@ def _type_label(kind: str | None) -> str:
 
 
 def _danger() -> QColor:
-    try:
-        from jsonreshape.gui import theme
-
-        return QColor(theme.color("danger"))
-    except Exception:  # pragma: no cover - theme always importable in the GUI
-        return QColor("#b23434")
-
-
-def _color(role: str, fallback: str) -> str:
-    try:
-        from jsonreshape.gui import theme
-
-        return QColor(theme.color(role)).name()
-    except Exception:  # pragma: no cover
-        return fallback
+    return QColor(theme.color("danger"))
 
 
 def _mono(widget: QWidget | None) -> Any:
@@ -439,7 +426,7 @@ def _error_label(parent: QWidget) -> QLabel:
     label.setWordWrap(True)
     label.setTextFormat(Qt.TextFormat.PlainText)
     label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-    label.setStyleSheet(f"color: {_color('danger', '#b23434')};")
+    theme.bind_style(label, "color: $danger;")
     label.setVisible(False)
     return label
 
@@ -680,11 +667,8 @@ class InlineEditor(QLineEdit):
             self.validity_changed.emit(valid)
 
     def _apply_style(self) -> None:
-        if self._valid:
-            border = f"1px solid {_color('accent', '#2a57c4')}"
-        else:
-            border = f"2px solid {_color('danger', '#b23434')}"
-        self.setStyleSheet(f"QLineEdit#InlineEditor {{ border: {border}; padding: 0px 2px; }}")
+        border = "1px solid $accent" if self._valid else "2px solid $danger"
+        theme.bind_style(self, "QLineEdit#InlineEditor { border: " + border + "; padding: 0px 2px; }")
 
     def is_unchanged(self) -> bool:
         """The text means the original value (committing it is a cancel)."""
@@ -959,7 +943,7 @@ class _DialogBase(QDialog):
 
         self.note.setText(copyfmt.escape_surrogates(text or ""))
         role = {"error": "danger", "warning": "warn"}.get(kind)
-        self.note.setStyleSheet(f"color: {_color(role, '#9a5a08')};" if role else "")
+        theme.bind_style(self.note, f"color: ${role};" if role else "")
         self.note.setVisible(bool(text))
 
     def _content_widgets(self) -> list[QWidget]:
@@ -1459,7 +1443,7 @@ class JsonEditDialog(_DialogBase):
         self.editor.setExtraSelections([])
         if not (self.refused or self.loading):
             self.status_label.setText(t("gui.editors.json.checking"))
-            self.status_label.setStyleSheet(f"color: {_color('muted', '#5b6677')};")
+            theme.bind_style(self.status_label, "color: $muted;")
         self._update_buttons()
         self._timer.start()
 
@@ -1514,7 +1498,7 @@ class JsonEditDialog(_DialogBase):
         if result.ok:
             self.editor.setExtraSelections([])
             self.status_label.setText(t("gui.editors.json.valid", type=_type_label(result.kind)))
-            self.status_label.setStyleSheet(f"color: {_color('ok', '#2b7649')};")
+            theme.bind_style(self.status_label, "color: $ok;")
         else:
             exc = result.error
             params = exc.params if exc is not None else {}
@@ -1524,7 +1508,7 @@ class JsonEditDialog(_DialogBase):
             else:
                 text = exc.message if exc is not None else ""
             self.status_label.setText(text)
-            self.status_label.setStyleSheet(f"color: {_color('danger', '#b23434')};")
+            theme.bind_style(self.status_label, "color: $danger;")
             self._underline(result.span)
         self._update_buttons()
         self.validated.emit(result.ok)

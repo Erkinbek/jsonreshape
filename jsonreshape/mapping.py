@@ -2254,7 +2254,7 @@ def load_mapping(path_or_bytes: str | os.PathLike | bytes | bytearray | memoryvi
     if isinstance(path_or_bytes, (bytes, bytearray, memoryview)):
         data = bytes(path_or_bytes)
     else:
-        from .fileio import open_shared, os_error
+        from .fileio import open_shared, os_error, read_limited
 
         path = Path(os.fspath(path_or_bytes))
         try:
@@ -2263,7 +2263,7 @@ def load_mapping(path_or_bytes: str | os.PathLike | bytes | bytearray | memoryvi
                 if size > MAX_FILE_BYTES:
                     raise MappingError("mapping.error.file_too_big", path=str(path), size=size,
                                        limit=MAX_FILE_BYTES)
-                data = f.read(MAX_FILE_BYTES + 1)
+                data = read_limited(f, MAX_FILE_BYTES)
         except OSError as exc:
             raise os_error(exc, path) from exc
         if len(data) > MAX_FILE_BYTES:

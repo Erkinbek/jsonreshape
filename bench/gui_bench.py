@@ -91,8 +91,8 @@ GUI_MESSAGES: dict[str, dict[str, str]] = {
                                    "en": "Unknown measurement(s): {names}. Known: {known}"},
     "bench.gui.error.generate": {"uz": "{name} faylini yaratib bo'lmadi: {detail}",
                                  "en": "Could not generate {name}: {detail}"},
-    "bench.gui.md.title": {"uz": "jsonreshape: GUI benchmarki (2-bosqich, AGENT_PROMPT §12)",
-                           "en": "jsonreshape: GUI benchmark (stage 2, AGENT_PROMPT §12)"},
+    "bench.gui.md.title": {"uz": "jsonreshape: GUI benchmarki (AGENT_PROMPT §12)",
+                           "en": "jsonreshape: GUI benchmark (AGENT_PROMPT §12)"},
     "bench.gui.md.meta": {
         "uz": "Sana: {date} · davomiyligi: {duration} · rejim: {mode} · to'liq natijalar: `{json}`",
         "en": "Date: {date} · duration: {duration} · mode: {mode} · full results: `{json}`",
@@ -198,8 +198,15 @@ GUI_MESSAGES: dict[str, dict[str, str]] = {
         "en": "§12 is written for \"an ordinary laptop\"; this ran on {cpu}.",
     },
     "bench.gui.nm.edit": {
-        "uz": "Tahrir, undo, mapping bilan eksport — 3- va 4-bosqichlarda.",
-        "en": "Editing, undo, export with a mapping -- stages 3 and 4.",
+        "uz": "Tahrir, undo, mapping bilan eksport va 5-bosqich asboblari GUI ichida alohida o'lchanmadi: GUI ularni "
+              "o'sha funksiyalar bilan fon vazifalarida bajaradi; kutubxona / buyruq darajasidagi raqamlar — "
+              "`edit_latest.md`, `export_latest.md`, `latest.md` (mapping) va `tools_latest.md`. Tahrir, undo, "
+              "saqlash va eksport tugmasi haqiqiy oynada `tests/test_gui_e2e.py` (14-bo'lim, 26-test) da "
+              "tekshiriladi.",
+        "en": "Editing, undo, export with a mapping and the stage-5 tools were not measured inside the GUI on their "
+              "own: the GUI runs the same functions in background tasks; the library / command numbers are in "
+              "`edit_latest.md`, `export_latest.md`, `latest.md` (mapping) and `tools_latest.md`. Editing, undo, "
+              "save and the export button are checked in the real window by `tests/test_gui_e2e.py` (§14 test 26).",
     },
     # rows
     "bench.gui.row.open": {
@@ -306,8 +313,24 @@ GUI_MESSAGES: dict[str, dict[str, str]] = {
     "bench.gui.miss.line": {"uz": "**{action}** — {result} (maqsad: {target}).",
                             "en": "**{action}** -- {result} (target: {target})."},
     "bench.gui.miss.detail": {
-        "uz": "Bosqichlar va har bir takror JSON faylda (`{json}`, `ops.{op}`); sababini tahlil qilish kerak.",
-        "en": "Phases and every run are in the JSON file (`{json}`, `ops.{op}`); the cause needs an analysis.",
+        "uz": "Bosqichlar va har bir takror JSON faylda (`{json}`, `ops.{op}`).",
+        "en": "Phases and every run are in the JSON file (`{json}`, `ops.{op}`).",
+    },
+    "bench.gui.miss.sorted.cause": {
+        "uz": "tartiblangan eksport yozuvlarni kalit tartibida o'qiydi: tartib bo'yicha o'qilgan indeks (`.jri`, "
+              "{jri}) va natija RecordSet'i (`.u64`, {u64}) fayllarining xotiraga proyeksiyalangan sahifalari ishchi "
+              "to'plamda qoladi (OS kerak bo'lsa ularni darhol bo'shatadi); jarayonning xususiy xotirasi — {private}.",
+        "en": "the sorted export reads the records in key order: the mapped pages of the index (`.jri`, {jri}) and of "
+              "the result RecordSet (`.u64`, {u64}) read in that order stay in the working set (the OS frees them at "
+              "once when needed); the process's private memory is {private}.",
+    },
+    "bench.gui.miss.sorted.options": {
+        "uz": "1) maqsadni xususiy xotira bo'yicha hisoblash ({private} — maqsad ichida); 2) indeks oynalarini "
+              "o'qilgandan keyin ochib-yopib turish yoki `VirtualUnlock`/`DiscardVirtualMemory` bilan bo'shatish "
+              "(biroz sekinroq); 3) eksportdan oldin indeksni tartib bo'yicha qayta yozish (qo'shimcha disk).",
+        "en": "1) count the target in private memory ({private}: within the target); 2) map the index windows only "
+              "while they are read, or drop their pages (`VirtualUnlock` / `DiscardVirtualMemory`; a bit slower); 3) "
+              "rewrite the index in the sorted order before the export (more disk).",
     },
     "bench.gui.miss.memory": {
         "uz": "Xotira bosqich oxirida: RSS {rss}, xususiy (private) {private}; ishchi to'plamdagi eng katta fayl "
@@ -1619,6 +1642,14 @@ def render_markdown(results: dict[str, Any], rows: list[Row], json_name: str | N
             maps = ", ".join(f"{name} {rb.fmt_mb(size)}" for name, size in mem.get("maps") or []) or "?"
             out.append("  - " + t("bench.gui.miss.memory", rss=rb.fmt_mb(mem.get("rss")),
                                    private=rb.fmt_mb(mem.get("private")), maps=maps))
+        mapped = {ext: sum(size for name, size in (mem or {}).get("maps") or [] if str(name).endswith(ext))
+                  for ext in (".jri", ".u64")} if isinstance(mem, dict) else {}
+        if r.id == "export_sorted_10m" and mapped.get(".jri"):
+            out.append("  - " + t("bench.md.cause") + ": " + t("bench.gui.miss.sorted.cause", jri=rb.fmt_mb(mapped[".jri"]),
+                                                            u64=rb.fmt_mb(mapped[".u64"]),
+                                                            private=rb.fmt_mb(mem.get("private"))))
+            out.append("  - " + t("bench.md.options") + ": " + t("bench.gui.miss.sorted.options",
+                                                                private=rb.fmt_mb(mem.get("private"))))
         out.append("  - " + t("bench.gui.miss.detail", json=json_name or "?", op=op_name))
     out.append("")
     out += [f"## {t('bench.gui.md.data')}", ""]
@@ -1701,6 +1732,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--lang", choices=["uz", "en"], default="uz")
     ap.add_argument("--latest", action="store_true", help="also write gui_latest.md (quick / partial runs)")
     ap.add_argument("--child", metavar="SCENARIO", choices=sorted(SCENARIOS), help=argparse.SUPPRESS)
+    ap.add_argument("--report", type=Path, default=None,
+                    help="write the Markdown of an earlier gui_*.json again (its .md; gui_latest.md for a full run "
+                         "or with --latest) and exit")
     return ap
 
 
@@ -1724,6 +1758,17 @@ def main(argv: list[str] | None = None) -> int:
     cfg, args = config_from_args(argv)
     if args.child:
         return child_main(args.child)
+    if args.report is not None:
+        set_language(cfg.lang)
+        results = json.loads(Path(args.report).read_bytes().decode("utf-8"))
+        rows = build_rows(results)
+        md = render_markdown(results, rows, Path(args.report).name)
+        Path(args.report).with_suffix(".md").write_bytes(md.encode("utf-8"))
+        latest = cfg.write_latest if cfg.write_latest is not None else str(results.get("mode")) == "full"
+        if latest:
+            (Path(cfg.results_dir) / "gui_latest.md").write_bytes(md.encode("utf-8"))
+        sys.stdout.write(t("bench.gui.log.written", json=args.report, md=Path(args.report).with_suffix(".md")) + "\n")
+        return 0
     if args.list:
         for op in OPS:
             spec = (QUICK_DATA if cfg.quick else FULL_DATA).get(op.data)

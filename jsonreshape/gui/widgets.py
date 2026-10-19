@@ -100,7 +100,7 @@ from PySide6.QtWidgets import (
 
 from jsonreshape import codec, smartvalues
 from jsonreshape.errors import Cancelled, JsonReshapeError, JsonSyntaxError, TooLargeError, UserInputError
-from jsonreshape.gui import copyfmt
+from jsonreshape.gui import copyfmt, theme
 from jsonreshape.i18n import get_language, t
 from jsonreshape.overlay import is_edit_offset
 from jsonreshape.tasks import CancelToken, check, format_bytes
@@ -402,7 +402,7 @@ def swatch_pixmap(rgba: tuple, size: int, border: QColor | None = None) -> QPixm
                     if (xx // step + yy // step) & 1:
                         p.fillRect(xx, yy, step, step, QColor(204, 204, 204))
         p.fillRect(0, 0, size, size, QColor(r, g, b, a))
-        p.setPen(border if border is not None else QColor(128, 128, 128))
+        p.setPen(border if border is not None else QColor(theme.color("muted")))
         p.drawRect(0, 0, size - 1, size - 1)
     finally:
         p.end()
@@ -737,7 +737,6 @@ class ViewBase(QWidget):
 # InfoBar
 # ==================================================================================
 _KIND_ROLE = {"info": "accent", "warning": "warn", "error": "danger", "success": "ok"}
-_KIND_FALLBACK = {"info": "#2a57c4", "warning": "#9a5a08", "error": "#b23434", "success": "#2b7649"}
 _KIND_ICON = {
     "info": QStyle.StandardPixmap.SP_MessageBoxInformation,
     "warning": QStyle.StandardPixmap.SP_MessageBoxWarning,
@@ -747,12 +746,7 @@ _KIND_ICON = {
 
 
 def _kind_color(kind: str) -> QColor:
-    try:
-        from jsonreshape.gui import theme
-
-        return QColor(theme.color(_KIND_ROLE[kind]))
-    except Exception:
-        return QColor(_KIND_FALLBACK[kind])
+    return QColor(theme.color(_KIND_ROLE[kind]))
 
 
 def _blend(a: QColor, b: QColor, f: float) -> QColor:

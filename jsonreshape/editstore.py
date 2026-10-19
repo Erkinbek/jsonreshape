@@ -68,7 +68,10 @@ Decisions taken where §12.2 leaves room (documented in the stage-3 report):
   merged per segment (``crc32_combine``; bytes of steps truncated as redo are read once and included).
   ``load_state`` (restore, export of a pending layer) verifies them: a mismatch raises
   :class:`LayerDamagedError` at that step (the checkpoint: ``last_good=None``). Rows written before
-  checksums existed have none.
+  checksums existed have none. A range of 64 MiB or more (the segment of a bulk step) is read and
+  checksummed in pieces by up to 4 threads at once, joined with ``crc32_combine`` (stage-6 performance
+  work P6: the restore of a 2 GB bulk layer was bound by reading it in one thread; the check itself is
+  unchanged and still finishes before the state is returned).
 * :meth:`LayerLock.for_doc` also locks the PHYSICAL file (:func:`file_lock_key`: volume serial + file id),
   so one file opened under two spellings (junction, ``subst``, mapped drive / UNC) cannot be edited twice.
 * ``maybe_trim(limit)``: while ``head - checkpoint > limit + 64`` the oldest 64 steps are replayed
@@ -160,7 +163,8 @@ import orjson
 from . import __version__
 from .appdirs import edits_dir, edits_locks_dir
 from .errors import EditError, JsonReshapeError
-from .fileio import FileIdentity, atomic_write, long_path, make_dirs, normalize_path, open_shared, os_error
+from .fileio import (FileIdentity, atomic_write, long_path, make_dirs, normalize_path, open_shared, os_error,
+                     read_limited)
 from .i18n import has, t
 from .overlay import (
     BLOB_MIN,
@@ -1839,7 +1843,7 @@ def _index_load() -> list[dict[str, Any]]:
     try:
         path = _index_file()
         with open_shared(path, "rb") as f:
-            raw = f.read(_INDEX_MAX_BYTES + 1)
+            raw = read_limited(f, _INDEX_MAX_BYTES)
     except (JsonReshapeError, OSError):
         return []
     if len(raw) > _INDEX_MAX_BYTES:
@@ -3123,13 +3127,36 @@ class EditStore:
             off += n
         return crc
 
+    def _crc_range(self, sg: int, start: int, end: int, cancel: CancelToken | None = None) -> int:
+        """crc32 of the committed bytes ``[start, end)`` of segment ``sg``. A range of at least
+        :data:`_CRC_PARALLEL_MIN` bytes is cut into up to :data:`_CRC_THREADS` pieces read and checksummed by as
+        many threads at once (the reader keeps one handle per thread; ``zlib.crc32`` releases the GIL) and the
+        pieces' checksums are joined with :func:`crc32_combine`: the same value, the reads overlap (a restore of
+        a bulk layer as big as the file reads all of it)."""
+        threads = min(_CRC_THREADS, os.cpu_count() or 1)
+        if end - start < _CRC_PARALLEL_MIN or threads <= 1:
+            return self._crc_extend(sg, start, end, 0, cancel)
+        step = -(-(end - start) // threads)
+        step += -step % _CRC_READ
+        cuts = [*range(start, end, step), end]
+        parts = list(zip(cuts[:-1], cuts[1:]))
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=len(parts), thread_name_prefix="jsonreshape-crc") as ex:
+            futures = [ex.submit(self._crc_extend, sg, a, b, 0, cancel) for a, b in parts]
+            crcs = [f.result() for f in futures]
+        crc = crcs[0]
+        for c, (a, b) in zip(crcs[1:], parts[1:]):
+            crc = crc32_combine(crc, c, b - a)
+        return crc
+
     def _verify_crcs(self, entries: Sequence[tuple[int, int, int, int]], seq: int, *,
                      last_good: int | None | str = "auto", cancel: CancelToken | None = None) -> None:
         """The bytes of every checksum entry are unchanged, else :class:`LayerDamagedError` at ``seq``
         (rows written before checksums existed have none: nothing to check)."""
         for sg, s, e, c in entries:
             try:
-                calc = self._crc_extend(sg, s, e, 0, cancel)
+                calc = self._crc_range(sg, s, e, cancel)
             except EditError as exc:
                 raise _damaged(seq, f"{segment_name(sg)} bytes {s}..{e}: {exc.params.get('detail') or exc.key}",
                                last_good=last_good) from exc
@@ -3508,6 +3535,8 @@ class EditStore:
 # checksums of the layer's bytes (crc32 per step of the bytes it appended; zlib's crc32_combine)
 # ----------------------------------------------------------------------------------
 _CRC_READ = 1 << 20
+_CRC_PARALLEL_MIN = 64 << 20               # a checked range this big is read by several threads (_crc_range) ...
+_CRC_THREADS = 4                           # ... at most this many
 _CRC_ZERO_OPS: list[list[int]] = []        # [k]: the GF(2) operator that appends 2**k zero bytes to a crc32
 _CRC_OPS_LOCK = threading.Lock()
 

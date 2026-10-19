@@ -178,7 +178,7 @@ from jmespath import visitor as jmespath_visitor
 from . import codec
 from .appdirs import app_home
 from .errors import JsonReshapeError, PathSyntaxError, QuerySyntaxError, UserInputError
-from .fileio import atomic_write, long_path, make_dirs, open_shared, os_error
+from .fileio import atomic_write, long_path, make_dirs, open_shared, os_error, read_limited
 from .i18n import t
 from .paths import PathPattern, Wild, format_path, parse_pattern
 from .stream import DuplicateKeys, stream_probe, stream_values
@@ -2684,7 +2684,7 @@ class FilterPresets:
     def _load(self) -> list[dict[str, Any]]:
         try:
             with open_shared(self.path, "rb") as f:
-                raw = f.read(_PRESETS_MAX_BYTES + 1)
+                raw = read_limited(f, _PRESETS_MAX_BYTES)
         except Exception as exc:  # missing (normal before the first save) or unreadable
             if os.path.exists(long_path(self.path)):
                 log.warning("cannot read the filter presets %s: %s", self.path, exc)

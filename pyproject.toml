@@ -28,6 +28,11 @@ dev = [
     "maturin>=1.9,<2",
     "jsonschema>=4.18",
 ]
+# the Windows .exe (scripts/build_exe.ps1 installs exactly these; the program itself needs none of them)
+build = [
+    "pyinstaller==6.22.3",
+    "pyinstaller-hooks-contrib==2026.8",
+]
 
 [project.scripts]
 jsonreshape = "jsonreshape.cli:main"
@@ -50,5 +55,6 @@ markers = [
     "slow: slow tests (seconds)",
     "bench: big-file benchmark (run with -m bench)",
     "gui: pytest-qt GUI tests",
+    "packaging: smoke tests of the PyInstaller build in dist/jsonreshape (skipped without it; scripts/build_exe.ps1)",
 ]
 filterwarnings = ["error::pytest.PytestUnraisableExceptionWarning"]

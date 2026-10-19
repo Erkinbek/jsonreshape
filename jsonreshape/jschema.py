@@ -3904,12 +3904,12 @@ def load_schema(path: str | Path) -> Any:
     Raises a localized ``UserInputError`` (``jschema.error.schema_file``) when the file cannot be
     read or is not JSON; a file that cannot be opened raises the localized error of
     :func:`jsonreshape.fileio.open_shared` (``error.file_not_found``, ``error.permission``, ...)."""
-    from .fileio import open_shared
+    from .fileio import open_shared, read_limited
 
     p = Path(path)
     try:
         with open_shared(p, "rb") as f:
-            data = f.read(SCHEMA_FILE_BYTES + 1)
+            data = read_limited(f, SCHEMA_FILE_BYTES)
     except OSError as exc:
         raise UserInputError("jschema.error.schema_file", path=str(p), detail=exc.strerror or str(exc)) from None
     if len(data) > SCHEMA_FILE_BYTES:

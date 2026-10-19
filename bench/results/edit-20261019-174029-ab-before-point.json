@@ -1,0 +1,246 @@
+{
+ "started": 1792413629.4766848,
+ "args": {
+  "child": "False",
+  "op": "",
+  "scen": "base",
+  "home": "base",
+  "keep": "",
+  "patch": "",
+  "data": "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+  "work": "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\65e44ff0-18e2-413f-b083-b5e57d67f8f7\\scratchpad\\p6\\w2g",
+  "pkg": "C:/Users/user34/AppData/Local/Temp/claude/e--Projects-json-flatting/65e44ff0-18e2-413f-b083-b5e57d67f8f7/scratchpad/p6/pkg_before",
+  "repeat": "2",
+  "max_repeat_seconds": "400.0",
+  "only": "export_csv:point,export_csv_auto:point",
+  "label": "ab-before-point",
+  "results_dir": "C:/Users/user34/AppData/Local/Temp/claude/e--Projects-json-flatting/65e44ff0-18e2-413f-b083-b5e57d67f8f7/scratchpad/p6/results",
+  "quiet_load": "35.0",
+  "quiet_timeout": "90.0",
+  "keep_work": "True",
+  "report": "",
+  "baseline": "",
+  "lang": "uz",
+  "md": "",
+  "workers": "0",
+  "note": "[]",
+  "export_report": "False"
+ },
+ "machine": {
+  "python": "3.14.3",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "cpus": 24,
+  "ram_gb": 205.6,
+  "processor": "Intel64 Family 6 Model 198 Stepping 2, GenuineIntel"
+ },
+ "runs": [
+  {
+   "op": "export_csv",
+   "scen": "point",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 43.7,
+     "private_peak_mb": 32.7,
+     "workers": 0,
+     "seconds": 0.01,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 100,
+     "count": 6513235,
+     "layers": 1,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 45.2,
+     "private_peak_mb": 34.0,
+     "workers": 0,
+     "seconds": 0.024,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2147482440,
+     "records": 6513235,
+     "rows": 6513235,
+     "written": 659118776,
+     "columns": 9,
+     "files": 1,
+     "warnings": [],
+     "phase": "op",
+     "rss_peak_mb": 106.3,
+     "private_peak_mb": 97.3,
+     "workers": 0,
+     "seconds": 34.915,
+     "fsync_s": 0.393
+    }
+   },
+   "effective_bytes": 2147482440,
+   "process_peak_wset_mb": 111.3,
+   "process_peak_pagefile_mb": 108.3,
+   "backend": "rust",
+   "wall": 35.69,
+   "load_before": 6.9,
+   "load_mean": 11.8,
+   "load_max": 16.1,
+   "repeat": 1
+  },
+  {
+   "op": "export_csv",
+   "scen": "point",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 43.6,
+     "private_peak_mb": 32.5,
+     "workers": 0,
+     "seconds": 0.01,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 100,
+     "count": 6513235,
+     "layers": 1,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 45.1,
+     "private_peak_mb": 33.8,
+     "workers": 0,
+     "seconds": 0.016,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2147482440,
+     "records": 6513235,
+     "rows": 6513235,
+     "written": 659118776,
+     "columns": 9,
+     "files": 1,
+     "warnings": [],
+     "phase": "op",
+     "rss_peak_mb": 106.9,
+     "private_peak_mb": 97.6,
+     "workers": 0,
+     "seconds": 34.828,
+     "fsync_s": 0.353
+    }
+   },
+   "effective_bytes": 2147482440,
+   "process_peak_wset_mb": 111.3,
+   "process_peak_pagefile_mb": 108.5,
+   "backend": "rust",
+   "wall": 35.6,
+   "load_before": 15.4,
+   "load_mean": 12.0,
+   "load_max": 20.8,
+   "repeat": 2
+  },
+  {
+   "op": "export_csv_auto",
+   "scen": "point",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 43.7,
+     "private_peak_mb": 32.5,
+     "workers": 0,
+     "seconds": 0.01,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 100,
+     "count": 6513235,
+     "layers": 1,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 45.2,
+     "private_peak_mb": 33.8,
+     "workers": 0,
+     "seconds": 0.017,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2147482440,
+     "records": 6513235,
+     "rows": 6513235,
+     "written": 1385962834,
+     "columns": 13,
+     "files": 1,
+     "warnings": [],
+     "phase": "op",
+     "rss_peak_mb": 115.9,
+     "private_peak_mb": 106.3,
+     "workers": 0,
+     "seconds": 75.742,
+     "fsync_s": 0.562
+    }
+   },
+   "effective_bytes": 2147482440,
+   "process_peak_wset_mb": 121.1,
+   "process_peak_pagefile_mb": 119.2,
+   "backend": "rust",
+   "wall": 76.55,
+   "load_before": 9.2,
+   "load_mean": 12.5,
+   "load_max": 17.5,
+   "repeat": 1
+  },
+  {
+   "op": "export_csv_auto",
+   "scen": "point",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 43.5,
+     "private_peak_mb": 32.5,
+     "workers": 0,
+     "seconds": 0.01,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 100,
+     "count": 6513235,
+     "layers": 1,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 45.2,
+     "private_peak_mb": 34.1,
+     "workers": 0,
+     "seconds": 0.017,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2147482440,
+     "records": 6513235,
+     "rows": 6513235,
+     "written": 1385962834,
+     "columns": 13,
+     "files": 1,
+     "warnings": [],
+     "phase": "op",
+     "rss_peak_mb": 115.8,
+     "private_peak_mb": 107.5,
+     "workers": 0,
+     "seconds": 78.841,
+     "fsync_s": 0.562
+    }
+   },
+   "effective_bytes": 2147482440,
+   "process_peak_wset_mb": 121.1,
+   "process_peak_pagefile_mb": 119.6,
+   "backend": "rust",
+   "wall": 79.66,
+   "load_before": 20.1,
+   "load_mean": 14.2,
+   "load_max": 55.2,
+   "repeat": 2
+  }
+ ]
+}

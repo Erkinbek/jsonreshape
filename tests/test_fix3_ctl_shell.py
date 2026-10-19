@@ -105,6 +105,15 @@ def read(path: Path) -> list:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def saved_name(path: Path, index: int) -> object:
+    """``read(path)[index]["name"]`` for polling while a save replaces the file: Windows refuses to open a file
+    for the moment it is being replaced (PermissionError) -- that is "not saved yet", not a failure."""
+    try:
+        return read(path)[index]["name"]
+    except (OSError, ValueError):
+        return None
+
+
 def tree_editor(qtbot, tab: DocumentTab, kp: tuple):
     """Open the real tree view's inline editor on ``kp`` (Enter) and return it."""
     tree = tab.active_view()
@@ -156,7 +165,7 @@ def test_save_commits_the_open_inline_editor_first(qtbot, app, windows, tmp_path
     QTest.keyClicks(ed, "TYPED")
     assert ed.text() == "TYPED" and not tab.dirty
     assert window.save_current()
-    qtbot.waitUntil(lambda: read(path)[1]["name"] == "TYPED", timeout=TIMEOUT)
+    qtbot.waitUntil(lambda: saved_name(path, 1) == "TYPED", timeout=TIMEOUT)
     qtbot.waitUntil(lambda: tab.edit is not None and tab.edit.available and not tab.dirty, timeout=TIMEOUT)
     assert app.errors == []
 
@@ -207,7 +216,7 @@ def test_f5_commits_the_editor_then_asks(qtbot, app, windows, tmp_path, monkeypa
     ed.selectAll()
     QTest.keyClicks(ed, "F5 dan oldin")
     window.reopen_current()
-    qtbot.waitUntil(lambda: read(path)[3]["name"] == "F5 dan oldin", timeout=TIMEOUT)
+    qtbot.waitUntil(lambda: saved_name(path, 3) == "F5 dan oldin", timeout=TIMEOUT)
     assert asked == ["d.json"]
     qtbot.waitUntil(lambda: tab.session.state == "ready" and tab.edit is not None and tab.edit.available,
                     timeout=TIMEOUT)

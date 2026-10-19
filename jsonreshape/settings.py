@@ -163,7 +163,7 @@ class Settings:
         defaults with a logged warning; invalid single values fall back to their defaults
         (warning per value).
         """
-        from .fileio import open_shared
+        from .fileio import open_shared, read_limited
 
         try:
             p = Path(path) if path is not None else settings_file()
@@ -172,7 +172,7 @@ class Settings:
             return cls()
         try:
             with open_shared(p, "rb") as f:
-                raw = f.read(_MAX_SETTINGS_FILE + 1)
+                raw = read_limited(f, _MAX_SETTINGS_FILE)
         except JsonReshapeError as exc:
             if exc.key == "error.file_not_found":
                 log.info("settings file %s not found; using defaults", p)

@@ -1269,6 +1269,14 @@ class MappingState(QObject):
     def _keep_io(self, task: Any) -> None:
         self._io_tasks = [x for x in self._io_tasks if getattr(x, "state", "") == "running"] + [task]
 
+    def install_tree(self, tree: Any, *, wrapper: Any = None, label: str = "", edited: bool = False,
+                     info: dict | None = None) -> bool:
+        """Put a mapping tree that was read elsewhere (an opened mapping file, a workspace's embedded mapping)
+        into the builder the way "Open mapping…" does: the document-kind check (an error is reported, False),
+        the wrapper of wrapped documents, the file's ``input`` info, "Asl holat" from the stored original.
+        ``label`` names its source (a path or a workspace)."""
+        return self._install_loaded(tree, wrapper, label, edited=edited, info=info)
+
     def _install_loaded(self, tree: Any, wrapper: Any, path: str, *, edited: bool = False,
                         info: dict | None = None) -> bool:
         from jsonreshape import engine

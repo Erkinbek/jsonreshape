@@ -1,0 +1,808 @@
+{
+ "version": 1,
+ "run_id": "20261019-194613",
+ "mode": "only",
+ "only": [
+  "apply_2g_w3",
+  "flatten_2g_w3"
+ ],
+ "started": "2026-10-19T19:46:13",
+ "command": [
+  "run_bench.py",
+  "--only",
+  "apply_2g_w3,flatten_2g_w3",
+  "--work-dir",
+  "C:/Users/user34/AppData/Local/Temp/claude/e--Projects-json-flatting/65e44ff0-18e2-413f-b083-b5e57d67f8f7/scratchpad/s6d/work_w3"
+ ],
+ "lang": "uz",
+ "machine": {
+  "cpu": "Intel(R) Core(TM) Ultra 9 285",
+  "cores_physical": 24,
+  "cores_logical": 24,
+  "efficiency_classes": {
+   "0": 16,
+   "1": 8
+  },
+  "p_cores": 8,
+  "e_cores": 16,
+  "ram_total": 205550673920,
+  "ram_available_at_start": 160968912896,
+  "disk": {
+   "free": 376302821376,
+   "total": 1024191361024,
+   "drive": "E:",
+   "fs": "NTFS",
+   "model": "SAMSUNG MZVL81T0HELB-00BH1",
+   "bus": "NVMe",
+   "media": "SSD",
+   "number": 1,
+   "io_key": "PhysicalDrive1"
+  },
+  "os": "Windows-11-10.0.26200-SP0",
+  "python": "3.14.3",
+  "python_impl": "CPython",
+  "power_plan": "Balanced",
+  "core_backend": "rust",
+  "core_backends": [
+   "rust",
+   "python"
+  ],
+  "ijson_backend": "yajl2_c",
+  "versions": {
+   "orjson": "3.13.0",
+   "ijson": "3.6.0",
+   "xlsxwriter": "3.2.9",
+   "jmespath": "1.1.0",
+   "psutil": "7.2.2",
+   "PySide6": "6.12.0"
+  },
+  "app_version": "0.1.0"
+ },
+ "conditions": {
+  "quiet_load_limit": 35.0,
+  "quiet_timeout": 60.0,
+  "wait_for_quiet": true,
+  "repeat_override": null,
+  "poll_seconds": 0.02,
+  "fresh_home_per_run": true,
+  "data_dir": "E:\\Projects\\json flatting\\bench\\data",
+  "work_dir": "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\65e44ff0-18e2-413f-b083-b5e57d67f8f7\\scratchpad\\s6d\\work_w3",
+  "backend_env": "auto",
+  "smoke": false,
+  "load_samples": {
+   "runs_waited_out": 0,
+   "wait_seconds": 4.0,
+   "before": {
+    "min": 3.8,
+    "max": 9.1,
+    "avg": 6.7
+   },
+   "during": {
+    "min": 16.0,
+    "max": 17.4,
+    "avg": 16.8
+   },
+   "others_cores": {
+    "min": 1.4,
+    "max": 1.4,
+    "avg": 1.4
+   }
+  }
+ },
+ "data": {
+  "syn_2g": {
+   "path": "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+   "generated": false,
+   "bytes": 2147483913,
+   "records": 6513235
+  }
+ },
+ "ops": {
+  "apply_2g_w3": {
+   "spec": {
+    "name": "apply_2g_w3",
+    "op": "cli",
+    "data": "syn_2g",
+    "args": [
+     "--",
+     "apply",
+     "E:\\Projects\\json flatting\\bench\\mapping_syn.json",
+     "{in}",
+     "{out}",
+     "-q",
+     "--workers",
+     "3"
+    ],
+    "repeats": 2,
+    "metric": "seconds",
+    "env": [],
+    "keep_home": false,
+    "home_from": null,
+    "out_ext": ".json",
+    "cold": false,
+    "windows_only": false,
+    "is_sort": false,
+    "groups": [
+     "workers"
+    ]
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 24.8067,
+     "peak_rss": 186204160,
+     "peak_rss_tree": 186204160,
+     "peak_rss_child": 186204160,
+     "peak_private": 171954176,
+     "peak_rss_sum": 254382080,
+     "peak_private_sum": 242851840,
+     "processes_max": 4,
+     "processes": [
+      {
+       "pid": 9452,
+       "name": "python.exe",
+       "peak_rss": 4808704,
+       "peak_private": 954368,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 56488,
+       "name": "python.exe",
+       "peak_rss": 186204160,
+       "peak_private": 171954176,
+       "cpu_seconds": 10.422
+      },
+      {
+       "pid": 53536,
+       "name": "python.exe",
+       "peak_rss": 65171456,
+       "peak_private": 66695168,
+       "cpu_seconds": 18.797
+      },
+      {
+       "pid": 14012,
+       "name": "python.exe",
+       "peak_rss": 64995328,
+       "peak_private": 66867200,
+       "cpu_seconds": 18.547
+      },
+      {
+       "pid": 48900,
+       "name": "python.exe",
+       "peak_rss": 64819200,
+       "peak_private": 66301952,
+       "cpu_seconds": 18.781
+      }
+     ],
+     "cpu_seconds": 66.547,
+     "load_during": 17.2,
+     "others_cores_during": 1.45,
+     "child": {
+      "op": "cli",
+      "pid": 56488,
+      "import_seconds": 0.031665,
+      "command": "apply",
+      "argv": [
+       "apply",
+       "E:\\Projects\\json flatting\\bench\\mapping_syn.json",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\65e44ff0-18e2-413f-b083-b5e57d67f8f7\\scratchpad\\s6d\\work_w3\\out\\apply_2g_w3-1.json",
+       "-q",
+       "--workers",
+       "3"
+      ],
+      "exit_code": 0,
+      "total_seconds": 24.303642,
+      "index_seconds": 2.82413,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 21.479512,
+      "input_bytes": 2147483913,
+      "mb_per_s": 99.978,
+      "total_mb_per_s": 88.361,
+      "bytes_written": 3310886629,
+      "files": 1,
+      "out_mb_per_s": 154.142,
+      "stdout_tail": "",
+      "captured": {},
+      "workers": 3,
+      "passes": 1,
+      "records_in": 6513235,
+      "items_out": 6513235,
+      "apply_seconds": 21.386749,
+      "apply_bytes_read": 2147481724,
+      "apply_mb_per_s": 100.412,
+      "unmapped_records": 0,
+      "warnings": [],
+      "op_seconds": 24.632476,
+      "ok": true,
+      "process_seconds": 24.684737,
+      "rss_end": 54820864,
+      "peak_rss": 186204160,
+      "peak_private": 171954176,
+      "cpu_user": 5.562,
+      "cpu_system": 4.828,
+      "io_read_bytes": 7733778125,
+      "io_write_bytes": 5719112276,
+      "home": "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\65e44ff0-18e2-413f-b083-b5e57d67f8f7\\scratchpad\\s6d\\work_w3\\homes\\apply_2g_w3-1"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 9.1,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 9.1
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 25.9148,
+     "peak_rss": 185364480,
+     "peak_rss_tree": 185364480,
+     "peak_rss_child": 185364480,
+     "peak_private": 172064768,
+     "peak_rss_sum": 255332352,
+     "peak_private_sum": 238346240,
+     "processes_max": 4,
+     "processes": [
+      {
+       "pid": 51832,
+       "name": "python.exe",
+       "peak_rss": 4808704,
+       "peak_private": 962560,
+       "cpu_seconds": 0.031
+      },
+      {
+       "pid": 23476,
+       "name": "python.exe",
+       "peak_rss": 185364480,
+       "peak_private": 172064768,
+       "cpu_seconds": 10.5
+      },
+      {
+       "pid": 52424,
+       "name": "python.exe",
+       "peak_rss": 65028096,
+       "peak_private": 66924544,
+       "cpu_seconds": 18.766
+      },
+      {
+       "pid": 42200,
+       "name": "python.exe",
+       "peak_rss": 64630784,
+       "peak_private": 65511424,
+       "cpu_seconds": 18.938
+      },
+      {
+       "pid": 52280,
+       "name": "python.exe",
+       "peak_rss": 65015808,
+       "peak_private": 66736128,
+       "cpu_seconds": 18.516
+      }
+     ],
+     "cpu_seconds": 66.751,
+     "load_during": 16.6,
+     "others_cores_during": 1.41,
+     "child": {
+      "op": "cli",
+      "pid": 23476,
+      "import_seconds": 0.032766,
+      "command": "apply",
+      "argv": [
+       "apply",
+       "E:\\Projects\\json flatting\\bench\\mapping_syn.json",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\65e44ff0-18e2-413f-b083-b5e57d67f8f7\\scratchpad\\s6d\\work_w3\\out\\apply_2g_w3-2.json",
+       "-q",
+       "--workers",
+       "3"
+      ],
+      "exit_code": 0,
+      "total_seconds": 25.370267,
+      "index_seconds": 2.848249,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 22.522017,
+      "input_bytes": 2147483913,
+      "mb_per_s": 95.35,
+      "total_mb_per_s": 84.646,
+      "bytes_written": 3310886629,
+      "files": 1,
+      "out_mb_per_s": 147.007,
+      "stdout_tail": "",
+      "captured": {},
+      "workers": 3,
+      "passes": 1,
+      "records_in": 6513235,
+      "items_out": 6513235,
+      "apply_seconds": 22.432013,
+      "apply_bytes_read": 2147481724,
+      "apply_mb_per_s": 95.733,
+      "unmapped_records": 0,
+      "warnings": [],
+      "op_seconds": 25.739824,
+      "ok": true,
+      "process_seconds": 25.793815,
+      "rss_end": 55025664,
+      "peak_rss": 185364480,
+      "peak_private": 172064768,
+      "cpu_user": 5.172,
+      "cpu_system": 5.312,
+      "io_read_bytes": 7733778125,
+      "io_write_bytes": 5719112275,
+      "home": "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\65e44ff0-18e2-413f-b083-b5e57d67f8f7\\scratchpad\\s6d\\work_w3\\homes\\apply_2g_w3-2"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 6.3,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 6.3
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "op": "cli",
+    "pid": 56488,
+    "import_seconds": 0.031665,
+    "command": "apply",
+    "argv": [
+     "apply",
+     "E:\\Projects\\json flatting\\bench\\mapping_syn.json",
+     "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+     "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\65e44ff0-18e2-413f-b083-b5e57d67f8f7\\scratchpad\\s6d\\work_w3\\out\\apply_2g_w3-1.json",
+     "-q",
+     "--workers",
+     "3"
+    ],
+    "exit_code": 0,
+    "total_seconds": 24.303642,
+    "index_seconds": 2.82413,
+    "indexes": 1,
+    "record_count": 6513235,
+    "seconds": 21.479512,
+    "input_bytes": 2147483913,
+    "mb_per_s": 99.978,
+    "total_mb_per_s": 88.361,
+    "bytes_written": 3310886629,
+    "files": 1,
+    "out_mb_per_s": 154.142,
+    "stdout_tail": "",
+    "captured": {},
+    "workers": 3,
+    "passes": 1,
+    "records_in": 6513235,
+    "items_out": 6513235,
+    "apply_seconds": 21.386749,
+    "apply_bytes_read": 2147481724,
+    "apply_mb_per_s": 100.412,
+    "unmapped_records": 0,
+    "warnings": [],
+    "op_seconds": 24.632476,
+    "ok": true,
+    "process_seconds": 24.684737,
+    "rss_end": 54820864,
+    "peak_rss": 186204160,
+    "peak_private": 171954176,
+    "cpu_user": 5.562,
+    "cpu_system": 4.828,
+    "io_read_bytes": 7733778125,
+    "io_write_bytes": 5719112276,
+    "home": "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\65e44ff0-18e2-413f-b083-b5e57d67f8f7\\scratchpad\\s6d\\work_w3\\homes\\apply_2g_w3-1"
+   },
+   "best_wall_seconds": 24.8067,
+   "metric": "seconds",
+   "metric_values": [
+    21.479512,
+    22.522017
+   ],
+   "peak_rss": 186204160,
+   "peak_private": 172064768,
+   "peak_rss_sum": 255332352,
+   "peak_private_sum": 242851840,
+   "processes_max": 4
+  },
+  "flatten_2g_w3": {
+   "spec": {
+    "name": "flatten_2g_w3",
+    "op": "cli",
+    "data": "syn_2g",
+    "args": [
+     "--",
+     "flatten",
+     "{in}",
+     "{out}",
+     "--children-key",
+     "children",
+     "-q",
+     "--workers",
+     "3"
+    ],
+    "repeats": 2,
+    "metric": "seconds",
+    "env": [],
+    "keep_home": false,
+    "home_from": null,
+    "out_ext": ".json",
+    "cold": false,
+    "windows_only": false,
+    "is_sort": false,
+    "groups": [
+     "workers"
+    ]
+   },
+   "runs": [
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 20.3769,
+     "peak_rss": 129294336,
+     "peak_rss_tree": 129294336,
+     "peak_rss_child": 129294336,
+     "peak_private": 75190272,
+     "peak_rss_sum": 287522816,
+     "peak_private_sum": 239239168,
+     "processes_max": 4,
+     "processes": [
+      {
+       "pid": 50372,
+       "name": "python.exe",
+       "peak_rss": 4804608,
+       "peak_private": 954368,
+       "cpu_seconds": 0.016
+      },
+      {
+       "pid": 36564,
+       "name": "python.exe",
+       "peak_rss": 129294336,
+       "peak_private": 75190272,
+       "cpu_seconds": 11.453
+      },
+      {
+       "pid": 52272,
+       "name": "python.exe",
+       "peak_rss": 61767680,
+       "peak_private": 66912256,
+       "cpu_seconds": 14.703
+      },
+      {
+       "pid": 46620,
+       "name": "python.exe",
+       "peak_rss": 61792256,
+       "peak_private": 65724416,
+       "cpu_seconds": 14.75
+      },
+      {
+       "pid": 55764,
+       "name": "python.exe",
+       "peak_rss": 62021632,
+       "peak_private": 66813952,
+       "cpu_seconds": 14.578
+      }
+     ],
+     "cpu_seconds": 55.5,
+     "load_during": 17.4,
+     "others_cores_during": 1.45,
+     "child": {
+      "op": "cli",
+      "pid": 36564,
+      "import_seconds": 0.034593,
+      "command": "flatten",
+      "argv": [
+       "flatten",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\65e44ff0-18e2-413f-b083-b5e57d67f8f7\\scratchpad\\s6d\\work_w3\\out\\flatten_2g_w3-1.json",
+       "--children-key",
+       "children",
+       "-q",
+       "--workers",
+       "3"
+      ],
+      "exit_code": 0,
+      "total_seconds": 19.835835,
+      "index_seconds": 2.880242,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 16.955593,
+      "input_bytes": 2147483913,
+      "mb_per_s": 126.653,
+      "total_mb_per_s": 108.263,
+      "bytes_written": 3667484241,
+      "files": 1,
+      "out_mb_per_s": 216.299,
+      "stdout_tail": "",
+      "captured": {},
+      "workers": 3,
+      "passes": 1,
+      "records_in": 6513235,
+      "items_out": 6513235,
+      "apply_seconds": 16.683011,
+      "apply_bytes_read": 2147481724,
+      "apply_mb_per_s": 128.723,
+      "unmapped_records": 0,
+      "warnings": [],
+      "op_seconds": 20.198904,
+      "ok": true,
+      "process_seconds": 20.254614,
+      "rss_end": 57176064,
+      "peak_rss": 129294336,
+      "peak_private": 75190272,
+      "cpu_user": 4.984,
+      "cpu_system": 6.453,
+      "io_read_bytes": 8090518905,
+      "io_write_bytes": 6075710120,
+      "home": "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\65e44ff0-18e2-413f-b083-b5e57d67f8f7\\scratchpad\\s6d\\work_w3\\homes\\flatten_2g_w3-1"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 3.8,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 3.8
+     },
+     "run": 1
+    },
+    {
+     "ok": true,
+     "error": null,
+     "returncode": 0,
+     "wall_seconds": 22.4588,
+     "peak_rss": 128741376,
+     "peak_rss_tree": 128741376,
+     "peak_rss_child": 128741376,
+     "peak_private": 73785344,
+     "peak_rss_sum": 293351424,
+     "peak_private_sum": 239927296,
+     "processes_max": 4,
+     "processes": [
+      {
+       "pid": 27792,
+       "name": "python.exe",
+       "peak_rss": 4808704,
+       "peak_private": 962560,
+       "cpu_seconds": 0.0
+      },
+      {
+       "pid": 33208,
+       "name": "python.exe",
+       "peak_rss": 128741376,
+       "peak_private": 73785344,
+       "cpu_seconds": 11.391
+      },
+      {
+       "pid": 52928,
+       "name": "python.exe",
+       "peak_rss": 61870080,
+       "peak_private": 66641920,
+       "cpu_seconds": 14.734
+      },
+      {
+       "pid": 17916,
+       "name": "python.exe",
+       "peak_rss": 61792256,
+       "peak_private": 65871872,
+       "cpu_seconds": 14.641
+      },
+      {
+       "pid": 55324,
+       "name": "python.exe",
+       "peak_rss": 61759488,
+       "peak_private": 65863680,
+       "cpu_seconds": 14.578
+      }
+     ],
+     "cpu_seconds": 55.344,
+     "load_during": 16.0,
+     "others_cores_during": 1.38,
+     "child": {
+      "op": "cli",
+      "pid": 33208,
+      "import_seconds": 0.033125,
+      "command": "flatten",
+      "argv": [
+       "flatten",
+       "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+       "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\65e44ff0-18e2-413f-b083-b5e57d67f8f7\\scratchpad\\s6d\\work_w3\\out\\flatten_2g_w3-2.json",
+       "--children-key",
+       "children",
+       "-q",
+       "--workers",
+       "3"
+      ],
+      "exit_code": 0,
+      "total_seconds": 21.915468,
+      "index_seconds": 2.835538,
+      "indexes": 1,
+      "record_count": 6513235,
+      "seconds": 19.07993,
+      "input_bytes": 2147483913,
+      "mb_per_s": 112.552,
+      "total_mb_per_s": 97.989,
+      "bytes_written": 3667484241,
+      "files": 1,
+      "out_mb_per_s": 192.217,
+      "stdout_tail": "",
+      "captured": {},
+      "workers": 3,
+      "passes": 1,
+      "records_in": 6513235,
+      "items_out": 6513235,
+      "apply_seconds": 18.800526,
+      "apply_bytes_read": 2147481724,
+      "apply_mb_per_s": 114.225,
+      "unmapped_records": 0,
+      "warnings": [],
+      "op_seconds": 22.292892,
+      "ok": true,
+      "process_seconds": 22.34614,
+      "rss_end": 56705024,
+      "peak_rss": 128741376,
+      "peak_private": 73785344,
+      "cpu_user": 5.375,
+      "cpu_system": 5.984,
+      "io_read_bytes": 8090518905,
+      "io_write_bytes": 6075710120,
+      "home": "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\65e44ff0-18e2-413f-b083-b5e57d67f8f7\\scratchpad\\s6d\\work_w3\\homes\\flatten_2g_w3-2"
+     },
+     "stderr_tail": null,
+     "quiet": {
+      "load": 7.5,
+      "waited": 1.0,
+      "quiet": true,
+      "samples": 1,
+      "max": 7.5
+     },
+     "run": 2
+    }
+   ],
+   "ok": true,
+   "error": null,
+   "best": {
+    "op": "cli",
+    "pid": 36564,
+    "import_seconds": 0.034593,
+    "command": "flatten",
+    "argv": [
+     "flatten",
+     "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+     "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\65e44ff0-18e2-413f-b083-b5e57d67f8f7\\scratchpad\\s6d\\work_w3\\out\\flatten_2g_w3-1.json",
+     "--children-key",
+     "children",
+     "-q",
+     "--workers",
+     "3"
+    ],
+    "exit_code": 0,
+    "total_seconds": 19.835835,
+    "index_seconds": 2.880242,
+    "indexes": 1,
+    "record_count": 6513235,
+    "seconds": 16.955593,
+    "input_bytes": 2147483913,
+    "mb_per_s": 126.653,
+    "total_mb_per_s": 108.263,
+    "bytes_written": 3667484241,
+    "files": 1,
+    "out_mb_per_s": 216.299,
+    "stdout_tail": "",
+    "captured": {},
+    "workers": 3,
+    "passes": 1,
+    "records_in": 6513235,
+    "items_out": 6513235,
+    "apply_seconds": 16.683011,
+    "apply_bytes_read": 2147481724,
+    "apply_mb_per_s": 128.723,
+    "unmapped_records": 0,
+    "warnings": [],
+    "op_seconds": 20.198904,
+    "ok": true,
+    "process_seconds": 20.254614,
+    "rss_end": 57176064,
+    "peak_rss": 129294336,
+    "peak_private": 75190272,
+    "cpu_user": 4.984,
+    "cpu_system": 6.453,
+    "io_read_bytes": 8090518905,
+    "io_write_bytes": 6075710120,
+    "home": "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\65e44ff0-18e2-413f-b083-b5e57d67f8f7\\scratchpad\\s6d\\work_w3\\homes\\flatten_2g_w3-1"
+   },
+   "best_wall_seconds": 20.3769,
+   "metric": "seconds",
+   "metric_values": [
+    16.955593,
+    19.07993
+   ],
+   "peak_rss": 129294336,
+   "peak_private": 75190272,
+   "peak_rss_sum": 293351424,
+   "peak_private_sum": 239927296,
+   "processes_max": 4
+  }
+ },
+ "finished": "2026-10-19T19:47:52",
+ "duration_seconds": 98.7,
+ "rows": [
+  {
+   "id": "apply_2g_w3",
+   "section": "extra",
+   "action": "Mapping bilan eksport: `jsonreshape apply` (6 qadamli mapping), syn_2g.json → JSON (indent 2); ishchi jarayonlar: 3 (--workers 3)",
+   "target": "≥ 50 MB/s, RAM < 300 MB",
+   "result": "100.0 MB/s, RAM 255.3 MB (4 ta jarayon birga, private 242.9 MB; bittasining eng kattasi 186.2 MB) (21.5 s; 6 513 235 ta element, chiqish 3.3 GB; apply bosqichi 100 MB/s; jami 24.3 s, shundan indeks 2.82 s)",
+   "status": "✅",
+   "ok": true,
+   "details": {
+    "peak_rss": 255332352,
+    "op": "apply_2g_w3",
+    "workers": 3,
+    "passes": 1,
+    "records_in": 6513235,
+    "items_out": 6513235,
+    "apply_seconds": 21.386749,
+    "apply_mb_per_s": 100.412,
+    "total_seconds": 24.303642,
+    "index_seconds": 2.82413,
+    "seconds": 21.479512,
+    "mb_per_s": 99.978,
+    "bytes_written": 3310886629,
+    "unmapped_records": 0
+   }
+  },
+  {
+   "id": "flatten_2g_w3",
+   "section": "extra",
+   "action": "Rekursiv tekislash bilan eksport: `jsonreshape flatten --children-key children`, syn_2g.json → JSON (indent 2); ishchi jarayonlar: 3 (--workers 3)",
+   "target": "≥ 50 MB/s, RAM < 300 MB",
+   "result": "127 MB/s, RAM 293.4 MB (4 ta jarayon birga, private 239.9 MB; bittasining eng kattasi 129.3 MB) (17.0 s; 6 513 235 ta element, chiqish 3.7 GB; apply bosqichi 129 MB/s; jami 19.8 s, shundan indeks 2.88 s)",
+   "status": "✅",
+   "ok": true,
+   "details": {
+    "peak_rss": 293351424,
+    "op": "flatten_2g_w3",
+    "workers": 3,
+    "passes": 1,
+    "records_in": 6513235,
+    "items_out": 6513235,
+    "apply_seconds": 16.683011,
+    "apply_mb_per_s": 128.723,
+    "total_seconds": 19.835835,
+    "index_seconds": 2.880242,
+    "seconds": 16.955593,
+    "mb_per_s": 126.653,
+    "bytes_written": 3667484241,
+    "unmapped_records": 0
+   }
+  },
+  {
+   "id": "memory",
+   "section": "main",
+   "action": "Dasturning umumiy xotirasi (tartiblashdan boshqa amallarning eng katta peak RSS, ishchi jarayonlari bilan birga)",
+   "target": "< 500 MB",
+   "result": "293.4 MB (eng kattasi: flatten_2g_w3; 2 ta amal)",
+   "status": "✅",
+   "ok": true,
+   "details": {
+    "peak_rss": 293351424,
+    "op": "flatten_2g_w3"
+   }
+  }
+ ],
+ "all_ok": true,
+ "files": {
+  "json": "E:\\Projects\\json flatting\\bench\\results\\20261019-194613.json",
+  "md": "E:\\Projects\\json flatting\\bench\\results\\20261019-194613.md"
+ }
+}

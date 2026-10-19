@@ -15,6 +15,9 @@ Operations, each in a FRESH process (best of ``--repeat`` runs; memory = the lar
 * ``make``          -- building the scenario (the bulk previews of ``third`` / ``all`` are timed here);
 * ``restore``       -- ``Document.open`` (cached index) + ``EditSession.open(restore=True)``;
 * ``export_json``   -- ``writer.export`` JSON, indent 2; ``export_jsonl``; ``export_csv`` (9 scalar columns);
+* ``export_csv_auto`` -- CSV with automatic columns (the column scan + the rows); ``export_xlsx`` (the 9 scalar
+  columns) and ``export_sqlite`` -- of the scenarios ``base`` and ``all`` only (minutes each: XLSX is bounded
+  by xlsxwriter, README decision 39);
 * ``save_as``       -- ``saver.save(doc, target, backup=False)``;
 * ``patch_export``  -- ``jsonpatch.export_patch`` (the net effect against the original file);
 * ``patch_import``  -- the exported patch of a scenario applied to the plain file (a fresh session);
@@ -36,10 +39,14 @@ Usage (from the project root)::
     .venv/Scripts/python.exe bench/edit_bench.py --work DIR --only export_json:all,bulk_set_field
     .venv/Scripts/python.exe bench/edit_bench.py --work DIR --pkg OTHER_DIR       # another copy of jsonreshape
     .venv/Scripts/python.exe bench/edit_bench.py --report RESULTS.json [--baseline BEFORE.json]  # markdown only
+    .venv/Scripts/python.exe bench/edit_bench.py --report RESULTS.json --export-report [--baseline BEFORE.json]
 
 ``--work`` holds the homes, layers and outputs (several GB: the ``all`` layer is as big as the file); outputs are
 deleted after every run, the work folder at the end unless ``--keep-work``. Results: ``<results-dir>/edit-<ts>.json``
-and ``<results-dir>/edit_latest.md`` (Uzbek by default, ``--lang en``), with a "before" column from ``--baseline``.
+and ``<results-dir>/edit_latest.md`` (Uzbek by default, ``--lang en``), with a "before" column from ``--baseline``;
+``--export-report`` writes ``<results-dir>/export_latest.md`` instead: the table exports (CSV, XLSX, SQLite) of
+every scenario. ``--workers N`` asks the exports for N worker processes (``writer.export(..., workers=N)``, when
+the measured package has that parameter; default: automatic, as in the program).
 """
 
 from __future__ import annotations
@@ -56,7 +63,7 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 BENCH = Path(__file__).resolve().parent
 ROOT = BENCH.parent
@@ -65,6 +72,9 @@ MARK = "@@EDIT_BENCH@@ "
 
 SCENARIOS = ("base", "point", "third", "all", "dels")
 EXPORT_OPS = ("export_json", "export_jsonl", "export_csv", "save_as")
+TABLE_OPS = ("export_csv_auto", "export_xlsx", "export_sqlite")
+TABLE_SLOW_OPS = ("export_xlsx", "export_sqlite")      # minutes each: only for TABLE_SLOW_SCENARIOS
+TABLE_SLOW_SCENARIOS = ("base", "all")
 BULK_KINDS = ("set_field", "replace", "rename_key", "delete_field", "clean_strings", "convert_type", "dedupe")
 SCALAR_COLUMNS = ["id", "name", "active", "score", "created_at", "contact.phone", "contact.address.city",
                   "contact.address.street", "contact.address.zip"]
@@ -80,13 +90,18 @@ BULK_SPECS: dict[str, dict[str, Any]] = {
     "dedupe": {"key": "id"},
 }
 MB = 1e6
+CHILD_REFRESH = 0.5        # seconds between refreshes of the sampler's list of child processes
 
 
 # ======================================================================================================
 # child side: one operation in this process
 # ======================================================================================================
 class _Sampler:
-    """Peak RSS (working set) and private bytes of this process plus its child processes, per phase."""
+    """Peak RSS (working set) and private bytes of this process plus its child processes, per phase.
+
+    The list of child processes is refreshed every :data:`CHILD_REFRESH` seconds (``children(recursive=True)``
+    walks every process of the system: ~11 ms with ~400 processes, holding the GIL -- every 20 ms it took a
+    third of the measured operation's thread); the memory of the known ones is sampled every 20 ms."""
 
     def __init__(self) -> None:
         import psutil
@@ -97,16 +112,22 @@ class _Sampler:
         self.phase = "init"
         self.peaks: dict[str, list[int]] = {}
         self.children: dict[int, Any] = {}
+        self.kids: list[Any] = []
+        self.kids_at = 0.0
         threading.Thread(target=self._loop, daemon=True, name="edit-bench-sampler").start()
 
-    def _measure(self) -> tuple[int, int, int]:
+    def _measure(self, refresh: bool = False) -> tuple[int, int, int]:
         mi = self.proc.memory_info()
         rss, prv = int(mi.rss), int(getattr(mi, "private", 0) or mi.vms)
         nkids = 0
-        try:
-            kids = self.proc.children(recursive=True)
-        except Exception:  # noqa: BLE001 - sampling must never fail
-            kids = []
+        now = time.monotonic()
+        if refresh or now - self.kids_at >= CHILD_REFRESH:
+            self.kids_at = now
+            try:
+                self.kids = self.proc.children(recursive=True)
+            except Exception:  # noqa: BLE001 - sampling must never fail
+                self.kids = []
+        kids = self.kids
         for k in kids:
             try:
                 p = self.children.get(k.pid)
@@ -134,13 +155,13 @@ class _Sampler:
             time.sleep(0.02)
 
     def start(self, name: str) -> None:
-        rss, prv, nk = self._measure()
+        rss, prv, nk = self._measure(refresh=True)
         with self.lock:
             self.phase = name
             self.peaks[name] = [rss, prv, nk]
 
     def stop(self) -> dict[str, Any]:
-        rss, prv, nk = self._measure()
+        rss, prv, nk = self._measure(refresh=True)
         with self.lock:
             pk = self.peaks.get(self.phase, [0, 0, 0])
             pk[0], pk[1], pk[2] = max(pk[0], rss), max(pk[1], prv), max(pk[2], nk)
@@ -298,24 +319,44 @@ class _Child:
         doc.close()
 
     def _export(self, fmt: str) -> None:
+        import inspect
+
         from jsonreshape.writer import ExportOptions, export
 
         doc = self.open_doc()
         s = self.open_session(doc)
-        out = self.work / "out" / f"{self.args.scen}.{fmt}"
+        ext = {"csv_auto": "csv"}.get(fmt, fmt)
+        out = self.work / "out" / f"{self.args.scen}_{fmt}.{ext}"
         out.parent.mkdir(parents=True, exist_ok=True)
         if fmt == "json":
             opts = ExportOptions("json", indent=2)
         elif fmt == "jsonl":
             opts = ExportOptions("jsonl")
+        elif fmt == "csv_auto":
+            opts = ExportOptions("csv")
+        elif fmt == "xlsx":
+            opts = ExportOptions("xlsx", columns=list(SCALAR_COLUMNS))
+        elif fmt == "sqlite":
+            opts = ExportOptions("sqlite")
         else:
             opts = ExportOptions("csv", columns=list(SCALAR_COLUMNS))
+        kw: dict[str, Any] = {}
+        if self.args.workers and "workers" in inspect.signature(export).parameters:
+            kw["workers"] = int(self.args.workers)
+        files: list[Path] = [out]
         try:
             with self.phase("op") as info:
-                rep = export(doc, out, opts)
-                info.update(bytes=self.out["effective_bytes"], records=rep.records, written=rep.bytes_written)
+                rep = export(doc, out, opts, **kw)
+                files = list(rep.files) or [out]
+                info.update(bytes=self.out["effective_bytes"], records=rep.records, rows=rep.rows,
+                            written=rep.bytes_written, columns=len(rep.columns), files=len(rep.files),
+                            warnings=list(getattr(rep, "warning_keys", [])))
+                used = getattr(rep, "workers", None)
+                if used is not None:
+                    info["workers_used"] = int(used)
         finally:
-            self.rm(out)
+            for p in files:
+                self.rm(Path(p))
         s.close()
         doc.close()
 
@@ -327,6 +368,15 @@ class _Child:
 
     def op_export_csv(self) -> None:
         self._export("csv")
+
+    def op_export_csv_auto(self) -> None:
+        self._export("csv_auto")
+
+    def op_export_xlsx(self) -> None:
+        self._export("xlsx")
+
+    def op_export_sqlite(self) -> None:
+        self._export("sqlite")
 
     def op_save_as(self) -> None:
         from jsonreshape import saver
@@ -464,6 +514,8 @@ def run_child(args: argparse.Namespace, op: str, scen: str, home: str, **extra: 
            "--data", str(args.data), "--work", str(args.work)]
     if args.pkg:
         cmd += ["--pkg", str(args.pkg)]
+    if args.workers:
+        cmd += ["--workers", str(args.workers)]
     for k, v in extra.items():
         cmd += [f"--{k}", str(v)]
     load0 = _wait_quiet(args.quiet_load, args.quiet_timeout)
@@ -496,6 +548,8 @@ def _summary(res: dict[str, Any]) -> str:
         s += f" rss {ph['rss_peak_mb']} prv {ph['private_peak_mb']}"
         if ph.get("workers"):
             s += f" w{ph['workers']}"
+        if ph.get("workers_used"):
+            s += f" used{ph['workers_used']}"
         parts.append(s)
     return "; ".join(parts) + f" | wall {res['wall']}s load {res['load_before']}/{res['load_mean']}/{res['load_max']}"
 
@@ -509,6 +563,9 @@ def plan(args: argparse.Namespace) -> list[tuple[str, str]]:
         out.append(("restore", scen))
         for op in EXPORT_OPS:
             out.append((op, scen))
+        for op in TABLE_OPS:
+            if op not in TABLE_SLOW_OPS or scen in TABLE_SLOW_SCENARIOS:
+                out.append((op, scen))
         if scen != "base":
             out.append(("patch_export", scen))
             out.append(("undo_redo", scen))
@@ -652,6 +709,102 @@ EDIT_BENCH_MESSAGES: dict[str, dict[str, str]] = {
     "eb.op.export_json": {"uz": "Eksport JSON (indent 2)", "en": "Export JSON (indent 2)"},
     "eb.op.export_jsonl": {"uz": "Eksport JSON Lines", "en": "Export JSON Lines"},
     "eb.op.export_csv": {"uz": "Eksport CSV (9 ta skalyar ustun)", "en": "Export CSV (9 scalar columns)"},
+    "eb.op.export_csv_auto": {"uz": "Eksport CSV (avtomatik ustunlar)", "en": "Export CSV (automatic columns)"},
+    "eb.op.export_xlsx": {"uz": "Eksport XLSX (9 ta skalyar ustun)", "en": "Export XLSX (9 scalar columns)"},
+    "eb.op.export_sqlite": {"uz": "Eksport SQLite", "en": "Export SQLite"},
+    "eb.x.title": {"uz": "# jsonreshape: jadval eksportlari benchmarki (CSV, XLSX, SQLite; AGENT_PROMPT §12)",
+                   "en": "# jsonreshape: table export benchmark (CSV, XLSX, SQLite; AGENT_PROMPT §12)"},
+    "eb.x.sec.main": {"uz": "## §12 maqsadi: tahrirlar bilan (va tahrirsiz) jadval eksporti",
+                      "en": "## §12 target: table exports with (and without) edits"},
+    "eb.x.what": {
+        "uz": "P6 o'zgarishlari (`jsonreshape/writer.py`): CSV qatorlari ishchi jarayonlarda tayyorlanadi "
+              "(`writer.export(..., workers=None)`: 64 MiB dan katta tanlovda avtomatik, `bulk.auto_workers` — "
+              "standart xotira chegarasi (512 MiB) bilan 4 ta); ota jarayon bloklarni o'qiydi va natijalarni tartib "
+              "bilan yozadi — fayl bir oqimli yozuvchinikidan bayt-bayt farq qilmaydi (2,1 GB faylda SHA-256 bilan "
+              "tekshirildi: tahrirsiz, «hamma yozuv o'zgargan» va «10% o'chirilgan» holatlarida, 9 ta ustun, avtomatik "
+              "ustunlar va qatorlar rejimi). Avtomatik ustunlarni topish skaneri ham ishchi jarayonlarda (har blok o'z "
+              "skaneri, natijalar tartib bilan birlashtiriladi; map-ga o'xshash obyekt yoki juda ko'p yo'l bo'lsa — "
+              "bir oqimli skaner). XLSX: 2 ta ishchi kataklarni tayyorlaydi, xlsxwriter ota jarayonda (varaq bir "
+              "xil). SQLite o'zgarmagan (nazorat). Qatlamni tiklash (`editstore.py`): 64 MiB va undan katta nazorat "
+              "yig'indisi oralig'i 4 ta oqimda bo'laklab o'qiladi (tekshiruv o'sha, holat qaytarilishidan oldin "
+              "tugaydi).",
+        "en": "P6 changes (`jsonreshape/writer.py`): the CSV rows are built in worker processes "
+              "(`writer.export(..., workers=None)`: automatic for a selection over 64 MiB, `bulk.auto_workers` of "
+              "them — 4 with the default 512 MiB memory limit); the parent reads the blocks and writes the results "
+              "in order — byte-identical to the one-thread writer (checked with SHA-256 on the 2.1 GB file: plain, "
+              "«every record changed» and «10% deleted», 9 columns, automatic columns and rows mode). The scan for "
+              "automatic columns runs in the workers too (a scan per block, merged in order; map-like objects or "
+              "very many paths: the one-thread scan). XLSX: 2 workers prepare the cells, xlsxwriter in the parent "
+              "(the same workbook). SQLite unchanged (control). Restoring a layer (`editstore.py`): a checksummed "
+              "range of 64 MiB or more is read in pieces by 4 threads (the same check, finished before the state "
+              "is returned)."},
+    "eb.x.method": {
+        "uz": "«Oldin» va «Keyin» bir xil skript bilan, bir xil sharoitda o'lchandi (`--pkg`: P6 dan oldingi va "
+              "keyingi paket nusxalari): CSV — har ssenariyda 2 tadan, eng yaxshisi; XLSX va SQLite — bir martadan, "
+              "ketma-ket (har biri bir necha daqiqa; SQLite kodi o'zgarmagan — farq kompyuter yuklamasidan); "
+              "qatlamni tiklash — 3 tadan, ketma-ket. Xotira o'lchagichi bola jarayonlar ro'yxatini endi har 0,5 s da "
+              "yangilaydi (avval har 20 ms da: ~400 jarayonli tizimda ~11 ms GIL ni band qilib, o'lchanayotgan "
+              "bir oqimli amalni sekinlashtirgan — P3 jadvalidagi CSV raqamlari shu sababli ham pastroq); bu "
+              "jadvaldagi ikkala ustun yangi o'lchagich bilan.",
+        "en": "«Before» and «After» ran with the same script under the same conditions (`--pkg`: copies of the "
+              "package before and after P6): CSV twice per scenario, the best counts; XLSX and SQLite once each, back "
+              "to back (minutes per run; the SQLite code did not change — the difference is the machine's load); the "
+              "layer restore 3 times, back to back. The memory sampler now refreshes its list of child processes every "
+              "0.5 s (it did every 20 ms: ~11 ms holding the GIL on a system with ~400 processes, slowing the "
+              "measured one-thread operation — one reason the CSV numbers of the P3 table were lower); both columns "
+              "here use the new sampler."},
+    "eb.x.final": {
+        "uz": "«Oldin» — P6 dan oldingi paket nusxasi (`--pkg`), 2026-10-19 da kompyuter boshqa agentlar bilan band "
+              "paytida o'lchangan; «Keyin» — yakuniy kod (6-bosqich), kompyuterda boshqa agent yoki og'ir ish yo'q "
+              "paytda (S6-D), o'sha skript va o'sha xotira o'lchagich bilan (bola jarayonlar ro'yxati har 0,5 s da "
+              "yangilanadi). Takrorlar: 2 ta, eng yaxshisi; 150 s dan uzoq amal bir marta.",
+        "en": "«Before» is the package copy from before P6 (`--pkg`), measured on 2026-10-19 while other agents used "
+              "the machine; «After» is the final code (stage 6) with no other agent and no heavy work on the machine "
+              "(S6-D), the same script and the same memory sampler (the list of child processes refreshed every "
+              "0.5 s). Runs: 2, the best counts; an operation over 150 s once."},
+    "eb.x.cause.export_csv": {
+        "uz": "qatorlar ishchi jarayonlarda tayyorlanadi; ota jarayon tahrirlangan hujjat bloklarini yig'adi va "
+              "natijani yozadi — kompyuter band bo'lsa ishchilar sekinlashadi.",
+        "en": "the rows are built in worker processes; the parent assembles the blocks of the edited document and "
+              "writes the results — the workers slow down on a busy machine."},
+    "eb.x.opts.export_csv": {
+        "uz": "1) ko'proq ishchi jarayon (memory_limit_bytes oshirilsa); 2) qator qurishni Rust yadroga o'tkazish.",
+        "en": "1) more worker processes (a larger memory_limit_bytes); 2) move the row building into the Rust core."},
+    "eb.x.cause.export_csv_auto": {
+        "uz": "ustunlarni topish uchun barcha yozuvlar ikki marta o'qiladi (skaner + qatorlar).",
+        "en": "every record is read twice (the column scan, then the rows)."},
+    "eb.x.opts.export_csv_auto": {
+        "uz": "1) ustunlarni qo'lda tanlash (skaner o'tkazib yuboriladi); 2) Rust yadroda skaner.",
+        "en": "1) choose the columns (no scan); 2) a scan in the Rust core."},
+    "eb.x.cause.export_xlsx": {
+        "uz": "xlsxwriter har katakni Python'da XML ga yozadi (~2,5 mks / katak) va oxirida zip quradi (README qaror "
+              "39): cProfile bo'yicha vaqtning ~80% i xlsxwriter'ning katak yozishi, ~5% zip; qiymatlarni tayyorlash "
+              "(~15%) endi ishchi jarayonlarda, lekin xlsxwriter ota jarayonda bitta oqimda qoladi.",
+        "en": "xlsxwriter writes every cell as XML in Python (~2.5 µs per cell) and builds the zip at the end (README "
+              "decision 39): by cProfile ~80% of the time is xlsxwriter's cell writing, ~5% the zip; preparing the "
+              "values (~15%) now runs in worker processes, but xlsxwriter stays one thread in the parent."},
+    "eb.x.opts.export_xlsx": {
+        "uz": "o'z XLSX yozuvchimiz: varaq XML'ini ishchi jarayonlarda tayyorlash (qatorlar tartib bilan), zip alohida "
+              "oqimda — 6-bosqichda ixtiyoriy (qaror 39); hozircha katta jadvallar uchun CSV.",
+        "en": "an own XLSX writer: the sheet XML built in worker processes (rows in order), the zip in its own "
+              "thread — optional in stage 6 (decision 39); for big tables CSV for now."},
+    "eb.x.cause.export_sqlite": {
+        "uz": "ikki o'tish (map-larni topish, so'ng qatorlar); har yozuv Python'da jadvallarga bo'linadi (har katak "
+              "uchun tur tekshiruvi, ustun/jadval reestri) va sqlite3 executemany bilan bitta oqimda yoziladi.",
+        "en": "two passes (map detection, then the rows); every record is split into tables in Python (a type "
+              "check per cell, the column / table registry) and written with sqlite3 executemany in one thread."},
+    "eb.x.opts.export_sqlite": {
+        "uz": "1) birinchi o'tishni (map-lar) ishchi jarayonlarda bajarish (CSV skaneri kabi); 2) qatorlarni ishchi "
+              "jarayonlarda tayyorlash (jadval/ustun reestri va _id/_parent ota jarayonda) — keyingi ish.",
+        "en": "1) run the first pass (maps) in worker processes (like the CSV scan); 2) build the rows in worker "
+              "processes (the table / column registry and _id / _parent in the parent) — later work."},
+    "eb.x.rerun": {
+        "uz": "Qayta o'lchash: `.venv/Scripts/python.exe bench/edit_bench.py --work DIR --only "
+              "export_csv,export_csv_auto,export_xlsx,export_sqlite [--pkg PAKET] [--workers N]`; faqat hisobot: "
+              "`--report NATIJA.json --export-report --baseline OLDINGI.json`.",
+        "en": "Re-run: `.venv/Scripts/python.exe bench/edit_bench.py --work DIR --only "
+              "export_csv,export_csv_auto,export_xlsx,export_sqlite [--pkg PACKAGE] [--workers N]`; the report only: "
+              "`--report RESULTS.json --export-report --baseline EARLIER.json`."},
     "eb.op.save_as": {"uz": "Boshqacha saqlash (Save As)", "en": "Save As"},
     "eb.op.patch_export": {"uz": "JSON Patch eksporti", "en": "JSON Patch export"},
     "eb.op.patch_import": {"uz": "JSON Patch importi (tahrirsiz faylga, yangi sessiya)",
@@ -769,17 +922,43 @@ EDIT_BENCH_MESSAGES: dict[str, dict[str, str]] = {
         "en": "- The output is fsynced; the fsync time is measured on its own (a large share on this drive) and the "
               "rate without it is shown too. Outputs and layers are on drive C: (the agent's scratch folder)."},
     "eb.cond.load": {
-        "uz": "- Kompyuter boshqa agentlar bilan umumiy: har o'lchovdan oldin yuklama ≤ {limit}% bo'lishi kutildi "
-              "(ko'pi bilan {timeout} s); o'lchovlar paytidagi yuklama: o'rtacha {mean}%, eng ko'pi {max}%.",
-        "en": "- The machine is shared with other agents: before every run the load had to drop to ≤ {limit}% (waiting "
-              "at most {timeout} s); the load during the runs: {mean}% on average, at most {max}%."},
+        "uz": "- Har o'lchovdan oldin tizim CPU yuklamasi ≤ {limit}% bo'lishi kutildi (ko'pi bilan {timeout} s); "
+              "o'lchovlar paytidagi yuklama (o'lchanayotgan amalning o'zi ham kiradi): o'rtacha {mean}%, eng ko'pi "
+              "{max}%.",
+        "en": "- Before every run the system CPU load had to drop to ≤ {limit}% (waiting at most {timeout} s); the "
+              "load during the runs (the measured operation included): {mean}% on average, at most {max}%."},
+    "eb.cond.shared": {
+        "uz": "- Kompyuter boshqa agentlar bilan umumiy edi (ular o'z testlari va o'lchovlarini ishlatgan).",
+        "en": "- The machine was shared with other agents (running their own tests and measurements)."},
+    "eb.cond.final": {
+        "uz": "- Yakuniy o'lchov (6-bosqich, S6-D): kompyuterda boshqa agent yoki og'ir ish yo'q edi; «Keyin» — "
+              "yakuniy kod. «Oldin» — 3-bosqichning unumdorlik ishidan (P3) oldingi paket nusxasi, 2026-10-19 da "
+              "kompyuter boshqa agentlar bilan band paytida o'lchangan (`edit-20261019-112336-before.json`); "
+              "tahrirsiz fayl qatorlari ikki o'lchov sharoitining farqini ko'rsatadi.",
+        "en": "- The final measurement (stage 6, S6-D): no other agent and no heavy work on the machine; «After» is "
+              "the final code. «Before» is the package copy from before the stage-3 performance round (P3), "
+              "measured on 2026-10-19 while other agents used the machine (`edit-20261019-112336-before.json`); "
+              "the plain-file rows show how the conditions of the two runs differ."},
     "eb.cond.snapshots": {
-        "uz": "- «Oldin» va «Keyin» jsonreshape paketining ikki nusxasida o'lchandi (`--pkg`): o'rtada boshqa "
-              "agentlar ham o'z modullarini o'zgartirgan (writer, editstore, index, fileio, ...); tahrirsiz fayl "
-              "qatorlari ularning ta'sirini ko'rsatuvchi nazorat.",
-        "en": "- «Before» and «After» ran on two copies of the jsonreshape package (`--pkg`): other agents changed "
-              "their modules in between too (writer, editstore, index, fileio, ...); the plain-file rows are the "
+        "uz": "- «Oldin» — `--baseline` dagi o'lchov (boshqa paket nusxasi, `--pkg`, yoki oldingi o'lchov): o'rtada "
+              "boshqa modullar ham o'zgargan (writer, editstore, index, fileio, ...); tahrirsiz fayl qatorlari "
+              "ularning ta'sirini ko'rsatuvchi nazorat.",
+        "en": "- «Before» is the run of `--baseline` (another copy of the package, `--pkg`, or an earlier run): other "
+              "modules changed in between too (writer, editstore, index, fileio, ...); the plain-file rows are the "
               "control for their effect."},
+    "eb.cond.p6": {
+        "uz": "- P6 (2026-10-19): «Keyin» ustunidagi «Eksport CSV» qatorlari va «Ochish + qatlamni tiklash» qatorlari "
+              "(har 3-yozuv, hamma yozuv, 10% o'chirilgan) P6 dan keyingi paket bilan qayta o'lchandi (CSV qatorlari "
+              "ishchi jarayonlarda; qatlam nazorat yig'indilari 4 ta oqimda; `edit-*-ab-final-*.json`) va yangi xotira "
+              "o'lchagich bilan: u bola jarayonlar ro'yxatini har 0,5 s da yangilaydi (avvalgi har-20-ms ro'yxat GIL ni "
+              "~11 ms band qilib, bir oqimli amallarni sekinlashtirgan, shuning uchun «Oldin» ustunidagi CSV raqamlari "
+              "pastroq). Qolgan qatorlar P3 o'lchovlari. Bir xil sharoitdagi oldin/keyin: `export_latest.md`.",
+        "en": "- P6 (2026-10-19): the «Export CSV» rows and the «Open + restore the layer» rows (every 3rd record, "
+              "every record, 10% deleted) of the «After» column were measured again with the package after P6 (the "
+              "CSV rows in worker processes; the layer's checksums in 4 threads; `edit-*-ab-final-*.json`) and the new "
+              "memory sampler: it refreshes its list of child processes every 0.5 s (listing them every 20 ms held "
+              "the GIL ~11 ms and slowed one-thread operations, so the CSV numbers of the «Before» column are lower). "
+              "The other rows are P3's. Before / after under the same conditions: `export_latest.md`."},
     "eb.cond.cache": {
         "uz": "- Ma'lumot fayli OS keshida (iliq kesh); 205 GB RAM.",
         "en": "- The data file is in the OS cache (warm); 205 GB of RAM."},
@@ -889,9 +1068,10 @@ def load_results(paths: list[Path]) -> dict[str, Any]:
 
 
 def write_report(results_path: Path | list[Path], baseline_path: Path | None, lang: str = "uz",
-                 out_md: Path | None = None) -> Path:
+                 out_md: Path | None = None, notes: Sequence[str] = ()) -> Path:
     """The markdown report of a results file (or several: :func:`load_results`) with an «earlier» column
-    from ``baseline_path``."""
+    from ``baseline_path``; ``notes``: keys of :data:`EDIT_BENCH_MESSAGES` added to the measurement
+    conditions (e.g. ``eb.cond.p6``: which rows a later run replaced)."""
     for p in (str(ROOT), str(BENCH)):
         if p not in sys.path:
             sys.path.insert(0, p)
@@ -1027,7 +1207,20 @@ def write_report(results_path: Path | list[Path], baseline_path: Path | None, la
             lines.append(t("eb.miss.options", text=t(f"eb.opts.{cat}")))
     if not misses:
         lines.append("—")
-    lines += ["", t("eb.sec.machine"), ""]
+    lines += _machine_and_conditions(after, data, before is not None)
+    lines += [t(key) for key in notes]
+    lines += ["", t("eb.sec.unmeasured"), "", t("eb.unmeasured.gui"), t("eb.unmeasured.5g"), "", t("eb.rerun"), ""]
+    text = "\n".join(line for line in lines if line is not None)
+    target = out_md or (results_path.parent / "edit_latest.md")
+    target.write_text(text, encoding="utf-8")
+    return target
+
+
+def _machine_and_conditions(after: dict[str, Any], data: Path, with_before: bool) -> list[str]:
+    """The «Machine» and «Measurement conditions» sections of a report."""
+    from jsonreshape.i18n import t
+
+    lines = ["", t("eb.sec.machine"), ""]
     m = dict(after.get("machine", {}))
     try:
         import run_bench  # bench/run_bench.py: the machine description of the main benchmark
@@ -1061,11 +1254,84 @@ def write_report(results_path: Path | list[Path], baseline_path: Path | None, la
               t("eb.cond.load", limit=args.get("quiet_load", "35"), timeout=args.get("quiet_timeout", "60"),
                 mean=_fmt_num(sum(r["load_mean"] for r in loads) / max(1, len(loads))),
                 max=_fmt_num(max((r["load_max"] for r in loads), default=0.0))),
-              t("eb.cond.snapshots") if before else None, t("eb.cond.cache"),
-              "", t("eb.sec.unmeasured"), "", t("eb.unmeasured.gui"), t("eb.unmeasured.5g"), "", t("eb.rerun"), "")
+              t("eb.cond.snapshots") if with_before else None, t("eb.cond.cache"))
               if line is not None]
+    return lines
+
+
+# ======================================================================================================
+# the table-export report (bench/results/export_latest.md): CSV, XLSX and SQLite of every scenario
+# ======================================================================================================
+TABLE_REPORT_OPS = ("export_csv", "export_csv_auto", "export_xlsx", "export_sqlite")
+
+
+def write_export_report(results_path: Path | list[Path], baseline_path: Path | list[Path] | None,
+                        lang: str = "uz", out_md: Path | None = None, notes: Sequence[str] = ()) -> Path:
+    """The markdown report of the table exports (``export_csv``, ``export_csv_auto``, ``export_xlsx``,
+    ``export_sqlite``) of a results file (or several, :func:`load_results`) with an «earlier» column from
+    ``baseline_path`` (one file or several, merged the same way; default output:
+    ``<results-dir>/export_latest.md``); ``notes``: keys of :data:`EDIT_BENCH_MESSAGES` that describe how the two
+    columns were measured (instead of ``eb.x.method``, the P6 comparison)."""
+    for p in (str(ROOT), str(BENCH)):
+        if p not in sys.path:
+            sys.path.insert(0, p)
+    from jsonreshape import i18n
+    from jsonreshape.i18n import t
+
+    _register_messages()
+    i18n.set_language(lang)
+    paths = results_path if isinstance(results_path, list) else [results_path]
+    after = load_results(paths)
+    bases = [] if not baseline_path else baseline_path if isinstance(baseline_path, list) else [baseline_path]
+    before = load_results(bases) if bases else None
+    baseline_path = bases[0] if bases else None
+    A, B = _runs_of(after), _runs_of(before)
+    rows: list[tuple[str, str, _Cell, _Cell, bool | None, str]] = []
+    for scen in ("base", "point", "third", "all", "dels"):
+        for op in TABLE_REPORT_OPS:
+            if not A.get((op, scen)) and not B.get((op, scen)):
+                continue
+            a, b = _cell(A.get((op, scen)), "op"), _cell(B.get((op, scen)), "op")   # (workers: from the sampler)
+            ok = None if a.rate is None else (a.rate >= 50 and (a.rss or 0) < 300)
+            rows.append((f"{t('eb.op.' + op)}, {t('eb.scen.' + scen)}", t("eb.target.export"), b, a, ok, op))
+        if A.get(("restore", scen)) or B.get(("restore", scen)):          # (the layer's checksums, P6)
+            a = _cell(A.get(("restore", scen)), "restore", rate=False)
+            b = _cell(B.get(("restore", scen)), "restore", rate=False)
+            rows.append((f"{t('eb.op.restore')}, {t('eb.scen.' + scen)}", t("eb.target.none"), b, a, None, "restore"))
+    data = Path(after.get("args", {}).get("data", "syn_2g.json"))
+    size = data.stat().st_size if data.exists() else 0
+    records = ""
+    for r in after.get("runs", []):
+        rec = r.get("phases", {}).get("open", {}).get("records")
+        if rec:
+            records = f"{int(rec):,}".replace(",", " ")
+            break
+    lines = [t("eb.x.title"), "",
+             t("eb.head", date=datetime.fromtimestamp(float(after.get("started", time.time()))).strftime(
+                 "%Y-%m-%d %H:%M"),
+               data=data.name, size=f"{size / 1e9:.1f} GB", records=records,
+               json="`, `".join(p.name for p in paths),
+               before=t("eb.head.before", json="`, `".join(p.name for p in bases)) if bases else ""), "",
+             t("eb.x.sec.main"), "", t("eb.col"), "|---|---|---|---|:---:|"]
+    for label, target, b, a, ok, _op in rows:
+        lines.append(f"| {label} | {target} | {b.text} | {a.text} | {_status(ok)} |")
+    method = [t(key).lstrip("- ") for key in notes] or [t("eb.x.method")]
+    lines += ["", t("eb.legend"), "", t("eb.x.what"), ""] + [x for m in method for x in (m, "")]
+    lines += [t("eb.sec.misses"), ""]
+    misses = [row for row in rows if row[4] is False]
+    seen: set[str] = set()
+    for label, target, _b, a, _ok, op in misses:
+        lines.append(t("eb.miss.line", row=label, value=a.text, target=target))
+        if op not in seen:
+            seen.add(op)
+            lines.append(t("eb.miss.cause", text=t(f"eb.x.cause.{op}")))
+            lines.append(t("eb.miss.options", text=t(f"eb.x.opts.{op}")))
+    if not misses:
+        lines.append("—")
+    lines += _machine_and_conditions(after, data, before is not None)
+    lines += ["", t("eb.sec.unmeasured"), "", t("eb.unmeasured.gui"), t("eb.unmeasured.5g"), "", t("eb.x.rerun"), ""]
     text = "\n".join(line for line in lines if line is not None)
-    target = out_md or (results_path.parent / "edit_latest.md")
+    target = out_md or (paths[0].parent / "export_latest.md")
     target.write_text(text, encoding="utf-8")
     return target
 
@@ -1095,12 +1361,23 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--baseline", default="", help="results file of the 'before' run (report column)")
     ap.add_argument("--lang", default="uz")
     ap.add_argument("--md", default="", help="markdown file of the report (default: <results-dir>/edit_latest.md)")
+    ap.add_argument("--workers", type=int, default=0,
+                    help="worker processes asked of the exports (0: automatic, as in the program)")
+    ap.add_argument("--note", action="append", default=[],
+                    help="with --report: a message key added to the measurement conditions (repeatable)")
+    ap.add_argument("--export-report", action="store_true",
+                    help="with --report: write the table-export report (default: <results-dir>/export_latest.md)")
     args = ap.parse_args(argv)
     if args.child:
         child_main(args)
     elif args.report:
-        out = write_report([Path(p) for p in args.report.split(",")], Path(args.baseline) if args.baseline else None,
-                           args.lang, Path(args.md) if args.md else None)
+        paths = [Path(p) for p in args.report.split(",")]
+        base = Path(args.baseline) if args.baseline else None
+        if args.export_report:
+            bases = [Path(p) for p in args.baseline.split(",")] if args.baseline else None
+            out = write_export_report(paths, bases, args.lang, Path(args.md) if args.md else None, notes=args.note)
+        else:
+            out = write_report(paths, base, args.lang, Path(args.md) if args.md else None, notes=args.note)
         print("report:", out)
     else:
         runner_main(args)

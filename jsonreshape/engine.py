@@ -1686,7 +1686,7 @@ WRITE_BUFFER = 1 * MiB
 CHECK_EVERY = 1024                # records evaluated between cancellation checks
 POOL_MIN_BYTES = 64 * MiB         # inputs smaller than this never use worker processes
 POOL_MAX_WORKERS = 8
-WORKER_MEMORY = 64 * MiB          # memory one worker process needs (measured peak ~60 MB)
+WORKER_MEMORY = 80 * MiB          # one worker process (~62-66 MB measured) and its share of the parent's blocks
 
 
 @dataclass
@@ -2061,8 +2061,10 @@ def _pool_block(part_index: int, data: bytes, spans: bytes, indices: bytes, cont
 def auto_workers(input_bytes: int, settings: Any) -> int:
     """Worker processes :func:`apply` uses by itself: none below :data:`POOL_MIN_BYTES` of input, else
     ``min(cpu_count - 1, 8)``, and no more than half of ``Settings.memory_limit_bytes`` allows at
-    :data:`WORKER_MEMORY` per worker (measured peak ~60 MB each: the interpreter, the modules and one parsed
-    block) -- 4 with the default 512 MiB budget, which keeps the whole export (parent included) under ~300 MB."""
+    :data:`WORKER_MEMORY` per worker (measured peak ~62-66 MB each: the interpreter, the modules and one parsed
+    block; the parent's blocks in flight grow with the workers) -- 3 with the default 512 MiB budget, which keeps
+    the whole export (parent included) under 300 MB: on the 2 GB benchmark `apply` 264 MB and `flatten` 299 MB at
+    97-129 MB/s, while 4 workers summed to 321-355 MB for at most 20 % more speed (README §14)."""
     if input_bytes < POOL_MIN_BYTES:
         return 1
     by_cpu = min((os.cpu_count() or 1) - 1, POOL_MAX_WORKERS)
@@ -2076,7 +2078,11 @@ def _spawn_safe() -> bool:
     ``__main__`` (``python -m jsonreshape``, ``python -m pytest``; multiprocessing skips those), the
     console-script launchers (``__main__`` of a zip), jsonreshape's own modules (no top-level actions) and
     an interactive interpreter (no main file). A plain script must protect its ``main()`` with
-    ``if __name__ == "__main__":`` and ask for workers explicitly (``ApplyOptions.workers``)."""
+    ``if __name__ == "__main__":`` and ask for workers explicitly (``ApplyOptions.workers``). A frozen
+    executable (PyInstaller) is safe: its entry scripts call ``multiprocessing.freeze_support()`` first, and
+    a spawned worker is the same executable started in its worker mode."""
+    if getattr(sys, "frozen", False):
+        return True
     main = sys.modules.get("__main__")
     spec = getattr(main, "__spec__", None)
     name = getattr(spec, "name", None)

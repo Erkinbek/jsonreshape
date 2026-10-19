@@ -1,0 +1,144 @@
+{
+ "started": 1792415826.2288299,
+ "args": {
+  "child": "False",
+  "op": "",
+  "scen": "base",
+  "home": "base",
+  "keep": "",
+  "patch": "",
+  "data": "E:\\Projects\\json flatting\\bench\\data\\syn_2g.json",
+  "work": "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\65e44ff0-18e2-413f-b083-b5e57d67f8f7\\scratchpad\\p6\\w2g",
+  "pkg": "C:/Users/user34/AppData/Local/Temp/claude/e--Projects-json-flatting/65e44ff0-18e2-413f-b083-b5e57d67f8f7/scratchpad/p6/pkg_before",
+  "repeat": "1",
+  "max_repeat_seconds": "150.0",
+  "only": "export_xlsx:base,export_sqlite:base",
+  "label": "ab-before-tab-base",
+  "results_dir": "C:/Users/user34/AppData/Local/Temp/claude/e--Projects-json-flatting/65e44ff0-18e2-413f-b083-b5e57d67f8f7/scratchpad/p6/results",
+  "quiet_load": "35.0",
+  "quiet_timeout": "90.0",
+  "keep_work": "True",
+  "report": "",
+  "baseline": "",
+  "lang": "uz",
+  "md": "",
+  "workers": "0",
+  "note": "[]",
+  "export_report": "False"
+ },
+ "machine": {
+  "python": "3.14.3",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "cpus": 24,
+  "ram_gb": 205.6,
+  "processor": "Intel64 Family 6 Model 198 Stepping 2, GenuineIntel"
+ },
+ "runs": [
+  {
+   "op": "export_xlsx",
+   "scen": "base",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 43.7,
+     "private_peak_mb": 32.7,
+     "workers": 0,
+     "seconds": 0.027,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 0,
+     "count": 6513235,
+     "layers": 1,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 44.1,
+     "private_peak_mb": 32.8,
+     "workers": 0,
+     "seconds": 0.004,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2147483913,
+     "records": 6513235,
+     "rows": 6513235,
+     "written": 398916359,
+     "columns": 9,
+     "files": 1,
+     "warnings": [
+      "writer.warn.xlsx_sheets"
+     ],
+     "phase": "op",
+     "rss_peak_mb": 83.4,
+     "private_peak_mb": 72.8,
+     "workers": 0,
+     "seconds": 211.039,
+     "fsync_s": 0.147
+    }
+   },
+   "effective_bytes": 2147483913,
+   "process_peak_wset_mb": 83.7,
+   "process_peak_pagefile_mb": 73.2,
+   "backend": "rust",
+   "wall": 211.42,
+   "load_before": 12.2,
+   "load_mean": 10.8,
+   "load_max": 20.9,
+   "repeat": 1
+  },
+  {
+   "op": "export_sqlite",
+   "scen": "base",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 44.5,
+     "private_peak_mb": 33.4,
+     "workers": 0,
+     "seconds": 0.009,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 0,
+     "count": 6513235,
+     "layers": 1,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 44.3,
+     "private_peak_mb": 32.8,
+     "workers": 0,
+     "seconds": 0.004,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2147483913,
+     "records": 6513235,
+     "rows": 31913465,
+     "written": 1568014336,
+     "columns": 0,
+     "files": 1,
+     "warnings": [],
+     "phase": "op",
+     "rss_peak_mb": 138.1,
+     "private_peak_mb": 143.4,
+     "workers": 0,
+     "seconds": 126.6,
+     "fsync_s": 0.0
+    }
+   },
+   "effective_bytes": 2147483913,
+   "process_peak_wset_mb": 139.4,
+   "process_peak_pagefile_mb": 143.4,
+   "backend": "rust",
+   "wall": 127.05,
+   "load_before": 4.4,
+   "load_mean": 9.0,
+   "load_max": 21.2,
+   "repeat": 1
+  }
+ ]
+}

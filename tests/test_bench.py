@@ -487,8 +487,10 @@ def test_smoke_run_on_tiny_files(tmp_path) -> None:
 @pytest.fixture(scope="module")
 def subset_2g(tmp_path_factory):
     results_dir = tmp_path_factory.mktemp("bench_results")
+    # homes and the GB-sized outputs in the test's temporary folder, never in the project tree
     cfg = rb.RunConfig(mode="2g", data_dir=rb.DATA_DIR, results_dir=results_dir, repeat=1,
-                       quiet_timeout=30.0, command=["tests/test_bench.py", "--subset", "2g"])
+                       work_dir=tmp_path_factory.mktemp("bench_work"), quiet_timeout=30.0,
+                       command=["tests/test_bench.py", "--subset", "2g"])
     return rb.run(cfg)
 
 
