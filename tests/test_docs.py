@@ -50,6 +50,7 @@ def test_readmes_link_each_other_and_keep_the_same_sections() -> None:
     assert anchors.findall(en) == anchors.findall(uz) and "muallif" in anchors.findall(en)
     for text in (en, uz):
         assert "Erkin Pardayev" in text and "Claude Opus 5.5" in text and "© 2026 Erkin Pardayev" in text
+        assert "[Apache License 2.0](LICENSE)" in text
         assert "https://github.com/Erkinbek" in text and "[@ErkinPardayev](https://t.me/ErkinPardayev)" in text
         for target in set(re.findall(r"\]\(#([a-z0-9-]+)\)", text)):
             assert target in anchors.findall(text), target
@@ -59,3 +60,19 @@ def test_architecture_doc_mentions_current_cli() -> None:
     arch = (ROOT / "docs" / "ARCHITECTURE.md").read_text(encoding="utf-8")
     for needle in ("--preset NAME", "--sort-keys [alpha|codepoint]", "ensure_unchanged", "locate_tokens"):
         assert needle in arch, needle
+
+
+def test_license_files() -> None:
+    """Apache-2.0 (the user's choice, 2026-10-20): the full text, the NOTICE, and the metadata agree."""
+    text = (ROOT / "LICENSE").read_text(encoding="utf-8")
+    assert text.lstrip().startswith("Apache License") and "Version 2.0, January 2004" in text
+    assert "END OF TERMS AND CONDITIONS" in text
+    notice = (ROOT / "NOTICE").read_text(encoding="utf-8")
+    assert notice.startswith("jsonreshape\nCopyright 2026 Erkin Pardayev")
+    assert 'license = { text = "Apache-2.0" }' in (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    for name in ("THIRD-PARTY-NOTICES.md", "CONTRIBUTING.md", "SECURITY.md", "CHANGELOG.md",
+                 ".github/ISSUE_TEMPLATE/bug_report.md", ".github/ISSUE_TEMPLATE/feature_request.md",
+                 ".github/PULL_REQUEST_TEMPLATE.md"):
+        assert (ROOT / name).is_file(), name
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "## [Unreleased]" in changelog and "## [0.1.0]" in changelog

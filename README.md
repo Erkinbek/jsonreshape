@@ -1158,4 +1158,8 @@ Bug reports and suggestions: [GitHub Issues](https://github.com/Erkinbek/jsonres
 **Built with Claude Opus 5.5.** The code, tests, benchmarks and documentation were written with Anthropic's
 Claude Opus 5.5 model (in Claude Code), following the author's specification (`AGENT_PROMPT.md`) and decisions.
 
-Copyright © 2026 Erkin Pardayev. All rights reserved.
+**License:** [Apache License 2.0](LICENSE) — free to use, modify and redistribute, including commercially, with
+attribution; see `NOTICE` and `THIRD-PARTY-NOTICES.md` for the bundled components. Contributions are welcome:
+[`CONTRIBUTING.md`](CONTRIBUTING.md); security reports: [`SECURITY.md`](SECURITY.md); changes: [`CHANGELOG.md`](CHANGELOG.md).
+
+Copyright © 2026 Erkin Pardayev.

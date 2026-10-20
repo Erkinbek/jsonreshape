@@ -1156,4 +1156,9 @@ Xatolar va takliflar: [GitHub Issues](https://github.com/Erkinbek/jsonreshape/is
 **Claude Opus 5.5 yordamida yaratilgan.** Kod, testlar, benchmarklar va hujjatlar Anthropic'ning Claude Opus 5.5
 modeli (Claude Code'da) bilan, muallifning texnik topshirig'i (`AGENT_PROMPT.md`) va qarorlari asosida yozildi.
 
-Mualliflik huquqi © 2026 Erkin Pardayev. Barcha huquqlar himoyalangan.
+**Litsenziya:** [Apache License 2.0](LICENSE) — muallifni ko'rsatib bepul ishlatish, o'zgartirish va tarqatish
+(tijoratda ham) mumkin; birga keladigan komponentlar `NOTICE` va `THIRD-PARTY-NOTICES.md` da. Hissa qo'shish:
+[`CONTRIBUTING.md`](CONTRIBUTING.md); xavfsizlik xabarlari: [`SECURITY.md`](SECURITY.md); o'zgarishlar:
+[`CHANGELOG.md`](CHANGELOG.md).
+
+Mualliflik huquqi © 2026 Erkin Pardayev.

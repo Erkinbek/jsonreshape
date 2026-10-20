@@ -8,8 +8,31 @@ version = "0.1.0"
 description = "Viewer, editor and reshaper for huge JSON files (katta JSON fayllar uchun ko'ruvchi, muharrir va tuzilma quruvchi)"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "Proprietary" }
+license = { text = "Apache-2.0" }
 authors = [{ name = "Erkin Pardayev", email = "erkin.pardayev@gmail.com" }]
+keywords = ["json", "json-viewer", "json-editor", "large-files", "jsonl", "ndjson", "json-schema", "json-patch",
+            "csv", "xlsx", "sqlite", "cli", "gui", "pyside6", "rust"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: Win32 (MS Windows)",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Rust",
+    "Topic :: File Formats :: JSON",
+    "Topic :: Text Processing",
+    "Topic :: Utilities",
+]
 dependencies = [
     "orjson>=3.10",
     "ijson>=3.3",
@@ -22,6 +45,8 @@ dependencies = [
 Repository = "https://github.com/Erkinbek/jsonreshape"
 Author = "https://github.com/Erkinbek"
 Telegram = "https://t.me/ErkinPardayev"
+Changelog = "https://github.com/Erkinbek/jsonreshape/blob/main/CHANGELOG.md"
+Issues = "https://github.com/Erkinbek/jsonreshape/issues"
 
 [project.optional-dependencies]
 gui = ["PySide6>=6.8"]

@@ -572,6 +572,7 @@ def test_about_and_environment(qtbot, window) -> None:
     text = window.about_text()
     assert __version__ in text and "oflayn" in text and "Tezkor yadro" in text
     assert "© 2026 Erkin Pardayev" in text and "@ErkinPardayev" in text and "Claude Opus 5.5" in text
+    assert "Apache License 2.0" in text
     box = window.show_about()
     assert box.isVisible()
     box.close()
