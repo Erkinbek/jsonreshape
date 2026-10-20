@@ -694,6 +694,16 @@ while it is being checked.
 
 Detailed interface specification: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
+### Python API
+
+The package is a library too: `pip install jsonreshape`, then `from jsonreshape import Document, export,
+ExportOptions` — the same streaming, exact-number, never-modify-the-input code the CLI and the GUI run.
+Open a file, iterate its records, search, filter (expression language or JMESPath), sort, export to
+JSON / JSON Lines / CSV / XLSX / SQLite, edit and save a copy, apply a mapping, compute statistics, validate
+against a JSON Schema, split, merge, repair and diff — each with progress and cancellation. The reference with
+one runnable example per area (executed by `tests/test_api_docs.py`) and the stability policy is
+[`docs/API.md`](docs/API.md).
+
 ```text
 rust/                 Rust core (PyO3 0.30, maturin): validating scanner, reformatter, Aho-Corasick search,
                       value extraction by path, number checks — the GIL is released

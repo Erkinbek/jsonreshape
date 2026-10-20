@@ -697,6 +697,16 @@ ikki baravari joy egallaydi.
 
 Batafsil interfeys spetsifikatsiyasi: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
+### Python API
+
+Paket kutubxona sifatida ham ishlaydi: `pip install jsonreshape`, so'ng `from jsonreshape import Document,
+export, ExportOptions` — CLI va GUI ishlatadigan o'sha oqimli, aniq sonli, asl faylni hech qachon
+o'zgartirmaydigan kod. Faylni ochish, yozuvlar bo'ylab yurish, qidirish, filtrlash (ifoda tili yoki JMESPath),
+tartiblash, JSON / JSON Lines / CSV / XLSX / SQLite'ga eksport, tahrirlab nusxa saqlash, mapping qo'llash,
+statistika, JSON Schema bo'yicha tekshirish, bo'lish, birlashtirish, ta'mirlash va taqqoslash — har biri
+progress va bekor qilish bilan. Har bir soha uchun ishlaydigan misol (`tests/test_api_docs.py` ularni bajaradi)
+va barqarorlik siyosati: [`docs/API.md`](docs/API.md).
+
 ```text
 rust/                 Rust yadro (PyO3 0.30, maturin): validatsiyali skaner, reformatter, Aho-Corasick qidiruv,
                       yo'l bo'yicha qiymat ajratish, raqamlar tekshiruvi — GIL qo'yib yuboriladi

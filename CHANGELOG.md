@@ -8,6 +8,11 @@ All notable changes to jsonreshape are recorded here. The format follows
 ### Added
 - Apache License 2.0 (`LICENSE`, `NOTICE`, `THIRD-PARTY-NOTICES.md`), `CONTRIBUTING.md`, `SECURITY.md`, issue and
   pull request templates.
+- Python API: `docs/API.md` documents the public, stable library interface with one runnable example per area
+  (executed by `tests/test_api_docs.py`); `jsonreshape.__all__` exports the main classes and functions
+  (`Document`, `export`, `ExportOptions`, `EditSession`, `apply_mapping`, `Settings`, `Progress`, `CancelToken`,
+  the error classes, `set_language`, ...) as lazily resolved aliases, so `import jsonreshape` stays as cheap as
+  before (~1 ms more; the CLI start time is unchanged).
 
 ## [0.1.0] — 2026-10-20
 

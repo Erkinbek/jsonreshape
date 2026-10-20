@@ -100,6 +100,10 @@ bench/                    synthetic data generator + benchmark runner -> README 
 docs/ARCHITECTURE.md      this file
 ```
 
+### 0.2 Public Python API (stage 7, as built)
+
+`docs/API.md` is the reference of the library interface; `tests/test_api_docs.py` executes every 
+
 ---------------------------------------------------------------------------------
 
 ## 1. Core API (`jsonreshape.core`) — Rust + pure-Python, identical results
