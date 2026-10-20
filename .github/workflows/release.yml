@@ -1,0 +1,423 @@
+# Release pipeline of jsonreshape (docs/ARCHITECTURE.md section 16 "Distribution"): a pushed tag v<version> (or a manual
+# run) builds every asset and creates a DRAFT GitHub release -- the author reviews and publishes it by hand.
+#
+#   version        the tag, jsonreshape/__init__.py, pyproject.toml and rust/Cargo.toml must agree (scripts/release_assets.py)
+#   windows-exe    PyInstaller build + smoke tests + Inno Setup installer -> jsonreshape-<v>-windows-x64.zip,
+#                  jsonreshape-<v>-setup-x64.exe (signed when the CODE_SIGN_* secrets exist)
+#   unix-bundle    PyInstaller onedir on ubuntu-22.04 / macos-14 -> jsonreshape-<v>-linux-x86_64.tar.gz,
+#                  jsonreshape-<v>-macos-arm64.tar.gz (smoke: --version, inspect, the GUI offscreen)
+#   wheels, sdist  maturin: one abi3 wheel (Python >= 3.11) per platform + the sdist
+#   release        SHA256SUMS.txt, release notes from CHANGELOG.md, winget manifests (artifact), the draft release
+#   publish-pypi   only with the repository variable PYPI_PUBLISH=true and a tag: trusted publishing (environment "pypi")
+#
+# The author's one-time configuration is listed in docs/ARCHITECTURE.md section 16 (PyPI trusted publisher, the
+# variable, the optional signing secrets). tests/test_packaging_pipeline.py checks this file statically.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: "3.12"
+  PYTHONUTF8: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  QT_QPA_PLATFORM: offscreen
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: The tag and the sources agree
+        id: version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            tag="v$(python scripts/release_assets.py version)"
+          fi
+          python scripts/release_assets.py check-version --tag "$tag"
+          version="${tag#v}"
+          if [[ "$version" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then prerelease=false; else prerelease=true; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "releasing $tag (prerelease: $prerelease)"
+
+  windows-exe:
+    name: Windows .exe and installer
+    runs-on: windows-latest
+    needs: version
+    timeout-minutes: 45
+    env:
+      JSONRESHAPE_HOME: ${{ runner.temp }}\jsonreshape-home
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\pip\Cache
+          key: pip-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: pip-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            rust/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Virtual environment
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          "${{ github.workspace }}\.venv\Scripts" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "VIRTUAL_ENV=${{ github.workspace }}\.venv" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Rust core and the build tools
+        shell: pwsh
+        run: |
+          python -m pip install -U pip maturin
+          maturin develop --release
+          python -m pip install -e ".[gui,build]" pytest pytest-timeout pefile
+
+      - name: Inno Setup 6
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+          Get-Item "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" | Format-List FullName, Length, VersionInfo
+
+      # Optional code signing: the repository secrets CODE_SIGN_PFX_BASE64 (the .pfx, base64) and CODE_SIGN_PFX_PASSWORD.
+      # Without them the executables and the installer are not signed (SmartScreen warns on first downloads).
+      - name: Code-signing certificate (optional)
+        id: cert
+        shell: pwsh
+        env:
+          PFX_BASE64: ${{ secrets.CODE_SIGN_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.CODE_SIGN_PFX_PASSWORD }}
+        run: |
+          if (-not $env:PFX_BASE64) {
+            Write-Host "no CODE_SIGN_PFX_BASE64 secret: the build is not signed"
+            "thumbprint=" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            exit 0
+          }
+          $pfx = Join-Path $env:RUNNER_TEMP "codesign.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_BASE64))
+          $password = ConvertTo-SecureString -String $env:PFX_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          Remove-Item $pfx
+          "thumbprint=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Build dist\jsonreshape and the installer
+        shell: pwsh
+        run: |
+          $thumbprint = "${{ steps.cert.outputs.thumbprint }}"
+          if ($thumbprint) {
+            powershell -ExecutionPolicy Bypass -File scripts\build_exe.ps1 -SkipTests -NoInstall -Installer -Sign $thumbprint
+          } else {
+            powershell -ExecutionPolicy Bypass -File scripts\build_exe.ps1 -SkipTests -NoInstall -Installer
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Smoke tests of the build
+        shell: pwsh
+        run: python -m pytest -q -p no:cacheprovider -m packaging tests/test_packaging.py --timeout=600
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Compress-Archive -Path dist\jsonreshape -DestinationPath "release\jsonreshape-$env:VERSION-windows-x64.zip" -CompressionLevel Optimal
+          Move-Item -Path "dist\jsonreshape-$env:VERSION-setup-x64.exe" -Destination release\
+          Get-ChildItem release | Format-Table Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows-x64
+          path: release/*
+          retention-days: 14
+          if-no-files-found: error
+
+  unix-bundle:
+    name: PyInstaller bundle (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    needs: version
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            name: linux-x86_64
+          - os: macos-14
+            name: macos-arm64
+    env:
+      JSONRESHAPE_HOME: ${{ runner.temp }}/jsonreshape-home
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            rust/target
+          key: cargo-${{ runner.os }}-${{ matrix.name }}-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-${{ matrix.name }}-
+
+      - name: Qt system libraries (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends \
+            libegl1 libgl1 libopengl0 libxkbcommon0 libdbus-1-3 libfontconfig1 libglib2.0-0 libxcb-cursor0
+
+      - name: Virtual environment
+        shell: bash
+        run: |
+          python -m venv .venv
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+          echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
+
+      - name: Rust core and the build tools
+        shell: bash
+        run: |
+          python -m pip install -U pip maturin
+          maturin develop --release
+          python -m pip install -e ".[gui,build]"
+
+      - name: PyInstaller (packaging/jsonreshape.spec)
+        shell: bash
+        run: |
+          python -m PyInstaller --noconfirm --clean --log-level WARN \
+            --distpath dist --workpath build/pyinstaller packaging/jsonreshape.spec
+          du -sh dist/jsonreshape
+
+      - name: Smoke tests
+        shell: bash
+        run: |
+          mkdir -p "$JSONRESHAPE_HOME"
+          dist/jsonreshape/jsonreshape --version
+          printf '[{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]\n' > "$RUNNER_TEMP/smoke.json"
+          dist/jsonreshape/jsonreshape inspect "$RUNNER_TEMP/smoke.json" --json
+          JSONRESHAPE_SMOKE_RESULT="$RUNNER_TEMP/smoke-report.json" JSONRESHAPE_SMOKE_TIMEOUT_MS=60000 \
+            dist/jsonreshape/jsonreshape-gui "$RUNNER_TEMP/smoke.json"
+          cat "$RUNNER_TEMP/smoke-report.json"
+
+      - name: Package
+        shell: bash
+        run: |
+          mkdir -p release
+          tar -C dist -czf "release/jsonreshape-$VERSION-${{ matrix.name }}.tar.gz" jsonreshape
+          ls -l release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.name }}
+          path: release/*
+          retention-days: 14
+          if-no-files-found: error
+
+  wheels:
+    name: Wheel (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    needs: version
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows-x64
+            target: x64
+          - os: ubuntu-latest
+            name: linux-x86_64
+            target: x86_64
+          - os: macos-14
+            name: macos-universal2
+            target: universal2-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # one abi3 wheel per platform (pyo3 feature abi3-py311): usable by every Python >= 3.11
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          manylinux: auto
+          args: --release --out wheels
+          sccache: "false"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-pypi-wheel-${{ matrix.name }}
+          path: wheels/*.whl
+          retention-days: 14
+          if-no-files-found: error
+
+  sdist:
+    name: Source distribution
+    runs-on: ubuntu-latest
+    needs: version
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # maturin sdist runs "cargo package --list" for the Rust part
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out wheels
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-pypi-sdist
+          path: wheels/*.tar.gz
+          retention-days: 14
+          if-no-files-found: error
+
+  release:
+    name: Draft GitHub release
+    runs-on: ubuntu-latest
+    needs: [version, windows-exe, unix-bundle, wheels, sdist]
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      TAG: ${{ needs.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release
+          merge-multiple: true
+
+      - name: Checksums, release notes, winget manifests
+        shell: bash
+        run: |
+          ls -l release
+          python scripts/release_assets.py sums release
+          python scripts/release_assets.py notes --version "$VERSION" --changelog CHANGELOG.md --assets release \
+            --repo "$GITHUB_REPOSITORY" --out release_notes.md
+          python scripts/winget_manifest.py --version "$VERSION" \
+            --installer-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/jsonreshape-$VERSION-setup-x64.exe" \
+            --installer "release/jsonreshape-$VERSION-setup-x64.exe" --out winget
+          cat release/SHA256SUMS.txt
+          cat release_notes.md
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: winget-manifests
+          path: winget
+          retention-days: 90
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release_notes.md
+          retention-days: 90
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: jsonreshape ${{ env.VERSION }}
+          draft: true
+          prerelease: ${{ needs.version.outputs.prerelease == 'true' }}
+          body_path: release_notes.md
+          files: release/*
+          fail_on_unmatched_files: true
+
+  # Trusted publishing (no API token): PyPI project "jsonreshape", publisher = this repository, workflow release.yml,
+  # environment "pypi". Enabled by the repository variable PYPI_PUBLISH=true; the "pypi" environment may require a
+  # reviewer so that the upload waits for the author's approval. Runs for tags only (never for a manual run).
+  publish-pypi:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    needs: [version, wheels, sdist, release]
+    if: ${{ vars.PYPI_PUBLISH == 'true' && startsWith(github.ref, 'refs/tags/v') }}
+    timeout-minutes: 15
+    environment:
+      name: pypi
+      url: https://pypi.org/p/jsonreshape
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-pypi-*
+          path: dist
+          merge-multiple: true
+
+      - name: Files to publish
+        shell: bash
+        run: ls -l dist
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          print-hash: true

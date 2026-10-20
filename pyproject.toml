@@ -49,7 +49,11 @@ Changelog = "https://github.com/Erkinbek/jsonreshape/blob/main/CHANGELOG.md"
 Issues = "https://github.com/Erkinbek/jsonreshape/issues"
 
 [project.optional-dependencies]
-gui = ["PySide6>=6.8"]
+gui = ["PySide6>=6.8", "pyyaml>=6"]
+# YAML import (jsonreshape import x.yaml): CSV and XML need nothing extra
+import = ["pyyaml>=6"]
+# Parquet export (jsonreshape convert in.json out.parquet; writer_parquet.py)
+parquet = ["pyarrow>=17"]
 dev = [
     "pytest>=8",
     "pytest-qt>=4.4",
@@ -58,6 +62,8 @@ dev = [
     "openpyxl>=3.1",
     "maturin>=1.9,<2",
     "jsonschema>=4.18",
+    "pyyaml>=6",
+    "pyarrow>=17",
 ]
 # the Windows .exe (scripts/build_exe.ps1 installs exactly these; the program itself needs none of them)
 build = [
@@ -77,6 +83,13 @@ module-name = "jsonreshape.core._rscore"
 python-source = "."
 python-packages = ["jsonreshape"]
 exclude = ["jsonreshape/**/__pycache__/**"]
+# the sdist carries the license (Apache-2.0 asks for it), the NOTICE and the changelog; the wheel gets LICENSE / NOTICE
+# into dist-info/licenses automatically
+include = [
+    { path = "LICENSE", format = "sdist" },
+    { path = "NOTICE", format = "sdist" },
+    { path = "CHANGELOG.md", format = "sdist" },
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -20,7 +20,11 @@ build/jsonreshape.ico``).
   translations (the program has its own texts and loads no Qt translation). Also not: ``ssl`` (no TLS),
   tkinter, test packages, build tools.
 * A version resource from ``jsonreshape.__version__`` (``packaging/version_info.py``) and the icon of
-  ``jsonreshape.gui.app.make_app_icon`` (``build/jsonreshape.ico``, when present).
+  ``jsonreshape.gui.app.make_app_icon`` (``build/jsonreshape.ico``, when present) -- both on Windows only.
+* Linux / macOS (the release workflow, ``.github/workflows/release.yml``): the same spec builds ``dist/jsonreshape/``
+  with ``jsonreshape`` and ``jsonreshape-gui`` (no version resource, no icon); the Qt libraries are dropped by the
+  same names (``libQt6Network.so.6``, ``QtNetwork.framework``) except ``QtDBus`` and ``QtOpenGL``, which the Linux
+  ``QtGui`` / platform plugins link. The Windows "Open with" module imports ``winreg`` lazily and stays inert there.
 """
 
 import os
@@ -37,11 +41,22 @@ sys.path.insert(0, str(ROOT))
 from version_info import version_resource  # noqa: E402
 
 ICON = Path(os.environ.get("JSONRESHAPE_ICON") or ROOT / "build" / "jsonreshape.ico")
-ICON_ARG = [str(ICON)] if ICON.is_file() else None
+#: Windows only: PyInstaller wants an ``.icns`` on macOS and ignores icons on Linux.
+ICON_ARG = [str(ICON)] if sys.platform == "win32" and ICON.is_file() else None
 
-IJSON = ["ijson.backends.yajl2_c", "ijson.backends._yajl2", "ijson.backends.python"]
-GUI_HIDDEN = collect_submodules("jsonreshape") + IJSON
-CLI_HIDDEN = collect_submodules("jsonreshape", filter=lambda name: not name.startswith("jsonreshape.gui")) + IJSON
+
+def _version(**kwargs):
+    """The Windows version resource, ``None`` elsewhere (``PyInstaller.utils.win32.versioninfo`` needs ``pefile``,
+    a Windows-only dependency of PyInstaller, and other platforms have no version resource)."""
+    return version_resource(ROOT, **kwargs) if sys.platform == "win32" else None
+
+
+IJSON =["ijson.backends.yajl2_c", "ijson.backends._yajl2", "ijson.backends.python"]
+#: ``yaml`` is imported inside a function (``jsonreshape.importers``: YAML import works without it); its C
+#: extension (``yaml._yaml``, libyaml) is found through the package.
+YAML = ["yaml", "yaml._yaml"]
+GUI_HIDDEN = collect_submodules("jsonreshape") + IJSON + YAML
+CLI_HIDDEN = collect_submodules("jsonreshape", filter=lambda name: not name.startswith("jsonreshape.gui")) + IJSON + YAML
 
 QT_UNUSED = [f"PySide6.{m}" for m in (
     "QtNetwork", "QtNetworkAuth", "QtQml", "QtQuick", "QtQuickWidgets", "QtQuickControls2", "QtQuick3D",
@@ -65,19 +80,25 @@ for dist in ("orjson", "ijson", "XlsxWriter", "jmespath", "psutil", "PySide6", "
     except Exception:  # a library installed without metadata: its __version__ is used instead
         pass
 
+#: Qt modules dropped by library name (``Qt6Network.dll``, ``libQt6Network.so.6``, ``QtNetwork.framework``). Off
+#: Windows ``QtDBus`` stays (the Linux ``libQt6Gui.so`` links it) and so does ``QtOpenGL`` (small; the xcb platform
+#: plugin's GL integrations may need it).
+_QT_DROPPED = (r"network|qml|quick|webengine|webchannel|websockets|3d|multimedia|spatialaudio|texttospeech|pdf"
+               r"|virtualkeyboard|positioning|location|sensors|serialport|serialbus|bluetooth|nfc|charts|datavisualization"
+               r"|graphs|printsupport|sql|test|designer|help|uitools|statemachine|scxml|remoteobjects|httpserver"
+               r"|labs|shadertools|concurrent|xml" + ("|opengl|dbus" if sys.platform == "win32" else ""))
+_LIB = r"\.(dll|so(\.\d+)*|dylib)$"
 #: Collected files (destination paths) that are not shipped -- see the module docstring.
 _DROP = [re.compile(p, re.IGNORECASE) for p in (
     r"(^|/)opengl32sw\.dll$",
-    r"(^|/)qt6(network|qml|quick|webengine|webchannel|websockets|3d|multimedia|spatialaudio|texttospeech|pdf"
-    r"|virtualkeyboard|positioning|location|sensors|serialport|serialbus|bluetooth|nfc|charts|datavisualization"
-    r"|graphs|opengl|printsupport|sql|test|designer|help|uitools|statemachine|scxml|remoteobjects|httpserver"
-    r"|labs|shadertools|concurrent|dbus|xml)\w*\.dll$",
+    rf"(^|/)(lib)?qt6({_QT_DROPPED})\w*{_LIB}",
+    rf"(^|/)Qt({_QT_DROPPED})\w*\.framework/",
     r"(^|/)plugins/(tls|networkinformation|qmltooling|multimedia|position|sensors|webview|sceneparsers|renderers"
     r"|renderplugins|assetimporters|geometryloaders|geoservices|texttospeech|canbus|designer|sqldrivers"
     r"|scxmldatamodel|vectorimageformats|printsupport)/",
-    r"(^|/)plugins/imageformats/qpdf\.dll$",
-    r"(^|/)plugins/generic/qtuiotouchplugin\.dll$",
-    r"(^|/)plugins/platforminputcontexts/qtvirtualkeyboardplugin\.dll$",
+    rf"(^|/)plugins/imageformats/(lib)?qpdf{_LIB}",
+    rf"(^|/)plugins/generic/(lib)?qtuiotouchplugin{_LIB}",
+    rf"(^|/)plugins/platforminputcontexts/(lib)?qtvirtualkeyboardplugin{_LIB}",
     r"(^|/)translations/[^/]+\.qm$",
     r"(^|/)(qml|resources)/",
 )]
@@ -117,8 +138,8 @@ exe_gui = EXE(  # noqa: F821
     name="jsonreshape-gui",
     console=False,
     icon=ICON_ARG,
-    version=version_resource(ROOT, description="JSON Reshape", internal_name="jsonreshape-gui",
-                             original_filename="jsonreshape-gui.exe"),
+    version=_version(description="JSON Reshape", internal_name="jsonreshape-gui",
+                     original_filename="jsonreshape-gui.exe"),
     debug=False,
     strip=False,
     upx=False,
@@ -132,8 +153,8 @@ exe_cli = EXE(  # noqa: F821
     name="jsonreshape",
     console=True,
     icon=ICON_ARG,
-    version=version_resource(ROOT, description="JSON Reshape (command line)", internal_name="jsonreshape",
-                             original_filename="jsonreshape.exe"),
+    version=_version(description="JSON Reshape (command line)", internal_name="jsonreshape",
+                     original_filename="jsonreshape.exe"),
     debug=False,
     strip=False,
     upx=False,

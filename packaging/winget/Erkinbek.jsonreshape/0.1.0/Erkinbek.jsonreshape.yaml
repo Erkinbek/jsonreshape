@@ -1,0 +1,9 @@
+# winget version manifest of jsonreshape -- a TEMPLATE: scripts/winget_manifest.py fills the VERSION placeholder,
+# drops this header and writes the result to <out>/manifests/e/Erkinbek/jsonreshape/<version>/ (the layout of the
+# winget-pkgs repository).
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.version.1.6.0.schema.json
+PackageIdentifier: Erkinbek.jsonreshape
+PackageVersion: {{VERSION}}
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.6.0

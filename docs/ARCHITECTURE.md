@@ -2716,3 +2716,76 @@ palette [M], shortcuts in settings [K], "Open with" [K], themes [M], workspace [
   filter presets (8 MiB), settings (1 MiB) — asks for the file's size + 1 instead of `read(limit + 1)`, which
   allocated (and on Windows put in the working set) the whole limit at once: `jsonreshape apply` peaked at 186 MB in
   the parent alone, 94 MB after. A file that grew after the size check is read on in 1 MiB pieces up to the limit.
+
+---------------------------------------------------------------------------------
+
+## 16. Distribution (stage 7): CI, releases, installer, winget
+
+### 16.1 As built (module docstrings and workflow headers are authoritative)
+
+* **CI** (`.github/workflows/ci.yml`; push / pull request to `main`; superseded runs cancelled): `tests-windows`
+  (windows-latest, Python 3.12, Rust stable, venv, `maturin develop --release`, `pip install -e ".[dev,gui]"`,
+  asserts `core.BACKEND == "rust"`, `pytest -m "not gui and not bench and not packaging" --timeout=600`),
+  `tests-linux-python-core` (ubuntu-latest, `JSONRESHAPE_BACKEND=python`, the same selection; Rust is installed
+  there only because the build backend (maturin) compiles the extension while installing — the tests assert
+  `core.BACKEND == "python"`), `build-exe` (after `tests-windows`: `scripts/build_exe.ps1 -SkipTests -NoInstall`,
+  `pytest -m packaging`, `dist/jsonreshape` as a 14-day artifact). Both test jobs need the `gui` extra: pytest-qt
+  refuses to start without a Qt binding and 57 GUI test modules import PySide6 at collection (the marker excludes
+  the GUI tests themselves). pip and cargo caches (`actions/cache@v4`) keyed on `pyproject.toml` / `rust/Cargo.lock`;
+  every action pinned to a major version (`checkout@v4`, `setup-python@v5`, `cache@v4`, `upload-artifact@v4`,
+  `dtolnay/rust-toolchain@stable`); `JSONRESHAPE_HOME` under the runner's temp, `QT_QPA_PLATFORM=offscreen`.
+* **Release** (`.github/workflows/release.yml`; tag `v*` or manual): `version` (the tag, `jsonreshape/__init__.py`,
+  `pyproject.toml` and `rust/Cargo.toml` must agree — `scripts/release_assets.py check-version`), `windows-exe`
+  (`build_exe.ps1 -SkipTests -NoInstall -Installer [-Sign]`, smoke tests, `jsonreshape-<v>-windows-x64.zip` +
+  `jsonreshape-<v>-setup-x64.exe`; signing only when the secrets `CODE_SIGN_PFX_BASE64` / `CODE_SIGN_PFX_PASSWORD`
+  exist), `unix-bundle` (ubuntu-22.04 → `-linux-x86_64.tar.gz`, macos-14 → `-macos-arm64.tar.gz`; PyInstaller with
+  the same spec, smoke: `--version`, `inspect --json`, the GUI with the smoke hook offscreen), `wheels`
+  (`PyO3/maturin-action@v1`: one abi3 wheel per platform — win_amd64, manylinux x86_64, macOS universal2 — for
+  Python ≥ 3.11) and `sdist`, then `release`: `SHA256SUMS.txt` (sha256sum format), release notes from the
+  CHANGELOG.md section of the version, the winget manifests (artifact `winget-manifests`), and
+  `softprops/action-gh-release@v2` with `draft: true` — the author reviews and publishes by hand. `publish-pypi` runs
+  only with the repository variable `PYPI_PUBLISH=true`, for tags, through the `pypi` environment with trusted
+  publishing (`id-token: write`, no token).
+* **Spec off Windows** (`packaging/jsonreshape.spec`): the version resource and the icon only on `win32`
+  (`PyInstaller.utils.win32.versioninfo` needs `pefile`, a Windows-only dependency); the Qt drop list matches
+  `Qt6X.dll`, `libQt6X.so.N` and `QtX.framework/`, keeping `QtDBus` (the Linux `QtGui` links it) and `QtOpenGL`
+  there; `gui/osintegration.py` imports `winreg` lazily and reports "not available" off Windows.
+* **Installer** (`packaging/installer.iss`, Inno Setup 6, `scripts/build_exe.ps1 -Installer`): `dist\jsonreshape\*`
+  → `{autopf}\jsonreshape` (`PrivilegesRequired=lowest` + `PrivilegesRequiredOverridesAllowed=dialog`: per user
+  without elevation or for all users; `/CURRENTUSER` / `/ALLUSERS` silently), Start menu shortcut, optional desktop
+  shortcut, optional user PATH entry (HKCU `Environment\Path`, removed by the uninstaller's `[Code]`), uninstaller;
+  `ArchitecturesInstallIn64BitMode=x64compatible`; fixed `AppId {FA95975A-1001-43C5-8BE8-53ADDEF4E518}`; the
+  version, its four-number form and the copyright come from `packaging/version_info.py` as `/D` defines (the script
+  reads them through JSON with `ensure_ascii`, so the `©` survives any console code page; the `.iss` is ASCII and
+  `#error`s without `/DAppVersion`). `ISCC.exe` is looked up on the PATH, then in `%ProgramFiles(x86)%`,
+  `%ProgramFiles%` and `%LOCALAPPDATA%\Programs` (`Inno Setup 6\`); missing → a message with the install command
+  and the step is skipped. Measured: 27.9 MB, 14 s (lzma2/max) from the 78 MB folder.
+* **Signing** (`-Sign <thumbprint>`): `signtool sign /sha1 <thumbprint> /fd SHA256 /tr http://timestamp.digicert.com
+  /td SHA256` on both executables (before the smoke tests) and on the installer; signtool from the PATH or the newest
+  `Windows Kits\10\bin\<version>\x64`; missing → a message and the files stay unsigned; a thumbprint that matches no
+  certificate fails the build (signtool exit 1).
+* **winget** (`packaging/winget/Erkinbek.jsonreshape/<version>/*.yaml`, schema 1.6.0, `scripts/winget_manifest.py`):
+  templates with `{{VERSION}}`, `{{RELEASE_DATE}}`, `{{INSTALLER_URL}}`, `{{INSTALLER_SHA256}}`; the installer
+  manifest lists the same `.exe` twice (`Scope: user` with `/CURRENTUSER`, `Scope: machine` with `/ALLUSERS`),
+  `ProductCode {AppId}_is1` (the Inno Setup uninstall key, so winget finds upgrades), `Commands: [jsonreshape]`,
+  `FileExtensions`; the script hashes the installer (1 MiB pieces), fills the newest template folder, drops the
+  template header and writes `<out>/manifests/e/Erkinbek/jsonreshape/<version>/` (the winget-pkgs layout).
+* **`scripts/release_assets.py`** (standard library only; never imports the package): `version`, `check-version`,
+  `sums` (streaming SHA-256, temporary file + rename), `notes` (CHANGELOG section → installation lines per asset
+  kind, asset table with sizes and digests, checksum instructions; the "[Unreleased]" section with a TODO when the
+  version has no section yet).
+* **Packaging metadata**: `maturin build` → `jsonreshape-<v>-cp311-abi3-<platform>.whl` with Name / Version /
+  `License: Apache-2.0` / classifiers / `License-File: LICENSE, NOTICE`; the sdist now includes LICENSE, NOTICE and
+  CHANGELOG.md (`[tool.maturin] include`). `tests/test_packaging_pipeline.py` (17 tests) checks all of the above
+  statically — workflows parsed with PyYAML, actions pinned, jobs / markers / timeouts, the `.iss` sections and
+  defines, the build script's switches and its PowerShell parse, the winget fill, the release helpers on temporary
+  folders, the spec guards, and the built wheel / sdist metadata when `build/wheels` exists.
+
+### 16.2 Not verified here (first CI run)
+
+The Linux / macOS jobs could not be run on this machine: Windows-only assumptions in tests (paths, locking) may
+surface in `tests-linux-python-core`; the Linux PyInstaller bundle depends on the runner's Qt system libraries
+(`libegl1 libgl1 libopengl0 libxkbcommon0 libdbus-1-3 libfontconfig1 libglib2.0-0 libxcb-cursor0` are installed);
+the macOS bundle is unsigned and not notarized (Gatekeeper asks once). The Windows test job may need more than the
+45-minute limit on a slow runner (the fast selection takes ~20 min locally) — raise `timeout-minutes` or add
+`pytest-xdist` then.

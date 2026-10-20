@@ -13,6 +13,12 @@ All notable changes to jsonreshape are recorded here. The format follows
   (`Document`, `export`, `ExportOptions`, `EditSession`, `apply_mapping`, `Settings`, `Progress`, `CancelToken`,
   the error classes, `set_language`, ...) as lazily resolved aliases, so `import jsonreshape` stays as cheap as
   before (~1 ms more; the CLI start time is unchanged).
+- CI and release pipeline: GitHub Actions `ci.yml` (tests on Windows with the Rust core and on Linux with the
+  pure-Python core, the Windows `.exe` as an artifact) and `release.yml` (a `v*` tag builds the Windows zip and the
+  Inno Setup installer, Linux / macOS bundles, abi3 wheels and the sdist, `SHA256SUMS.txt`, release notes from this
+  file and the winget manifests, and opens a draft GitHub release; optional PyPI trusted publishing);
+  `scripts/build_exe.ps1 -Installer` / `-Sign`, `packaging/installer.iss`, `packaging/winget/`,
+  `scripts/release_assets.py`, `scripts/winget_manifest.py`, `tests/test_packaging_pipeline.py`.
 
 ## [0.1.0] — 2026-10-20
 

@@ -1,0 +1,43 @@
+# winget installer manifest of jsonreshape -- a TEMPLATE: scripts/winget_manifest.py fills the VERSION, RELEASE_DATE,
+# INSTALLER_URL and INSTALLER_SHA256 placeholders (the Inno Setup installer of the GitHub release,
+# jsonreshape-<version>-setup-x64.exe) and drops this header. ProductCode = the installer's AppId + "_is1"
+# (packaging/installer.iss). The installer is built with PrivilegesRequired=lowest + PrivilegesRequiredOverridesAllowed:
+# /CURRENTUSER installs for the user (no elevation), /ALLUSERS for the machine.
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+PackageIdentifier: Erkinbek.jsonreshape
+PackageVersion: {{VERSION}}
+InstallerLocale: en-US
+InstallerType: inno
+MinimumOSVersion: 10.0.0.0
+InstallModes:
+- interactive
+- silent
+- silentWithProgress
+UpgradeBehavior: install
+Commands:
+- jsonreshape
+FileExtensions:
+- json
+- jsonl
+- ndjson
+- geojson
+ReleaseDate: {{RELEASE_DATE}}
+Installers:
+- Architecture: x64
+  Scope: user
+  InstallerUrl: {{INSTALLER_URL}}
+  InstallerSha256: {{INSTALLER_SHA256}}
+  InstallerSwitches:
+    Silent: /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER
+    SilentWithProgress: /SILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER
+  ProductCode: '{FA95975A-1001-43C5-8BE8-53ADDEF4E518}_is1'
+- Architecture: x64
+  Scope: machine
+  InstallerUrl: {{INSTALLER_URL}}
+  InstallerSha256: {{INSTALLER_SHA256}}
+  InstallerSwitches:
+    Silent: /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS
+    SilentWithProgress: /SILENT /SUPPRESSMSGBOXES /NORESTART /ALLUSERS
+  ProductCode: '{FA95975A-1001-43C5-8BE8-53ADDEF4E518}_is1'
+ManifestType: installer
+ManifestVersion: 1.6.0

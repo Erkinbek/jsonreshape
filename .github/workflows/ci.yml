@@ -1,0 +1,221 @@
+# Continuous integration of jsonreshape (docs/ARCHITECTURE.md section 16 "Distribution").
+#
+#   tests-windows             Windows, Python 3.12, the Rust core: the fast test selection
+#   tests-linux-python-core   Linux, JSONRESHAPE_BACKEND=python: the same tests on the pure-Python core
+#   build-exe                 Windows: the PyInstaller build (scripts/build_exe.ps1) + its smoke tests, as an artifact
+#
+# Both test jobs install the "gui" extra too: pytest-qt (dev extra) refuses to start without a Qt binding and the GUI
+# test modules import PySide6 at collection; the GUI tests themselves are excluded by the marker ("not gui").
+# The Rust toolchain is installed on Linux as well because the build backend (maturin) compiles the extension while
+# installing the package; the tests then run with the extension disabled (JSONRESHAPE_BACKEND=python).
+# tests/test_packaging_pipeline.py checks this file statically (jobs, pinned actions, markers, timeouts).
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  PYTHONUTF8: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  QT_QPA_PLATFORM: offscreen
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  PYTEST_SELECTION: "not gui and not bench and not packaging"
+
+jobs:
+  tests-windows:
+    name: Tests (Windows, Rust core)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      JSONRESHAPE_HOME: ${{ runner.temp }}\jsonreshape-home
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\pip\Cache
+          key: pip-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: pip-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            rust/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Virtual environment
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          "${{ github.workspace }}\.venv\Scripts" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "VIRTUAL_ENV=${{ github.workspace }}\.venv" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Rust core (maturin develop)
+        shell: pwsh
+        run: |
+          python -m pip install -U pip maturin
+          maturin develop --release
+
+      - name: Install the package and the test tools
+        shell: pwsh
+        run: python -m pip install -e ".[dev,gui]"
+
+      - name: The Rust core is active
+        shell: pwsh
+        run: python -c "from jsonreshape import core; assert core.BACKEND == 'rust', core.BACKEND; print('core:', core.BACKEND)"
+
+      - name: Tests
+        shell: pwsh
+        run: python -m pytest -q -p no:cacheprovider -m "${{ env.PYTEST_SELECTION }}" --timeout=600
+
+  tests-linux-python-core:
+    name: Tests (Linux, pure-Python core)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      JSONRESHAPE_BACKEND: python
+      JSONRESHAPE_HOME: ${{ runner.temp }}/jsonreshape-home
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # only for the build backend (maturin compiles the extension while installing); the tests never load it
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: pip-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            rust/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Qt system libraries (offscreen platform)
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends \
+            libegl1 libgl1 libopengl0 libxkbcommon0 libdbus-1-3 libfontconfig1 libglib2.0-0 libxcb-cursor0
+
+      - name: Virtual environment
+        shell: bash
+        run: |
+          python -m venv .venv
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+          echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
+
+      - name: Install the package and the test tools
+        shell: bash
+        run: |
+          python -m pip install -U pip maturin
+          maturin develop --release
+          python -m pip install -e ".[dev,gui]"
+
+      - name: The pure-Python core is active
+        shell: bash
+        run: python -c "from jsonreshape import core; assert core.BACKEND == 'python', core.BACKEND; print('core:', core.BACKEND)"
+
+      - name: Tests
+        shell: bash
+        run: python -m pytest -q -p no:cacheprovider -m "${{ env.PYTEST_SELECTION }}" --timeout=600
+
+  build-exe:
+    name: Windows .exe (PyInstaller)
+    runs-on: windows-latest
+    needs: tests-windows
+    timeout-minutes: 40
+    env:
+      JSONRESHAPE_HOME: ${{ runner.temp }}\jsonreshape-home
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\pip\Cache
+          key: pip-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: pip-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            rust/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Virtual environment
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          "${{ github.workspace }}\.venv\Scripts" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "VIRTUAL_ENV=${{ github.workspace }}\.venv" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Rust core and the build tools
+        shell: pwsh
+        run: |
+          python -m pip install -U pip maturin
+          maturin develop --release
+          python -m pip install -e ".[gui,build]" pytest pytest-timeout pefile
+
+      - name: Build dist\jsonreshape
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts\build_exe.ps1 -SkipTests -NoInstall
+
+      - name: Smoke tests of the build
+        shell: pwsh
+        run: python -m pytest -q -p no:cacheprovider -m packaging tests/test_packaging.py --timeout=600
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jsonreshape-windows-x64-${{ github.sha }}
+          path: dist/jsonreshape
+          retention-days: 14
+          if-no-files-found: error

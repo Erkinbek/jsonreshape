@@ -65,10 +65,31 @@ For the graphical interface: `.venv\Scripts\python -m pip install -e ".[gui]"` (
 Running: `jsonreshape ...` (CLI) or `python -m jsonreshape ...`; GUI — `jsonreshape-gui [file ...]`
 or `python -m jsonreshape.gui` ([section 3](#gui)).
 
+### Ready-made downloads (GitHub Releases)
+
+Every version has its files on the [Releases](https://github.com/Erkinbek/jsonreshape/releases) page:
+
+| File | What it is |
+|---|---|
+| `jsonreshape-<version>-setup-x64.exe` | Windows installer (Inno Setup): for the current user (no administrator rights) or for all users; a Start menu shortcut, an optional desktop shortcut, optionally the `jsonreshape` command on the PATH; uninstall from Settings ▸ Apps. |
+| `jsonreshape-<version>-windows-x64.zip` | Windows, portable: unzip anywhere and run `jsonreshape-gui.exe` (the window) or `jsonreshape.exe` (the command line); both share the `_internal\` folder. |
+| `jsonreshape-<version>-linux-x86_64.tar.gz`, `jsonreshape-<version>-macos-arm64.tar.gz` | Linux / macOS (Apple silicon), portable: `tar xzf …`, then `jsonreshape/jsonreshape-gui` or `jsonreshape/jsonreshape`. |
+| `*.whl`, `jsonreshape-<version>.tar.gz` | The Python package (3.11+): `pip install <file>`; `pip install "jsonreshape[gui]"` adds the window. |
+| `SHA256SUMS.txt` | Verify a download: `sha256sum -c SHA256SUMS.txt --ignore-missing` (Linux / macOS) or `Get-FileHash <file>` (PowerShell). |
+
+**PyPI** (after the first publish): `pip install jsonreshape` — one wheel with the Rust core per platform (Windows x64,
+Linux x86_64, macOS universal) that works with every Python ≥ 3.11; elsewhere the sdist builds the Rust core itself
+(without Rust the pure-Python core is used). **winget** (once the winget-pkgs pull request is merged):
+`winget install Erkinbek.jsonreshape`.
+
+The downloads are not code-signed yet: Windows SmartScreen may warn on the first start ("More info" ▸ "Run anyway").
+The program sends nothing over the network, whichever way it is installed.
+
 ### `.exe` for Windows (run without installing Python)
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\build_exe.ps1     # -SkipTests: build only; -NoInstall: do not use pip
+powershell -ExecutionPolicy Bypass -File scripts\build_exe.ps1
+# -SkipTests: build only; -NoInstall: do not use pip; -Installer: also the Inno Setup installer; -Sign <thumbprint>: code signing
 ```
 
 The script installs PyInstaller (6.22.3) into the venv (network access is needed only for this step; the program
@@ -832,6 +853,11 @@ Stage 6 (polish) tests:
 | — | themes: a static test that forbids colours outside the theme, contrast, stage 3–5 windows in dark mode | `test_theme_colours.py` |
 | — | `.exe`: worker processes in the frozen app, smoke tests on the built exe (`-m packaging`, when `dist\jsonreshape` exists) | `test_frozen_spawn.py`, `test_packaging.py` |
 | — | P6 performance: CSV worker processes (byte for byte identical to a single stream), layer checksums in parallel, benchmark scripts | `test_perf6_*.py`, `test_bench_tools.py`, `test_bench.py` |
+
+**Continuous integration**: every push and pull request to `main` runs the fast test selection on Windows with the Rust
+core and on Linux with the pure-Python core, and builds the Windows `.exe` as a workflow artifact
+(`.github/workflows/ci.yml`). A tag `vX.Y.Z` builds every release asset (installer, zip, Linux / macOS bundles, wheels,
+sdist, `SHA256SUMS.txt`) and opens a *draft* GitHub release for review (`.github/workflows/release.yml`).
 
 <a id="olchovlar"></a>
 ## 14. Measurements (benchmark)

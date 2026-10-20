@@ -1,0 +1,42 @@
+# winget default-locale manifest of jsonreshape -- a TEMPLATE: scripts/winget_manifest.py fills the VERSION
+# placeholder and drops this header.
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+PackageIdentifier: Erkinbek.jsonreshape
+PackageVersion: {{VERSION}}
+PackageLocale: en-US
+Publisher: Erkin Pardayev
+PublisherUrl: https://github.com/Erkinbek
+PublisherSupportUrl: https://github.com/Erkinbek/jsonreshape/issues
+Author: Erkin Pardayev
+PackageName: JSON Reshape
+PackageUrl: https://github.com/Erkinbek/jsonreshape
+License: Apache-2.0
+LicenseUrl: https://github.com/Erkinbek/jsonreshape/blob/main/LICENSE
+Copyright: Copyright 2026 Erkin Pardayev
+CopyrightUrl: https://github.com/Erkinbek/jsonreshape/blob/main/NOTICE
+ShortDescription: Viewer, editor and reshaper for huge JSON files
+Description: |-
+  A desktop application (JSON Reshape) and a command-line tool (jsonreshape) for JSON files from 100 MB to several
+  GB: viewing, search, filtering, sorting, conversion (CSV, XLSX, JSON Lines, SQLite), editing with undo and an
+  on-disk edit layer, restructuring with a drag-and-drop mapping, statistics, duplicates, JSON Schema, split, merge,
+  repair and comparison. A file is never loaded into memory as a whole and the original is never modified. The
+  program is offline. The interface is in Uzbek with an English fallback.
+Moniker: jsonreshape
+Tags:
+- cli
+- csv
+- editor
+- json
+- json-lines
+- json-schema
+- jsonl
+- large-files
+- ndjson
+- viewer
+- xlsx
+ReleaseNotesUrl: https://github.com/Erkinbek/jsonreshape/releases/tag/v{{VERSION}}
+Documentations:
+- DocumentLabel: README
+  DocumentUrl: https://github.com/Erkinbek/jsonreshape/blob/main/README.md
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

@@ -66,10 +66,31 @@ Grafik interfeys uchun: `.venv\Scripts\python -m pip install -e ".[gui]"` (PySid
 Ishga tushirish: `jsonreshape ...` (CLI) yoki `python -m jsonreshape ...`; GUI — `jsonreshape-gui [fayl ...]`
 yoki `python -m jsonreshape.gui` ([3-bo'lim](#gui)).
 
+### Tayyor yuklamalar (GitHub Releases)
+
+Har bir versiyaning fayllari [Releases](https://github.com/Erkinbek/jsonreshape/releases) sahifasida:
+
+| Fayl | Nima uchun |
+|---|---|
+| `jsonreshape-<versiya>-setup-x64.exe` | Windows o'rnatuvchisi (Inno Setup): faqat joriy foydalanuvchi uchun (administrator huquqi shart emas) yoki hamma uchun; Start menyusida yorliq, ixtiyoriy ish stoli yorlig'i, ixtiyoriy ravishda `jsonreshape` buyrug'i PATH ga qo'shiladi; o'chirish — Sozlamalar ▸ Ilovalar. |
+| `jsonreshape-<versiya>-windows-x64.zip` | Windows, portativ: istalgan joyga oching va `jsonreshape-gui.exe` (oyna) yoki `jsonreshape.exe` (buyruqlar qatori) ni ishga tushiring; ikkalasi bitta `_internal\` papkasini ishlatadi. |
+| `jsonreshape-<versiya>-linux-x86_64.tar.gz`, `jsonreshape-<versiya>-macos-arm64.tar.gz` | Linux / macOS (Apple silicon), portativ: `tar xzf …`, so'ng `jsonreshape/jsonreshape-gui` yoki `jsonreshape/jsonreshape`. |
+| `*.whl`, `jsonreshape-<versiya>.tar.gz` | Python paketi (3.11+): `pip install <fayl>`; oyna uchun `pip install "jsonreshape[gui]"`. |
+| `SHA256SUMS.txt` | Yuklamani tekshirish: `sha256sum -c SHA256SUMS.txt --ignore-missing` (Linux / macOS) yoki `Get-FileHash <fayl>` (PowerShell). |
+
+**PyPI** (birinchi nashrdan keyin): `pip install jsonreshape` — har bir platforma uchun (Windows x64, Linux x86_64,
+macOS universal) Rust yadroli bitta wheel, Python ≥ 3.11 ning istalgan versiyasi bilan ishlaydi; boshqa joyda sdist
+Rust yadrosini o'zi quradi (Rust bo'lmasa — sof Python yadro). **winget** (winget-pkgs so'rovi qabul qilingach):
+`winget install Erkinbek.jsonreshape`.
+
+Yuklamalar hali raqamli imzolanmagan: Windows SmartScreen birinchi ishga tushirishda ogohlantirishi mumkin
+(«Batafsil» ▸ «Baribir ishga tushirish»). Dastur qanday o'rnatilmasin, tarmoqqa hech narsa yubormaydi.
+
 ### Windows uchun `.exe` (Python o'rnatmasdan ishlatish)
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\build_exe.ps1     # -SkipTests: faqat qurish; -NoInstall: pip ishlatmaslik
+powershell -ExecutionPolicy Bypass -File scripts\build_exe.ps1
+# -SkipTests: faqat qurish; -NoInstall: pip ishlatmaslik; -Installer: Inno Setup o'rnatuvchisi ham; -Sign <thumbprint>: raqamli imzo
 ```
 
 Skript PyInstaller'ni (6.22.3) venv'ga o'rnatadi (faqat shu qadamda tarmoq kerak; dasturning o'zi oflayn), ikonani
@@ -835,6 +856,12 @@ AGENT_PROMPT §14 bo'yicha 1-bosqich qabul testlari:
 | — | mavzular: mavzu tashqarisidagi ranglarni taqiqlovchi statik test, kontrast, qorong'i rejimda 3–5-bosqich oynalari | `test_theme_colours.py` |
 | — | `.exe`: muzlatilgan dasturda ishchi jarayonlar, tayyor exe ustida smoke-testlar (`-m packaging`, `dist\jsonreshape` bo'lsa) | `test_frozen_spawn.py`, `test_packaging.py` |
 | — | P6 unumdorlik: CSV ishchi jarayonlari (bitta oqim bilan baytma-bayt bir xil), qatlam nazorat yig'indilari parallel, benchmark skriptlari | `test_perf6_*.py`, `test_bench_tools.py`, `test_bench.py` |
+
+**Uzluksiz integratsiya**: `main` ga har bir push va pull request tezkor test tanlovini Windows'da (Rust yadro) va
+Linux'da (sof Python yadro) ishga tushiradi hamda Windows `.exe` ni workflow artefakti sifatida quradi
+(`.github/workflows/ci.yml`). `vX.Y.Z` tegi barcha reliz fayllarini (o'rnatuvchi, zip, Linux / macOS to'plamlari,
+wheel'lar, sdist, `SHA256SUMS.txt`) quradi va ko'rib chiqish uchun *qoralama* GitHub relizini ochadi
+(`.github/workflows/release.yml`).
 
 <a id="olchovlar"></a>
 ## 14. O'lchovlar (benchmark)
