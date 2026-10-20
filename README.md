@@ -420,6 +420,17 @@ source file or a file that is open in another tab with unsaved changes.
   frequent values (with share; for multi-valued fields also the record count). While computing, the result
   refreshes every ~1 second. Double-clicking a value filters by it; the menu has filters by `null`, missing, type
   and length, and "Show in tree". Scope: the current view or all records; "Exact count".
+  **Charts.** Under the summary the statistics dock draws a chart of the field: for numbers a **histogram** (up to 32
+  "nice" bins — steps of 1, 2, 2.5 or 5 × 10ᵏ, integer bins for integer fields), for strings the **distribution of the
+  string lengths**, and for every field the **20 most frequent values as bars** with their share; a small combo
+  switches between the kinds the field offers. Hovering a bar shows its range, count and share (tooltip and the line
+  under the chart); **clicking a histogram bar filters the view by that range** (`age >= 20 and age <= 29`, `score >=
+  0.5 and score < 1`, `len(name) >= 3 and len(name) <= 4` — a quick filter keyed by the field, so the next click
+  replaces it), clicking a top-value bar filters by the value (`city == "Toshkent"`). The histogram is exact while the
+  field has at most 65 536 distinct numbers; beyond that it is drawn from a uniform random sample of 65 536 values
+  scaled to the total (marked "≈", the tooltip says so). The numbers stay exact: `1e400` and `12345678901234567890`
+  keep their text in the bin labels and the filters. The chart follows the live result while the statistics are
+  computed. The CLI's `stats --json` output is unchanged; a `--histogram` option is a follow-up.
 
   ![Field statistics dock for score: present / null / missing and type rows with share bars, 11,298 distinct values, the number histogram with 20 bins and the 20 most frequent values](docs/img/stats.png)
 

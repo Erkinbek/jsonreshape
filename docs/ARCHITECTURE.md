@@ -2477,6 +2477,31 @@ huge records via `stream_probe`, deterministic blake2b hashing (never Python `ha
 4096-record chunk, `ensure_unchanged()` before returning. `schema.py` gets an integer counter in `_Acc`/`FieldInfo`
 (`to_dict` key read with `.get`) and exposes `default_columns`/`field_paths` as core helpers.
 
+**Histograms (stage 7, as built).** Every numeric field keeps, besides its exact extremes, the material of a
+histogram in its `_Agg` (`_Sample`): the exact `value → count` of its distinct finite numbers while they are at
+most `k`, else a uniform reservoir sample of `k` occurrences — Li's Algorithm L with weighted insertions (a
+dict entry folded at the end of the exact phase, or at a spill, counts as `count` occurrences; the skip
+computation costs O(k·log(n/k)) random numbers per field, nothing per value) and merges (streamed records'
+accumulators) that draw the union's sample and re-seat the acceptance threshold from `Beta(k, n − k + 1)`.
+`k = max(HIST_MIN = 1 024, min(HIST_SAMPLE = 65 536, (budget / 4) / (fields × HIST_ENTRY_COST = 200)))` — with
+the default budget (`memory_limit_bytes / 8` = 64 MiB) one or two fields get 65 536 / 41 943 samples. The
+generator is seeded with blake2b of the field text, so a run is reproducible. Numbers beyond the Decimal range
+are left out (`_Sample.skipped`); `NumberStats` is unchanged. String lengths: exact counts per length up to
+`LEN_COUNTS` = 4 096 distinct lengths (`_LenCounts`), then grouped by a doubling width. `FieldStats.histogram
+(bins=32) → Histogram(edges, counts, exact, sample_size)` with `nice_edges` (steps 1, 2, 2.5, 5 × 10ᵏ aligned
+to multiples of the step, ≤ `bins` bins; integral data: integer edges, half-open bins, the last edge beyond the
+maximum so every integer has its own bin while they fit; one distinct value: one bin `[v, v]`; one bin over a
+range with 0 inside: the exact extremes) — exact Decimal / int arithmetic, never floats (`1E+400`, 5 000-digit
+integers); counts of a sampled field are scaled to the total. Live snapshots carry the material (the current
+dict is folded into a copy of it). Memory: `_AccSet.total()` includes the histogram bytes (`hist_bytes()`), the
+sketch bytes that resize Misra–Gries do not — every earlier result (`to_dict()`, the CLI text, the sketch
+bounds) is unchanged; the stats tests compare against the same references as before. `format_histogram`
+renders a text block (`stats.hist.*` keys) for a future CLI option.
+
+**Memory cost per field**: at most `k × 200` accounted bytes for the numbers (65 536 × 200 = 12.5 MiB at the
+default budget, a quarter of the budget shared by the fields of a call) plus at most 4 096 × 100 = 400 KiB for
+the string lengths; the real objects are ≤ 65 536 ints / Decimals (28–104 bytes each) in a list or dict.
+
 ### 14.2 `dupes.py` extensions
 
 Backward compatible (s5/map_stats.md §7.2, s5/map_convert.md §4.3, s5/map_repair_diff.md §4.4a): `keep="none"` (mark
@@ -2581,6 +2606,19 @@ naturally; `_document(ctx, *, build=True, path=None)` for multi-input commands; 
 * **Smart values** in the tree value column, table cells and the full-value window: tooltips for times/dates,
   underlined URLs (Ctrl+click → confirm → open), colour swatches, image thumbnails in the full-value window.
 * **Schema view**: show nulls / missing (column or tooltip) and the integer share.
+
+**Chart area (stage 7).** Between the summary and the top values the dock holds a `_Chart` (QPainter; QtCharts
+is excluded from the executable) with a kind combo: `hist` (the number histogram, `HIST_BINS` = 32), `lens`
+(string lengths) and `top` (the top 20 values as horizontal bars with their share); the default follows the
+most frequent type, a chosen kind is kept while the following results offer it. Bars hit-test by column / row;
+hovering updates the tooltip, the info line and the accessible description; a click applies the bar's filter —
+a histogram bin becomes the quick filter keyed by the field (`f >= lo and f < hi`, the last bin `<=`, integral
+bins inclusive, one value `f == v`; lengths through `len(f)` with the type guard of the length rows, none for
+multi-valued fields), a top value its `==` builder condition. The "≈" title and a tooltip mark a sampled
+histogram / grouped lengths. Colours are roles only (`accent`, `hover`, `fg`, `muted`, `line`, `panel`);
+the chart hides when the field has no values; the splitter lets the user drag it shut. Deviation from the
+brief: a range is two comparisons and `DocSession.filter_by_condition` takes one builder `Condition`, so bins
+go through the existing expression-text path (`set_quick_filter`) like the type and mixed-type length filters.
 
 ### 14.10 As built (stage 5 after two reviews and the follow-ups; module docstrings are authoritative)
 

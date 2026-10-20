@@ -32,6 +32,19 @@ AGENT_PROMPT §9 "Maydon statistikasi", §5 "Daraxtda ko'rsatish ... statistika 
   "hozircha ≈ N (±E; HyperLogLog)" when it is an estimate (sketches, or the spilled epochs of the exact
   mode: ``distinct_rse`` set); the top title says when the live counts are Misra-Gries counts that may be up
   to ``top_bound`` too low (and such counts read "≈ N").
+* **Diagramma** (stage 7; a chart area between the summary and the top values): a :class:`_Chart` painted with
+  QPainter (no QtCharts: not bundled in the executable) showing one of the kinds the field offers, chosen in a
+  small combo -- the histogram of its numbers (:meth:`~jsonreshape.stats.FieldStats.histogram`, :data:`HIST_BINS`
+  bins; the title starts with "≈" and the tip says so when the counts are scaled from a reservoir sample), the
+  histogram of its string lengths (:meth:`~jsonreshape.stats.FieldStats.length_histogram`; "≈" when the lengths
+  were grouped) or the top values as horizontal bars with their share. The default kind follows the field's most
+  frequent type (number -> histogram, string -> lengths, else top values); a kind the user picked is kept for the
+  following results while they offer it. Hovering a bar shows its range, count and share as a tooltip and in the
+  info line under the chart (also the chart's accessible description); clicking a histogram bar filters by its
+  range (:func:`range_filter` / :func:`length_range_filter`, see "Filters"), clicking a top-value bar applies the
+  value's ``==`` filter. Live snapshots refresh the chart with the rest of the result (~1 s); the area hides when
+  the field offers no chart (no values). Colours are theme roles only: bars ``accent``, the hovered column ``hover``,
+  texts ``fg`` / ``muted``, the baseline ``line``, the background ``panel``.
 * **Click -> filter** (double click / Enter on a row, or its context menu): see "Filters" below.
 * **Daraxtda ko'rsatish** (context menu of a top value, min and max): the first record holding the
   value (``ValueCount.first`` / ``NumberStats.min_first`` / ``max_first``) is selected with
@@ -70,6 +83,11 @@ min / max                   ``Condition(f, "eq", <exact token value>)``        `
 string/array/object length  ``Condition(f, "len_eq", n)`` (+ ``and type(f) ==     ``len(name) == 3``
                             "t"`` when the field also holds other sized types)
 empty strings               ``Condition(f, "eq", "")``                         ``name == ""``
+a histogram bin             text ``f >= lo and f < hi`` (the last bin ``<=``;  ``age >= 20 and age <= 29``
+                            integral bins inclusive; one value ``f == v``)
+a string-length bin         text ``len(f) >= lo and len(f) <= hi`` (one        ``len(name) >= 3 and len(name) <= 4``
+                            length ``len(f) == n``; + ``and type(f) == "string"``
+                            like the length rows; single-valued fields only)
 ==========================  =================================================  ====================
 
 :func:`apply_filter` applies it through the session's public API: a condition goes to
@@ -121,7 +139,7 @@ from typing import Any, Callable, Iterator, Sequence
 
 import shiboken6
 from PySide6.QtCore import QEvent, QModelIndex, QObject, QPoint, QRect, QStringListModel, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QContextMenuEvent, QKeySequence, QPainter, QPalette
+from PySide6.QtGui import QAction, QContextMenuEvent, QHelpEvent, QKeySequence, QPainter, QPalette
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -140,6 +158,7 @@ from PySide6.QtWidgets import (
     QStyleOptionViewItem,
     QTableWidget,
     QTableWidgetItem,
+    QToolTip,
     QVBoxLayout,
     QWidget,
 )
@@ -155,16 +174,23 @@ from jsonreshape.i18n import get_language, t
 from jsonreshape.paths import MISSING, PathPattern, Wild, format_path, parse_pattern
 from jsonreshape.query import Condition, render_path
 from jsonreshape.schema import field_paths
-from jsonreshape.stats import KEY_FIELD, FieldStats, ValueCount, field_stats
+from jsonreshape.stats import KEY_FIELD, FieldStats, ValueCount, bin_label, field_stats, number_text
 from jsonreshape.tasks import CancelToken, check
 
 log = logging.getLogger(__name__)
 
-__all__ = ["SCOPES", "TOP_VALUES", "StatsFilter", "StatsPanel", "apply_filter", "condition_field", "field_for_path",
-           "length_filter", "locate_value", "number_filter", "presence_filter", "type_filter", "value_filter"]
+__all__ = ["CHART_KINDS", "HIST_BINS", "SCOPES", "TOP_VALUES", "StatsFilter", "StatsPanel", "apply_filter",
+           "chart_data", "chart_kinds", "condition_field", "default_chart_kind", "field_for_path", "length_filter",
+           "length_range_filter", "locate_value", "number_filter", "presence_filter", "range_filter", "type_filter",
+           "value_filter"]
 
 SCOPES = ("view", "all")
 TOP_VALUES = 20                 # most frequent values listed (AGENT_PROMPT §9)
+CHART_KINDS = ("hist", "lens", "top")   # the chart area's kinds: number histogram, string lengths, top values
+HIST_BINS = 32                  # bins of the histograms drawn
+CHART_MIN_HEIGHT = 120          # minimum height of the chart canvas (device-independent pixels)
+CHART_ROW_MIN = 12              # row heights of the top-values bars: between these
+CHART_ROW_MAX = 20
 WALK_BATCH = 512                # children read at once by locate_value
 SCOPE_REFRESH_MS = 300          # live counts refresh the scope texts at most this often
 MENU_EXPR_CHARS = 80            # condition texts in menus are cut to this many characters
@@ -337,6 +363,41 @@ def number_filter(fs: FieldStats, which: str) -> StatsFilter | None:
     if nm is None:
         return None
     return value_filter(fs, codec.loads(nm.min_text if which == "min" else nm.max_text))
+
+
+def range_filter(fs: FieldStats, edges: Sequence[Any], i: int) -> StatsFilter:
+    """The filter of bin ``i`` of a number histogram (module docstring "Filters"): ``f >= lo and f < hi``
+    (the last bin ``<= hi``); integral edges give inclusive bins ``f >= lo and f <= hi - 1``; a bin holding one
+    value ``f == v``. Exact number texts (:func:`jsonreshape.stats.number_text`); an expression text (the quick
+    filter keyed by the field: no builder operator expresses a range)."""
+    f = _expr_field(fs)
+    lo, hi = edges[i], edges[i + 1]
+    if lo == hi or (isinstance(lo, int) and isinstance(hi, int) and hi - 1 == lo):
+        text = f"{f} == {number_text(lo)}"
+    elif isinstance(lo, int) and isinstance(hi, int):
+        text = f"{f} >= {number_text(lo)} and {f} <= {number_text(hi - 1)}"
+    elif i == len(edges) - 2:
+        text = f"{f} >= {number_text(lo)} and {f} <= {number_text(hi)}"
+    else:
+        text = f"{f} >= {number_text(lo)} and {f} < {number_text(hi)}"
+    return StatsFilter(condition_field(fs), None, text)
+
+
+def length_range_filter(fs: FieldStats, edges: Sequence[Any], i: int) -> StatsFilter | None:
+    """The filter of bin ``i`` of the string-length histogram: ``len(f) >= lo and len(f) <= hi`` (one length:
+    ``len(f) == n``), with ``and type(f) == "string"`` when the field also holds other sized types (like
+    :func:`length_filter`); ``None`` for multi-valued fields (``len()`` reads the first value only)."""
+    if fs.multi:
+        return None
+    f = _expr_field(fs)
+    lo, hi = int(edges[i]), int(edges[i + 1])
+    if hi - 1 <= lo:
+        text = f"len({f}) == {lo}"
+    else:
+        text = f"len({f}) >= {lo} and len({f}) <= {hi - 1}"
+    if any(fs.types.get(name) for name in _SIZED if name != "string"):
+        text += f' and type({f}) == "string"'
+    return StatsFilter(condition_field(fs), None, text)
 
 
 def apply_filter(session: Any, flt: StatsFilter) -> bool:
@@ -643,6 +704,131 @@ def top_rows(fs: FieldStats, *, single: bool = False) -> list[_TopRow]:
 
 
 # ======================================================================================
+# the chart area's data (Qt-free)
+# ======================================================================================
+@dataclass
+class _Bar:
+    """One bar of the chart: its label (a bin's range, a value's text), count and share, the texts shown,
+    the filter a click applies (or why there is none)."""
+
+    label: str
+    count: int
+    share: float
+    count_text: str
+    share_text: str
+    tip: str
+    approx: bool = False
+    filters: list[StatsFilter] = dc_field(default_factory=list)
+    why: str = ""
+
+
+@dataclass
+class _ChartData:
+    """What the chart draws: ``kind`` (:data:`CHART_KINDS`), the bars, the title over the chart, the chart's
+    own tooltip (how to use it; sampling / grouping notes), ``vertical`` (histograms) or rows (top values)."""
+
+    kind: str
+    bars: list[_Bar]
+    title: str
+    tip: str
+    vertical: bool
+
+    @property
+    def peak(self) -> int:
+        return max((b.count for b in self.bars), default=0)
+
+
+def chart_kinds(fs: FieldStats) -> list[str]:
+    """The chart kinds ``fs`` offers, in :data:`CHART_KINDS` order: ``hist`` with finite numbers, ``lens`` with
+    strings, ``top`` with top values."""
+    kinds = []
+    if fs.number_hist is not None and getattr(fs.number_hist, "n", 0):
+        kinds.append("hist")
+    if fs.length_hist is not None and getattr(fs.length_hist, "n", 0):
+        kinds.append("lens")
+    if fs.top:
+        kinds.append("top")
+    return kinds
+
+
+def default_chart_kind(fs: FieldStats, kinds: Sequence[str]) -> str | None:
+    """The kind shown first: the field's most frequent type decides (number -> ``hist``, string -> ``lens``),
+    else the first kind offered."""
+    first = next(iter(fs.types), None)
+    if first == "number" and "hist" in kinds:
+        return "hist"
+    if first == "string" and "lens" in kinds:
+        return "lens"
+    for kind in CHART_KINDS:
+        if kind in kinds:
+            return kind
+    return None
+
+
+def chart_data(fs: FieldStats, kind: str, rows: Sequence[_TopRow] | None = None, *, single: bool = False,
+               bins: int = HIST_BINS) -> _ChartData | None:
+    """The bars of chart ``kind`` for ``fs`` (``rows``: the top-values rows, computed when ``None``; ``single``: a
+    single document -- no filters); ``None`` when the field offers no such chart."""
+    if kind not in CHART_KINDS:
+        raise ValueError(f"unknown chart kind: {kind!r}")
+    why_single = t("gui.statspanel.why.single") if single else ""
+    bars: list[_Bar] = []
+    if kind == "top":
+        if rows is None:
+            rows = top_rows(fs, single=single)
+        for row in list(rows)[:TOP_VALUES]:
+            vc = row.vc
+            count_text = t("gui.statspanel.top.count_approx", count=_count(vc.count)) if vc.error else _count(vc.count)
+            share_text = _share_text(vc.count, fs.values)
+            tip = t("gui.statspanel.chart.bar.tip", range=vc.text, count=count_text, share=share_text)
+            bars.append(_Bar(vc.text, vc.count, _fraction(vc.count, fs.values), count_text, share_text, tip,
+                             approx=bool(vc.error), filters=list(row.filters), why=row.why))
+        if not bars:
+            return None
+        title = _tn("gui.statspanel.chart.title.top", len(bars), count=len(bars))
+        return _ChartData("top", bars, title, t("gui.statspanel.chart.tip.click"), False)
+    hist = fs.histogram(bins) if kind == "hist" else fs.length_histogram(bins)
+    if hist is None:
+        return None
+    total = hist.total
+    for i, c in enumerate(hist.counts):
+        label = bin_label(hist.edges, i)
+        if kind == "lens":
+            label = t("gui.statspanel.chart.len.label", range=label)
+        count_text = _count(c) if hist.exact else t("gui.statspanel.top.count_approx", count=_count(c))
+        share_text = _share_text(c, total)
+        bar = _Bar(label, c, _fraction(c, total), count_text, share_text,
+                   t("gui.statspanel.chart.bar.tip", range=label, count=count_text, share=share_text),
+                   approx=not hist.exact)
+        if single:
+            bar.why = why_single
+        elif kind == "hist":
+            bar.filters, bar.why = _filter_or_why(lambda i=i: range_filter(fs, hist.edges, i))
+        else:
+            bar.filters, bar.why = _filter_or_why(lambda i=i: length_range_filter(fs, hist.edges, i),
+                                                  t("gui.statspanel.why.multi_len"))
+        bars.append(bar)
+    tips = [t("gui.statspanel.chart.tip.click")]
+    if kind == "hist":
+        n = int(getattr(fs.number_hist, "n", total))
+        if hist.exact:
+            title = t("gui.statspanel.chart.title.hist", bins=len(bars), count=_count(n))
+        else:
+            title = t("gui.statspanel.chart.title.hist_sampled", bins=len(bars), count=_count(n),
+                      sample=_count(hist.sample_size))
+            tips.append(t("gui.statspanel.chart.tip.sampled", sample=_count(hist.sample_size), count=_count(n)))
+    else:
+        n = int(getattr(fs.length_hist, "n", total))
+        width = int(getattr(fs.length_hist, "width", 1))
+        if hist.exact:
+            title = t("gui.statspanel.chart.title.lens", bins=len(bars), count=_count(n))
+        else:
+            title = t("gui.statspanel.chart.title.lens_grouped", bins=len(bars), count=_count(n), width=width)
+            tips.append(t("gui.statspanel.chart.tip.grouped", width=width))
+    return _ChartData(kind, bars, title, "\n".join(tips), True)
+
+
+# ======================================================================================
 # widgets
 # ======================================================================================
 class _ShareDelegate(QStyledItemDelegate):
@@ -728,6 +914,210 @@ class _TypesBar(QWidget):
             painter.end()
 
 
+class _Chart(QWidget):
+    """The chart area's canvas (module docstring, "Diagramma"): vertical bars (histograms; the bar's column
+    is the hit area) or horizontal bars with a label and the share (top values; as many rows as fit), painted
+    with theme roles only. ``hovered(int)`` (-1: none) follows the mouse, ``activated(int)`` a left click on a
+    bar; the tooltip of a bar is its text (and the filter it applies, or why there is none)."""
+
+    hovered = Signal(int)
+    activated = Signal(int)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._data: _ChartData | None = None
+        self._rects: list[QRect] = []          # hit rects of the bars drawn (columns / rows)
+        self._hover = -1
+        self.setMinimumHeight(CHART_MIN_HEIGHT)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setMouseTracking(True)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.setAccessibleName(t("gui.statspanel.chart.name"))
+
+    # -- data ---------------------------------------------------------------------------------
+    def set_data(self, data: _ChartData | None) -> None:
+        self._data = data
+        self._rects = []
+        if data is None or self._hover >= len(data.bars):
+            self._hover = -1
+        self.update()
+
+    def data(self) -> _ChartData | None:
+        return self._data
+
+    def hover_index(self) -> int:
+        return self._hover
+
+    def set_hover(self, index: int) -> None:
+        data = self._data
+        if data is None or not (0 <= index < len(data.bars)):
+            index = -1
+        if index != self._hover:
+            self._hover = index
+            self.update()
+            self.hovered.emit(index)
+
+    def shown_bars(self) -> int:
+        """Bars that have a place on the canvas (a horizontal chart draws the rows that fit)."""
+        self._layout()
+        return len(self._rects)
+
+    def bar_rect(self, index: int) -> QRect:
+        """The hit rect of bar ``index`` (empty when it is not drawn)."""
+        self._layout()
+        return QRect(self._rects[index]) if 0 <= index < len(self._rects) else QRect()
+
+    def bar_at(self, pos: QPoint) -> int:
+        self._layout()
+        for i, r in enumerate(self._rects):
+            if r.contains(pos):
+                return i
+        return -1
+
+    # -- geometry -----------------------------------------------------------------------------
+    def _plot_rect(self) -> QRect:
+        data = self._data
+        lh = self.fontMetrics().height()
+        if data is not None and data.vertical:
+            return self.rect().adjusted(4, 4, -4, -(lh + 6))
+        return self.rect().adjusted(4, 4, -4, -4)
+
+    def _layout(self) -> None:
+        if self._rects:
+            return
+        data = self._data
+        if data is None or not data.bars:
+            return
+        r = self._plot_rect()
+        n = len(data.bars)
+        rects: list[QRect] = []
+        if data.vertical:
+            w = r.width() / n
+            for i in range(n):
+                x0 = r.left() + round(i * w)
+                x1 = r.left() + round((i + 1) * w)
+                rects.append(QRect(x0, r.top(), max(1, x1 - x0), r.height()))
+        else:
+            row_h = max(CHART_ROW_MIN, min(CHART_ROW_MAX, r.height() // max(1, n)))
+            shown = min(n, max(1, r.height() // row_h))
+            for i in range(shown):
+                rects.append(QRect(r.left(), r.top() + i * row_h, r.width(), row_h))
+        self._rects = rects
+
+    # -- painting -----------------------------------------------------------------------------
+    def paintEvent(self, _event: Any) -> None:  # noqa: N802 - Qt name
+        painter = QPainter(self)
+        try:
+            painter.fillRect(self.rect(), theme.color("panel"))
+            data = self._data
+            if data is None or not data.bars:
+                return
+            self._layout()
+            if data.vertical:
+                self._paint_vertical(painter, data)
+            else:
+                self._paint_rows(painter, data)
+        finally:
+            painter.end()
+
+    def _paint_vertical(self, painter: QPainter, data: _ChartData) -> None:
+        r = self._plot_rect()
+        peak = data.peak or 1
+        accent = theme.color("accent")
+        hover = theme.color("hover")
+        inner = r.height() - 2
+        for i, (bar, col) in enumerate(zip(data.bars, self._rects)):
+            if i == self._hover:
+                painter.fillRect(col, hover)
+            h = round(inner * bar.count / peak)
+            if bar.count and h < 1:
+                h = 1
+            if h > 0:
+                gap = 1 if col.width() > 3 else 0
+                painter.fillRect(QRect(col.left() + gap, col.bottom() - h + 1, col.width() - 2 * gap, h), accent)
+        painter.fillRect(QRect(r.left(), r.bottom() + 1, r.width(), 1), theme.color("line"))
+        fm = painter.fontMetrics()
+        label_rect = QRect(r.left(), r.bottom() + 3, r.width(), fm.height())
+        painter.setPen(theme.color("muted"))
+        half = max(0, r.width() // 2 - 4)
+        first = fm.elidedText(data.bars[0].label, Qt.TextElideMode.ElideRight, half)
+        painter.drawText(label_rect, int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter), first)
+        if len(data.bars) > 1:
+            last = fm.elidedText(data.bars[-1].label, Qt.TextElideMode.ElideRight, half)
+            painter.drawText(label_rect, int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter), last)
+
+    def _paint_rows(self, painter: QPainter, data: _ChartData) -> None:
+        peak = data.peak or 1
+        fm = painter.fontMetrics()
+        accent = theme.color("accent")
+        hover = theme.color("hover")
+        fg = theme.color("fg")
+        muted = theme.color("muted")
+        r = self._plot_rect()
+        widest = max((fm.horizontalAdvance(b.label) for b in data.bars), default=0)
+        label_w = min(max(24, r.width() * 2 // 5), widest + 8)
+        share_w = fm.horizontalAdvance("100%") + 8
+        for i, (bar, row) in enumerate(zip(data.bars, self._rects)):
+            if i == self._hover:
+                painter.fillRect(row, hover)
+            text_rect = QRect(row.left() + 2, row.top(), label_w - 4, row.height())
+            painter.setPen(fg)
+            painter.drawText(text_rect, int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
+                             fm.elidedText(bar.label, Qt.TextElideMode.ElideRight, text_rect.width()))
+            bar_area = QRect(row.left() + label_w, row.top() + 2, max(1, row.width() - label_w - share_w),
+                             max(1, row.height() - 4))
+            w = round(bar_area.width() * bar.count / peak)
+            if bar.count and w < 1:
+                w = 1
+            if w > 0:
+                painter.fillRect(QRect(bar_area.left(), bar_area.top(), w, bar_area.height()), accent)
+            painter.setPen(muted)
+            painter.drawText(QRect(row.right() - share_w + 1, row.top(), share_w - 2, row.height()),
+                             int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter), bar.share_text)
+
+    # -- events -------------------------------------------------------------------------------
+    def resizeEvent(self, event: Any) -> None:  # noqa: N802 - Qt name
+        self._rects = []
+        super().resizeEvent(event)
+
+    def mouseMoveEvent(self, event: Any) -> None:  # noqa: N802 - Qt name
+        self.set_hover(self.bar_at(event.position().toPoint()))
+        super().mouseMoveEvent(event)
+
+    def leaveEvent(self, event: Any) -> None:  # noqa: N802 - Qt name
+        self.set_hover(-1)
+        super().leaveEvent(event)
+
+    def mouseReleaseEvent(self, event: Any) -> None:  # noqa: N802 - Qt name
+        if event.button() == Qt.MouseButton.LeftButton:
+            index = self.bar_at(event.position().toPoint())
+            if index >= 0:
+                self.activated.emit(index)
+        super().mouseReleaseEvent(event)
+
+    def tip_at(self, index: int) -> str:
+        """The tooltip of bar ``index`` (the chart's own tip outside the bars)."""
+        data = self._data
+        if data is None:
+            return ""
+        if 0 <= index < len(data.bars):
+            bar = data.bars[index]
+            extra = bar.filters[0].text if bar.filters else bar.why
+            return bar.tip + ("\n" + extra if extra else "")
+        return data.tip
+
+    def event(self, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.ToolTip and isinstance(event, QHelpEvent):
+            text = self.tip_at(self.bar_at(event.pos()))
+            if text:
+                QToolTip.showText(event.globalPos(), text, self)
+            else:
+                QToolTip.hideText()
+            event.accept()
+            return True
+        return super().event(event)
+
+
 class MenuReason(QObject):
     """Remembers whether the last context-menu event of a table came from the keyboard (the menu key /
     Shift+F10 open the menu of the CURRENT row, not of the row under the viewport's center)."""
@@ -802,6 +1192,9 @@ class StatsPanel(QWidget):
         self._states: dict[int, _State] = {}
         self._rows: list[_Row] = []
         self._top: list[_TopRow] = []
+        self._chart: _ChartData | None = None
+        self._chart_pref: str | None = None   # the chart kind the user picked (kept while results offer it)
+        self._chart_syncing = False
         self.last_menu: QMenu | None = None   # the context menu shown last (tests, automation)
         self._dead = False
         self._syncing = False
@@ -963,6 +1356,41 @@ class StatsPanel(QWidget):
         self.summary.activated.connect(self._on_summary_activated)
         self.summary.customContextMenuRequested.connect(self._on_summary_menu)
         split.addWidget(self.summary)
+        # the chart area (module docstring, "Diagramma"): title + kind combo, the canvas, an info line
+        self.chart_box = QWidget(split)
+        self.chart_box.setObjectName("stats_chart_box")
+        chart_layout = QVBoxLayout(self.chart_box)
+        chart_layout.setContentsMargins(0, 4, 0, 0)
+        chart_layout.setSpacing(2)
+        chart_head = QHBoxLayout()
+        chart_head.setSpacing(6)
+        self.chart_title = QLabel(self.chart_box)
+        self.chart_title.setObjectName("stats_chart_title")
+        self.chart_title.setTextFormat(Qt.TextFormat.PlainText)
+        self.chart_title.setWordWrap(True)
+        chart_head.addWidget(self.chart_title, 1)
+        self.chart_kind_combo = QComboBox(self.chart_box)
+        self.chart_kind_combo.setObjectName("stats_chart_kind")
+        self.chart_kind_combo.setToolTip(t("gui.statspanel.chart.kind.tip"))
+        self.chart_kind_combo.setAccessibleName(t("gui.statspanel.chart.kind.name"))
+        self.chart_kind_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        self.chart_kind_combo.currentIndexChanged.connect(self._on_chart_kind)
+        chart_head.addWidget(self.chart_kind_combo, 0, Qt.AlignmentFlag.AlignTop)
+        chart_layout.addLayout(chart_head)
+        self.chart = _Chart(self.chart_box)
+        self.chart.setObjectName("stats_chart")
+        self.chart.hovered.connect(self._on_chart_hover)
+        self.chart.activated.connect(self._on_chart_activated)
+        chart_layout.addWidget(self.chart, 1)
+        self.chart_info = QLabel(self.chart_box)
+        self.chart_info.setObjectName("stats_chart_info")
+        self.chart_info.setTextFormat(Qt.TextFormat.PlainText)
+        self.chart_info.setWordWrap(True)
+        self.chart_info.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        chart_layout.addWidget(self.chart_info)
+        self.chart_box.setVisible(False)
+        split.addWidget(self.chart_box)
+        split.setCollapsible(1, True)          # the chart may be dragged shut
         top_box = QWidget(split)
         top_layout = QVBoxLayout(top_box)
         top_layout.setContentsMargins(0, 4, 0, 0)
@@ -989,7 +1417,8 @@ class StatsPanel(QWidget):
         top_layout.addWidget(self.top_table, 1)
         split.addWidget(top_box)
         split.setStretchFactor(0, 1)
-        split.setStretchFactor(1, 1)
+        split.setStretchFactor(1, 0)
+        split.setStretchFactor(2, 1)
         layout.addWidget(split, 1)
         self.splitter = split
 
@@ -1025,10 +1454,12 @@ class StatsPanel(QWidget):
         self.stale_label.setStyleSheet(f"color: {theme.color('warn').name()};")
         self.warnings_label.setStyleSheet(f"color: {theme.color('warn').name()};")
         self.header_label.setStyleSheet("font-weight: bold;")
+        self.chart_info.setStyleSheet(f"color: {theme.color('muted').name()};")
         self._style_status()
         for table in (self.summary, self.top_table):
             table.viewport().update()
         self.types_bar.update()
+        self.chart.update()
 
     def _style_status(self) -> None:
         st = self._current()
@@ -1628,6 +2059,7 @@ class StatsPanel(QWidget):
             self.top_table.setRowCount(0)
             self.top_title.setText("")
             self.warnings_label.setVisible(False)
+            self._set_chart(None)
             return
         meta = st.meta
         single = bool(meta is not None and meta.single)
@@ -1649,9 +2081,120 @@ class StatsPanel(QWidget):
         self._fill_summary()
         self._top = top_rows(fs, single=single)
         self._fill_top(fs)
+        self._fill_chart(fs, single)
         warnings = fs.warning_texts() if not fs.partial else []
         self.warnings_label.setText("\n".join(warnings))
         self.warnings_label.setVisible(bool(warnings))
+
+    # ================================================================================== chart
+    def _fill_chart(self, fs: FieldStats, single: bool) -> None:
+        kinds = chart_kinds(fs)
+        if not kinds:
+            self._set_chart(None)
+            return
+        kind = self._chart_pref if self._chart_pref in kinds else default_chart_kind(fs, kinds)
+        combo = self.chart_kind_combo
+        self._chart_syncing = True
+        try:
+            if [combo.itemData(i) for i in range(combo.count())] != kinds:
+                combo.clear()
+                for k in kinds:
+                    combo.addItem(t(f"gui.statspanel.chart.kind.{k}"), k)
+            combo.setCurrentIndex(kinds.index(kind))
+        finally:
+            self._chart_syncing = False
+        self._set_chart(chart_data(fs, kind, self._top, single=single))
+
+    def _set_chart(self, data: _ChartData | None) -> None:
+        self._chart = data
+        self.chart.set_data(data)
+        if data is None:
+            self.chart_title.setText("")
+            self.chart_title.setToolTip("")
+            self.chart_info.setText("")
+            self.chart.setAccessibleDescription("")
+            self.chart_box.setVisible(False)
+            return
+        self.chart_title.setText(data.title)
+        self.chart_title.setToolTip(data.tip)
+        self.chart_box.setVisible(True)
+        self._update_chart_info()
+
+    def _update_chart_info(self) -> None:
+        data = self._chart
+        if data is None:
+            self.chart_info.setText("")
+            return
+        i = self.chart.hover_index()
+        if 0 <= i < len(data.bars):
+            bar = data.bars[i]
+            action = bar.filters[0].text if bar.filters else bar.why
+            text = t("gui.statspanel.chart.info.hover", range=bar.label, count=bar.count_text, share=bar.share_text,
+                     action=_elide(action))
+        else:
+            text = _tn("gui.statspanel.chart.info.idle", len(data.bars), count=len(data.bars))
+        self.chart_info.setText(text)
+        self.chart.setAccessibleDescription(text)
+
+    def _on_chart_kind(self, _index: int = 0) -> None:
+        if self._chart_syncing:
+            return
+        kind = self.chart_kind_combo.currentData()
+        if kind not in CHART_KINDS:
+            return
+        self._chart_pref = kind
+        st = self._current()
+        fs = st.result if st is not None else None
+        if fs is None:
+            return
+        single = bool(st is not None and st.meta is not None and st.meta.single)
+        self._set_chart(chart_data(fs, kind, self._top, single=single))
+
+    def _on_chart_hover(self, _index: int) -> None:
+        self._update_chart_info()
+
+    def _on_chart_activated(self, index: int) -> None:
+        self.activate_bar(index)
+
+    def chart_kinds(self) -> list[str]:
+        """The chart kinds the result offers (the combo's items)."""
+        combo = self.chart_kind_combo
+        return [combo.itemData(i) for i in range(combo.count())] if self._chart is not None else []
+
+    def chart_kind(self) -> str | None:
+        """The chart kind shown (``None`` without a chart)."""
+        return self._chart.kind if self._chart is not None else None
+
+    def set_chart_kind(self, kind: str) -> None:
+        """Show chart ``kind`` (one of :meth:`chart_kinds`; remembered for the following results)."""
+        index = self.chart_kind_combo.findData(kind)
+        if index < 0:
+            raise ValueError(f"chart kind not offered: {kind!r}")
+        self.chart_kind_combo.setCurrentIndex(index)
+
+    def chart_visible(self) -> bool:
+        return self.chart_box.isVisibleTo(self)
+
+    def chart_bars(self) -> list[_Bar]:
+        return list(self._chart.bars) if self._chart is not None else []
+
+    def chart_bar_filters(self, index: int) -> list[StatsFilter]:
+        """The filters a bar offers (the first one is its click action)."""
+        return list(self._chart.bars[index].filters) if self._chart is not None else []
+
+    def chart_info_text(self) -> str:
+        return self.chart_info.text()
+
+    def activate_bar(self, index: int) -> bool:
+        """The click action of a bar: its filter (the reason is flashed when there is none)."""
+        if self._chart is None or not (0 <= index < len(self._chart.bars)):
+            return False
+        bar = self._chart.bars[index]
+        if bar.filters:
+            return self._apply(bar.filters[0])
+        if bar.why:
+            self._flash(bar.why)
+        return False
 
     def _fill_summary(self) -> None:
         table = self.summary

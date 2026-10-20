@@ -134,6 +134,34 @@ Algorithm (map_stats §4.3)
   instead of dropping to the current epoch after every spill (review R5A-7); ``top_bound`` is
   that summary's ``D``.
 
+Histograms (stage 7; docs/ARCHITECTURE.md §14.1 "as built")
+-----------------------------------------------------------
+* Every numeric field keeps, besides its exact extremes, the material of a **histogram**: the exact
+  ``value -> count`` of its distinct finite numbers while they are at most ``k`` (:data:`HIST_SAMPLE`
+  = 65 536; fewer under a small budget: ``k = max(HIST_MIN, min(HIST_SAMPLE, (budget / HIST_SHARE) /
+  (fields x HIST_ENTRY_COST)))``), else a uniform **reservoir sample** of ``k`` occurrences (Li's
+  Algorithm L with weighted insertions -- a dict entry is folded as ``count`` occurrences -- and merges
+  that draw the union's sample and re-seat the threshold from ``Beta(k, n - k + 1)``; the generator is
+  seeded with blake2b of the field text, so a run is reproducible). Numbers beyond the Decimal range
+  (``1e99999999999999999999``) are left out (``_Sample.skipped``). In the exact phase the numbers reach
+  the sample when the dict is folded (at the end of the pass, or at a spill), so the sample is exact
+  whenever the distinct numbers of the field fit ``k``; sketched fields feed it per occurrence.
+  :meth:`FieldStats.histogram` ``(bins=32)`` gives :class:`Histogram` ``(edges, counts, exact,
+  sample_size)``: "nice" edges (:func:`nice_edges`: steps 1, 2, 2.5, 5 x 10^k covering min..max with
+  at most ``bins`` bins; an integral field gets integer edges and half-open bins whose last edge lies
+  beyond the maximum, so every integer has its own bin while they fit; a single distinct value is one
+  bin ``[v, v]``), exact counts, or the sample's counts scaled to the number of values (``exact=False``,
+  ``sample_size`` = the sample). Edges are exact ``int`` / ``Decimal`` values (:func:`number_text` for
+  their JSON text: ``1E+400`` stays exact, never a float).
+* **String lengths**: exact counts per length up to :data:`LEN_COUNTS` (4 096) distinct lengths, then
+  grouped by a doubling width (``exact=False``, ``_LenCounts.width``); :meth:`FieldStats.length_histogram`.
+* Memory: a sample holds at most ``k`` numbers (:data:`HIST_ENTRY_COST` = 200 accounted bytes each; all
+  samples of a call at most a quarter of the budget, with the floor :data:`HIST_MIN` = 1 024 like
+  ``MG_MIN``), the length counts at most 4 096 entries; both are in ``_AccSet.total()`` but not in the
+  sketch bytes that resize Misra-Gries, so every earlier result is unchanged. Live snapshots carry the
+  samples too (the current dict is folded into a copy). ``to_dict()`` and the CLI output are unchanged;
+  :func:`format_histogram` renders a histogram as text (a CLI option is a follow-up).
+
 Decisions and extensions (documented deviations of map_stats §4)
 ----------------------------------------------------------------
 * The spelling shown is the first occurrence's (above), not the most frequent one.
@@ -175,12 +203,13 @@ import itertools
 import json
 import logging
 import math
+import random
 import re
 import time
 from array import array
-from dataclasses import dataclass
-from decimal import MAX_EMAX, MAX_PREC, MIN_EMIN, ROUND_HALF_EVEN, Context, Decimal
-from typing import Any, Callable, Iterable, Sequence
+from dataclasses import dataclass, field as dc_field
+from decimal import MAX_EMAX, MAX_PREC, MIN_EMIN, ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_EVEN, Context, Decimal
+from typing import Any, Callable, Iterable, NamedTuple, Sequence
 
 from . import codec, core
 from .appdirs import work_dir
@@ -201,19 +230,27 @@ log = logging.getLogger(__name__)
 __all__ = [
     "CHUNK_RECORDS",
     "DEFAULT_TOP",
+    "HIST_MIN",
+    "HIST_SAMPLE",
     "HLL_P",
     "HLL_RSE",
     "KEY_FIELD",
+    "LEN_COUNTS",
     "LONG_TOKEN",
     "MG_COUNTERS",
     "SUM_DIGITS_MAX",
     "TOP_MAX",
     "FieldStats",
+    "Histogram",
     "NumberStats",
     "StringStats",
     "ValueCount",
+    "bin_label",
     "field_stats",
+    "format_histogram",
     "format_stats",
+    "nice_edges",
+    "number_text",
 ]
 
 KiB = 1 << 10
@@ -248,6 +285,13 @@ CACHE_TOKEN_MAX = 256        # longer tokens are not cached
 TICK_VALUES = 4096           # streamed values between budget checks
 FINISH_SHARE = 0.05          # share of the progress bar for the final merge (exact mode)
 INDEX_SHARE = 0.45           # share of the progress bar for an index build done here
+HIST_SAMPLE = 65536          # numbers kept per numeric field for the histogram (exact values, else a reservoir)
+HIST_MIN = 1024              # ... at least, whatever the budget (like MG_MIN)
+HIST_ENTRY_COST = 200        # accounted bytes of one kept number (the value and its dict entry / list slot)
+HIST_SHARE = 4               # the histogram samples of a call may use the budget / this
+HIST_BINS = 32               # bins of FieldStats.histogram by default
+HIST_BINS_MAX = 4096         # bins asked for at most
+LEN_COUNTS = 4096            # distinct string lengths counted exactly; beyond: grouped by a doubling width
 ELLIPSIS = "\N{HORIZONTAL ELLIPSIS}"
 
 T_OBJECT, T_ARRAY, T_STRING, T_NUMBER, T_BOOL, T_NULL = range(6)
@@ -352,6 +396,139 @@ class StringStats:
         return {"min_len": self.min_len, "max_len": self.max_len, "empty": self.empty}
 
 
+class Histogram(NamedTuple):
+    """A histogram of :meth:`FieldStats.histogram` / :meth:`FieldStats.length_histogram` (module
+    docstring, "Histograms"): ``edges`` -- ``bins + 1`` ascending exact values (``int`` for integral
+    data, else ``Decimal``); bin ``i`` is ``[edges[i], edges[i + 1])``, the last bin of non-integral data
+    is closed (integral data: the last edge lies beyond the maximum); one bin ``[v, v]`` for a single
+    distinct value. ``counts``: occurrences per bin -- exact, or the sample's counts scaled to the
+    number of values when ``exact`` is False; ``sample_size``: the values the counts rest on (all of
+    them when exact)."""
+
+    edges: list
+    counts: list
+    exact: bool
+    sample_size: int
+
+    @property
+    def bins(self) -> int:
+        return len(self.counts)
+
+    @property
+    def total(self) -> int:
+        return sum(self.counts)
+
+
+def number_text(value: Any) -> str:
+    """The JSON number text of an exact edge value: an ``int`` plainly (beyond Python's digit limit
+    through Decimal), a ``Decimal`` without trailing zeros, in scientific form beyond 40 digits
+    (``1E+400``) -- valid in JSON and in the filter language, never a float."""
+    if isinstance(value, int) and not isinstance(value, bool):
+        try:
+            return str(value)
+        except ValueError:            # more than 4 300 digits
+            value = Decimal(value)
+    d = value if isinstance(value, Decimal) else Decimal(str(value))
+    if not d.is_finite():
+        return str(d)
+    if d.is_zero():
+        return "0"
+    return _plain(d.normalize(_EXACT))
+
+
+_NICE = (Decimal(1), Decimal(2), Decimal("2.5"), Decimal(5))
+
+
+def _dec_digits(value: Any) -> int:
+    if isinstance(value, Decimal):
+        return len(value.as_tuple().digits)
+    return _digits(int(value))
+
+
+def nice_edges(lo: Any, hi: Any, bins: int = HIST_BINS, integral: bool = False) -> list:
+    """The "nice" bin edges covering ``lo..hi`` (exact ``int`` / ``Decimal`` values; module docstring,
+    "Histograms"): the smallest step ``1, 2, 2.5, 5 x 10^k`` that gives at most ``bins`` bins when the
+    edges are aligned to multiples of the step (the first edge at or below ``lo``). ``integral``: the
+    step is an integer (at least 1), the edges are ``int`` and the last edge is the first multiple of
+    the step beyond ``hi`` (half-open bins for every integer). ``lo == hi``: ``[lo, hi]`` (one bin); one bin
+    asked for over a range with 0 inside it: the exact extremes (no aligned step gives one bin there).
+    ``ValueError`` for ``bins`` outside ``1..HIST_BINS_MAX``."""
+    if isinstance(bins, bool) or not isinstance(bins, int) or bins < 1 or bins > HIST_BINS_MAX:
+        raise ValueError(f"bins must be 1..{HIST_BINS_MAX}, got {bins!r}")
+    if isinstance(lo, Decimal) and not lo.is_finite() or isinstance(hi, Decimal) and not hi.is_finite():
+        raise ValueError("histogram edges need finite extremes")
+    if integral:
+        lo, hi = int(lo), int(hi)
+    else:
+        lo = lo if isinstance(lo, Decimal) else Decimal(int(lo))
+        hi = hi if isinstance(hi, Decimal) else Decimal(int(hi))
+    if hi < lo:
+        lo, hi = hi, lo
+    if lo == hi:
+        return [lo, hi]
+    if bins == 1 and lo < 0 and (hi > 0 or (integral and hi >= 0)):
+        # one bin over a range with 0 inside it: edges aligned to a step always need two bins (one on
+        # each side of 0), so the one bin is the exact extremes
+        return [lo, hi + 1] if integral else [lo, hi]
+    prec = max(_dec_digits(lo), _dec_digits(hi), 1) + 60
+    ctx = Context(prec=prec, Emax=MAX_EMAX, Emin=MIN_EMIN)
+    dlo, dhi = Decimal(lo), Decimal(hi)
+    raw = ctx.divide(ctx.subtract(dhi, dlo), Decimal(bins))
+    k = raw.adjusted()
+    if integral and k < 0:
+        k = 0
+    while True:
+        for m in _NICE:
+            step = m.scaleb(k, context=ctx)
+            if step < raw:
+                continue
+            if integral and step != step.to_integral_value():
+                continue
+            first = ctx.multiply(ctx.divide(dlo, step).to_integral_value(rounding=ROUND_FLOOR), step)
+            q = ctx.divide(dhi, step)
+            if integral:
+                last = ctx.multiply(ctx.add(q.to_integral_value(rounding=ROUND_FLOOR), Decimal(1)), step)
+            else:
+                last = ctx.multiply(q.to_integral_value(rounding=ROUND_CEILING), step)
+            n = int(ctx.divide(ctx.subtract(last, first), step))
+            if n <= bins:
+                edges = [ctx.add(first, ctx.multiply(Decimal(i), step)) for i in range(n + 1)]
+                return [int(e) for e in edges] if integral else edges
+        k += 1
+
+
+def bin_label(edges: Sequence[Any], i: int) -> str:
+    """The localized text of bin ``i`` of ``edges``: ``lo – hi`` of integral bins (inclusive; the
+    integer itself for a one-integer bin), ``lo ≤ x < hi`` else (``≤ hi`` for the last bin), ``v`` for
+    the single bin ``[v, v]``."""
+    lo, hi = edges[i], edges[i + 1]
+    if lo == hi:
+        return t("stats.hist.single", value=number_text(lo))
+    if isinstance(lo, int) and isinstance(hi, int):
+        if hi - 1 == lo:
+            return t("stats.hist.single", value=number_text(lo))
+        return t("stats.hist.range_int", lo=number_text(lo), hi=number_text(hi - 1))
+    key = "stats.hist.range_last" if i == len(edges) - 2 else "stats.hist.range"
+    return t(key, lo=number_text(lo), hi=number_text(hi))
+
+
+def format_histogram(hist: Histogram, *, width: int = 30) -> str:
+    """A localized plain-text block of a histogram: a title (bins, values; the sample size when the
+    counts are scaled from a sample) and one line per bin with its label, count, share and a bar of
+    at most ``width`` characters (a future CLI option; the GUI draws the same data)."""
+    nbins = len(hist.counts)
+    total = hist.total
+    key = "stats.hist.title" if hist.exact else "stats.hist.title_sampled"
+    lines = [_tn(key, nbins, bins=nbins, count=_count_text(total), sample=_count_text(hist.sample_size))]
+    labels = [bin_label(hist.edges, i) for i in range(nbins)]
+    lw = min(max((len(x) for x in labels), default=1), 40)
+    peak = max(hist.counts) if hist.counts else 0
+    for label, c in zip(labels, hist.counts):
+        bar = "#" * (round(c / peak * width) if peak else 0)
+        lines.append(f"    {label:<{lw}}  {_count_text(c):>12}  {_share(c, total):>7}  {bar}")
+    return "\n".join(lines)
+
+
 @dataclass
 class FieldStats:
     """Statistics of one field (module docstring for every rule).
@@ -372,7 +549,9 @@ class FieldStats:
     Extensions: ``uncounted`` (container values of streamed records too large to compare: in
     ``types`` / ``values`` / lengths but not in ``distinct`` / ``top``), ``multi`` (a record may
     hold several values: ``count`` and ``records`` differ), ``context``, ``partial`` (a live
-    snapshot of :func:`field_stats`'s ``on_partial``)."""
+    snapshot of :func:`field_stats`'s ``on_partial``); ``number_hist`` / ``length_hist``: the
+    histogram material (module docstring, "Histograms"; ``None`` without numbers / strings) behind
+    :meth:`histogram` and :meth:`length_histogram` -- not part of :meth:`to_dict`."""
 
     field: str
     path: tuple
@@ -403,6 +582,8 @@ class FieldStats:
     multi: bool = False
     context: str = "$"
     partial: bool = False
+    number_hist: Any = dc_field(default=None, repr=False, compare=False)
+    length_hist: Any = dc_field(default=None, repr=False, compare=False)
 
     @property
     def presence(self) -> float:
@@ -449,6 +630,23 @@ class FieldStats:
     def format_text(self, *, records: int | None = None) -> str:
         """A localized plain-text block (the CLI's ``stats`` output, map_stats §6)."""
         return format_stats([self], records=records)
+
+    def histogram(self, bins: int = HIST_BINS) -> Histogram | None:
+        """The histogram of the field's finite numbers over ``bins`` nice bins at most (module
+        docstring, "Histograms"); ``None`` when the field holds no (finite) number. Exact when the
+        distinct numbers fitted the sample, else the reservoir sample's counts scaled to the total."""
+        s = self.number_hist
+        if s is None or not s.n:
+            return None
+        return s.histogram(bins)
+
+    def length_histogram(self, bins: int = HIST_BINS) -> Histogram | None:
+        """The histogram of the string lengths (code points); ``None`` without strings. Exact up to
+        :data:`LEN_COUNTS` distinct lengths, else the lengths are grouped (``exact`` False)."""
+        c = self.length_hist
+        if c is None or not c.n:
+            return None
+        return c.histogram(bins)
 
 
 # ----------------------------------------------------------------------------------
@@ -630,6 +828,14 @@ def _quick_canonical(tok: bytes) -> bool:
     if 0x2E in tok:
         return tok[-1] != 0x30
     return tok != b"-0"
+
+
+def _key_str_len(key: bytes) -> int:
+    """Length in code points of a string token (a dict key; escapes decoded when present)."""
+    if 0x5C not in key:
+        body = key[1:-1]
+        return len(body) if body.isascii() else len(body.decode("utf-8", "replace"))
+    return _analyze(key)[2]
 
 
 def _type_of(key: bytes) -> int:
@@ -817,14 +1023,332 @@ def _digits(n: int) -> int:
     return int(n.bit_length() * 0.30102999566398) + 1
 
 
+def _seed_of(text: str) -> int:
+    """A deterministic seed of the field text (blake2b: the same in every process)."""
+    return _from_bytes(hashlib.blake2b(text.encode("utf-8", "surrogatepass"), digest_size=8).digest(), "big")
+
+
+def _hist_k(budget: int, nfields: int) -> int:
+    """Numbers kept per field for the histogram (module docstring, "Histograms")."""
+    share = (max(1, int(budget)) // HIST_SHARE) // (max(1, int(nfields)) * HIST_ENTRY_COST)
+    return max(HIST_MIN, min(HIST_SAMPLE, share))
+
+
+def _skip(rng: random.Random, logw: float) -> int:
+    """Algorithm L: the items rejected before the next accepted one, for the threshold ``W =
+    exp(logw)`` (an item is accepted with probability ``W``): ``floor(log(u) / log(1 - W))``."""
+    w = math.exp(logw)
+    if w >= 1.0:
+        return 0
+    lw = math.log1p(-w)
+    if lw == 0.0:                        # W underflowed: no item is accepted any more
+        return 1 << 62
+    s = math.log(1.0 - rng.random()) / lw
+    return int(s) if s < 4e18 else 1 << 62
+
+
+class _Sample:
+    """The numbers of a field for its histogram (module docstring, "Histograms"): the exact ``value ->
+    count`` of up to ``k`` distinct finite values (``d``), then a uniform reservoir sample of ``k``
+    occurrences (``items``; Li's Algorithm L -- ``_logw`` is the log of the acceptance threshold,
+    ``_next`` the index of the next accepted occurrence -- with weighted insertions: :meth:`add` stands
+    for ``count`` occurrences). ``n``: finite occurrences seen; ``lo`` / ``hi``: their exact extremes;
+    ``integral``: every one of them was integral; ``skipped``: values beyond the Decimal range, left
+    out. Values are ``int`` or ``Decimal`` (``1 == Decimal("1.0")``: one key)."""
+
+    __slots__ = ("k", "rng", "d", "items", "n", "lo", "hi", "integral", "skipped", "_logw", "_next")
+
+    def __init__(self, k: int = HIST_SAMPLE, seed: str = "") -> None:
+        self.k = max(1, int(k))
+        self.rng = random.Random(_seed_of(seed))
+        self.d: dict[Any, int] | None = {}
+        self.items: list[Any] | None = None
+        self.n = 0
+        self.lo: Any = None
+        self.hi: Any = None
+        self.integral = True
+        self.skipped = 0
+        self._logw = 0.0
+        self._next = 0
+
+    @property
+    def exact(self) -> bool:
+        return self.d is not None
+
+    @property
+    def size(self) -> int:
+        """Entries kept (distinct values, or sampled occurrences)."""
+        return len(self.d) if self.d is not None else len(self.items or ())
+
+    @property
+    def nbytes(self) -> int:
+        return self.size * HIST_ENTRY_COST
+
+    def copy(self) -> _Sample:
+        c = _Sample.__new__(_Sample)
+        c.k = self.k
+        c.rng = random.Random()
+        c.rng.setstate(self.rng.getstate())
+        c.d = dict(self.d) if self.d is not None else None
+        c.items = list(self.items) if self.items is not None else None
+        c.n, c.lo, c.hi, c.integral, c.skipped = self.n, self.lo, self.hi, self.integral, self.skipped
+        c._logw, c._next = self._logw, self._next
+        return c
+
+    # -- adding ------------------------------------------------------------------------------
+    def add(self, value: Any, count: int = 1, integral: bool = True) -> None:
+        """``count`` occurrences of ``value`` (``int`` / ``Decimal``; non-finite ones are skipped)."""
+        if count <= 0:
+            return
+        if isinstance(value, Decimal) and not value.is_finite():
+            self.skipped += count
+            return
+        if not integral:
+            self.integral = False
+        if self.n == 0:
+            self.lo = self.hi = value
+        elif value < self.lo:
+            self.lo = value
+        elif value > self.hi:
+            self.hi = value
+        self._put(value, count)
+
+    def _put(self, value: Any, count: int) -> None:
+        d = self.d
+        if d is not None:
+            c = d.get(value)
+            if c is not None:
+                d[value] = c + count
+                self.n += count
+                return
+            if len(d) < self.k:
+                d[value] = count
+                self.n += count
+                return
+            self._to_reservoir()
+        self._reservoir_add(value, count)
+
+    def _to_reservoir(self) -> None:
+        """The exact dict becomes a uniform ``k``-sample of its ``n`` occurrences."""
+        d = self.d
+        assert d is not None
+        if self.n <= self.k:
+            items: list[Any] = []
+            for v, c in d.items():
+                items.extend([v] * c)
+        else:
+            items = self._draw_dict(d, self.n, self.k)
+        self.d = None
+        self.items = items
+        self._restart()
+
+    def _draw_dict(self, d: dict[Any, int], n: int, m: int) -> list[Any]:
+        """``m`` occurrences drawn uniformly without replacement from the ``n`` of ``d``."""
+        out: list[Any] = []
+        if m <= 0:
+            return out
+        positions = iter(sorted(self.rng.sample(range(n), m)))
+        want = next(positions, None)
+        cum = 0
+        for v, c in d.items():
+            cum += c
+            while want is not None and want < cum:
+                out.append(v)
+                want = next(positions, None)
+            if want is None:
+                break
+        return out
+
+    def _restart(self) -> None:
+        """Re-seat Algorithm L after ``n`` occurrences with a full reservoir: the threshold is the
+        ``k``-th smallest of ``n`` uniform keys, ``Beta(k, n - k + 1)``."""
+        n, k = self.n, self.k
+        w = self.rng.betavariate(k, max(1, n - k + 1))
+        self._logw = math.log(w) if 0.0 < w < 1.0 else (-1e-300 if w >= 1.0 else -700.0)
+        self._next = n + _skip(self.rng, self._logw)
+
+    def _reservoir_add(self, value: Any, count: int) -> None:
+        items = self.items
+        assert items is not None
+        k = self.k
+        n = self.n
+        if len(items) < k:                      # not full yet: the occurrences fill it
+            take = min(count, k - len(items))
+            items.extend([value] * take)
+            n += take
+            count -= take
+            self.n = n
+            if len(items) == k:
+                self._restart()
+            if count <= 0:
+                return
+        end = n + count
+        nxt = self._next
+        if nxt < end:
+            rng = self.rng
+            logw = self._logw
+            while nxt < end:
+                items[rng.randrange(k)] = value
+                logw += math.log(1.0 - rng.random()) / k       # W *= u ** (1 / k)
+                nxt += _skip(rng, logw) + 1
+            self._logw = logw
+            self._next = nxt
+        self.n = end
+
+    # -- merging -----------------------------------------------------------------------------
+    def merge(self, other: _Sample) -> None:
+        """The sample of the union (``other``: the same field's sample of other occurrences)."""
+        self.skipped += other.skipped
+        if other.n == 0:
+            return
+        if not other.integral:
+            self.integral = False
+        if self.n == 0:
+            self.lo, self.hi, self.n = other.lo, other.hi, other.n
+            if other.d is not None:
+                self.d = dict(other.d)
+                self.items = None
+            else:
+                self.d = None
+                self.items = list(other.items or ())
+                self._restart()
+            return
+        if other.lo < self.lo:
+            self.lo = other.lo
+        if other.hi > self.hi:
+            self.hi = other.hi
+        if other.d is not None:                 # its occurrences are known: fed as a stream
+            for v, c in other.d.items():
+                self._put(v, c)
+            return
+        # other is a reservoir (it saw at least k occurrences): a uniform k-subset of the union, each
+        # side giving as many of its occurrences as the draw puts on its side
+        na = self.n
+        total = na + other.n
+        picks = self.rng.sample(range(total), min(self.k, total))
+        mb = sum(1 for i in picks if i >= na)
+        ma = len(picks) - mb
+        if self.d is not None:
+            a_items = self._draw_dict(self.d, na, ma)
+        else:
+            a_items = self.rng.sample(self.items or [], min(ma, len(self.items or [])))
+        b_items = self.rng.sample(other.items or [], min(mb, len(other.items or [])))
+        self.d = None
+        self.items = a_items + b_items
+        self.n = total
+        self._restart()
+
+    # -- the histogram -----------------------------------------------------------------------
+    def histogram(self, bins: int = HIST_BINS, lo: Any = None, hi: Any = None) -> Histogram | None:
+        """The histogram of the occurrences seen (``lo`` / ``hi``: other exact extremes to cover)."""
+        if not self.n:
+            return None
+        lo = self.lo if lo is None else min(lo, self.lo)
+        hi = self.hi if hi is None else max(hi, self.hi)
+        edges = nice_edges(lo, hi, bins, self.integral)
+        nb = len(edges) - 1
+        counts = [0] * nb
+        last = nb - 1
+        if self.d is not None:
+            pairs: Iterable[tuple[Any, int]] = self.d.items()
+            m = self.n
+        else:
+            pairs = ((v, 1) for v in self.items or ())
+            m = len(self.items or ())
+        br = bisect.bisect_right
+        for v, c in pairs:
+            i = br(edges, v) - 1
+            counts[last if i > last else (0 if i < 0 else i)] += c
+        if self.d is None and m and m != self.n:
+            counts = [round(c * self.n / m) for c in counts]
+        return Histogram(edges, counts, self.d is not None or m == self.n, m)
+
+
+class _LenCounts:
+    """Exact counts per string length (code points) up to :data:`LEN_COUNTS` distinct lengths; beyond,
+    the lengths are grouped by a doubling ``width`` (key ``length // width``)."""
+
+    __slots__ = ("d", "width", "n")
+
+    def __init__(self) -> None:
+        self.d: dict[int, int] = {}
+        self.width = 1
+        self.n = 0
+
+    @property
+    def nbytes(self) -> int:
+        return len(self.d) * ENTRY_COST
+
+    def copy(self) -> _LenCounts:
+        c = _LenCounts()
+        c.d = dict(self.d)
+        c.width = self.width
+        c.n = self.n
+        return c
+
+    def add(self, length: int, count: int = 1) -> None:
+        d = self.d
+        key = length if self.width == 1 else length // self.width
+        d[key] = d.get(key, 0) + count
+        self.n += count
+        if len(d) > LEN_COUNTS:
+            self._coarsen()
+
+    def _rekey(self, width: int) -> None:
+        if width <= self.width:
+            return
+        f = width // self.width
+        nd: dict[int, int] = {}
+        for key, c in self.d.items():
+            k2 = key // f
+            nd[k2] = nd.get(k2, 0) + c
+        self.d = nd
+        self.width = width
+
+    def _coarsen(self) -> None:
+        while len(self.d) > LEN_COUNTS:
+            self._rekey(self.width * 2)
+
+    def merge(self, other: _LenCounts) -> None:
+        if not other.n:
+            return
+        if other.width > self.width:
+            self._rekey(other.width)
+        if other.width < self.width:
+            other = other.copy()
+            other._rekey(self.width)
+        d = self.d
+        for key, c in other.d.items():
+            d[key] = d.get(key, 0) + c
+        self.n += other.n
+        if len(d) > LEN_COUNTS:
+            self._coarsen()
+
+    def histogram(self, bins: int = HIST_BINS) -> Histogram | None:
+        if not self.n:
+            return None
+        w = self.width
+        lo = min(self.d) * w
+        hi = max(self.d) * w + (w - 1)
+        edges = nice_edges(lo, hi, bins, True)
+        counts = [0] * (len(edges) - 1)
+        last = len(counts) - 1
+        br = bisect.bisect_right
+        for key, c in self.d.items():
+            i = br(edges, key * w) - 1
+            counts[last if i > last else (0 if i < 0 else i)] += c
+        return Histogram(edges, counts, w == 1, self.n)
+
+
 class _Agg:
     """Statistics that do not need the distinct values: occurrences per type, integral numbers,
     the exact sum, number extremes (value, first occurrence, token text), string / array / object
-    lengths, empty strings."""
+    lengths, empty strings; the histogram material (``hist``: numbers, ``lens``: string lengths)."""
 
-    __slots__ = ("types", "integers", "sum", "nmin", "nmax", "slo", "shi", "empty", "alo", "ahi", "klo", "khi")
+    __slots__ = ("types", "integers", "sum", "nmin", "nmax", "slo", "shi", "empty", "alo", "ahi", "klo", "khi",
+                 "hist", "lens")
 
-    def __init__(self) -> None:
+    def __init__(self, hist_k: int = HIST_SAMPLE, seed: str = "") -> None:
         self.types = [0, 0, 0, 0, 0, 0]
         self.integers = 0
         self.sum = _Sum()
@@ -834,6 +1358,13 @@ class _Agg:
         self.empty = 0
         self.alo = self.ahi = -1
         self.klo = self.khi = -1
+        self.hist = _Sample(hist_k, seed)
+        self.lens = _LenCounts()
+
+    @property
+    def nbytes(self) -> int:
+        """Accounted bytes of the histogram material."""
+        return self.hist.nbytes + self.lens.nbytes
 
     def add(self, tidx: int, info: Any, count: int, first: int, inrec: int, text: bytes) -> None:
         """``count`` occurrences of one value (``text``: a token of it, for number extremes)."""
@@ -848,11 +1379,13 @@ class _Agg:
                 self.shi = n
             if n == 0:
                 self.empty += count
+            self.lens.add(n, count)
         elif tidx == T_NUMBER:
             if info[1]:
                 self.integers += count
             self.sum.add(info, count)
             self._extreme(info[0], first, inrec, text)
+            self.hist.add(info[0], count, info[1])
         elif tidx == T_ARRAY:
             self.add_len(False, info)
         elif tidx == T_OBJECT:
@@ -891,6 +1424,8 @@ class _Agg:
             self.types[i] += o.types[i]
         self.integers += o.integers
         self.sum.merge(o.sum)
+        self.hist.merge(o.hist)
+        self.lens.merge(o.lens)
         for m in (o.nmin, o.nmax):
             if m is not None:
                 self._extreme(m[0], m[1], m[2], m[3])
@@ -1060,7 +1595,8 @@ class _AccSet:
     record), the temporary runs they create, and the overflow rule."""
 
     def __init__(self, budget: int, exact: bool, directory: Any, cancel: CancelToken | None,
-                 registry: list[Any], single: bool = False, top: int = DEFAULT_TOP) -> None:
+                 registry: list[Any], single: bool = False, top: int = DEFAULT_TOP,
+                 hist_k: int = HIST_SAMPLE) -> None:
         self.single = single              # the accumulators of ONE streamed record
         self.budget = max(1, int(budget))
         self.exact = exact
@@ -1068,6 +1604,7 @@ class _AccSet:
         self.cancel = cancel
         self.registry = registry          # every HashRuns made (removed at the end of the call)
         self.top = top
+        self.hist_k = max(1, int(hist_k))  # numbers kept per field for the histogram (module docstring)
         self.accs: list[_FieldAcc] = []
         self.ticks = 0
         self.overflows = 0
@@ -1114,9 +1651,17 @@ class _AccSet:
             n += a.sketch_memory()
         return n
 
+    def hist_bytes(self) -> int:
+        """Accounted bytes of the histogram material (bounded by construction: at most ``hist_k``
+        numbers and :data:`LEN_COUNTS` lengths per field; not part of the sketch bytes)."""
+        n = 0
+        for a in self.accs:
+            n += a.agg.nbytes
+        return n
+
     def total(self) -> int:
-        """Accounted bytes of everything: the dicts, the sketches and the caches."""
-        return self.dict_bytes() + self.sketch_bytes() + self.cache_bytes
+        """Accounted bytes of everything: the dicts, the sketches, the histogram material and the caches."""
+        return self.dict_bytes() + self.sketch_bytes() + self.hist_bytes() + self.cache_bytes
 
     def over(self) -> bool:
         return self.dict_bytes() > self.budget
@@ -1158,7 +1703,7 @@ class _FieldAcc:
     __slots__ = ("multi", "set", "mode", "d", "spell", "nbytes", "agg", "hll", "mg", "runs", "uncounted", "cost",
                  "split", "snap_hll", "snap_mg", "snap_last")
 
-    def __init__(self, multi: bool, accset: _AccSet) -> None:
+    def __init__(self, multi: bool, accset: _AccSet, seed: str = "") -> None:
         self.multi = multi
         self.set = accset
         accset.accs.append(self)
@@ -1166,7 +1711,7 @@ class _FieldAcc:
         self.d: dict[bytes, int] = {}
         self.spell: dict[bytes, bytes] = {}     # key -> the raw spelling of its first occurrence (when different)
         self.nbytes = 0
-        self.agg = _Agg()
+        self.agg = _Agg(accset.hist_k, seed)   # (seed: the field text -- reproducible histogram samples)
         self.hll: _HLL | None = None
         self.mg: _MG | None = None
         self.runs: Any = None                   # HashRuns of the spilled epochs (exact mode)
@@ -1809,7 +2354,7 @@ class _RecState:
 
     def __init__(self, f: _Field, accset: _AccSet, o: int) -> None:
         self.f = f
-        self.acc = _FieldAcc(f.multi, accset)
+        self.acc = _FieldAcc(f.multi, accset, f"{f.field}#{o}")
         self.o = o
         self.n = 0                    # values (index of the next one)
         self.base = 0                 # contexts (element contexts)
@@ -1846,7 +2391,7 @@ class _RecState:
         """Every value again (the containers' canonical forms), from ``stream_values``."""
         accset = self.acc.set
         self.acc.discard()
-        self.acc = acc = _FieldAcc(self.f.multi, accset)
+        self.acc = acc = _FieldAcc(self.f.multi, accset, f"{self.f.field}#{self.o}")
         tick = accset.tick
         for i, v in enumerate(values):
             acc.add(_dump(v), self.o, i)
@@ -1925,8 +2470,9 @@ class _Engine:
         self.capture = capture_budget(settings)
         self.directory = work_dir(settings.cache_dir)
         self.registry: list[Any] = []
-        self.accset = _AccSet(budget, exact, self.directory, cancel, self.registry, top=top)
-        self.accs = [_FieldAcc(f.multi, self.accset) for f in fields]
+        self.accset = _AccSet(budget, exact, self.directory, cancel, self.registry, top=top,
+                              hist_k=_hist_k(budget, len(fields)))
+        self.accs = [_FieldAcc(f.multi, self.accset, f.field) for f in fields]
         self.pres = [_Presence() for _ in fields]
         self.seen = None if scope.unique else bytearray((int(doc.record_count) + 7) >> 3)
         # strategies: the pure-Python core extracts slower than it parses ("auto")
@@ -2371,7 +2917,8 @@ class _Engine:
         """The fields' values of one record read with ijson (module docstring, "Huge records")."""
         # the record's accumulators get what the call's dicts leave of the budget (at least an eighth)
         budget = max(self.budget // 8, self.budget - self.accset.dict_bytes())
-        accset = _AccSet(budget, self.exact, self.directory, self.cancel, self.registry, single=True, top=self.top)
+        accset = _AccSet(budget, self.exact, self.directory, self.cancel, self.registry, single=True, top=self.top,
+                         hist_k=self.accset.hist_k)
         states = [_RecState(f, accset, o) for f in fields]
         patterns: list[PathPattern] = []
         probes: dict[int, list[Any]] = {}
@@ -2510,6 +3057,8 @@ class _Engine:
         p = self.pres[f.index]
         types = list(acc.agg.types)
         tops: list[ValueCount] = []
+        hist = acc.agg.hist
+        lens = acc.agg.lens
         if acc.mode == _SKETCH:
             assert acc.mg is not None and acc.hll is not None
             distinct = max(int(round(acc.hll.estimate())), len(acc.mg.c))
@@ -2519,9 +3068,24 @@ class _Engine:
             bound = acc.mg.d
         else:
             multi = acc.multi
+            if acc.d:
+                # the numbers and string lengths of the dict are folded only at the end of the pass:
+                # the live histogram gets them from a copy of the material (module docstring)
+                hist = hist.copy()
+                lens = lens.copy()
             for key, v in acc.d.items():
                 if key[0] != 0x23:
-                    types[_type_of(key)] += v & _M40
+                    c = v & _M40
+                    ti = _type_of(key)
+                    types[ti] += c
+                    if ti == T_NUMBER:
+                        try:
+                            info = _number_info(key)
+                        except ValueError:   # pragma: no cover - keys are validated tokens
+                            continue
+                        hist.add(info[0], c, info[1])
+                    elif ti == T_STRING:
+                        lens.add(_key_str_len(key), c)
             if multi:
                 distinct = len(acc.d)       # canonical keys already
             else:
@@ -2577,7 +3141,8 @@ class _Engine:
             top_exact=False, top_bound=bound,
             number=None, string=None, arr_len=None, obj_keys=None, gen=getattr(self.doc, "gen", None),
             elapsed=time.perf_counter() - self.started, uncounted=acc.uncounted, multi=f.multi,
-            context=f.context_text, partial=True)
+            context=f.context_text, partial=True, number_hist=hist if hist.n else None,
+            length_hist=lens if lens.n else None)
 
     # -- results -------------------------------------------------------------------------------
     def finish(self, progress: Progress | None) -> list[FieldStats]:
@@ -2769,7 +3334,8 @@ class _Engine:
             string=string, arr_len=(agg.alo, agg.ahi) if agg.ahi >= 0 else None,
             obj_keys=(agg.klo, agg.khi) if agg.khi >= 0 else None, gen=getattr(self.doc, "gen", None),
             elapsed=elapsed, warnings=tuple(keys), warning_params=tuple(params), uncounted=acc.uncounted,
-            multi=f.multi, context=f.context_text)
+            multi=f.multi, context=f.context_text, number_hist=agg.hist if types[T_NUMBER] else None,
+            length_hist=agg.lens if types[T_STRING] else None)
 
     def cleanup(self) -> None:
         for runs in self.registry:

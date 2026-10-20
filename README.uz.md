@@ -421,6 +421,18 @@ hech qachon manba fayl yoki boshqa tabda saqlanmagan o'zgarishlar bilan ochiq fa
   eng ko'p uchragan 20 qiymat (ulushi; ko'p qiymatli maydonlarda yozuvlar soni ham). Hisoblanayotganda natija har
   ~1 soniyada yangilanadi. Qiymatni ikki marta bosish — shu qiymat bo'yicha filtr; menyuda `null`, yo'q, tur, uzunlik
   bo'yicha filtr va «Daraxtda ko'rsatish». Doira: joriy ko'rinish yoki barcha yozuvlar; «Aniq hisoblash».
+  **Diagrammalar.** Statistika panelida jadval ostida maydonning diagrammasi chiziladi: sonlar uchun **gistogramma**
+  (32 tagacha "qulay" oraliq — 1, 2, 2,5 yoki 5 × 10ᵏ qadam; butun sonli maydonlarda butun oraliqlar), satrlar uchun
+  **satr uzunliklari taqsimoti**, har qanday maydon uchun **eng ko'p uchragan 20 ta qiymat** ulushi bilan ustunlar
+  ko'rinishida; kichik ro'yxat maydon taklif qiladigan turlar orasida almashtiradi. Ustun ustiga kelinsa uning
+  oralig'i, soni va ulushi ko'rsatiladi (tooltip va diagramma ostidagi qator); **gistogramma ustuni bosilsa ko'rinish
+  shu oraliq bo'yicha filtrlanadi** (`age >= 20 and age <= 29`, `score >= 0.5 and score < 1`, `len(name) >= 3 and
+  len(name) <= 4` — maydon bo'yicha tez filtr, keyingi bosish uni almashtiradi), eng ko'p uchragan qiymat ustuni
+  bosilsa qiymat bo'yicha (`city == "Toshkent"`). Maydonda 65 536 tagacha xil son bo'lsa gistogramma aniq; undan ko'p
+  bo'lsa 65 536 ta qiymatdan iborat tasodifiy namuna bo'yicha chizilib, jami songa moslanadi ("≈" bilan belgilanadi,
+  tooltip buni aytadi). Sonlar aniq qoladi: `1e400` va `12345678901234567890` oraliq yozuvlarida ham, filtrlarda ham
+  o'z matnini saqlaydi. Hisoblash davomida diagramma oraliq natija bilan birga yangilanadi. CLI `stats --json`
+  chiqishi o'zgarmagan; `--histogram` opsiyasi keyingi bosqichga qoldirildi.
 
   ![score maydonining statistika paneli: mavjud / null / yo'q va tur qatorlari ulush chiziqlari bilan, 11 298 ta turli qiymat, 20 oraliqli sonlar taqsimoti va eng ko'p uchragan 20 qiymat](docs/img/stats.png)
 

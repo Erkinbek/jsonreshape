@@ -1730,6 +1730,27 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "stats.text.records": {"uz": "({count} ta yozuvda)", "en": "(in {count} records)"},
     "stats.text.records.one": {"uz": "({count} ta yozuvda)", "en": "(in {count} record)"},
+    # histograms (stage 7): bin labels and the text block of format_histogram
+    "stats.hist.single": {"uz": "{value}", "en": "{value}"},
+    "stats.hist.range_int": {"uz": "{lo} – {hi}", "en": "{lo} – {hi}"},
+    "stats.hist.range": {"uz": "{lo} ≤ x < {hi}", "en": "{lo} ≤ x < {hi}"},
+    "stats.hist.range_last": {"uz": "{lo} ≤ x ≤ {hi}", "en": "{lo} ≤ x ≤ {hi}"},
+    "stats.hist.title": {
+        "uz": "Taqsimot: {bins} ta oraliq, {count} ta qiymat (aniq):",
+        "en": "Distribution: {bins} bins, {count} values (exact):",
+    },
+    "stats.hist.title.one": {
+        "uz": "Taqsimot: bitta oraliq, {count} ta qiymat (aniq):",
+        "en": "Distribution: one bin, {count} values (exact):",
+    },
+    "stats.hist.title_sampled": {
+        "uz": "Taqsimot: {bins} ta oraliq, {count} ta qiymat (≈ {sample} ta qiymatdan iborat namuna bo'yicha):",
+        "en": "Distribution: {bins} bins, {count} values (≈ from a sample of {sample} values):",
+    },
+    "stats.hist.title_sampled.one": {
+        "uz": "Taqsimot: bitta oraliq, {count} ta qiymat (≈ {sample} ta qiymatdan iborat namuna bo'yicha):",
+        "en": "Distribution: one bin, {count} values (≈ from a sample of {sample} values):",
+    },
     # ---- smartvalues ----
     # smart values (smartvalues.py): tooltips of times, links, colours and images
     "smartvalues.unix_s": {"uz": "Unix vaqti (soniyalarda)", "en": "Unix time (seconds)"},
@@ -8743,6 +8764,66 @@ MESSAGES: dict[str, dict[str, str]] = {
     "gui.statspanel.action.node.tip": {
         "uz": "Shu maydonning statistikasi (massiv elementlari [*] bo'yicha).",
         "en": "Statistics of this field (array elements as [*]).",
+    },
+    # the chart area (stage 7): histogram of the numbers, string lengths, the top values as bars
+    "gui.statspanel.chart.name": {"uz": "Diagramma", "en": "Chart"},
+    "gui.statspanel.chart.kind.name": {"uz": "Diagramma turi", "en": "Chart type"},
+    "gui.statspanel.chart.kind.tip": {
+        "uz": "Nimani chizish: sonlar taqsimoti (gistogramma), satr uzunliklari yoki eng ko'p uchragan qiymatlar.",
+        "en": "What to draw: the distribution of the numbers (a histogram), the string lengths or the most "
+              "frequent values.",
+    },
+    "gui.statspanel.chart.kind.hist": {"uz": "Sonlar taqsimoti", "en": "Number distribution"},
+    "gui.statspanel.chart.kind.lens": {"uz": "Satr uzunliklari", "en": "String lengths"},
+    "gui.statspanel.chart.kind.top": {"uz": "Eng ko'p uchragan qiymatlar", "en": "Most frequent values"},
+    "gui.statspanel.chart.title.hist": {
+        "uz": "Sonlar taqsimoti: {bins} ta oraliq, {count} ta son",
+        "en": "Number distribution: {bins} bins, {count} numbers",
+    },
+    "gui.statspanel.chart.title.hist_sampled": {
+        "uz": "≈ Sonlar taqsimoti: {bins} ta oraliq, {count} ta son ({sample} ta namuna bo'yicha)",
+        "en": "≈ Number distribution: {bins} bins, {count} numbers (from a sample of {sample})",
+    },
+    "gui.statspanel.chart.title.lens": {
+        "uz": "Satr uzunliklari: {bins} ta oraliq, {count} ta satr",
+        "en": "String lengths: {bins} bins, {count} strings",
+    },
+    "gui.statspanel.chart.title.lens_grouped": {
+        "uz": "≈ Satr uzunliklari: {bins} ta oraliq, {count} ta satr (uzunliklar {width} tadan guruhlangan)",
+        "en": "≈ String lengths: {bins} bins, {count} strings (lengths grouped by {width})",
+    },
+    "gui.statspanel.chart.title.top": {
+        "uz": "Eng ko'p uchragan {count} ta qiymat",
+        "en": "The {count} most frequent values",
+    },
+    "gui.statspanel.chart.title.top.one": {"uz": "Eng ko'p uchragan qiymat", "en": "The most frequent value"},
+    "gui.statspanel.chart.tip.sampled": {
+        "uz": "Gistogramma {count} ta sondan {sample} tasining tasodifiy namunasi bo'yicha chizilgan: ustunlar "
+              "jami songa moslab kengaytirilgan, shuning uchun sonlar taxminiy (≈).",
+        "en": "The histogram is drawn from a random sample of {sample} of the {count} numbers: the bars are "
+              "scaled to the total, so the counts are approximate (≈).",
+    },
+    "gui.statspanel.chart.tip.grouped": {
+        "uz": "Xil uzunliklar 4 096 tadan ko'p: uzunliklar {width} tadan guruhlab sanaldi.",
+        "en": "More than 4 096 distinct lengths: the lengths were counted in groups of {width}.",
+    },
+    "gui.statspanel.chart.tip.click": {
+        "uz": "Ustun ustiga kelsangiz oraliq va soni ko'rsatiladi; bosilsa shu oraliq bo'yicha filtr qo'yiladi.",
+        "en": "Hover a bar for its range and count; click it to filter by that range.",
+    },
+    "gui.statspanel.chart.bar.tip": {"uz": "{range}\n{count} ({share})", "en": "{range}\n{count} ({share})"},
+    "gui.statspanel.chart.len.label": {"uz": "{range} belgi", "en": "{range} characters"},
+    "gui.statspanel.chart.info.idle": {
+        "uz": "{count} ta ustun · ustun bosilsa filtr qo'yiladi",
+        "en": "{count} bars · click a bar to filter",
+    },
+    "gui.statspanel.chart.info.idle.one": {
+        "uz": "{count} ta ustun · ustun bosilsa filtr qo'yiladi",
+        "en": "{count} bar · click it to filter",
+    },
+    "gui.statspanel.chart.info.hover": {
+        "uz": "{range}: {count} ({share}) — {action}",
+        "en": "{range}: {count} ({share}) — {action}",
     },
     # ---- gui.dupesdialog ----
     # the duplicates dialog (gui/dupesdialog.py)

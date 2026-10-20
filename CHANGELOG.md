@@ -41,6 +41,12 @@ All notable changes to jsonreshape are recorded here. The format follows
 - Screenshots of the viewer in `docs/img/` (main window in the light and dark theme, structure builder, compare
   window, field statistics with the histogram, import window, command palette) and `scripts/make_screenshots.py`,
   which regenerates them offscreen from synthetic data (`bench/make_synthetic.py`).
+- Field statistics: a chart area in the statistics dock — a histogram of the numbers (32 nice bins, exact up
+  to 65 536 distinct numbers, else a reservoir sample scaled to the total and marked "≈"), the distribution of
+  the string lengths, and the top 20 values as bars; hovering shows range, count and share, clicking a bar
+  filters the view by the range or the value. `FieldStats.histogram(bins)` / `length_histogram(bins)` and
+  `stats.format_histogram` in the Python API; `--json` output unchanged (a CLI `--histogram` option is a
+  follow-up).
 
 ## [0.1.0] — 2026-10-20
 
