@@ -40,7 +40,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 45
     env:
-      JSONRESHAPE_HOME: ${{ runner.temp }}\jsonreshape-home
+      JSONRESHAPE_HOME: ${{ github.workspace }}\.jsonreshape-home   # runner.temp is not allowed in a job env
     steps:
       - uses: actions/checkout@v4
 
@@ -99,7 +99,7 @@ jobs:
     timeout-minutes: 45
     env:
       JSONRESHAPE_BACKEND: python
-      JSONRESHAPE_HOME: ${{ runner.temp }}/jsonreshape-home
+      JSONRESHAPE_HOME: ${{ github.workspace }}/.jsonreshape-home   # runner.temp is not allowed in a job env
     steps:
       - uses: actions/checkout@v4
 
@@ -163,7 +163,7 @@ jobs:
     needs: tests-windows
     timeout-minutes: 40
     env:
-      JSONRESHAPE_HOME: ${{ runner.temp }}\jsonreshape-home
+      JSONRESHAPE_HOME: ${{ github.workspace }}\.jsonreshape-home   # runner.temp is not allowed in a job env
     steps:
       - uses: actions/checkout@v4
 
