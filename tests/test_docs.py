@@ -10,7 +10,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 
-READMES = ("README.md", "README.uz.md")      # English (main) and Uzbek
+READMES = ("README.md", "README.uz.md", "README.ru.md")      # English (main), Uzbek, Russian
 
 
 def _readme(name: str = "README.md") -> str:
@@ -41,14 +41,17 @@ def test_readme_cli_examples_have_no_inline_comments(name: str) -> None:
 
 
 def test_readmes_link_each_other_and_keep_the_same_sections() -> None:
-    """README.md (English) is the main one; README.uz.md is its Uzbek version: each links the other at the top, both
-    have the same anchors (the links between sections), the author section and the copyright line."""
-    en, uz = _readme("README.md"), _readme("README.uz.md")
-    assert "[O'zbekcha](README.uz.md)" in en.split("\n## ", 1)[0]
-    assert "[English](README.md)" in uz.split("\n## ", 1)[0]
+    """README.md (English) is the main one; README.uz.md and README.ru.md are its Uzbek and Russian versions: each
+    links the other two at the top, all have the same anchors (the links between sections), the author section and
+    the copyright line."""
+    en, uz, ru = _readme("README.md"), _readme("README.uz.md"), _readme("README.ru.md")
+    heads = {name: text.split("\n## ", 1)[0] for name, text in (("en", en), ("uz", uz), ("ru", ru))}
+    assert "[O'zbekcha](README.uz.md)" in heads["en"] and "[Русский](README.ru.md)" in heads["en"]
+    assert "[English](README.md)" in heads["uz"] and "[Русский](README.ru.md)" in heads["uz"]
+    assert "[English](README.md)" in heads["ru"] and "[O'zbekcha](README.uz.md)" in heads["ru"]
     anchors = re.compile(r'<a id="([a-z0-9-]+)"></a>')
-    assert anchors.findall(en) == anchors.findall(uz) and "muallif" in anchors.findall(en)
-    for text in (en, uz):
+    assert anchors.findall(en) == anchors.findall(uz) == anchors.findall(ru) and "muallif" in anchors.findall(en)
+    for text in (en, uz, ru):
         assert "Erkin Pardayev" in text and "Claude Opus 5.5" in text and "© 2026 Erkin Pardayev" in text
         assert "[Apache License 2.0](LICENSE)" in text
         assert "https://github.com/Erkinbek" in text and "[@ErkinPardayev](https://t.me/ErkinPardayev)" in text

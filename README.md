@@ -1,6 +1,6 @@
 # jsonreshape
 
-**English** | [O'zbekcha](README.uz.md)
+**English** | [O'zbekcha](README.uz.md) | [Русский](README.ru.md)
 
 A desktop application and CLI for huge JSON files (from 100 MB to several GB): viewing, search, filtering, sorting,
 conversion, editing, restructuring, statistics, duplicates, JSON Schema, split/merge, repair and comparison.

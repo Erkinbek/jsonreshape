@@ -1,6 +1,6 @@
 # jsonreshape
 
-[English](README.md) | **O'zbekcha**
+[English](README.md) | **O'zbekcha** | [Русский](README.ru.md)
 
 Katta JSON fayllar (100 MB dan bir necha GB gacha) bilan ishlash uchun desktop dastur va CLI:
 ko'rish, qidirish, filtrlash, tartiblash, konvertatsiya, tahrirlash, tuzilmani qayta qurish, statistika,
