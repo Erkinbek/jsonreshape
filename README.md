@@ -189,6 +189,10 @@ jsonreshape import table.tsv -o table.jsonl --no-header --types string
 jsonreshape import export.csv -o export.jsonl --delimiter ";" --encoding cp1251 --skip-bad
 jsonreshape import config.yaml config.json
 jsonreshape import catalog.xml -o catalog.jsonl --record-tag item
+
+# Standard input: "-" instead of INPUT (pipelines); see the note on shells below
+curl -s https://example.com/data.json | jsonreshape convert - data.jsonl
+jsonreshape inspect - < data.json.gz
 ```
 
 If JMESPath needs a literal such as `` `100` ``: use a single-quoted string in PowerShell
@@ -199,6 +203,18 @@ Common input options: `--record-path data` (for an object that contains a large 
 `/data/0`, `data.0` also work), `--format auto|array|jsonl|brace_list|wrapped|keyed|single|stream`,
 `--allow-partial` (on a JSON error, work with the records before the error), `--no-cache`.
 Global: `--lang uz|en`, `--backend auto|rust|python`, `-q`, `-v`/`-vv`, `--version`.
+
+**Standard input:** `-` in place of INPUT reads standard input — in every command with one INPUT, and as one of the
+inputs of `merge` / `diff`; outputs are always files (`-` as an output is refused). The data is first copied in 1 MiB
+pieces to a temporary file in the work folder (`%LOCALAPPDATA%\jsonreshape\tmp`, or the `tmp` folder of a configured
+cache folder) with a progress line, then opened like a named file: `--format`, `--record-path` and the gzip detection
+work as usual, and an info line says how many bytes were read. The temporary file is removed when the command ends,
+also after an error. Because the length of a pipe is unknown, the folder must keep 64 MiB free beyond the bytes read
+so far (checked every 256 MiB). `-` is refused when standard input is the terminal; `split -` needs `-o DIR`,
+`import -` needs `--from csv|yaml|xml`, `patch --in-place` cannot work on `-`. Shells: cmd.exe and bash pass the bytes
+of a pipe or of a `<` redirection unchanged; Windows PowerShell 5.1 (and PowerShell 7 before 7.4) re-encodes a
+pipeline as text, which corrupts gzip and non-ASCII data, and has no `<` — give the file name there, or use
+PowerShell 7.4 or newer.
 
 Exit codes:
 
@@ -1232,6 +1248,13 @@ session restore when `main()` is started again.
    dropped. Records: the children of the root by default, `--record-tag TAG` (qualified or local name; not inside
    another record) or `--record-path a/b/c` from the root. A prolog with `<!ENTITY` is refused (entity expansion).
 52. **Import output**: JSON Lines unless the target ends in `.json` (one array; a single YAML document is written
+53. **Standard input is spooled, not streamed**: `-` copies the pipe to a temporary file in the work folder before
+    the command starts, because every reader needs a seekable file (the index stores byte ranges; gzip / UTF-16 inputs
+    are converted to a cached copy). The price is the disk space and the time of one copy; the gain is that every
+    command, option and the memory bound work exactly as with a file (a 50 MB pipe peaks at the same ~90 MB as the
+    file run). The temporary file is always removed; the index built for it stays in the cache until the LRU eviction,
+    like that of any file deleted after use. Outputs stay files: `-` as an output is refused, and messages name the
+    temporary file (the input that was actually read).
    bare) or `--to json`; the JSON layout is the writer's (`--indent 2|4|tab`, `--compact`); the result is written
    atomically, never over the source or a file with unsaved edits; `.gz` inputs and outputs are not supported by
    `import` (use `convert` afterwards). The GUI default target is `<stem>.jsonl` beside the source (`<stem>.json`

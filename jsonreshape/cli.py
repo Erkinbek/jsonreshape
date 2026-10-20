@@ -48,6 +48,8 @@
     input options (every command but presets, repair and import): --record-path P,
         --format auto|array|jsonl|brace_list|wrapped|keyed|single|stream, --allow-partial (not split),
         --no-cache
+    standard input: INPUT may be "-" (one of the INPUTs of merge / diff too): it is spooled to a
+        temporary file first (see "Standard input" under "Decisions"); outputs are always files
     output options: --to json|jsonl|csv|xlsx|sqlite|parquet (default: from the OUTPUT extension, see
         writer.format_for_path), --jsonl (= --to jsonl), --compact, --indent 2|4|tab,
         --sort-keys [alpha|codepoint], --no-wrapper, --as-keyed, --columns a,b.c,
@@ -286,6 +288,31 @@ Decisions (documented deviations / interpretations)
   A record that is not a one-member object is a user error too (exit 1,
   ``writer.error.not_single_member``; nothing is saved).
 * Broken pipes on stdout (``jsonreshape search ... | head``) end the command quietly (exit 0).
+* Standard input (``curl ... | jsonreshape convert - out.jsonl``; :mod:`jsonreshape.stdin_input`):
+  an INPUT given as ``-`` -- and only ``-`` -- is standard input, for every command with one INPUT
+  (``inspect`` ... ``import``, ``patch`` with an OUTPUT) and for at most one of the inputs of
+  ``merge`` / ``diff``. Every reader needs a seekable file (the index stores byte ranges), so before
+  the command starts :func:`_stdin_inputs` copies the binary stream (``sys.stdin.buffer``: no
+  newline translation on Windows) in 1 MiB pieces to a spool file ``stdin-<pid>-<random>.json``
+  in the work folder (``<JSONRESHAPE_HOME>/tmp``, or the ``tmp`` folder of a configured cache
+  folder like the other work files; mode 0600 where the OS has modes), with a progress line of
+  the bytes read so far (the total is unknown), cancellation (Ctrl+C removes the file) and a
+  free-space check (every 256 MiB the folder must have the bytes read so far + 64 MiB free, else
+  ``fileio.error.disk_full``); then the ``-`` in the arguments is replaced by that path, so every
+  later step works on a named file: ``_check_input``, the same-file check of ``_check_output``
+  (an output may not be the spool file), ``Document.open`` with ``--format`` / ``--record-path``
+  (gzip on the pipe is recognized by its magic bytes and converted by the normal path), the
+  messages that name the input (they show the spool path). One info line says how many bytes
+  were read and where (``cli.stdin.summary``); the spool file is removed when the command ends,
+  also after an error. Refused before anything is read (exit 1): ``-`` when standard input is a
+  terminal or missing (``cli.error.stdin_tty``), two ``-`` (``cli.error.stdin_twice``), ``-`` as
+  any output (``cli.error.stdout_output``: outputs stay files), ``-`` for a file that is not an
+  INPUT -- PATCH, MAPPING, ``--schema`` (``cli.error.stdin_unsupported``), ``patch --in-place -``
+  (``cli.error.stdin_in_place``), ``split -`` without ``-o DIR`` (the parts would land in the
+  work folder: ``cli.error.stdin_split_dir``) and ``import -`` without ``--from`` (no file name
+  tells the type: ``cli.error.stdin_import_format``). The index of a spooled input is written to
+  the cache like any other and left to the LRU eviction (the spool path is new every time, so it
+  is never reused).
 * The examples of ``--help`` work unchanged in cmd.exe, Windows PowerShell 5.1, PowerShell 7
   and POSIX shells: expressions in double quotes, texts inside them in single quotes, no
   backtick inside double quotes (PowerShell's escape character), no double quote inside a
@@ -1700,7 +1727,10 @@ class _Ctx:
 
 def _check_input(path: str) -> None:
     from .fileio import long_path
+    from .stdin_input import STDIN_MARK
 
+    if path == STDIN_MARK:   # a "-" _stdin_inputs did not spool: PATCH, MAPPING, --schema are not INPUTs
+        raise UserInputError("cli.error.stdin_unsupported")
     lp = long_path(path)
     if os.path.isdir(lp):
         raise UserInputError("fileio.error.is_directory", path=path)
@@ -1730,8 +1760,11 @@ def _check_output(input_path: str, output_path: str) -> None:
     ``filetools.error.part_open_edited``, :func:`jsonreshape.writer.edited_targets`) --
     before any work."""
     from .fileio import long_path
+    from .stdin_input import STDIN_MARK
     from .writer import refuse_edited_targets
 
+    if output_path == STDIN_MARK:   # outputs are files (checked before the command by _stdin_inputs too)
+        raise UserInputError("cli.error.stdout_output")
     if _same_file(input_path, output_path):
         raise UserInputError("writer.error.same_file", path=output_path)
     if os.path.isdir(long_path(output_path)):
@@ -1742,6 +1775,77 @@ def _check_output(input_path: str, output_path: str) -> None:
     if parent and not os.path.isdir(long_path(parent)):
         raise UserInputError("writer.error.no_dir", path=parent)
     refuse_edited_targets([output_path])
+
+
+#: argparse destinations of the files a command reads as INPUT: one of them may be "-" (standard input)
+STDIN_INPUT_DESTS = ("input", "inputs", "a", "b")
+#: argparse destinations of everything a command writes: never "-" (outputs are files)
+OUTPUT_DESTS = ("output", "output_opt", "out", "out_dir", "export", "report")
+
+
+def _stdin_places(args: argparse.Namespace) -> list[tuple[str, int | None]]:
+    """``(dest, index)`` of every INPUT argument given as ``-`` (``index``: its position in a list)."""
+    from .stdin_input import STDIN_MARK
+
+    places: list[tuple[str, int | None]] = []
+    for dest in STDIN_INPUT_DESTS:
+        value = getattr(args, dest, None)
+        if isinstance(value, list):
+            places.extend((dest, i) for i, item in enumerate(value) if item == STDIN_MARK)
+        elif value == STDIN_MARK:
+            places.append((dest, None))
+    return places
+
+
+@contextlib.contextmanager
+def _stdin_inputs(ctx: _Ctx) -> Iterator[None]:
+    """Standard input as INPUT (see "Standard input" in the module docstring). An INPUT given as ``-``
+    is spooled to a temporary file in the work folder before the command starts
+    (:func:`jsonreshape.stdin_input.spool_stdin`: 1 MiB pieces, a progress line with the bytes read
+    so far, cancellation, the free-space rule) and the ``-`` in ``ctx.args`` is replaced by that file's
+    path, so the command works on it as on a named file; one info line tells the bytes read. The spool
+    file is removed when the block ends, also on an error. Refused before anything is read: ``-`` as an
+    output, two ``-``, a terminal as standard input, and the command-specific cases (``patch
+    --in-place``, ``split`` without ``-o``, ``import`` without ``--from``)."""
+    from .appdirs import work_dir
+    from .stdin_input import STDIN_MARK, spool_stdin, stdin_is_tty
+
+    args = ctx.args
+    for dest in OUTPUT_DESTS:
+        if getattr(args, dest, None) == STDIN_MARK:
+            raise UserInputError("cli.error.stdout_output")
+    places = _stdin_places(args)
+    if not places:
+        yield
+        return
+    if len(places) > 1:
+        raise UserInputError("cli.error.stdin_twice")
+    if args.command == "patch" and getattr(args, "in_place", False):
+        raise UserInputError("cli.error.stdin_in_place")
+    if args.command == "split" and getattr(args, "out_dir", None) is None:
+        raise UserInputError("cli.error.stdin_split_dir")
+    if args.command == "import" and getattr(args, "from_fmt", "auto") == "auto":
+        raise UserInputError("cli.error.stdin_import_format")
+    if stdin_is_tty():
+        raise UserInputError("cli.error.stdin_tty")
+    try:
+        spool = spool_stdin(work_dir(ctx.settings.cache_dir), progress=ctx.stage(t("cli.stdin.stage")),
+                            cancel=ctx.cancel)
+    finally:
+        ctx.end_stage()
+    try:
+        shown = _display_path(spool.path)
+        ctx.info(t("cli.stdin.summary", size=format_bytes(spool.size), path=shown))
+        dest, index = places[0]
+        if index is None:
+            setattr(args, dest, shown)
+        else:
+            values = list(getattr(args, dest))
+            values[index] = shown
+            setattr(args, dest, values)
+        yield
+    finally:
+        spool.remove()
 
 
 def _input_changed(doc: Any) -> bool:
@@ -4650,7 +4754,9 @@ def _run(args: argparse.Namespace, console: _Console, cancel: CancelToken, log_f
         _check_environment()
         if backend_note:
             console.warn(backend_note)
-        return _COMMANDS[args.command](_Ctx(args, console, cancel))
+        ctx = _Ctx(args, console, cancel)
+        with _stdin_inputs(ctx):   # "-" as INPUT: spooled first, replaced by the spool file's path
+            return _COMMANDS[args.command](ctx)
     except _OutputClosed:
         return EXIT_OK
     except (Cancelled, KeyboardInterrupt):

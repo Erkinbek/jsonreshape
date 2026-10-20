@@ -826,6 +826,31 @@ container, `--record-path` on JSON Lines/stream input, OUTPUT == INPUT); 2 JSON 
 the input, or the input was changed by another program while it was read (nothing saved);
 3 cancelled (Ctrl+C / Ctrl+Break); 4 internal error (message + log path).
 
+**Standard input (stage 7, as built; `jsonreshape/stdin_input.py` and the "Standard input" decision in the `cli`
+docstring are authoritative).** An INPUT given as `-` — and only `-` — is standard input: one INPUT per command
+(`inspect` … `import`, `patch` with an OUTPUT), at most one of the inputs of `merge` / `diff`. `cli._stdin_inputs`, a
+context manager around every command in `_run`, first refuses `-` as any output (`OUTPUT_DESTS`:
+`cli.error.stdout_output`), two `-` (`cli.error.stdin_twice`), a terminal or missing stdin (`stdin_is_tty`:
+`cli.error.stdin_tty`), `patch --in-place -`, `split -` without `-o DIR` (the parts would land in the work folder)
+and `import -` without `--from` (no file name tells the type); then `stdin_input.spool_stdin` copies
+`sys.stdin.buffer` (binary: no newline translation on Windows) in 1 MiB pieces (`read1`, constant memory) to
+`tempfile.mkstemp("stdin-<pid>-", ".json")` in `appdirs.work_dir(settings.cache_dir)` (mode 0600 where modes exist),
+with a `Progress` in bytes and no total (the CLI line shows bytes read and the rate), `cancel.check()` per piece and
+the free-space rule (at 0 and at every 256 MiB: `fileio.free_space(folder) >= bytes read + 64 MiB`, else
+`fileio.error.disk_full`); every failure removes the partial file. The `-` in `args` is then replaced by the spool
+path, so `_check_input`, the same-file check of `_check_output` (an output may not be the spool file),
+`Document.open` with `--format` / `--record-path` (gzip by its magic bytes through `prepare_data_file`),
+`repair_file`, `import_file` and the messages that name the input work unchanged on a named file; one info line
+(`cli.stdin.summary`, hidden by `-q`) tells the bytes read and the path. The spool file is removed in a `finally`
+after the command (retried briefly on Windows while a scanner holds it); its index and prepared copy stay in the
+cache for the LRU eviction like those of any deleted file (the spool path is new every run, so they are never
+reused). A `-` for PATCH, MAPPING or `--schema` reaches `_check_input` unspooled and is
+`cli.error.stdin_unsupported`. Measured: a 50 MB pipe peaks at ~90 MB for the whole process tree, as the file run
+does (+2.5 MB of read/write buffers); `tests/test_cli_stdin.py` (25 tests) pins the byte-identical result, the
+refusals, the clean-up after success / JSON error / cancellation, the free-space rule and the memory bound. Shell
+note (verified): cmd.exe and bash pipes and `<` redirections carry bytes; Windows PowerShell 5.1 re-encodes
+pipelines as text (gzip and non-ASCII data break: 48 bytes of Cyrillic JSON arrive as 53) and has no `<`.
+
 ---------------------------------------------------------------------------------
 
 ## 11. GUI (`jsonreshape/gui/`, PySide6) — stage 2: viewer

@@ -190,6 +190,10 @@ jsonreshape import jadval.tsv -o jadval.jsonl --no-header --types string
 jsonreshape import eksport.csv -o eksport.jsonl --delimiter ";" --encoding cp1251 --skip-bad
 jsonreshape import config.yaml config.json
 jsonreshape import katalog.xml -o katalog.jsonl --record-tag item
+
+# Standart kirish: INPUT o'rniga "-" (quvurlar); quyida qobiqlar haqidagi izohga qarang
+curl -s https://example.com/data.json | jsonreshape convert - data.jsonl
+jsonreshape inspect - < data.json.gz
 ```
 
 JMESPath'da `` `100` `` kabi literal kerak bo'lsa: PowerShell'da bitta tirnoqli satr
@@ -200,6 +204,18 @@ Umumiy kirish parametrlari: `--record-path data` (ichida katta massiv bor obyekt
 `/data/0`, `data.0` ham ishlaydi), `--format auto|array|jsonl|brace_list|wrapped|keyed|single|stream`,
 `--allow-partial` (JSON xatosi bo'lsa, xatogacha bo'lgan yozuvlar bilan ishlash), `--no-cache`.
 Global: `--lang uz|en`, `--backend auto|rust|python`, `-q`, `-v`/`-vv`, `--version`.
+
+**Standart kirish:** INPUT o'rnida `-` standart kirishni o'qiydi — bitta INPUT oladigan har bir buyruqda, `merge` /
+`diff` kirishlaridan bittasi sifatida ham; natijalar doim fayl (`-` natija sifatida rad etiladi). Ma'lumot avval
+1 MiB bo'laklar bilan ish papkasidagi vaqtinchalik faylga nusxalanadi (`%LOCALAPPDATA%\jsonreshape\tmp` yoki
+sozlangan kesh papkasining `tmp` papkasi), jarayon chizig'i ko'rsatiladi, so'ng fayl odatdagidek ochiladi:
+`--format`, `--record-path` va gzip aniqlash avvalgidek ishlaydi, bir qator xabar qancha bayt o'qilganini aytadi.
+Vaqtinchalik fayl buyruq tugagach o'chiriladi — xatodan keyin ham. Quvurning uzunligi noma'lum bo'lgani uchun
+papkada o'qilgan baytlardan tashqari 64 MiB bo'sh joy bo'lishi kerak (har 256 MiB da tekshiriladi). Standart kirish
+terminal bo'lsa `-` rad etiladi; `split -` uchun `-o DIR`, `import -` uchun `--from csv|yaml|xml` kerak,
+`patch --in-place` `-` bilan ishlamaydi. Qobiqlar: cmd.exe va bash quvur yoki `<` yo'naltirish baytlarini
+o'zgartirmaydi; Windows PowerShell 5.1 (va 7.4 dan oldingi PowerShell 7) quvurni matn sifatida qayta kodlaydi — gzip
+va ASCII bo'lmagan ma'lumot buziladi — va unda `<` yo'q: u yerda fayl nomini bering yoki PowerShell 7.4+ ishlating.
 
 Chiqish kodlari:
 
@@ -1233,6 +1249,13 @@ va `main()` qayta ishga tushirilganda sessiyaning tiklanishi.
    Yozuvlar: standart — ildizning bolalari, `--record-tag TEG` (to'liq yoki qisqa nom; boshqa yozuv ichida bo'lmagan)
    yoki `--record-path a/b/c` ildizdan. Prologda `<!ENTITY` bo'lsa rad etiladi (entity kengayishi).
 52. **Import natijasi**: JSON Lines, agar natija `.json` bilan tugamasa (bitta massiv; yagona YAML hujjat o'zi
+53. **Standart kirish oqim bilan emas, nusxa orqali o'qiladi**: `-` buyruq boshlanishidan oldin quvurni ish
+    papkasidagi vaqtinchalik faylga nusxalaydi, chunki har bir o'quvchiga qidirib o'qiladigan fayl kerak (indeks bayt
+    oraliqlarini saqlaydi; gzip / UTF-16 kirishlar keshdagi nusxaga aylantiriladi). Narxi — bitta nusxaning disk joyi va
+    vaqti; foydasi — har bir buyruq, parametr va xotira chegarasi fayl bilan qanday ishlasa, shunday ishlaydi (50 MB
+    quvur fayl bilan bir xil ~90 MB cho'qqiga chiqadi). Vaqtinchalik fayl doim o'chiriladi; uning uchun qurilgan indeks
+    ishlatilgandan keyin o'chirilgan har qanday faylniki kabi LRU tozalashgacha keshda qoladi. Natijalar fayl bo'lib
+    qoladi: `-` natija sifatida rad etiladi, xabarlarda vaqtinchalik fayl nomi ko'rsatiladi (aslida o'qilgan kirish).
    yoziladi) yoki `--to json` berilmasa; JSON tartibi writer'niki (`--indent 2|4|tab`, `--compact`); natija atomar
    yoziladi, manba yoki saqlanmagan o'zgarishlari bor faylning ustiga hech qachon yozilmaydi; `import` `.gz`
    kirish va natijani qo'llamaydi (keyin `convert` ishlating). GUI'da standart natija manba yonidagi `<nom>.jsonl`

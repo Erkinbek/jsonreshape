@@ -4640,8 +4640,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "also show log records: -v (INFO), -vv (DEBUG and error tracebacks)",
     },
     "cli.help.input": {
-        "uz": "kirish JSON fayli (.json, .jsonl, .json.gz; UTF-8 yoki UTF-16)",
-        "en": "input JSON file (.json, .jsonl, .json.gz; UTF-8 or UTF-16)",
+        "uz": "kirish JSON fayli (.json, .jsonl, .json.gz; UTF-8 yoki UTF-16) yoki - (standart kirish)",
+        "en": "input JSON file (.json, .jsonl, .json.gz; UTF-8 or UTF-16), or - for standard input",
     },
     "cli.help.output": {
         "uz": "natija fayli; formati kengaytmadan aniqlanadi (.json, .jsonl, .csv, .xlsx, .sqlite) yoki --to bilan "
@@ -4869,8 +4869,8 @@ MESSAGES: dict[str, dict[str, str]] = {
     "cli.group.import_csv": {"uz": "CSV / TSV parametrlari", "en": "CSV / TSV options"},
     "cli.group.import_xml": {"uz": "XML parametrlari", "en": "XML options"},
     "cli.help.import_input": {
-        "uz": "kirish fayli: .csv, .tsv, .yaml, .yml yoki .xml (boshqa kengaytma uchun --from)",
-        "en": "input file: .csv, .tsv, .yaml, .yml or .xml (--from for another extension)",
+        "uz": "kirish fayli: .csv, .tsv, .yaml, .yml yoki .xml (boshqa kengaytma yoki - standart kirish uchun --from)",
+        "en": "input file: .csv, .tsv, .yaml, .yml or .xml (--from for another extension or for - standard input)",
     },
     "cli.help.import_output": {
         "uz": "natija fayli: .jsonl (JSON Lines) yoki .json (bitta massiv); kirish fayli bo'lishi mumkin emas",
@@ -4924,6 +4924,48 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "XML: the path of the record elements from the root, e.g. catalog/books/book",
     },
     "cli.help.import_json": {"uz": "hisobotni JSON sifatida chiqarish", "en": "print the report as JSON"},
+    # standard input as INPUT ("-"): cli._stdin_inputs + jsonreshape.stdin_input
+    "cli.stdin.stage": {"uz": "Standart kirish o'qilmoqda", "en": "Reading standard input"},
+    "cli.stdin.summary": {
+        "uz": "Standart kirishdan {size} o'qildi (vaqtinchalik fayl {path}, buyruq tugagach o'chiriladi)",
+        "en": "{size} read from standard input (temporary file {path}, removed when the command ends)",
+    },
+    "cli.error.stdin_tty": {
+        "uz": "Standart kirish terminal: - uchun quvur (pipe) orqali hech narsa berilmagan.",
+        "en": "Standard input is the terminal: nothing is piped to -.",
+    },
+    "cli.error.stdin_tty.hint": {
+        "uz": "Ma'lumotni quvur orqali bering (masalan curl ... | jsonreshape inspect -) yoki fayl nomini ko'rsating.",
+        "en": "Pipe the data in (for example curl ... | jsonreshape inspect -) or give a file name.",
+    },
+    "cli.error.stdin_twice": {
+        "uz": "- (standart kirish) faqat bitta INPUT o'rnida bo'la oladi.",
+        "en": "Only one INPUT may be - (standard input).",
+    },
+    "cli.error.stdin_unsupported": {
+        "uz": "- (standart kirish) faqat buyruqning INPUT argumenti bo'la oladi; boshqa fayllar nom bilan beriladi.",
+        "en": "Only the INPUT of a command may be - (standard input); the other files are given by name.",
+    },
+    "cli.error.stdout_output": {
+        "uz": "Natija - (standart chiqish) bo'la olmaydi: natijalar faylga yoziladi, fayl nomini ko'rsating.",
+        "en": "The output cannot be - (standard output): results are written to files, give a file name.",
+    },
+    "cli.error.stdin_in_place": {
+        "uz": "patch --in-place standart kirish (-) bilan ishlamaydi: OUTPUT faylini ko'rsating.",
+        "en": "patch --in-place cannot work on standard input (-): give an OUTPUT file.",
+    },
+    "cli.error.stdin_split_dir": {
+        "uz": "Standart kirishni (-) bo'lish uchun -o DIR (qismlar papkasi) kerak.",
+        "en": "split from standard input (-) needs -o DIR (the folder of the parts).",
+    },
+    "cli.error.stdin_split_dir.hint": {
+        "uz": "Qismlarni --name ANDOZA bilan nomlang: standart nom vaqtinchalik fayl nomidan olinadi.",
+        "en": "Name the parts with --name PATTERN: the default name comes from the temporary file.",
+    },
+    "cli.error.stdin_import_format": {
+        "uz": "Standart kirishdan (-) import uchun --from csv|yaml|xml kerak: turini fayl nomidan aniqlab bo'lmaydi.",
+        "en": "import from standard input (-) needs --from csv|yaml|xml: the type cannot be told from a file name.",
+    },
     "cli.stage.importing": {"uz": "Import qilinmoqda", "en": "Importing"},
     "cli.summary.import": {
         "uz": "{records} ta yozuv: {input} ({fmt}) -> {output} ({size}, {seconds})",

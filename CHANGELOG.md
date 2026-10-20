@@ -31,6 +31,13 @@ All notable changes to jsonreshape are recorded here. The format follows
   encodings and delimiters, nested `a.b.c` columns, a safe YAML loader (optional `pyyaml`, extra
   `jsonreshape[import]`), streaming XML with `@attribute` / `#text` conventions and record selection by tag or path;
   the result opens in a new tab (`jsonreshape/importers.py`, `jsonreshape/gui/importdialog.py`).
+- **Standard input on the command line** (stage 7): `-` in place of INPUT reads a pipe
+  (`curl ... | jsonreshape convert - out.jsonl`, `jsonreshape inspect - < data.json.gz`; also one of the inputs of
+  `merge` / `diff`). The data is spooled in 1 MiB pieces to a temporary file in the work folder (progress line,
+  cancellation, a free-space check; removed when the command ends, also after an error) and then handled like a named
+  file (`--format`, `--record-path`, gzip detection). `-` is refused as an output, twice, when standard input is a
+  terminal, for `patch --in-place`, for `split` without `-o DIR` and for `import` without `--from`
+  (`jsonreshape/stdin_input.py`, `cli._stdin_inputs`, `tests/test_cli_stdin.py`).
 
 ## [0.1.0] — 2026-10-20
 
