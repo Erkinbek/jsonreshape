@@ -1,78 +1,81 @@
 # jsonreshape
 
-Katta JSON fayllar (100 MB dan bir necha GB gacha) bilan ishlash uchun desktop dastur va CLI:
-ko'rish, qidirish, filtrlash, tartiblash, konvertatsiya, tahrirlash, tuzilmani qayta qurish, statistika,
-dublikatlar, JSON Schema, bo'lish/birlashtirish, ta'mirlash va taqqoslash.
-**Fayl hech qachon to'liq xotiraga yuklanmaydi**: u bir marta indekslanadi (har yozuvning bayt chegaralari),
-keyin faqat kerakli bo'laklar o'qiladi. **Asl fayl hech qachon o'zgartirilmaydi**: tahrirlar alohida qatlamda
-turadi, saqlash yangi faylni atomik almashtiradi (standart bo'yicha `.bak` zaxira nusxasi bilan).
+**English** | [O'zbekcha](README.uz.md)
 
-> **Holat: 1–5-bosqichlar tayyor.** 6-bosqich (silliqlash va `.exe`) davom etmoqda.
+A desktop application and CLI for huge JSON files (from 100 MB to several GB): viewing, search, filtering, sorting,
+conversion, editing, restructuring, statistics, duplicates, JSON Schema, split/merge, repair and comparison.
+**A file is never loaded into memory as a whole**: it is indexed once (the byte boundaries of every record), then
+only the pieces that are needed are read. **The original file is never modified**: edits live in a separate layer,
+and saving atomically replaces the file with a new one (by default with a `.bak` backup copy).
 
-| # | Bosqich | Holat |
+> **Status: all 6 stages are done** (2026-10-19). Author: Erkin Pardayev · built with Claude Opus 5.5
+> ([author, contact and copyright](#muallif)).
+
+| # | Stage | Status |
 |---|---|---|
-| 1 | **Yadro**: reader + indeks (Rust yadro va Python fallback), RecordSet, qidiruv, filtr, tartib, writer, CLI (`inspect`, `search`, `filter`, `sort`, `convert`) | ✅ tayyor |
-| 2 | **Ko'ruvchi GUI** (PySide6): daraxt, jadval, matn, xom baytlar, tuzilma, navigatsiya, qidiruv paneli, filtr quruvchi, tartiblash, eksport, fon vazifalari, holat qatori | ✅ tayyor |
-| 3 | **Tahrirlash**: tugun tahriri (qiymat, kalit, tur, qo'shish, o'chirish, nusxa, surish, sudrab tashlash), ommaviy amallar (oldindan aniq sanash bilan), JSON Patch, undo/redo, tahrir qatlami (SQLite + segment fayllar, uzluksiz avtosaqlash va tiklash), xavfsiz saqlash, CLI `patch` | ✅ tayyor |
-| 4 | **Tuzilma quruvchi**: mapping engine (`json-tuzilma.html` bilan aynan bir xil natija), GUI (sudrab tashlash, jonli ko'rinish), mapping fayllari, CLI `apply`, `flatten` | ✅ tayyor |
-| 5 | **Asboblar**: maydon statistikasi, dublikatlar, JSON Schema (yaratish va tekshirish), bo'lish / birlashtirish / ajratib olish, ta'mirlash, taqqoslash (diff), "aqlli" qiymatlar; CLI `stats`, `dupes`, `schema`, `validate`, `split`, `merge`, `extract`, `repair`, `diff` | ✅ tayyor |
-| 6 | Silliqlash: buyruqlar palitrasi, sessiya, workspace, mavzular, PyInstaller `.exe` | ⏳ |
+| 1 | **Core**: reader + index (Rust core and Python fallback), RecordSet, search, filter, sort, writer, CLI (`inspect`, `search`, `filter`, `sort`, `convert`) | ✅ done |
+| 2 | **Viewer GUI** (PySide6): tree, table, text, raw bytes, Schema view, navigation, search pane, filter builder, sorting, export, background tasks, status bar | ✅ done |
+| 3 | **Editing**: node editing (value, key, type, insert, delete, duplicate, move, drag and drop), bulk operations (with an exact count beforehand), JSON Patch, undo/redo, edit layer (SQLite + segment files, continuous autosave and recovery), safe saving, CLI `patch` | ✅ done |
+| 4 | **Structure builder**: mapping engine (results identical to `json-tuzilma.html`), GUI (drag and drop, live preview), mapping files, CLI `apply`, `flatten` | ✅ done |
+| 5 | **Tools**: field statistics, duplicates, JSON Schema (generate and validate), split / merge / extract, repair, compare (diff), "smart" values; CLI `stats`, `dupes`, `schema`, `validate`, `split`, `merge`, `extract`, `repair`, `diff` | ✅ done |
+| 6 | **Polish**: command palette, shortcut settings, session restore, workspace files, themes, Windows "Open with", PyInstaller `.exe`; worker processes for heavy exports; the final benchmark | ✅ done |
 
 ---
 
-## Mundarija
+## Contents
 
-1. [O'rnatish](#ornatish)
-2. [Tez boshlash (CLI)](#tez-boshlash-cli)
-3. [Grafik interfeys (GUI)](#gui)
-4. [Qo'llab-quvvatlanadigan formatlar](#formatlar)
-5. [Raqamlar aniqligi](#raqamlar-aniqligi)
-6. [Qidiruv](#qidiruv)
-7. [Filtr tili](#filtr-tili)
-8. [Tartiblash](#tartiblash)
-9. [Eksport va konvertatsiya](#eksport)
-10. [Indeks, kesh va xotira](#indeks)
-11. [Xatolar va loglar](#xatolar)
-12. [Arxitektura](#arxitektura)
-13. [Testlar](#testlar)
-14. [O'lchovlar (benchmark)](#olchovlar)
-15. [Qabul qilingan qarorlar va ochiq savollar](#qarorlar)
+1. [Installation](#ornatish)
+2. [Quick start (CLI)](#tez-boshlash-cli)
+3. [Graphical interface (GUI)](#gui)
+4. [Supported formats](#formatlar)
+5. [Number precision](#raqamlar-aniqligi)
+6. [Search](#qidiruv)
+7. [Filter language](#filtr-tili)
+8. [Sorting](#tartiblash)
+9. [Export and conversion](#eksport)
+10. [Index, cache and memory](#indeks)
+11. [Errors and logs](#xatolar)
+12. [Architecture](#arxitektura)
+13. [Tests](#testlar)
+14. [Measurements (benchmark)](#olchovlar)
+15. [Decisions and open questions](#qarorlar)
+16. [Author, contact and copyright](#muallif)
 
 ---
 
 <a id="ornatish"></a>
-## 1. O'rnatish
+## 1. Installation
 
-Talablar: Windows 10/11 (Linux/macOS'da ham ishlaydi), **Python 3.11+** (3.14 da tekshirilgan),
-tezkor yadro uchun **Rust** (stable) va Visual Studio Build Tools (MSVC).
+Requirements: Windows 10/11 (also works on Linux/macOS), **Python 3.11+** (tested on 3.14),
+and, for the fast core, **Rust** (stable) and Visual Studio Build Tools (MSVC).
 
 ```powershell
 py -3.14 -m venv .venv
 .venv\Scripts\python -m pip install -U pip maturin
-.venv\Scripts\maturin develop --release          # Rust yadrosini quradi va paketni o'rnatadi
-.venv\Scripts\python -m pip install -e ".[dev]"  # test vositalari (pytest, hypothesis, openpyxl ...)
+.venv\Scripts\maturin develop --release          # builds the Rust core and installs the package
+.venv\Scripts\python -m pip install -e ".[dev]"  # test tools (pytest, hypothesis, openpyxl ...)
 ```
 
-Rust bo'lmasa ham dastur ishlaydi: yadroning sof Python nusxasi (fallback) bor, natijasi aynan bir xil
-(testlar bilan tekshiriladi), faqat sekinroq. Majburan tanlash: `JSONRESHAPE_BACKEND=python`
-(yoki CLI'da `--backend python`).
+The program works without Rust too: there is a pure Python version of the core (fallback) that gives exactly the same
+results (checked by tests), only slower. To force it: `JSONRESHAPE_BACKEND=python`
+(or `--backend python` in the CLI).
 
-Grafik interfeys uchun: `.venv\Scripts\python -m pip install -e ".[gui]"` (PySide6).
+For the graphical interface: `.venv\Scripts\python -m pip install -e ".[gui]"` (PySide6).
 
-Ishga tushirish: `jsonreshape ...` (CLI) yoki `python -m jsonreshape ...`; GUI — `jsonreshape-gui [fayl ...]`
-yoki `python -m jsonreshape.gui` ([3-bo'lim](#gui)).
+Running: `jsonreshape ...` (CLI) or `python -m jsonreshape ...`; GUI — `jsonreshape-gui [file ...]`
+or `python -m jsonreshape.gui` ([section 3](#gui)).
 
-### Windows uchun `.exe` (Python o'rnatmasdan ishlatish)
+### `.exe` for Windows (run without installing Python)
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\build_exe.ps1     # -SkipTests: faqat qurish; -NoInstall: pip ishlatmaslik
+powershell -ExecutionPolicy Bypass -File scripts\build_exe.ps1     # -SkipTests: build only; -NoInstall: do not use pip
 ```
 
-Skript PyInstaller'ni (6.22.3) venv'ga o'rnatadi (faqat shu qadamda tarmoq kerak; dasturning o'zi oflayn), ikonani
-yasaydi, `packaging\jsonreshape.spec` bo'yicha quradi va tayyor exe ustida smoke-testlarni ishga tushiradi
-(`-m packaging`). Natija — `dist\jsonreshape\` papkasi (~78 MB): `jsonreshape-gui.exe` (oyna) va `jsonreshape.exe`
-(CLI) bitta `_internal\` papkasini ishlatadi; foydalanuvchiga butun papka beriladi. Ishga tushish: CLI ~0,10 s,
-GUI oynasi ~0,28 s. Qo'lda:
+The script installs PyInstaller (6.22.3) into the venv (network access is needed only for this step; the program
+itself works offline), creates the icon, builds from `packaging\jsonreshape.spec` and runs smoke tests on the finished
+exe (`-m packaging`). The result is the `dist\jsonreshape\` folder (~78 MB): `jsonreshape-gui.exe` (window) and
+`jsonreshape.exe` (CLI) share one `_internal\` folder; give users the whole folder. Startup: CLI ~0.10 s,
+GUI window ~0.28 s. Manually:
 
 ```powershell
 .venv\Scripts\python -m pip install "pyinstaller==6.22.3" "pyinstaller-hooks-contrib==2026.8"
@@ -80,461 +83,460 @@ GUI oynasi ~0,28 s. Qo'lda:
 .venv\Scripts\python -m PyInstaller --noconfirm --clean --distpath dist --workpath build\pyinstaller packaging\jsonreshape.spec
 .venv\Scripts\python -m pytest -q -m packaging tests\test_packaging.py
 ```
-Dastur tarmoqqa hech narsa yubormaydi (telemetriya ham, yangilanish tekshiruvi ham yo'q).
+The program sends nothing over the network (no telemetry and no update check).
 
 <a id="tez-boshlash-cli"></a>
-## 2. Tez boshlash (CLI)
+## 2. Quick start (CLI)
 
-Quyidagi buyruqlar **cmd.exe, Windows PowerShell 5.1, PowerShell 7 va bash'da bir xil** ishlaydi
-(`#` bilan boshlangan qatorlar — izoh, ularni terminalga kiritmang).
-Qoida: ifodani qo'shtirnoq (`"..."`) ichiga, undagi matnni bitta tirnoq (`'...'`) ichiga yozing.
+The commands below work **the same in cmd.exe, Windows PowerShell 5.1, PowerShell 7 and bash**
+(lines starting with `#` are comments; do not type them into the terminal).
+Rule: put the expression in double quotes (`"..."`) and any text inside it in single quotes (`'...'`).
 
 ```text
-# Fayl haqida: format, kodirovka, yozuvlar soni, indeks tezligi, tuzilma (namuna: 10 000 yozuv)
+# File info: format, encoding, record count, indexing speed, structure (sample: 10,000 records)
 jsonreshape inspect data.json --sample 10000
 
-# Qidiruv: kalit va qiymatlarda, katta-kichik harfga sezgir emas, apostroflar bir xil
+# Search: in keys and values, case-insensitive, apostrophe variants treated as equal
 jsonreshape search data.json "O'zbekiston"
-# lotin-kirill sezgir emas: Тошкент ham topiladi
+# Latin/Cyrillic-insensitive: Тошкент is found too
 jsonreshape search data.json Toshkent --translit
 jsonreshape search data.json toshkent --path contact.address.city --values
 jsonreshape search data.json "^Tosh.*t$" --regex
 jsonreshape search data.json "> 1000" --number
-# barcha mosliklar CSV faylga
-jsonreshape search data.json maxsus --export natijalar.csv
+# all matches to a CSV file
+jsonreshape search data.json maxsus --export results.csv
 
-# Filtr (xavfsiz ifoda tili yoki JMESPath); saqlangan filtrlar (preset)
-jsonreshape filter data.json toshkent.json --where "contact.address.city == 'Toshkent' and len(children) > 2"
-jsonreshape filter data.json yuqori.json --jmespath "active && score > to_number('100')"
-jsonreshape filter data.json toshkent.json --where "contact.address.city == 'Toshkent'" --save-preset toshkent
-jsonreshape filter data.json toshkent.csv --preset toshkent
-# saqlangan filtrlar ro'yxati
+# Filter (safe expression language or JMESPath); saved filters (presets)
+jsonreshape filter data.json tashkent.json --where "contact.address.city == 'Toshkent' and len(children) > 2"
+jsonreshape filter data.json top.json --jmespath "active && score > to_number('100')"
+jsonreshape filter data.json tashkent.json --where "contact.address.city == 'Toshkent'" --save-preset toshkent
+jsonreshape filter data.json tashkent.csv --preset toshkent
+# list of saved filters
 jsonreshape presets
 
-# Tartiblash (bir yoki bir nechta maydon; "-" kamayish tartibi)
+# Sort (one or more fields; "-" means descending order)
 jsonreshape sort data.json sorted.json --by name --by -id
 
-# Konvertatsiya (+ ixtiyoriy filtr va tartib)
+# Conversion (+ optional filter and sort)
 jsonreshape convert data.json data.jsonl
-# keyed faylning JSONL ko'rinishidan ({"kalit": qiymat} qatorlari) kalitli obyektni qayta tiklash
+# rebuild the keyed object from the JSONL form of a keyed file ({"key": value} lines)
 jsonreshape convert keyed.jsonl keyed.json --as-keyed
-jsonreshape convert data.json jadval.csv --columns "id,name,contact.address.city"
-jsonreshape convert data.json jadval.xlsx --array-mode rows --explode orders
-jsonreshape convert data.json baza.sqlite
-jsonreshape convert data.json chiroyli.json --indent 4 --sort-keys --where "active == true" --sort-by -score
-# faqat tanlangan yozuvlar (raqamlar 0 dan: 0:100 = 0..99) yoki bitta tugun
-jsonreshape convert data.json tanlov.csv --select "0:100,500"
-jsonreshape convert data.json buyurtmalar.json --node "#5.orders"
+jsonreshape convert data.json table.csv --columns "id,name,contact.address.city"
+jsonreshape convert data.json table.xlsx --array-mode rows --explode orders
+jsonreshape convert data.json db.sqlite
+jsonreshape convert data.json pretty.json --indent 4 --sort-keys --where "active == true" --sort-by -score
+# only selected records (numbered from 0: 0:100 = 0..99) or a single node
+jsonreshape convert data.json selection.csv --select "0:100,500"
+jsonreshape convert data.json orders.json --node "#5.orders"
 
-# JSON Patch (RFC 6902): natija yangi faylga, kirish fayli bilan bir xil format va kodirovkada
-jsonreshape patch data.json tuzatish.patch.json natija.json
-# avval data.json.bak; --no-backup
-jsonreshape patch data.json tuzatish.patch.json --in-place
+# JSON Patch (RFC 6902): the result goes to a new file, in the same format and encoding as the input file
+jsonreshape patch data.json fix.patch.json result.json
+# data.json.bak is made first; --no-backup
+jsonreshape patch data.json fix.patch.json --in-place
 
-# Tuzilma quruvchida saqlangan mapping'ni butun faylga qo'llash (oqim bilan, parallel jarayonlarda)
-jsonreshape apply tuzilma.mapping.json data.json yangi.json
-# ichma-ich children ro'yxatini daraja raqami (_depth) bilan bitta ro'yxatga tekislash
-jsonreshape flatten data.json tekis.jsonl --children-key children
+# Apply a mapping saved in the structure builder to the whole file (streaming, in parallel processes)
+jsonreshape apply structure.mapping.json data.json new.json
+# flatten nested children lists into a single list with a level number (_depth)
+jsonreshape flatten data.json flat.jsonl --children-key children
 
-# Statistika, dublikatlar, JSON Schema
+# Statistics, duplicates, JSON Schema
 jsonreshape stats data.json --field contact.address.city
 jsonreshape stats data.json --where "active == true" --json
-jsonreshape dupes data.json --key id --top 10 -o takroriy.jsonl
+jsonreshape dupes data.json --key id --top 10 -o dupes.jsonl
 jsonreshape schema data.json data.schema.json --strict
-jsonreshape validate data.json --schema data.schema.json --export xatolar.csv
+jsonreshape validate data.json --schema data.schema.json --export errors.csv
 
-# Bo'lish, birlashtirish, ajratib olish
-# yoki --size 500MB / --records 100000; -o papka
+# Split, merge, extract
+# or --size 500MB / --records 100000; -o folder
 jsonreshape split data.json --parts 10
-# andozani dastur o'zi ochadi
-jsonreshape merge "qism_*.json" -o hammasi.jsonl --dedupe-by id
-jsonreshape extract katta.json elementlar.json --path data.items
-jsonreshape extract data.json buyurtmalar.jsonl --gather "orders[*]"
+# the program expands the pattern itself
+jsonreshape merge "part_*.json" -o all.jsonl --dedupe-by id
+jsonreshape extract big.json items.json --path data.items
+jsonreshape extract data.json orders.jsonl --gather "orders[*]"
 
-# Ta'mirlash (asl fayl o'zgarmaydi) va taqqoslash
-# --check: faqat tekshirish
-jsonreshape repair buzuq.json tuzatilgan.json --report tuzatishlar.csv
-jsonreshape diff eski.json yangi.json --key id --exit-code
+# Repair (the original file is not changed) and compare
+# --check: check only
+jsonreshape repair broken.json repaired.json --report fixes.csv
+jsonreshape diff old.json new.json --key id --exit-code
 ```
 
-JMESPath'da `` `100` `` kabi literal kerak bo'lsa: PowerShell'da bitta tirnoqli satr
-(``--jmespath 'score > `100`'``), cmd.exe'da qo'shtirnoq (``--jmespath "score > `100`"``) ishlating
-yoki literalsiz yozing: `to_number('100')`.
+If JMESPath needs a literal such as `` `100` ``: use a single-quoted string in PowerShell
+(``--jmespath 'score > `100`'``), double quotes in cmd.exe (``--jmespath "score > `100`"``),
+or write it without a literal: `to_number('100')`.
 
-Umumiy kirish parametrlari: `--record-path data` (ichida katta massiv bor obyekt uchun; `data[0]`,
-`/data/0`, `data.0` ham ishlaydi), `--format auto|array|jsonl|brace_list|wrapped|keyed|single|stream`,
-`--allow-partial` (JSON xatosi bo'lsa, xatogacha bo'lgan yozuvlar bilan ishlash), `--no-cache`.
+Common input options: `--record-path data` (for an object that contains a large array; `data[0]`,
+`/data/0`, `data.0` also work), `--format auto|array|jsonl|brace_list|wrapped|keyed|single|stream`,
+`--allow-partial` (on a JSON error, work with the records before the error), `--no-cache`.
 Global: `--lang uz|en`, `--backend auto|rust|python`, `-q`, `-v`/`-vv`, `--version`.
 
-Chiqish kodlari:
+Exit codes:
 
-| Kod | Ma'nosi |
+| Code | Meaning |
 |---|---|
-| `0` | muvaffaqiyatli |
-| `1` | foydalanuvchi xatosi: noto'g'ri buyruq/parametr/ifoda, fayl topilmadi, mavjud bo'lmagan `--record-path` (topilgan massiv yo'llari taklif qilinadi), chiqish fayli kirish fayli bilan bir xil |
-| `2` | kirish faylida JSON xatosi (qator/ustun/bayt va atrofi ko'rsatiladi) **yoki** fayl ish paytida boshqa dastur tomonidan o'zgartirildi (natija saqlanmaydi) |
-| `3` | bekor qilindi (Ctrl+C / Ctrl+Break) — chala chiqish fayli qolmaydi |
-| `4` | ichki xato (qisqa xabar va log faylining yo'li) |
-| `5` | ma'lumot mos emas: `validate` xato topdi yoki `diff --exit-code` farq topdi |
+| `0` | success |
+| `1` | user error: invalid command/option/expression, file not found, a `--record-path` that does not exist (the array paths found are suggested), output file is the same as the input file |
+| `2` | JSON error in the input file (line/column/byte and its surroundings are shown) **or** the file was changed by another program during the run (the result is not saved) |
+| `3` | cancelled (Ctrl+C / Ctrl+Break) — no partial output file is left behind |
+| `4` | internal error (a short message and the path of the log file) |
+| `5` | data mismatch: `validate` found errors or `diff --exit-code` found differences |
 
-Har bir buyruqning to'liq parametrlari: `jsonreshape BUYRUQ --help` (o'zbekcha; `--lang en` — inglizcha).
-PowerShell va bash'da `$key` ni bitta tirnoqda yozing: `'$key'`.
+Full options of each command: `jsonreshape COMMAND --help` (in Uzbek; `--lang en` for English).
+In PowerShell and bash, write `$key` in single quotes: `'$key'`.
 
-Asl fayl **o'z-o'zidan hech qachon o'zgartirilmaydi**: barcha natijalar alohida faylga vaqtinchalik nom bilan
-yoziladi va oxirida atomik almashtiriladi; chiqish fayli kirish fayli bo'lsa (boshqa yozilishda, havola orqali
-ham) — rad etiladi. Faylning o'zi faqat aniq so'ralganda almashtiriladi (`patch --in-place`, GUI'da **Saqlash**):
-yangi nusxa tekshirilgandan keyin atomik va standart bo'yicha `.bak` zaxira bilan. Agar kirish fayli ish davomida o'zgarsa (boshqa dastur qayta yozsa,
-o'chirib qayta yaratsa), bu aniqlanadi va buzuq natija yozilmaydi.
+The original file is **never changed on its own**: all results are written to a separate file under a temporary name
+and atomically swapped in at the end; if the output file is the input file (even under a different spelling or through
+a link), it is refused. The file itself is replaced only when explicitly requested (`patch --in-place`, **Save** in the
+GUI): after the new copy is verified, atomically and, by default, with a `.bak` backup. If the input file changes
+during the run (another program rewrites it, or deletes and recreates it), this is detected and no corrupt result is
+written.
 
 <a id="gui"></a>
-## 3. Grafik interfeys (GUI)
+## 3. Graphical interface (GUI)
 
 ```text
 jsonreshape-gui
-jsonreshape-gui katta.json boshqa.jsonl
-python -m jsonreshape.gui katta.json
+jsonreshape-gui big.json other.jsonl
+python -m jsonreshape.gui big.json
 ```
 
-PySide6 kerak (`pip install -e ".[gui]"`). Fayllarni oynaga sudrab tashlash yoki **Fayl → Ochish** (Ctrl+O)
-ham mumkin; **Fayl → So'nggi fayllar** ro'yxati saqlanadi. Birinchi yozuvlar fayl ochilishi bilan (indeks
-fonda qurilayotganda) ko'rinadi, yozuvlar soni jonli yangilanadi.
+PySide6 is required (`pip install -e ".[gui]"`). You can also drag files onto the window or use **File → Open**
+(Ctrl+O); the **File → Recent files** list is kept. The first records appear as soon as the file opens (while the
+index is built in the background), and the record count updates live.
 
-### Oyna tuzilishi
+### Window layout
 
-* Har fayl alohida **tabda**. Tab ichida **ikki panel** yonma-yon (standart: Daraxt | Matn); har panelda
-  ko'rinish tanlanadi: **Daraxt, Jadval, Matn, Xom, Tuzilma** (Ctrl+1…5). Ko'rinishlar bog'langan: birida
-  tanlangan tugun boshqasida ham tanlanadi (jadval katagi, matndagi kursor, xom baytlar ham).
-* Tab tepasidagi xabar panellari: JSON xatosi (qator, ustun, bayt, sababi; **«Xatoga o'tish»**, xatogacha
-  bo'lgan yozuvlar ochiq qoladi), JSON Lines'dagi buzuq qatorlar ro'yxati, format ogohlantirishlari, yozuvlar
-  yo'li (`data`) va uni o'zgartirish, fayl tashqaridan o'zgarganda **«Qayta ochish»**.
-* Filtr, tartib yoki qidiruv natijasi ko'rsatilayotganda banner: «Ko'rinish: Filtr … · 22 / 300 yozuv» va
-  **«Hammasini ko'rsatish»**.
-* **Holat qatori**: fayl hajmi, yozuvlar soni (indekslash foizi bilan), format va yozuvlar yo'li, kodirovka,
-  joriy yo'l, tanlov, tugunning bayt oralig'i, xotira (RAM), fon vazifalari.
-* Yon panellar: **Qidiruv** (Ctrl+Shift+F), **Filtr** (Ctrl+Shift+L), **Fon vazifalari** (har vazifa: %, MB/s,
-  qolgan vaqt, «Bekor qilish»).
+* Every file opens in its own **tab**. Inside a tab, **two panes** sit side by side (default: Tree | Text); each pane
+  chooses its view: **Tree, Table, Text, Raw, Structure** (Ctrl+1…5). The views are linked: a node selected in one is
+  selected in the other too (also a table cell, the cursor in the text, the raw bytes).
+* Message bars at the top of the tab: a JSON error (line, column, byte, reason; **Go to the error**; the records
+  before the error stay open), the list of broken lines in JSON Lines, format warnings, the record path (`data`) and
+  changing it, and **Reopen** when the file is changed by another program.
+* While a filter, sort or search result is shown, a banner says "View: Filter … · 22 / 300 records" with
+  **Show all**.
+* **Status bar**: file size, record count (with the indexing percentage), format and record path, encoding,
+  current path, selection, the node's byte range, memory (RAM), background tasks.
+* Side panels: **Search** (Ctrl+Shift+F), **Filter** (Ctrl+Shift+L), **Background tasks** (for each task: %, MB/s,
+  time left, "Cancel").
 
-### Ko'rinishlar
+### Views
 
-* **Daraxt.** Yozuvlar `#0`, `#1`, … (raqamlash 0 dan); kalitli faylda kalitlar; o'ralgan faylda
-  (`{"meta": …, "data": […]}`) birinchi qator «(o'rama)». Ustunlar: kalit (tur belgisi va rangi), qiymat,
-  bolalar soni, hajm (bayt). → ochadi, ← yopadi, `*` hammasini ochadi (1000 dan ko'p qator bo'lsa avval
-  so'raydi), «N-darajagacha ochish» (1–9), «Hammasini yopish». Katta tugun (masalan, 1 mln bola) fonda
-  indekslanadi va virtual ko'rsatiladi. Tepada bosiladigan yo'l (breadcrumb). Ochilgan tugunlar filtr yoki
-  tartib o'zgarsa ham ochiq qoladi. Faqat ko'rinish uchun tartiblash: obyekt kalitlari alifbo bo'yicha,
-  massiv elementlari maydon bo'yicha (indekslar asl holicha ko'rsatiladi). Space — to'liq qiymat oynasi.
-* **Jadval.** Yozuvlar qator, maydonlar ustun (ichma-ich ham: `contact.address.city`). Ustunlar tuzilmadan
-  avtomatik olinadi; «Ustunlar…» oynasida tanlash, tartib, o'z yo'lingizni qo'shish; sarlavha menyusida
-  yashirish, birinchi ustunni qotirish. Joylashuv har fayl (va yozuvlar yo'li) uchun eslab qolinadi.
-  Massiv/obyekt kataklari `[3]` / `{5}`, ikki marta bosilsa daraxtda ochiladi. Sarlavhani bosish — tartiblash
-  (yana bosish — kamayish, Shift — qo'shimcha kalit). Sarlavha ostidagi tezkor filtrlar (Alt+↓):
-  `Toshkent` (ichida bor), `=12`, `!=x`, `>5`, `<=5`, `5..10`, `~regex`, `null`, `!null`, `exists`, `missing`,
-  `empty`. Ctrl+C — tanlangan kataklar TSV ko'rinishida (Excel'ga qo'yish uchun).
-* **Matn.** Tanlangan tugun chiroyli formatda: ranglar, qator raqamlari, qavslarni yig'ish, qator o'rash,
-  chekinish 2 / 4 / tab. Raqamlar va satrlar baytma-bayt asl holicha (`1e400`, `1.10`, `-0.0`). Kursor
-  turgan tugun daraxtda ham tanlanadi. 4 MB dan katta matnning boshi ko'rsatiladi, butunini ko'rish uchun
-  «Xom ko'rinishda ochish».
-* **Xom.** Fayl baytlari sahifalab (butun fayl o'qilmaydi): bayt o'rni va qator raqami, «Bayt o'rniga o'tish»
-  (`123456`, `0x1E240`), «Qatorga o'tish», JSON xatosi joyi belgilangan.
-* **Tuzilma.** Maydonlar daraxti: turlar taqsimoti, mavjudlik %, misollar, uzunlik/son oraliqlari;
-  10 000 yozuvli namuna yoki «To'liq skanerlash» (fonda). Menyu: jadvalga ustun qilib qo'shish, «mavjud» /
-  «mavjud emas» filtri, tartiblash, filtr quruvchiga qo'shish.
+* **Tree.** Records are `#0`, `#1`, … (numbered from 0); in a keyed file, the keys; in a wrapped file
+  (`{"meta": …, "data": […]}`) the first row is "(wrapper)". Columns: key (type icon and colour), value,
+  number of children, size (bytes). → expands, ← collapses, `*` expands everything (asks first when there are more
+  than 1,000 rows), "Expand to level" (1–9), "Collapse all". A large node (for example 1 million children) is
+  indexed in the background and shown virtually. A clickable path (breadcrumb) at the top. Expanded nodes stay
+  expanded when the filter or sort changes. View-only sorting: object keys alphabetically, array elements by a
+  field (the original indices are shown). Space opens the full value window.
+* **Table.** Records are rows, fields are columns (nested ones too: `contact.address.city`). The columns are taken
+  from the structure automatically; the "Columns…" dialog chooses and orders them and adds your own path; the
+  header menu hides a column or freezes the first column. The layout is remembered per file (and record path).
+  Array/object cells show `[3]` / `{5}`; a double-click opens them in the tree. Clicking a header sorts
+  (click again for descending, Shift adds a secondary key). Quick filters under the header (Alt+↓):
+  `Toshkent` (contains), `=12`, `!=x`, `>5`, `<=5`, `5..10`, `~regex`, `null`, `!null`, `exists`, `missing`,
+  `empty`. Ctrl+C copies the selected cells as TSV (for pasting into Excel).
+* **Text.** The selected node, pretty-printed: colours, line numbers, bracket folding, line wrap,
+  indentation 2 / 4 / tab. Numbers and strings stay byte for byte as in the file (`1e400`, `1.10`, `-0.0`). The
+  node under the cursor is selected in the tree too. For text larger than 4 MB the beginning is shown; to see all
+  of it, use "Open in the raw view".
+* **Raw.** The file's bytes, page by page (the whole file is not read): byte offset and line number, "Go to offset"
+  (`123456`, `0x1E240`), "Go to line", the location of a JSON error is marked.
+* **Structure (Schema view).** A tree of the fields: type distribution, presence %, examples, length/number ranges;
+  from a 10,000-record sample or a "Full scan" (in the background). Menu: add as a table column, "exists" /
+  "missing" filter, sort, add to the filter builder.
 
-### Navigatsiya
+### Navigation
 
 * **Ctrl+G**: `data[120].contact.address`, `$.data[120]`, `/data/120`, `#120`, `#120.contact`.
-* **Alt+← / Alt+→** — tanlash tarixi; **Ctrl+B** — xatcho'p (nomlanadi, saqlanadi; 3-bosqichdan boshlab — Ctrl+D
-  endi «nusxasini qo'shish»), **Ctrl+Shift+D** — xatcho'plar ro'yxati.
-* Har tugunning kontekst menyusi: qiymatni nusxalash (JSON chiroyli / ixcham, Python, CSV qatori), yo'lni
-  nusxalash (nuqtali `a.b[0].c`, JSONPath, JSON Pointer, Python `["a"]["b"][0]`, JavaScript), kalitni
-  nusxalash; «Shu qiymat bo'yicha filtr», «Shu maydon bo'yicha tartiblash ↑/↓», «Daraxtda ko'rsatish»,
-  «Yangi tabda ochish», to'liq qiymat.
+* **Alt+← / Alt+→** — selection history; **Ctrl+B** — bookmark (named, saved; since stage 3 Ctrl+D is
+  "Duplicate"), **Ctrl+Shift+D** — the list of bookmarks.
+* Every node's context menu: copy the value (JSON pretty / compact, Python, CSV row), copy the path
+  (dotted `a.b[0].c`, JSONPath, JSON Pointer, Python `["a"]["b"][0]`, JavaScript), copy the key;
+  "Filter by this value", "Sort by this field ↑/↓", "Show in the tree", "Open in a new tab", the full value.
 
-### Qidiruv, filtr, tartib
+### Search, filter, sort
 
-* **Tezkor qidiruv** (Ctrl+F) daraxt, jadval, matn va xom ko'rinishda — yuklangan qismda; F3 / Shift+F3.
-* **To'liq qidiruv** (Ctrl+Shift+F): kalitlarda / qiymatlarda / ikkalasida, faqat ko'rsatilgan yo'lda; oddiy
-  matn, regex, son (`> 1000`); katta-kichik harf, butun so'z, lotin ↔ kirill; apostrof turlari doim bir xil.
-  Natijalar topilishi bilan chiqadi; bosilsa tugunga o'tadi; «Yozuvlar to'plami sifatida ochish»; barcha
-  natijalarni CSV/JSON'ga eksport; qidiruv tarixi. Filtr yoki tartib hali ishlayotganda qidiruv boshlanmaydi
-  (ko'rinish tayyor bo'lishini kutish so'raladi).
-* **Filtr** (Ctrl+Shift+L): vizual quruvchi (maydon + operator + qiymat; VA / YOKI / EMAS guruhlari) va ifoda
-  qatori (ifoda tili yoki JMESPath) — biri o'zgarsa ikkinchisi yangilanadi; nomli presetlar. Natija fonda
-  hisoblanadi va to'lib borishi bilan ko'rinadi.
-* **Tartiblash** (Qidiruv → Tartiblash…): bir nechta maydon, o'sish / kamayish, `null` oxirida yoki boshida,
-  tabiiy tartib (`child2 < child10`), o'zbek alifbosi (standart) / oddiy / Unicode.
-* Filtr va tartib hamma ko'rinishlarga va eksportga birdek ta'sir qiladi; qidiruv natijasi ochilgan bo'lsa,
-  filtr va tartib o'sha yozuvlar ustida ishlaydi.
+* **Quick find** (Ctrl+F) in the tree, table, text and raw views, within the loaded part; F3 / Shift+F3.
+* **Full search** (Ctrl+Shift+F): in keys / values / both, optionally only in a given path; plain text, regex,
+  number (`> 1000`); match case, whole word, Latin ↔ Cyrillic; apostrophe variants always count as the same.
+  Results appear as they are found; clicking one goes to the node; "Open as a record set"; export of all
+  results to CSV/JSON; search history. A search does not start while a filter or sort is still running (you are
+  asked to wait until the view is ready).
+* **Filter** (Ctrl+Shift+L): a visual builder (field + operator + value; AND / OR / NOT groups) and an expression
+  line (the expression language or JMESPath) — changing one updates the other; named presets. The result is
+  computed in the background and shows up as it fills in.
+* **Sort** (Search → Sort…): several fields, ascending / descending, `null` last or first,
+  natural order (`child2 < child10`), Uzbek alphabet (default) / simple / Unicode.
+* The filter and the sort apply equally to every view and to export; when a search result is open, the filter
+  and sort work on those records.
 
-### Eksport (Ctrl+E)
+### Export (Ctrl+E)
 
-JSON (chekinish 2 / 4 / tab / ixcham, kalitlarni tartiblash, tashqi o'ramani saqlash, kalitli obyektni
-tiklash), JSONL, CSV, XLSX, SQLite. Doira: joriy ko'rinish (filtr + tartib), barcha yozuvlar, tanlangan yozuvlar,
-joriy tugun (massiv yoki obyekt tugun — CSV/XLSX/SQLite'ga ham) yoki boshqa asbob bergan yozuvlar to'plami
-(masalan, takroriylar). «Tashqi o'ramani saqlash» har formatda ishlaydi; `.gz` nomli chiqish siqiladi.
-Manba faylning o'ziga (boshqa nom yoki havola orqali ham) yozish taqiqlangan. Eksport fonda ishlaydi: dialogni
-yopsangiz ham, faylni qayta ochsangiz ham davom etadi; oxirida hisobot (yozuvlar, fayllar, ogohlantirishlar).
+JSON (indentation 2 / 4 / tab / compact, sort keys, keep the wrapper, rebuild the keyed object), JSONL, CSV, XLSX,
+SQLite. Scope: the current view (filter + sort), all records, the selected records, the current node (an array or
+object node — also to CSV/XLSX/SQLite) or a record set produced by another tool (for example, the duplicates).
+"Keep the wrapper" works in every format; an output named `.gz` is compressed. Writing to the source file itself
+(also through another name or a link) is not allowed. Export runs in the background: it goes on even if you close
+the dialog or reopen the file; at the end there is a report (records, files, warnings).
 
-### Tahrirlash (3-bosqich)
+### Editing (stage 3)
 
-Asl fayl tahrir paytida **o'zgartirilmaydi**: har bir o'zgarish alohida *tahrir qatlamiga* yoziladi, fayl faqat
-**Saqlash** bosilganda tekshirilgan yangi nusxa bilan atomik almashtiriladi.
+The original file is **not changed** while you edit: every change is written to a separate *edit layer*, and the
+file is replaced atomically with a verified new copy only when you press **Save**.
 
-* **Tugun ustida** (daraxt va jadvalda): **Enter** — qiymatni tahrirlash (qisqa qiymat katakning o'zida, uzun matn
-  alohida oynada; son asl yozuvi bilan ochiladi — `1.10` `1.1` ga aylanmaydi); **Shift+Enter** — JSON matn sifatida
-  (jonli tekshiruv, xato qatori va ustuni belgilanadi, «Formatlash»); **F2** — kalitni qayta nomlash; **Ins** —
-  qo'shish (ichiga / oldiga / ortiga: kalit, tur, qiymat); **Del** — o'chirish; **Ctrl+D** — nusxasini qo'shish;
-  **Alt+↑ / Alt+↓** — surish; **Ctrl+V** — buferdagi JSON'ni qo'yish; menyuda «Turini o'zgartirish» (faqat mumkin
-  bo'lgan turlar). Mavjud kalit, noto'g'ri son yoki JSON kabi xatolar tahrir maydonining o'zida yoki holat qatorida
-aytiladi (xato oynasi ochilmaydi). Daraxtda yozuv va
-  elementlarni sichqoncha bilan sudrab ko'chirish mumkin (oldiga / ichiga / ortiga). Bir nechta tanlangan tugun
-  (Shift / Ctrl) bilan o'chirish, nusxalash va surish — 10 000 tagacha, undan ko'pi uchun ommaviy amallar.
-* **Jadvalda** aniq ustun katagi tahrirlanadi (yozuvda yo'q maydon qo'shiladi); `$key` ustunida F2 — kalitli faylda
-  yozuv kalitini o'zgartiradi; `$index` faqat o'qish uchun.
-* **Ortga qaytarish** Ctrl+Z, **qayta bajarish** Ctrl+Y / Ctrl+Shift+Z. Har bir amal (ommaviy amal ham) — bitta
-  qadam, menyuda nomi bilan («Ortga qaytarish: …»); standart 1000 qadam (sozlamada, kamida 200).
-* **Ommaviy amallar** (Ctrl+H): topish va almashtirish (oddiy matn yoki regex, ixtiyoriy yo'l bo'yicha), kalitni
-  qayta nomlash, maydonni o'chirish, maydonga qiymat berish (har doim / yo'q bo'lsa / bor bo'lsa), matnlarni
-  tozalash (chetdagi va ortiqcha bo'shliqlar), turni o'zgartirish, takrorlarni o'chirish (kalit bo'yicha,
-  birinchisi yoki oxirgisi qoladi). Doira: barcha yozuvlar, joriy ko'rinish (filtr / tartib) yoki tanlangan
-  yozuvlar. Avval **«Ko'rib chiqish»**: o'zgaradigan yozuvlarning aniq soni, 5 ta misol (oldin → keyin) va
-  muammolar; keyin **«Qo'llash»** — natija sanalgan son bilan aynan bir xil.
-* **JSON Patch** (RFC 6902): Tahrir → «JSON Patch'ni qo'llash…» (bitta qadam; biror amal bajarilmasa hech narsa
-  o'zgarmaydi) va «O'zgarishlarni JSON Patch sifatida saqlash…» (asl faylga nisbatan sof farq).
-* **Saqlash** (Ctrl+S) fonda ishlaydi. Fayl o'z formatida (massiv, kalitli obyekt, o'rama, JSONL, oqim, bitta
-  qiymat), kodirovkasida (UTF-8, BOM, UTF-16), siqilishida (gzip) va atributlari bilan (yashirin, tizim, NTFS
-  siqish) yoziladi; o'zgarmagan yozuvlar baytma-bayt ko'chiriladi. Yangi fayl avval vaqtinchalik faylga yoziladi va
-  yadro skaneri bilan tekshiriladi (yozuvlar soni ham), keyin bitta atomik amal bilan asl faylning o'rniga
-  qo'yiladi. Eski fayl standart bo'yicha `fayl.json.bak` bo'lib qoladi (sozlamada o'chiriladi). Ochiq tahrir
-  maydonidagi yozilgan qiymat saqlashdan oldin qo'llanadi. Shu fayldan eksport yoki boshqa fon vazifasi ishlayotgan
-  bo'lsa, saqlash ularni kutadi (yoki to'xtatadi — so'raladi). **Boshqacha saqlash** (Ctrl+Shift+S) — boshqa faylga
-  (`.gz` nomi — gzip); boshqa tabda saqlanmagan o'zgarishlar bilan ochiq faylning ustiga yozish rad etiladi.
-* **Avtosaqlash va tiklash.** Har bir qadam darhol diskka yoziladi (SQLite WAL + nazorat yig'indili segment
-  fayllar, fsync): dastur yoki kompyuter o'chib qolsa ham o'zgarishlar yo'qolmaydi. Fayl keyingi ochilishda panel
-  chiqadi: «Saqlanmagan o'zgarishlar (vaqt, N ta qadam)» — tiklash, o'chirish yoki JSON Patch sifatida saqlash.
-  Saqlash o'rtasida uzilgan bo'lsa (hatto fayl yo'qolib qolgan bo'lsa ham) — **«Saqlashni yakunlash»**: qaror
-  dalillarga (fayl identifikatori, vaqti, hajmi, hash'lari) asoslanadi; shubha bo'lsa hech narsa o'chirilmaydi va
-  fayllar nomma-nom aytiladi. Fayl tashqaridan o'zgargan bo'lsa, o'zgarishlarni JSON Patch sifatida saqlash taklif
-  qilinadi (ularni yangi faylga qayta qo'llash mumkin).
-* Qatlam joyi: `%LOCALAPPDATA%\jsonreshape\edits\` (sozlama «fayl yonida» — `fayl.json.jredit\`). Bitta faylni
-  bir vaqtda faqat bitta tab yoki oyna tahrirlaydi (boshqa yozilishdagi yo'l yoki havola orqali ham), qolganlari
-  faqat ko'radi.
-* Tabni yopish, qayta ochish (F5) va chiqishda saqlanmagan o'zgarishlar yoki ishlab turgan saqlash haqida so'raladi.
-  Tab va oyna sarlavhasida `*`, holat qatorida «● N o'zgarish».
-* **Cheklovlar**: 50 MB dan katta bitta yozuv tahrirlanmaydi (ommaviy amallar uni o'tkazib, sanab ko'rsatadi);
-  JSON xatosi bor (qisman ochilgan) fayl faqat o'qish uchun — avval «Ta'mirlash»; `brace_list` fayl JSON massiv
-  sifatida saqlanadi, JSONL'dagi buzuq qatorlar saqlashda olib tashlanadi, gzip oxiridagi ortiqcha ma'lumot
-  (zaxirasiz saqlashda) tashlab yuboriladi — uchalasi ham avval so'raladi.
+* **On a node** (in the tree and the table): **Enter** — edit the value (a short value in the cell itself, long text
+  in a separate window; a number opens with its original spelling — `1.10` does not turn into `1.1`);
+  **Shift+Enter** — as JSON text (live validation, the error line and column are marked, "Format"); **F2** — rename
+  the key; **Ins** — insert (inside / before / after: key, type, value); **Del** — delete; **Ctrl+D** — duplicate;
+  **Alt+↑ / Alt+↓** — move; **Ctrl+V** — paste JSON from the clipboard; "Change type" in the menu (only the types
+  that are possible). Errors such as an existing key, an invalid number or invalid JSON are reported in the edit
+  box itself or in the status bar (no error dialog opens). In the tree, records and elements can be dragged with
+  the mouse (before / inside / after). With several selected nodes (Shift / Ctrl): delete, duplicate and move — up
+  to 10,000; for more, use bulk operations.
+* **In the table** you edit the cell of that exact column (a field the record does not have is added); F2 in the
+  `$key` column changes the record key in a keyed file; `$index` is read-only.
+* **Undo** Ctrl+Z, **redo** Ctrl+Y / Ctrl+Shift+Z. Every action (a bulk operation too) is one step, shown by name in
+  the menu ("Undo: …"); 1,000 steps by default (a setting, at least 200).
+* **Bulk operations** (Ctrl+H): find and replace (plain text or regex, optionally in a given path), rename key,
+  delete field, set field (always / if missing / if present), clean strings (leading/trailing and extra spaces),
+  convert type, remove duplicates (by key, keeping the first or the last). Scope: all records, the current view
+  (filter / sort) or the selected records. First **Preview**: the exact number of records that will change,
+  5 examples (before → after) and problems; then **Apply** — the result matches the counted number exactly.
+* **JSON Patch** (RFC 6902): Edit → "Import JSON Patch…" (one step; if any operation fails, nothing changes) and
+  "Export changes as JSON Patch…" (the net difference from the original file).
+* **Save** (Ctrl+S) runs in the background. The file is written in its own format (array, keyed object, wrapper,
+  JSONL, stream, single value), encoding (UTF-8, BOM, UTF-16), compression (gzip) and with its attributes (hidden,
+  system, NTFS compression); unchanged records are copied byte for byte. The new file is first written to a
+  temporary file and checked by the core scanner (the record count too), then put in place of the original with a
+  single atomic operation. By default the old file stays as `file.json.bak` (a setting turns this off). A value
+  typed into an open edit box is applied before saving. If an export or another background task is running on this
+  file, the save waits for it (or stops it — you are asked). **Save As** (Ctrl+Shift+S) writes to another file
+  (a `.gz` name means gzip); overwriting a file that is open in another tab with unsaved changes is refused.
+* **Autosave and recovery.** Every step is written to disk at once (SQLite WAL + checksummed segment files,
+  fsync): changes are not lost even if the program or the computer shuts down. The next time the file opens, a bar
+  appears: "Unsaved changes were found: time, N steps" — restore, discard or save as JSON Patch. If a save was
+  interrupted midway (even if the file has gone missing) — **Finish the save**: the decision rests on evidence
+  (file identity, time, size, hashes); when in doubt nothing is deleted and the files are named one by one. If the
+  file was changed by another program, you are offered to save the changes as a JSON Patch (they can be applied
+  again to the new file).
+* Layer location: `%LOCALAPPDATA%\jsonreshape\edits\` (the "Next to the file" setting — `file.json.jredit\`). Only
+  one tab or window edits a file at a time (also through a differently spelled path or a link); the others can
+  only view it.
+* Closing a tab, reopening (F5) and exiting ask about unsaved changes or a save in progress. The tab and window
+  titles show `*`, the status bar shows "● N changes".
+* **Limitations**: a single record larger than 50 MB cannot be edited (bulk operations skip it and report the
+  count); a file with a JSON error (partially opened) is read-only — "Repair" it first; a `brace_list` file is saved
+  as a JSON array, broken lines in JSONL are dropped on save, and extra data after the end of the gzip stream (when
+  saving without a backup) is discarded — all three are asked about first.
 
-### Tuzilma quruvchi (4-bosqich, Ctrl+6)
+### Structure builder (stage 4, Ctrl+6)
 
-Yozuvlar tuzilmasini sichqoncha bilan qayta quring va natijani butun faylga qo'llang. Etalon — `json-tuzilma.html`
-prototipi: natija u bilan aynan bir xil (1–10 qabul testlari va 4 000 tasodifiy holatda tekshirilgan). Farqlar faqat
-JavaScript cheklovlari bilan bog'liq: sonlar aniq saqlanadi (`1.10`, `1e400`, `12345678901234567890`), kalitlar
-tartibi o'zgarmaydi, qayta bajarish (redo) bor, yozuv raqamlari 0 dan.
+Rebuild the structure of the records with the mouse and apply the result to the whole file. The reference is the
+`json-tuzilma.html` prototype: the result is identical to it (checked with acceptance tests 1–10 and 4,000 random
+cases). The only differences come from JavaScript limitations: numbers are kept exactly (`1.10`, `1e400`,
+`12345678901234567890`), the key order does not change, there is redo, record numbers start at 0.
 
-* Tuzilma ko'rinishidagi «Tuzilma quruvchi…» tugmasi yoki Ctrl+6. Chapda tuzilma daraxti (namunadan — standart
-  10 000 yozuv — yoki «To'liq skanerlash» bilan barcha yozuvlardan), o'ngda jonli natija («Natija» / «Asl»,
-  `‹ #N ›` yozuv tanlagich).
-* **Sudrab tashlash**: qator o'rtasiga — ichiga, yuqori yoki pastki chetiga — oldiga yoki ortiga. Massiv ichidagi
-  maydonni tashqariga olib chiqish — «ro'yxatga yig'iladi», tashqaridagi maydonni massiv elementi ichiga —
-  «har elementga takrorlanadi». Yangi guruh (Ins), nomini o'zgartirish (F2), olib tashlash (Del), ichidagilarni bir
-  pog'ona yuqoriga chiqarish (Ctrl+Shift+U), rekursiv tekislash (`children` → daraja raqami `_depth` bilan),
-  surish (Alt+↑ / Alt+↓), ko'chirish (Ctrl+X, Ctrl+V); qator menyusida har amal va nega mumkin emasligi.
-* Har o'zgarish nishon bilan ko'rinadi (`ko'chirildi`, `asl nomi`, `yangi guruh`, `rekursiv`, …); Ctrl+Z / Ctrl+Y —
-  quruvchining o'z tarixi; «Asl holat».
-* Mapping'ni faylga saqlash va ochish; **«Mapping bilan eksport»** (Ctrl+E): JSON yoki JSON Lines, butun fayl yoki
-  joriy ko'rinish; fonda, katta fayllarda parallel jarayonlarda. CLI: `jsonreshape apply`, `jsonreshape flatten`.
-* Namunada uchramagan maydonlar natijaga tushmaydi (etalon qoidasi) — eksport hisobotida bunday yozuvlar soni
-  aytiladi; kerak bo'lsa «To'liq skanerlash».
+* The "Structure builder…" button in the Schema view, or Ctrl+6. On the left, the structure tree (from a sample —
+  10,000 records by default — or from all records with "Full scan"); on the right, the live result ("Result" /
+  "Original", the `‹ #N ›` record picker).
+* **Drag and drop**: onto the middle of a row — inside; onto its top or bottom edge — before or after. Moving a field
+  from inside an array out of it — "collected into a list"; moving an outer field into an array element —
+  "repeated in every element". New group (Ins), rename (F2), remove (Del), move the contents one level up
+  (Ctrl+Shift+U), recursive flatten (`children` → with the level number `_depth`), move up/down
+  (Alt+↑ / Alt+↓), move (Ctrl+X, Ctrl+V); the row menu shows every action and why it is not possible.
+* Every change is marked with a badge (`moved`, `original name`, `new group`, `recursive`, …); Ctrl+Z / Ctrl+Y —
+  the builder's own history; "Original" (reset).
+* Save the mapping to a file and open it; **Export with the mapping** (Ctrl+E): JSON or JSON Lines, the whole file
+  or the current view; in the background, in parallel processes for large files. CLI: `jsonreshape apply`,
+  `jsonreshape flatten`.
+* Fields not seen in the sample do not reach the result (the reference rule) — the export report gives the number
+  of such records; use "Full scan" if needed.
 
 <a id="asboblar"></a>
-### Asboblar (5-bosqich)
+### Tools (stage 5)
 
-Hammasi **Asboblar** menyusida, tugun menyusida va tegishli ko'rinishlarda. Og'ir ishlar fonda (progress va bekor
-qilish bilan); tahrirlangan fayl ko'rsatilgan holatida (saqlanmagan o'zgarishlar bilan) ishlatiladi; natija fayllari
-hech qachon manba fayl yoki boshqa tabda saqlanmagan o'zgarishlar bilan ochiq fayl ustiga yozilmaydi.
+Everything is in the **Tools** menu, the node menu and the relevant views. Heavy work runs in the background (with
+progress and cancel); an edited file is used as shown (with its unsaved changes); result files never overwrite the
+source file or a file that is open in another tab with unsaved changes.
 
-* **Maydon statistikasi** (Asboblar → «Maydon statistikasi…»; tugun menyusi, jadval sarlavhasi va Tuzilma
-  ko'rinishida «Statistika»; o'ng panel): mavjudlik (bor / `null` / yo'q), turlar, noyob qiymatlar soni (aniq yoki
-  «≈» — xatolik chegarasi bilan), sonlar uchun min / max / o'rtacha / yig'indi (aniq yozilishida), satr uzunliklari,
-  eng ko'p uchragan 20 qiymat (ulushi; ko'p qiymatli maydonlarda yozuvlar soni ham). Hisoblanayotganda natija har
-  ~1 soniyada yangilanadi. Qiymatni ikki marta bosish — shu qiymat bo'yicha filtr; menyuda `null`, yo'q, tur, uzunlik
-  bo'yicha filtr va «Daraxtda ko'rsatish». Doira: joriy ko'rinish yoki barcha yozuvlar; «Aniq hisoblash».
-* **Takroriy yozuvlar** (Asboblar → «Takroriy yozuvlar…», Tuzilma ko'rinishi): kalit maydon (`$key` — a'zo kaliti,
-  `$` — butun yozuv), birinchisi yoki oxirgisi qoladi; takroriylar soni, 20 ta misol guruh (bosilsa — yozuvga
-  o'tadi; guruh bo'yicha filtr); «Takroriylarni ko'rsatish» (yozuvlar to'plami sifatida), «Eksport…»,
-  «Takroriylarni o'chirish…» (ommaviy amal: avval aniq sanab ko'rsatadi).
-* **JSON Schema** (Asboblar → JSON Schema): «Schema yaratish…» — butun hujjat yoki bitta yozuv uchun, yumshoq yoki
-  qat'iy, tuzilma keshidan yoki to'liq skanerlash bilan; «Schema bo'yicha tekshirish…» — schema fayli, doira,
-  formatlar; xatolar topilishi bilan ro'yxatga tushadi (`#yozuv | yo'l | xabar | kalit so'z`), bosilsa tugunga
-  o'tadi; «Xatoli yozuvlarni ko'rsatish», CSV/JSONL'ga eksport, xulosa (kalit so'zlar va yo'llar bo'yicha).
-* **Ta'mirlash** (Asboblar → «Ta'mirlash…»; JSON xatosi, buzuq qatorlar va `brace_list` panellaridagi tugma):
-  «Tekshirish» (hech narsa yozmaydi) va «Ta'mirlash» — natija yangi faylga; hisobot: tuzatishlar turi bo'yicha
-  (birinchi joyi xom ko'rinishda ochiladi), kesilgan qism, tuzatib bo'lmaydigan joy (qator, ustun va `^` bilan),
-  barcha tuzatishlar jadvali, hisobotni saqlash, «Ta'mirlangan faylni ochish», kerak bo'lsa «Qisman natijani
-  saqlash».
-* **Bo'lish va birlashtirish** (Asboblar menyusi; tugun menyusi → «Shu tugunni qismlarga bo'lish…»). Bo'lish: butun
-  fayl, joriy ko'rinish yoki tugun; qismlar soni, har qismdagi yozuvlar yoki qism hajmi bo'yicha, **jonli reja**
-  (qism nomlari, yozuvlar, hajm); format, nom andozasi, o'ramasiz, eski qismlarni o'chirish. Birlashtirish: fayllar
-  va ochiq tablar (saqlanmagan tahrirlar bilan — ko'rsatilganidek), tartibni o'zgartirish, JSON/JSONL, chekinish,
-  kalitlarni tartiblash, o'ramani saqlash, kalit bo'yicha takrorlarni olib tashlash.
-* **Taqqoslash** (Asboblar → «Ikki faylni taqqoslash…»; tugun menyusi → «Taqqoslash uchun belgilash» / «Belgilangan
-  bilan taqqoslash»; ikkita tanlangan tugun → «Tanlangan ikkitasini taqqoslash»). Fayllar kalit, tekislash yoki o'rin
-  bo'yicha taqqoslanadi: natijalar jadvali (holat, kalit, A#, B#, o'zgarishlar soni, birinchi yo'l) va tanlangan
-  juftning yonma-yon daraxti `Kalit | A | B` — qo'shilgan yashil, o'chirilgan qizil, o'zgargan sariq, ko'chgan ko'k;
-  qisqa satrlarda o'zgargan harflar belgilanadi; **F7 / Shift+F7** — keyingi / oldingi farq; «Faqat farqlar»,
-  massivlarni moslash (indeks / avto / kalit / tartibsiz), A ⇄ B, «Matn» rejimi; farqli yozuvlarni yozuvlar to'plami
-  sifatida ochish; hisobotni eksport qilish.
-* **«Aqlli» qiymatlar** (daraxt, jadval, to'liq qiymat oynasi): unix vaqt va ISO sanalar — Toshkent vaqti va hafta
-  kuni bilan izoh; URL'lar tagiga chizilgan, **Ctrl+bosish** → «Brauzerda ochilsinmi?» → faqat tasdiqdan keyin
-  ochiladi; `#rgb` / `#rrggbb` ranglar — kichik namuna; base64 rasmlar — to'liq qiymat oynasida kichik rasm.
-* **Tuzilma ko'rinishi**: «null / yo'q» ustuni (namuna yoki to'liq skanerlash bo'yicha — sarlavhada aytiladi), butun
-  sonlar ulushi; «Statistika» (ikki marta bosish ham) va «Takroriy yozuvlar…».
+* **Field statistics** (Tools → "Field statistics…"; "Statistics" in the node menu, the table header and the
+  Schema view; right-hand panel): presence (present / `null` / missing), types, number of distinct values (exact or
+  "≈" with an error bound), min / max / mean / sum for numbers (in exact notation), string lengths, the 20 most
+  frequent values (with share; for multi-valued fields also the record count). While computing, the result
+  refreshes every ~1 second. Double-clicking a value filters by it; the menu has filters by `null`, missing, type
+  and length, and "Show in tree". Scope: the current view or all records; "Exact count".
+* **Duplicate records** (Tools → "Duplicate records…", Schema view): key field (`$key` — the member key, `$` — the
+  whole record), keep the first or the last; the number of duplicates, 20 example groups (click to go to the
+  record; filter by group); "Show the duplicates" (as a record set), "Export…", "Remove the duplicates…" (a bulk
+  operation: shows the exact count first).
+* **JSON Schema** (Tools → JSON Schema): "Generate a schema…" — for the whole document or for one record, loose or
+  strict, from the structure cache or with a full scan; "Validate against a schema…" — schema file, scope,
+  formats; problems are listed as they are found (`#record | path | message | keyword`), clicking one goes to the
+  node; "Show the invalid records", export to CSV/JSONL, a summary (by keyword and by path).
+* **Repair** (Tools → "Repair JSON…"; the button on the JSON error, broken lines and `brace_list` bars): "Check"
+  (writes nothing) and "Repair" — the result goes to a new file; report: fixes by type (the first location opens in
+  the raw view), the truncated part, the spot that cannot be fixed (with line, column and `^`), a table of all
+  fixes, saving the report, "Open the repaired file", and when needed "Save the partial result".
+* **Split and merge** (Tools menu; node menu → "Split this node into parts…"). Split: the whole file, the current
+  view or a node; by number of parts, records per part or part size, with a **live plan** (part names, records,
+  size); format, name pattern, without the wrapper, delete old parts. Merge: files and open tabs (with unsaved
+  edits — as shown), change the order, JSON/JSONL, indentation, sort keys, keep the wrapper, remove duplicates by
+  key.
+* **Compare** (Tools → "Compare two files…"; node menu → "Mark for comparison" / "Compare with the marked node";
+  two selected nodes → "Compare the two selected"). Files are compared by key, by alignment or by position: a
+  results table (status, key, A#, B#, number of changes, first path) and a side-by-side tree of the selected pair
+  `Key | A | B` — added in green, removed in red, changed in yellow, moved in blue; changed characters are marked in
+  short strings; **F7 / Shift+F7** — next / previous difference; "Only differences", array matching (index / auto /
+  key / unordered), A ⇄ B, "Text" mode; open the differing records as a record set; export the report.
+* **"Smart" values** (tree, table, full value window): unix times and ISO dates get a note with the Tashkent time
+  and the weekday; URLs are underlined, **Ctrl+click** → "Open in the browser?" → opens only after you confirm;
+  `#rgb` / `#rrggbb` colours get a small swatch; base64 images get a thumbnail in the full value window.
+* **Schema view**: a "null / missing" column (from the sample or a full scan — the header says which), the share of
+  integers; "Statistics" (a double-click too) and "Duplicate records…".
 
-### Qulaylik (6-bosqich)
+### Convenience (stage 6)
 
-* **Buyruqlar palitrasi (Ctrl+Shift+P)** — oyna ustida ochiladigan qidiruv oynachasi: menyulardagi barcha buyruqlar
-  («Fayl ▸ …», «Asboblar ▸ …»), joriy tugunning menyusi («Tugun ▸ …»), ochiq tablar («Tab: …») va so'nggi fayllar
-  («Ochish: …»). Har qatorda buyruq nomi, menyu yo'li va tugmasi. Qidiruv katta-kichik harf, apostrof turlari
-  (o' / oʻ / o‘) va lotin–kirill farqini hisobga olmaydi («сақлаш» ham «Saqlash»ni topadi); avval nomi shu so'z bilan
-  boshlanadiganlar, keyin so'z boshidagilar, so'ng harflar ketma-ketligi. Qidiruv bo'sh bo'lsa — oxirgi ishlatilgan
-  20 ta buyruq. Hozir ishlamaydigan buyruq kulrang, sababi bilan. Enter — bajarish, Esc — yopish.
-* **Klaviatura** (Sozlamalar ▸ Klaviatura): har bir buyruqning tugmasini o'zgartirish, olib tashlash, asl holiga
-  qaytarish; band tugma rad etiladi va qaysi buyruqqa berilgani aytiladi. Daraxt va jadvalning o'z tugmalari (↑↓→←,
-  `*`, Space, Enter, F2, Ins, Del, Ctrl+D, Alt+↑/↓, Ctrl+V, Ctrl+C …) o'zgarmaydi va ro'yxat qilib ko'rsatiladi.
-* **Oxirgi sessiyani tiklash.** Dastur faylsiz ishga tushirilganda oxirgi sessiya qayta ochiladi: fayllar (tanlangan
-  format / yozuvlar yo'li bilan), ikki panelning ko'rinishlari, joriy tugun, ochilgan tugunlar (har tabda 2 000
-  tagacha), filtr, tezkor filtrlar, tartib va qidiruv so'rovi. Sessiya oyna yopilganda va har daqiqada saqlanadi
-  (kutilmagan to'xtashdan himoya). Sozlamalar ▸ Umumiy ▸ «Oxirgi sessiyani tiklash»: Har doim (standart) / Har safar
-  so'rash / Hech qachon. Fayl buyruq qatorida yoki «Open with» orqali berilsa — faqat o'sha fayl ochiladi. Topilmagan
-  fayllar o'tkazib yuboriladi; saqlanmagan o'zgarishlar faqat tiklash paneli orqali taklif qilinadi.
-* **Workspace** (Fayl ▸ «Workspace'ni saqlash…» / «Workspace'ni ochish…» / «Oxirgi workspace'lar»): ochiq tablar
-  `*.jrworkspace` fayliga yoziladi — sessiyadagi hamma narsa, xatcho'plar, jadval ustunlari va tuzilma quruvchi
-  daraxti; yo'llar workspace fayliga nisbatan ham saqlanadi (papka ko'chirilsa ham ishlaydi); fayl qat'iy tekshiriladi
-  (xato bo'lsa, buzilgan joyning JSON pointeri aytiladi). Tahrir qatlamlari workspace'ga ko'chirilmaydi.
-* **Windows «Open with»** (Sozlamalar ▸ Umumiy): `.json`, `.jsonl`, `.ndjson`, `.geojson`, `.gz` fayllarning «Open
-  with» ro'yxatiga jsonreshape'ni qo'shish yoki olib tashlash (avval so'raladi). Faqat joriy foydalanuvchi uchun
-  (`HKCU\Software\Classes`) yoziladi, standart dastur o'zgartirilmaydi; olib tashlash faqat o'zi yozgan narsani
-  o'chiradi.
-* **Mavzular**: tizimga ergashish / yorug' / qorong'i — barcha oynalar (3–5-bosqich oynalari ham) faqat mavzu
-  ranglaridan foydalanadi va mavzu almashganda darhol yangilanadi.
+* **Command palette (Ctrl+Shift+P)** — a search box that opens over the window: every menu command ("File ▸ …",
+  "Tools ▸ …"), the current node's menu ("Node ▸ …"), open tabs ("Tab: …") and recent files ("Open: …"). Each row
+  shows the command name, its menu path and its key. The search ignores case, apostrophe variants
+  (o' / oʻ / o‘) and the Latin–Cyrillic difference ("сақлаш" also finds "Saqlash" in the Uzbek UI); first come names
+  that start with the typed word, then matches at the start of a word, then letter sequences. With an empty search —
+  the last 20 commands used. A command that cannot run right now is greyed out, with the reason. Enter runs it,
+  Esc closes.
+* **Keyboard** (Settings ▸ Keyboard): change, remove or reset the key of any command; a key that is taken is refused,
+  naming the command it belongs to. The tree's and table's own keys (↑↓→←, `*`, Space, Enter, F2, Ins, Del, Ctrl+D,
+  Alt+↑/↓, Ctrl+V, Ctrl+C …) do not change and are shown as a list.
+* **Restore the last session.** When the program starts without a file, the last session reopens: the files (with
+  the chosen format / record path), the views of both panes, the current node, the expanded nodes (up to 2,000 per
+  tab), the filter, quick filters, sort and search query. The session is saved when the window closes and every
+  minute (protection against an unexpected stop). Settings ▸ General ▸ "Restore the last session": Always (default) /
+  Ask every time / Never. When a file is given on the command line or through "Open with", only that file opens.
+  Files that are not found are skipped; unsaved changes are offered only through the recovery bar.
+* **Workspace** (File ▸ "Save workspace…" / "Open workspace…" / "Recent workspaces"): the open tabs are written to a
+  `*.jrworkspace` file — everything in the session, plus bookmarks, table columns and the structure builder's tree;
+  paths are also stored relative to the workspace file (it still works when the folder is moved); the file is
+  validated strictly (on an error, the JSON pointer of the broken part is reported). Edit layers are not copied into
+  the workspace.
+* **Windows "Open with"** (Settings ▸ General): add jsonreshape to, or remove it from, the "Open with" list of
+  `.json`, `.jsonl`, `.ndjson`, `.geojson`, `.gz` files (you are asked first). It is written for the current user
+  only (`HKCU\Software\Classes`), the default program is not changed; removing deletes only what it wrote itself.
+* **Themes**: follow the system / light / dark — every window (the stage 3–5 windows too) uses only theme colours
+  and updates at once when the theme changes.
 
-### Sozlamalar va loglar
+### Settings and logs
 
-**Asboblar → Sozlamalar**: namuna hajmi, kesh papkasi va hajm chegarasi, xotira chegarasi, tartiblash xotirasi,
-katta tugun chegaralari, eksport standartlari, til, mavzu (tizimga ergashish / yorug' / qorong'i), monospace
-shrift va o'lchami. Loglar: **Asboblar → Loglar papkasi**; har xato oynasida «Logni ochish».
+**Tools → Settings**: sample size, cache folder and size limit, memory limit, memory for sorting, large node
+thresholds, export defaults, language, theme (follow the system / light / dark), monospace font and its size.
+Logs: **Tools → Open the logs folder**; every error dialog has "Open log".
 
-### Klaviatura
+### Keyboard
 
-| Tugma | Amal |
+| Key | Action |
 |---|---|
-| Ctrl+O / Ctrl+W / F5 / Ctrl+Q | ochish / tabni yopish / qayta ochish / chiqish |
-| Ctrl+S / Ctrl+Shift+S | saqlash / boshqacha saqlash |
-| Ctrl+Z / Ctrl+Y (Ctrl+Shift+Z) | ortga qaytarish / qayta bajarish (tuzilma quruvchida — uning o'z tarixi) |
-| Ctrl+1 … Ctrl+6 | faol panelda: Daraxt, Jadval, Matn, Xom, Tuzilma, Tuzilma quruvchi |
-| ↑ ↓, PgUp PgDn, Home End | yurish |
-| → / ← / `*` | tugunni ochish / yopish / hammasini ochish (daraxt) |
-| Space | to'liq qiymat oynasi |
-| Ctrl+C / Ctrl+Shift+C | qiymatni (jadvalda tanlangan kataklarni TSV) / yo'lni nusxalash |
-| Ctrl+F, F3, Shift+F3 | tezkor qidiruv, keyingi / oldingi moslik |
-| Ctrl+Shift+F / Ctrl+Shift+L | to'liq qidiruv / filtr paneli |
-| Ctrl+G | yo'lga o'tish |
-| Alt+← / Alt+→ | orqaga / oldinga |
-| Enter / Shift+Enter / F2 | qiymatni tahrirlash / JSON sifatida tahrirlash / kalitni qayta nomlash |
-| Ins / Del / Ctrl+D | qo'shish / o'chirish / nusxasini qo'shish |
-| Alt+↑ / Alt+↓ | tugunni surish (daraxtda) |
-| Ctrl+V | buferdagi JSON'ni qo'yish |
-| Ctrl+H | ommaviy amallar |
-| Ctrl+B / Ctrl+Shift+D | xatcho'p qo'shish / xatcho'plar |
-| Ctrl+E | eksport (tuzilma quruvchida — mapping bilan eksport) |
-| Ctrl+Shift+P | buyruqlar palitrasi |
-| F7 / Shift+F7 | taqqoslash oynasida keyingi / oldingi farq |
-| Ctrl+= / Ctrl+- / Ctrl+0 | shriftni kattalashtirish / kichraytirish / asl holiga |
-| Alt+↓ | jadvalda tezkor filtr qatori |
+| Ctrl+O / Ctrl+W / F5 / Ctrl+Q | open / close tab / reopen / exit |
+| Ctrl+S / Ctrl+Shift+S | save / Save As |
+| Ctrl+Z / Ctrl+Y (Ctrl+Shift+Z) | undo / redo (in the structure builder — its own history) |
+| Ctrl+1 … Ctrl+6 | in the active pane: Tree, Table, Text, Raw, Structure, Structure builder |
+| ↑ ↓, PgUp PgDn, Home End | move |
+| → / ← / `*` | expand node / collapse node / expand all (tree) |
+| Space | full value window |
+| Ctrl+C / Ctrl+Shift+C | copy the value (in the table, the selected cells as TSV) / the path |
+| Ctrl+F, F3, Shift+F3 | quick find, next / previous match |
+| Ctrl+Shift+F / Ctrl+Shift+L | full search / filter panel |
+| Ctrl+G | go to a path |
+| Alt+← / Alt+→ | back / forward |
+| Enter / Shift+Enter / F2 | edit value / edit as JSON / rename key |
+| Ins / Del / Ctrl+D | insert / delete / duplicate |
+| Alt+↑ / Alt+↓ | move node (in the tree) |
+| Ctrl+V | paste JSON from the clipboard |
+| Ctrl+H | bulk operations |
+| Ctrl+B / Ctrl+Shift+D | add bookmark / bookmarks |
+| Ctrl+E | export (in the structure builder — export with the mapping) |
+| Ctrl+Shift+P | command palette |
+| F7 / Shift+F7 | next / previous difference in the compare window |
+| Ctrl+= / Ctrl+- / Ctrl+0 | larger font / smaller font / reset |
+| Alt+↓ | quick filter row in the table |
 
-### Qanday qilib qotmaydi
+### How it stays responsive
 
-Indekslash, qidiruv, filtr, tartib, tuzilma, eksport — hammasi fonda (progress va bekor qilish bilan).
-Ro'yxatlar, jadval va daraxt o'zimizning virtual vidjetimiz bilan chiziladi: faqat ekrandagi qatorlar
-o'qiladi, 100 mln va undan ko'p qator ham silliq aylanadi (Qt'ning tayyor jadval va daraxtlari har qator uchun
-xotira oladi). Ekrandagi qatorlar alohida oqimda yuklanadi, keshlar chegaralangan. Python'ning chiqindi
-yig'uvchisi faqat GUI oqimida ishlaydi va GIL oqimlar orasida tez almashadi — og'ir fon vazifalari paytida ham
-oyna javob beradi (o'lchovlar: [14-bo'lim](#olchovlar)).
+Indexing, search, filter, sort, structure inference, export — all of it runs in the background (with progress and
+cancel). Lists, the table and the tree are drawn by our own virtual widget: only the rows on screen are read, so even
+100 million rows and more scroll smoothly (Qt's ready-made tables and trees take memory for every row). The visible
+rows are loaded in a separate thread, and the caches are bounded. Python's garbage collector runs only on the GUI
+thread and the GIL switches quickly between threads — the window stays responsive even during heavy background tasks
+(measurements: [section 14](#olchovlar)).
 
 <a id="formatlar"></a>
-## 4. Qo'llab-quvvatlanadigan formatlar
+## 4. Supported formats
 
-Format avtomatik aniqlanadi (`inspect` ko'rsatadi) yoki `--format` / `--record-path` bilan beriladi.
+The format is detected automatically (`inspect` shows it) or given with `--format` / `--record-path`.
 
-| Format | Ko'rinishi | Yozuv (record) |
+| Format | Looks like | Record |
 |---|---|---|
-| `array` | `[ {...}, {...} ]` | massiv elementi |
-| `jsonl` | har qatorda bitta JSON (`.jsonl`, `.ndjson`, yoki `.json` nomli JSON Lines) | qator; buzuq qatorlar o'tkazib yuboriladi va ro'yxati chiqadi |
-| `brace_list` | buzuq `{ {...}, {...} }` | ichidagi qiymatlar (ogohlantirish bilan) |
-| `wrapped` | `{"meta": {...}, "data": [ ... ]}` | `data` (record path) elementlari; tashqi o'rama saqlanadi va `inspect`da ko'rsatiladi |
-| `keyed` | `{"id1": {...}, "id2": {...}}` | yuqori darajadagi a'zolar (kalit + qiymat, kalit `$key`) |
-| `single` | bitta ulkan qiymat | ichki konteynerlar talab bo'yicha indekslanadi |
-| `stream` | ketma-ket JSON qiymatlar (ajratuvchisiz yoki ko'p qatorli) | har bir qiymat |
+| `array` | `[ {...}, {...} ]` | an array element |
+| `jsonl` | one JSON value per line (`.jsonl`, `.ndjson`, or JSON Lines named `.json`) | a line; broken lines are skipped and listed |
+| `brace_list` | broken `{ {...}, {...} }` | the values inside (with a warning) |
+| `wrapped` | `{"meta": {...}, "data": [ ... ]}` | the elements of `data` (the record path); the outer wrapper is kept and shown by `inspect` |
+| `keyed` | `{"id1": {...}, "id2": {...}}` | the top-level members (key + value, the key is `$key`) |
+| `single` | one huge value | inner containers are indexed on demand |
+| `stream` | consecutive JSON values (without separators or spanning several lines) | each value |
 
-Kodirovka: UTF-8 (BOM bilan yoki BOMsiz), UTF-16 LE/BE (BOM bilan yoki BOMsiz), `.json.gz` (va istalgan
-gzip). UTF-16 va gzip fayllar oldin UTF-8 nusxaga o'giriladi (oqim bilan, xotira cheklangan) va keshlanadi;
-nusxa tayyor bo'lgunicha birinchi yozuvlar ko'rinmaydi (200 MB'lik ma'lumot ~0.5 s). UTF-32 rad etiladi
-(tushunarli xabar bilan).
+Encoding: UTF-8 (with or without BOM), UTF-16 LE/BE (with or without BOM), `.json.gz` (and any gzip). UTF-16 and
+gzip files are first converted to a UTF-8 copy (streamed, with bounded memory) and cached; the first records are
+not visible until the copy is ready (~0.5 s for 200 MB of data). UTF-32 is rejected (with a clear message).
 
-Obyekt ildizli fayl uchun aniqlash qoidalari: faylning boshidagi (`head_bytes`, standart 4 MiB) qismida hali
-yopilmagan katta massiv bo'lsa — `wrapped` (shu massiv yo'li avtomatik tanlanadi va ogohlantirish chiqadi);
-kichik faylda ko'pchilik qiymati obyekt bo'lgan massiv faylning asosiy qismini egallasa — `wrapped`;
-a'zolarning ≥ 80 % i obyekt bo'lsa — `keyed`; aks holda — `single`. Topilgan barcha massiv yo'llari
-(`candidates`) `inspect` natijasida ko'rinadi. Birinchi yozuvi 4 MiB dan katta JSON Lines fayl ham to'g'ri
-aniqlanadi (birinchi qiymat oxirigacha skanerlanadi, ko'pi bilan 256 MiB).
+Detection rules for a file with an object root: if the start of the file (`head_bytes`, default 4 MiB) contains a
+large array that is not closed yet — `wrapped` (that array's path is chosen automatically and a warning is shown);
+in a small file, if an array whose values are mostly objects takes up most of the file — `wrapped`; if ≥ 80% of
+the members are objects — `keyed`; otherwise — `single`. All array paths found (`candidates`) are shown in the
+`inspect` result. A JSON Lines file whose first record is larger than 4 MiB is also detected correctly (the first
+value is scanned to its end, at most 256 MiB).
 
 <a id="raqamlar-aniqligi"></a>
-## 5. Raqamlar aniqligi
+## 5. Number precision
 
-Raqamlar matni **aynan** saqlanadi: `0.1`, `1e400`, `12345678901234567890`, `-0.0`, `1.10`, `1E5`, `-0`,
-`123456789012345678901234567890` filtr, tartib, konvertatsiya va JSONL aylanmasidan keyin ham aynan shu
-ko'rinishda chiqadi va hech qachon satrga aylanmaydi. Ichki model: orjson aniq qayta yoza oladigan
-("plain") raqamlar oddiy `int`/`float`; qolganlari `JsonFloat`/`JsonInt` (qiymat + asl matn).
+The text of numbers is kept **exactly**: `0.1`, `1e400`, `12345678901234567890`, `-0.0`, `1.10`, `1E5`, `-0`,
+`123456789012345678901234567890` come out in exactly this form after filtering, sorting, conversion and a JSONL
+round trip, and are never turned into strings. Internal model: numbers that orjson can write back exactly
+("plain") are ordinary `int`/`float`; the rest are `JsonFloat`/`JsonInt` (value + original text).
 
-Taqqoslash hamma joyda bir xil va aniq: filtr (`--where`), `search --number` va tartiblash sonlarni aniq
-o'nlik qiymati bo'yicha solishtiradi (`1.10 == 1.1`, `1e-400 > 0`, `1e400 < 2e400`, katta butun sonlar aniq).
-XLSX'da 15 dan ortiq ma'noli raqamli yoki `double` diapazonidan tashqari sonlar matn sifatida yoziladi
-(ogohlantirish bilan), chunki Excel ularni aniq saqlay olmaydi. SQLite'da qiymati `double`ga aynan sig'adigan
-sonlar `REAL`, 64-bitli butun sonlar `INTEGER`, sig'maydiganlari (`1e400`, juda uzun sonlar) `TEXT` sifatida
-(ogohlantirish bilan) yoziladi.
+Comparison is the same and exact everywhere: the filter (`--where`), `search --number` and sorting compare numbers
+by their exact decimal value (`1.10 == 1.1`, `1e-400 > 0`, `1e400 < 2e400`, large integers exactly). In XLSX,
+numbers with more than 15 significant digits or outside the `double` range are written as text (with a warning),
+because Excel cannot store them exactly. In SQLite, numbers whose value fits a `double` exactly are written as
+`REAL`, 64-bit integers as `INTEGER`, and those that do not fit (`1e400`, very long numbers) as `TEXT` (with a
+warning).
 
 <a id="qidiruv"></a>
-## 6. Qidiruv
+## 6. Search
 
-`jsonreshape search FILE MATN`: kalitlarda (`--keys`), qiymatlarda (`--values`) yoki ikkalasida; faqat
-belgilangan yo'lda (`--path name`, `--path contact.address`, istalgan chuqurlik: `--path "**.name"`).
+`jsonreshape search FILE MATN`: in keys (`--keys`), in values (`--values`) or in both; only on a given path
+(`--path name`, `--path contact.address`, any depth: `--path "**.name"`).
 
-Rejimlar: oddiy matn (standart: katta-kichik harfga sezgir emas, to'liq Unicode casefold), `--case-sensitive`,
-`--whole-word`, `--regex` (Python `re`), `--number` (`> 1000`, `>= 5`, `< -2.5`, `= 3`, `!= 0`, `1000..2000`).
+Modes: plain text (default: case-insensitive, full Unicode casefold), `--case-sensitive`, `--whole-word`,
+`--regex` (Python `re`), `--number` (`> 1000`, `>= 5`, `< -2.5`, `= 3`, `!= 0`, `1000..2000`).
 
-O'zbekcha qulayliklar:
-* apostrof turlari **doim** bir xil: `'` `‘` `’` `ʻ` `ʼ` `` ` `` `´` (`O'zbekiston` = `Oʻzbekiston` = `O’zbekiston`);
-* `--translit`: lotin ↔ kirill sezgir emas (`Toshkent` ↔ `Тошкент`, `O'zbekiston` ↔ `Ўзбекистон`,
+Conveniences for Uzbek:
+* apostrophe variants are **always** treated as equal: `'` `‘` `’` `ʻ` `ʼ` `` ` `` `´` (`O'zbekiston` = `Oʻzbekiston` = `O’zbekiston`);
+* `--translit`: Latin ↔ Cyrillic insensitive (`Toshkent` ↔ `Тошкент`, `O'zbekiston` ↔ `Ўзбекистон`,
   `G'ulom` ↔ `Ғулом`, `Shahrisabz` ↔ `Шаҳрисабз`, `Moʻjiza` ↔ `Мўъжиза`, `Isʼhoq` ↔ `Исҳоқ`,
-  `sirk`/`tsirk` ↔ `цирк`, `militsiya`/`milisiya` ↔ `милиция`). Qoidalar: `е` so'z boshida va unlidan keyin
-  `ye`; `ў/ғ/қ` dan keyingi `ъ` tushib qoladi; `s` va `h` orasidagi tutuq belgisi e'tiborga olinmaydi;
-  `ц` va lotincha `ts` ikkalasi ham `s` deb solishtiriladi (bu "yumshoq" rejim, shuning uchun `ts`/`s`
-  farqi e'tiborga olinmaydi).
+  `sirk`/`tsirk` ↔ `цирк`, `militsiya`/`milisiya` ↔ `милиция`). Rules: `е` is `ye` at the start of a word and
+  after a vowel; `ъ` after `ў/ғ/қ` is dropped; the separating apostrophe between `s` and `h` is ignored;
+  `ц` and Latin `ts` are both compared as `s` (this is a "soft" mode, so the difference between `ts` and `s` is
+  ignored).
 
-Tezlik: avval baytlar bo'yicha oldindan saralash (Rust: Aho-Corasick/memchr; katta-kichik harf va
-apostrof variantlari oldindan hisoblanadi), keyin faqat nomzod yozuvlar tekshirilib aniq yo'l va moslik
-tasdiqlanadi. Fayl `\uXXXX` escape'lar bilan yozilgan bo'lsa yoki `--translit`/`--regex`/`--number` tanlansa —
-parse asosidagi qidiruv. Natijalar topilishi bilan chiqa boshlaydi (indeks hali qurilayotgan bo'lsa ham);
-natija ro'yxati RecordSet sifatida ham mavjud; `--export` barcha mosliklarni CSV/JSON'ga yozadi (xotira
-cheklangan); `--count` faqat sonini chiqaradi; qidiruv tarixi saqlanadi.
+Speed: first a byte-level prefilter (Rust: Aho-Corasick/memchr; case and apostrophe variants are precomputed),
+then only the candidate records are checked to confirm the exact path and match. If the file is written with
+`\uXXXX` escapes or `--translit`/`--regex`/`--number` is chosen — parse-based search. Results start to appear as
+soon as they are found (even while the index is still being built); the result list is also available as a
+RecordSet; `--export` writes all matches to CSV/JSON (bounded memory); `--count` prints only the count; search
+history is kept.
 
 <a id="filtr-tili"></a>
-## 7. Filtr tili
+## 7. Filter language
 
-Xavfsiz ifoda tili (`eval` ishlatilmaydi — test bilan tekshiriladi). Matnlar bitta (`'...'`) yoki qo'sh
-(`"..."`) tirnoqda yoziladi; buyruq qatorida ifodani qo'shtirnoqqa, ichidagi matnni bitta tirnoqqa oling:
+A safe expression language (`eval` is not used — checked by a test). Strings are written in single (`'...'`) or
+double (`"..."`) quotes; on the command line, put the expression in double quotes and the strings inside it in
+single quotes:
 
 ```text
 contact.address.city == 'Toshkent' and len(children) > 2
@@ -543,596 +545,616 @@ name ~ '^Tosh' and not (note is null)
 score between 10 and 20
 id in [1, 7, 9]
 exists(contact.address) and type(score) == 'number'
-$key startswith 'user'          # keyed formatda yozuv kaliti
-$index < 1000                   # yozuv raqami (0 dan)
-`kalit bo'shliq bilan` == 1     # noqulay kalitlar: `...` yoki $["and"]
+$key startswith 'user'          # record key in the keyed format
+$index < 1000                   # record number (from 0)
+`key with spaces` == 1         # awkward keys: `...` or $["and"]
 ```
 
-* Mantiq: `and`/`&&`, `or`/`||`, `not`/`!`, qavslar (ustunlik: `not` > `and` > `or`).
-* Taqqoslash: `==` `=` `!=` `≠` `<` `<=` `≤` `>` `>=` `≥`, `between … and …` (chegaralar teskari berilsa
-  almashtiriladi), `in` / `not in`, `contains`, `startswith`, `endswith`, `matches` / `~` (regex),
-  `is null`, `is empty`, `is missing` (va `is not …`).
-* Funksiyalar: `len`, `exists`, `missing`, `empty`, `lower`, `upper`, `trim`, `type`, `number`, `string`.
-* Yo'llar: `a.b[0].c`, `a["x.y"]`, `orders[*].oid` (`[]` ham), `*`, `**`; massiv yo'llari "kamida bittasi" ma'nosida.
-* Semantika: `!=` — `not (==)`; turlar majburan o'zgartirilmaydi (`"5" == 5` — yolg'on); tartib taqqoslash
-  faqat son–son yoki satr–satr; `is null` — maydon bor va `null`; `is missing` — maydon yo'q.
-* JMESPath: `--jmespath` (mutaxassislar uchun; JMESPath haqiqiylik qoidalari). Bitta yozuvda ifodani hisoblab
-  bo'lmasa (masalan, `null` maydonga funksiya), o'sha yozuv mos kelmagan deb olinadi va ogohlantirishda nechta
-  yozuv va birinchisining raqami ko'rsatiladi — butun filtr to'xtamaydi.
-* Saqlangan filtrlar (preset): `--save-preset NOM` bilan saqlanadi, `--preset NOM` bilan ishlatiladi,
-  `jsonreshape presets` ro'yxatni ko'rsatadi (`--delete NOM`).
-* Vizual quruvchi modeli (2-bosqich GUI uchun) `query.Condition`/`query.Group`: operatorlar `=`, `≠`, ichida bor,
-  bilan boshlanadi, regex, `>`, `<`, `≥`, `≤`, oraliq, mavjud, mavjud emas, `null`, bo'sh, ro'yxatda bor, uzunlik.
-  Quruvchi va ifoda qatori bir xil natija beradi (test 18).
+* Logic: `and`/`&&`, `or`/`||`, `not`/`!`, parentheses (precedence: `not` > `and` > `or`).
+* Comparison: `==` `=` `!=` `≠` `<` `<=` `≤` `>` `>=` `≥`, `between … and …` (bounds given in reverse order are
+  swapped), `in` / `not in`, `contains`, `startswith`, `endswith`, `matches` / `~` (regex),
+  `is null`, `is empty`, `is missing` (and `is not …`).
+* Functions: `len`, `exists`, `missing`, `empty`, `lower`, `upper`, `trim`, `type`, `number`, `string`.
+* Paths: `a.b[0].c`, `a["x.y"]`, `orders[*].oid` (`[]` too), `*`, `**`; array paths mean "at least one".
+* Semantics: `!=` is `not (==)`; types are not coerced (`"5" == 5` is false); ordering comparisons work only
+  number–number or string–string; `is null` — the field exists and is `null`; `is missing` — the field is absent.
+* JMESPath: `--jmespath` (for experts; JMESPath truthiness rules). If the expression cannot be evaluated on a
+  record (for example, a function applied to a `null` field), that record is treated as not matching and the
+  warning shows how many records were affected and the number of the first one — the whole filter does not stop.
+* Saved filters (presets): saved with `--save-preset NAME`, used with `--preset NAME`; `jsonreshape presets` shows
+  the list (`--delete NAME`).
+* The visual builder model (for the stage 2 GUI) is `query.Condition`/`query.Group`: operators `=`, `≠`, contains,
+  starts with, matches regex, `>`, `<`, `≥`, `≤`, between, exists, does not exist, `null`, is empty, is in list,
+  length. The builder and the expression line give the same result (test 18).
 
-Filtr fonda, oqim bilan ishlaydi. Agar ifoda faqat bir nechta maydonga murojaat qilsa, Rust yadrosi shu
-maydonlarning baytlarini butun yozuvni parse qilmasdan ajratadi ("extract" strategiyasi, ~2 marta tezroq).
-50 MB dan katta yozuvlar ijson oqimi bilan baholanadi: konteynerlar to'liq yig'ilmaydi va tanlangan
-qiymatlar uchun xotira byudjeti bor (oshsa, yozuv ogohlantirish bilan o'tkazib yuboriladi). Cheklov: bitta
-juda uzun satr qiymati (masalan, yuzlab MB'lik base64) tekshirilayotganda xotirada taxminan o'z hajmining
-ikki baravari joy egallaydi.
+The filter runs in the background, streaming. If the expression refers to only a few fields, the Rust core
+extracts the bytes of those fields without parsing the whole record (the "extract" strategy, ~2× faster).
+Records larger than 50 MB are evaluated with an ijson stream: containers are not collected in full and there is a
+memory budget for the selected values (if it is exceeded, the record is skipped with a warning). Limitation: a
+single very long string value (for example, hundreds of MB of base64) takes about twice its own size in memory
+while it is being checked.
 
 <a id="tartiblash"></a>
-## 8. Tartiblash
+## 8. Sorting
 
-`jsonreshape sort IN OUT --by name --by -id` — bir yoki bir nechta maydon, o'sish/kamayish (`-`).
-* Turlar tartibi: sonlar < satrlar < mantiqiy (false < true) < massivlar < obyektlar; `null` va yo'q
-  qiymatlar standart bo'yicha oxirida (`--nulls first|last`, yo'nalishdan qat'i nazar).
-* Sonlar aniq o'nlik qiymat bo'yicha (`1.1 == 1.10`, katta butun sonlar, `1e400`).
-* Satrlar **o'zbek alifbosi** bo'yicha (`--collation uz`, standart): a b d e f g h i j k l m n o p q r s t u v
-  x y z **oʻ gʻ sh ch ng**, keyin kirill: а б в г д е ё ж з и й к л м н о п р с т у ф х ц ч ш ъ ь э ю я ў қ ғ ҳ.
-  Masalan: Abdulla, Bobur, Gulnora, Nodira, Olim, Sardor, Zafar, Oʻtkir, Gʻani, Shahzod, Chori.
-  `--collation simple` — oʻ/gʻ/sh/ch/ng alohida harf hisoblanmaydi; `unicode` — oddiy kod nuqtasi tartibi.
-* "Tabiiy" tartib: `child2 < child10` (`--no-natural` bilan o'chiriladi); katta-kichik harf ikkinchi darajada.
-* Barqaror (stable): teng kalitli yozuvlar asl tartibini saqlaydi.
-* Maydon hech bir yozuvda topilmasa (masalan, nomi xato yozilgan), ogohlantirish chiqadi.
-* Katta fayl: kalitlar Rust yadrosi bilan (butun yozuvni parse qilmasdan) ajratiladi, xotiraga sig'sa
-  xotirada, sig'masa diskda tashqi merge sort. Xotira: `--memory-limit` (birliksiz son = MB, kamida 16 MiB,
-  standart 256 MiB, umumiy `xotira chegarasi`ning yarmidan oshmaydi). Natija — RecordSet, shu tartibda
-  eksport qilinadi (tartiblangan eksport ham ≥ 50 MB/s).
+`jsonreshape sort IN OUT --by name --by -id` — one or more fields, ascending/descending (`-`).
+* Type order: numbers < strings < booleans (false < true) < arrays < objects; `null` and missing
+  values go last by default (`--nulls first|last`, regardless of direction).
+* Numbers by exact decimal value (`1.1 == 1.10`, large integers, `1e400`).
+* Strings by the **Uzbek alphabet** (`--collation uz`, default): a b d e f g h i j k l m n o p q r s t u v
+  x y z **oʻ gʻ sh ch ng**, then Cyrillic: а б в г д е ё ж з и й к л м н о п р с т у ф х ц ч ш ъ ь э ю я ў қ ғ ҳ.
+  For example: Abdulla, Bobur, Gulnora, Nodira, Olim, Sardor, Zafar, Oʻtkir, Gʻani, Shahzod, Chori.
+  `--collation simple` — oʻ/gʻ/sh/ch/ng are not treated as separate letters; `unicode` — plain code point order.
+* "Natural" order: `child2 < child10` (turned off with `--no-natural`); case is a secondary level.
+* Stable: records with equal keys keep their original order.
+* If the field is not found in any record (for example, its name is misspelled), a warning is shown.
+* Large file: keys are extracted by the Rust core (without parsing the whole record) and sorted in memory if they
+  fit, otherwise with an external merge sort on disk. Memory: `--memory-limit` (a number without a unit = MB, at
+  least 16 MiB, default 256 MiB, at most half of the general **Memory limit** setting). The result is a
+  RecordSet and is exported in that order (sorted export also runs at ≥ 50 MB/s).
 
 <a id="eksport"></a>
-## 9. Eksport va konvertatsiya
+## 9. Export and conversion
 
-* **JSON / JSONL**: chiroyli yoki ixcham, indent 2 / 4 / tab; `--sort-keys` obyekt kalitlarini alifbo
-  bo'yicha (o'zbek tartibi, `--sort-keys codepoint` — kod nuqtasi tartibi) tartiblaydi; Unicode `\u` ga
-  aylantirilmaydi; yozuvlar parse qilinmasdan bayt darajasida qayta formatlanadi (raqam va satrlar
-  baytma-bayt saqlanadi). `wrapped` faylda tashqi o'rama saqlanadi (`--no-wrapper` — faqat massiv);
-  `keyed` fayl JSON'da kalitli obyekt bo'lib qoladi. JSONL bitta yozuv = bitta qator formati bo'lgani uchun
-  o'rama va kalitli obyekt tuzilmasini saqlay olmaydi: `keyed` yozuvlar `{"kalit": qiymat}` qatorlari bo'ladi.
-  `--as-keyed` (faqat JSON natija uchun) bunday qatorlardan kalitli obyektni qayta tiklaydi:
-  `{"kalit1": ..., "kalit2": ...}` — kalit va qiymatlar baytma-bayt, `--indent`/`--sort-keys` kalitli faylning
-  oddiy JSON eksporti bilan aynan bir xil natija beradi; `filter`/`sort`/`convert` bilan ishlaydi, tashqi o'rama
-  yozilmaydi. Har bir yozuv bitta a'zoli obyekt bo'lishi shart: massiv, son, `{}` yoki 2 a'zoli obyekt
-  uchraganda yozuv raqami bilan xato chiqadi (kod 1) va hech narsa saqlanmaydi. Takroriy kalitlar o'zgarishsiz
-  yoziladi va ogohlantirishda sanaladi (xotirani tejash uchun birinchi 1 000 000 ta kalit tekshiriladi).
-  Boshqa formatlar bilan `--as-keyed` — xato (kod 1).
-* **CSV / XLSX**: tanlangan ustunlar (`--columns "a,b.c"`) yoki avtomatik — avtomatik ustunlar **barcha**
-  tanlangan yozuvlarni oldindan ko'rib chiqib aniqlanadi (hech bir maydon yo'qolmaydi; bu qo'shimcha o'qish,
-  `--columns` bilan o'tkazib yuboriladi). Ichma-ich maydonlar `a.b.c` ustun bo'ladi; massivlar `;` bilan
-  birlashtiriladi (`--array-mode join`, `--sep`) yoki har elementga alohida qator (`--array-mode rows`,
-  `--explode orders`). Kalitlari id/sana kabi "lug'at" obyektlarda (juda ko'p turli, kam uchraydigan
-  kalitlar) yozuvlarning kamida 1 % ida uchraydigan kalitlar ustun bo'lib qoladi, kam uchraydigan "dumi"
-  esa `yo'l.*` nomli bitta JSON ustuniga yig'iladi (ogohlantirish bilan); yozuvning yuqori darajasi hech
-  qachon bitta ustunga yig'ilmaydi. `--columns`da berilgan, lekin hech bir yozuvda topilmagan ustunlar
-  ogohlantirishda nomlanadi (yozuv xatosini topish uchun). 50 MB dan katta yozuvlarda katak juda katta
-  bo'lsa, u qisqartiriladi (ogohlantirish bilan), qator esa baribir yoziladi. CSV: UTF-8 BOM (Excel uchun,
-  `--no-bom`), ajratuvchi `--delimiter`. XLSX: 1 048 576 qatordan oshsa avtomatik yangi varaqlarga
-  (`--xlsx-split sheets`) yoki fayllarga (`files`) bo'linadi.
-* **SQLite**: har massiv uchun alohida jadval, ota-bola bog'lanishi bilan (`_id`, `_parent`, `_idx`);
-  jadvalda 1500 dan ortiq ustun bo'lsa, qolgan maydonlar `_extra` (JSON matn) ustuniga yoziladi; "lug'at"
-  obyektlar JSON matn sifatida saqlanadi, bola jadvallar soni 200 tagacha (qolgani JSON matn).
-* Faqat tanlangan qism: `filter`/`sort` natijasi, `convert --where ... --sort-by ...`, yozuv raqamlari
-  (`--select "0:100,500"`, raqamlar 0 dan) yoki bitta tugun (`convert --node "#5.orders"`).
-* SQLite'da qo'shimcha jadvallar: `_jsonreshape` (jadvallar ro'yxati: nomi, yo'li, otasi, turi, qatorlar soni),
-  `_wrapper` (tashqi o'rama JSON matni), har jadvalda `_ord` (asl tartib); `_parent` — `REFERENCES` bilan.
-* `.json.gz`, `.jsonl.gz`, `.csv.gz` nomli chiqish fayllari gzip bilan siqiladi; `--no-wrapper` har formatda ishlaydi.
-* Bo'lish, birlashtirish va ajratib olish — `split`, `merge`, `extract` ([2-bo'lim](#tez-boshlash-cli), [Asboblar](#asboblar)).
-* Barcha eksportlar fonda, progress bilan; natija vaqtinchalik faylga yozilib, keyin atomik nomlanadi.
-  Kirish fayli ish davomida o'zgarsa, natija saqlanmaydi (chiqish kodi 2).
+* **JSON / JSONL**: pretty or compact, indent 2 / 4 / tab; `--sort-keys` sorts object keys alphabetically
+  (Uzbek order; `--sort-keys codepoint` — code point order); Unicode is not escaped to `\u`; records are
+  reformatted at the byte level without parsing (numbers and strings are kept byte for byte). In a `wrapped` file
+  the outer wrapper is kept (`--no-wrapper` — the array only); a `keyed` file stays a keyed object in JSON. Since
+  JSONL is a one record = one line format, it cannot keep the wrapper or the keyed object structure: `keyed`
+  records become `{"key": value}` lines.
+  `--as-keyed` (for JSON output only) rebuilds the keyed object from such lines:
+  `{"kalit1": ..., "kalit2": ...}` — keys and values byte for byte; `--indent`/`--sort-keys` give exactly the same
+  result as a plain JSON export of the keyed file; it works with `filter`/`sort`/`convert`; no outer wrapper is
+  written. Every record must be an object with exactly one member: on an array, a number, `{}` or an object with 2
+  members, an error with the record number is reported (code 1) and nothing is saved. Duplicate keys are written
+  unchanged and counted in a warning (to save memory, the first 1,000,000 keys are checked).
+  `--as-keyed` with other formats is an error (code 1).
+* **CSV / XLSX**: selected columns (`--columns "a,b.c"`) or automatic — automatic columns are determined by
+  looking through **all** selected records first (no field is lost; this is an extra read, skipped with
+  `--columns`). Nested fields become `a.b.c` columns; arrays are joined with `;` (`--array-mode join`, `--sep`) or
+  get one row per element (`--array-mode rows`, `--explode orders`). In "dictionary" objects whose keys are ids,
+  dates and the like (very many different, rarely occurring keys), keys that occur in at least 1% of records stay
+  columns, and the rare "tail" is gathered into a single JSON column named `<path>.*` (with a
+  warning); the top level of a record is never gathered into one column. Columns given in `--columns` but not
+  found in any record are named in a warning (to catch typos). In records larger than 50 MB a very large cell is
+  truncated (with a warning), but the row is still written. CSV: UTF-8 BOM (for Excel; `--no-bom`), delimiter
+  `--delimiter`. XLSX: above 1,048,576 rows the output is split automatically into new sheets
+  (`--xlsx-split sheets`) or files (`files`).
+* **SQLite**: a separate table for each array, with parent–child links (`_id`, `_parent`, `_idx`); if a table has
+  more than 1,500 columns, the remaining fields are written to the `_extra` (JSON text) column; "dictionary"
+  objects are stored as JSON text; up to 200 child tables (the rest as JSON text).
+* Only a selected part: the result of `filter`/`sort`, `convert --where ... --sort-by ...`, record numbers
+  (`--select "0:100,500"`, numbers from 0) or a single node (`convert --node "#5.orders"`).
+* Extra tables in SQLite: `_jsonreshape` (list of tables: name, path, parent, type, row count),
+  `_wrapper` (JSON text of the outer wrapper), `_ord` in every table (original order); `_parent` — with `REFERENCES`.
+* Output files named `.json.gz`, `.jsonl.gz`, `.csv.gz` are gzip-compressed; `--no-wrapper` works with every format.
+* Split, merge and extract — `split`, `merge`, `extract` ([section 2](#tez-boshlash-cli), [Tools](#asboblar)).
+* All exports run in the background, with progress; the result is written to a temporary file and then renamed
+  atomically. If the input file changes during the work, the result is not saved (exit code 2).
 
 <a id="indeks"></a>
-## 10. Indeks, kesh va xotira
+## 10. Index, cache and memory
 
-* Indeks fonda quriladi; birinchi yozuvlar darhol (millisekundlarda) ko'rinadi, yozuvlar soni jonli o'sadi.
-* Indeks diskda keshlanadi: `%LOCALAPPDATA%\jsonreshape\index\<sha256>.jri` — binar, `mmap` bilan o'qiladi
-  (RAM'ga yuklanmaydi). Kalit: yo'l + hajm + mtime + boshidagi va oxiridagi 1 MiB hash'i + fayl bo'ylab
-  tarqalgan 16 ta 4 KiB blok hash'i + format + record path. Fayl o'zgarsa indeks yaroqsiz bo'ladi; o'qish
-  paytida ham yozuv chegaralari tekshiriladi. Cheklov: hajmi va mtime'i saqlangan, faqat o'rtadagi (hash
-  qilinmagan) baytlarga tegadigan tahrir sezilmasligi mumkin — bunday holatda `--no-cache` ishlating.
-* Fayl faqat **oxiriga qo'shilsa** (masalan, yozilayotgan JSONL log), dastur ochilgan paytdagi holat bilan
-  ishlashda davom etadi va "fayl ochilgandan keyin N bayt qo'shildi, ular kiritilmadi" ogohlantirishini
-  chiqaradi. Boshqa har qanday o'zgarish (qayta yozish, qisqartirish, almashtirish) — xato (kod 2).
-* Kesh hajmi `cache_limit_bytes` (standart 20 GiB) — indekslar va gzip/UTF-16 nusxalari uchun umumiy;
-  oshsa, eng eskilari o'chiriladi (LRU). Hozir ishlatilayotgan yoki yaqinda (1 soat ichida) ishlatilgan
-  nusxalar o'chirilmaydi va hisobga kirmaydi. `cache_dir` sozlamasi berilsa, indekslar, gzip/UTF-16 nusxalari,
-  tartiblash va XLSX vaqtinchalik fayllari o'sha papkada bo'ladi. Papka ishlatib bo'lmasa (masalan, uzilgan
-  disk), standart papka ishlatiladi va bitta ogohlantirish chiqadi.
-* Bir nechta jarayon bir faylni bir vaqtda indekslasa, biri quradi, qolganlari kutib o'sha indeksni ishlatadi.
-* Ichki konteynerlar talab bo'yicha: 50 MB dan katta yoki 10 000 dan ko'p bolali tugun parse qilinmaydi —
-  faqat bolalarining offsetlari skanerlanadi va diskda keshlanadi (1 million bolali tugun ~80 ms, +6 MB RAM).
-* Fayl eksklyuziv bloklanmaydi (Windows: `FILE_SHARE_READ|WRITE|DELETE`): boshqa dasturlar uni o'qishi,
-  yozishi, nomini o'zgartirishi va o'chirishi mumkin. Cheklov: fayl ochiq turganda boshqa dastur uni
-  `MoveFileEx`/`os.replace` bilan ustidan almashtira olmaydi (Windows qoidasi); o'zgarishlar esa aniqlanadi.
-  Uzun yo'llar (`\\?\`, 260 belgidan uzun) qo'llab-quvvatlanadi.
-* Sozlamalar: `%LOCALAPPDATA%\jsonreshape\settings.json` — namuna hajmi, kesh papkasi va chegarasi, xotira
-  chegarasi (`memory_limit_bytes`, standart 512 MiB: tartiblash, eksport bloklari, qidiruv va ulkan yozuvlar
-  uchun umumiy byudjet), tartiblash xotirasi, eksport standartlari, til. `JSONRESHAPE_HOME` bilan butun papkani
-  o'zgartirish mumkin.
-* **Tahrir qatlami** (3-bosqich): `%LOCALAPPDATA%\jsonreshape\edits\<kalit>\` — `layer.sqlite` (qadamlar, WAL),
-  `seg-*.dat` (tahrirlangan yozuvlarning yangi baytlari, nazorat yig'indilari bilan), `layer-*.bin` (ommaviy
-  amallar natijasi). Diskdagi hajmi ≈ o'zgargan yozuvlar hajmi (har qo'llangan ommaviy amal uchun); bo'sh joy
-  ommaviy amaldan oldin va davomida tekshiriladi. Saqlash yoki bekor qilishdan keyin qatlam o'chiriladi (uni hali
-  o'qiyotgan eksport tugaganidan keyin). Sozlamalar: `edits_location` (`appdata` | `beside` — fayl yonidagi
-  `.jredit` papkasi), `backup_on_save` (standart: yoqiq), `undo_limit` (1000, kamida 200).
-* 5-bosqich sozlamalari: `diff_align_max_bytes` (200 MB: shundan katta fayllar kalitsiz taqqoslanmaydi —
-  `--key` yoki `--by-position` kerak); statistika va dublikatlar `memory_limit_bytes` ichida ishlaydi (oshsa —
-  diskka yoki taxminiy hisobga o'tadi, natijada aytiladi).
+* The index is built in the background; the first records appear immediately (in milliseconds), and the record
+  count grows live.
+* The index is cached on disk: `%LOCALAPPDATA%\jsonreshape\index\<sha256>.jri` — binary, read with `mmap`
+  (not loaded into RAM). Key: path + size + mtime + hash of the first and last 1 MiB + hashes of 16 blocks of
+  4 KiB spread across the file + format + record path. If the file changes, the index becomes invalid; record
+  boundaries are also checked while reading. Limitation: an edit that keeps the size and mtime and touches only
+  bytes in the middle (which are not hashed) may go unnoticed — in that case use `--no-cache`.
+* If the file is only **appended to** (for example, a JSONL log that is being written), the program keeps working
+  with the state at the time it was opened and shows the warning "N bytes were appended after the file was
+  opened; they were not included". Any other change (rewrite, truncation, replacement) is an error (code 2).
+* Cache size `cache_limit_bytes` (default 20 GiB) — shared by indexes and gzip/UTF-16 copies; when it is
+  exceeded, the oldest entries are deleted (LRU). Copies in use right now or used recently (within 1 hour) are not
+  deleted and are not counted. If the `cache_dir` setting is given, indexes, gzip/UTF-16 copies, and the temporary
+  files of sorting and XLSX go to that folder. If the folder cannot be used (for example, a disconnected drive),
+  the default folder is used and one warning is shown.
+* If several processes index the same file at the same time, one builds the index and the others wait and use it.
+* Inner containers on demand: a node larger than 50 MB or with more than 10,000 children is not parsed —
+  only its children's offsets are scanned and cached on disk (a node with 1 million children ~80 ms, +6 MB RAM).
+* The file is not locked exclusively (Windows: `FILE_SHARE_READ|WRITE|DELETE`): other programs can read it,
+  write to it, rename it and delete it. Limitation: while the file is open, another program cannot replace it
+  with `MoveFileEx`/`os.replace` (a Windows rule); changes, however, are detected.
+  Long paths (`\\?\`, longer than 260 characters) are supported.
+* Settings: `%LOCALAPPDATA%\jsonreshape\settings.json` — sample size, cache folder and limit, memory
+  limit (`memory_limit_bytes`, default 512 MiB: a shared budget for sorting, export blocks, search and huge
+  records), sort memory, export defaults, language. The whole folder can be changed with `JSONRESHAPE_HOME`.
+* **Edit layer** (stage 3): `%LOCALAPPDATA%\jsonreshape\edits\<key>\` — `layer.sqlite` (steps, WAL),
+  `seg-*.dat` (new bytes of edited records, with checksums), `layer-*.bin` (results of bulk
+  operations). Size on disk ≈ the size of the changed records (per applied bulk operation); free space is checked
+  before and during a bulk operation. After a save or a discard the layer is deleted (once any export still
+  reading it has finished). Settings: `edits_location` (`appdata` | `beside` — a `.jredit` folder next to the
+  file), `backup_on_save` (default: on), `undo_limit` (1000, at least 200).
+* Stage 5 settings: `diff_align_max_bytes` (200 MB: larger files are not compared without a key —
+  `--key` or `--by-position` is needed); statistics and duplicates work within `memory_limit_bytes` (when it is
+  exceeded, they switch to disk or to an approximate count, and the result says so).
 
 <a id="xatolar"></a>
-## 11. Xatolar va loglar
+## 11. Errors and logs
 
-* JSON xatosi: bayt offseti (UTF-16 faylda — foydalanuvchi faylidagi bayt; gzip'da — ochilgan ma'lumotdagi
-  bayt, bu xabarda aytiladi), **qator va ustun** (belgilarda), atrofdagi matn va `^` belgisi; xatogacha
-  bo'lgan yozuvlar ishlatilishi mumkin (`--allow-partial`). Kesilgan fayl oxirgi to'liq yozuvgacha ochiladi.
-  JSON Lines faylda format noto'g'ri aniqlangani sezilsa, `--format jsonl` taklif qilinadi.
-* JSONL'da buzuq qatorlar o'tkazib yuboriladi va ro'yxati (qator raqami, sabab) chiqadi.
-* Xabarlar oddiy tilda: nima bo'ldi va qanday tuzatish kerak (o'zbekcha, `--lang en` — inglizcha); OS
-  xatolari (fayl band, faqat o'qish uchun, disk to'lgan, yo'l topilmadi) ham tarjima qilingan.
-* Loglar: `%LOCALAPPDATA%\jsonreshape\logs\jsonreshape.log` (5 MB × 3 aylanma); ichki xatoda CLI log faylining
-  yo'lini ko'rsatadi; log faylini ochib bo'lmasa, dastur ishlashda davom etadi.
-* JSON xatosi bor faylni **ta'mirlash** mumkin (GUI: xato panelidagi «Ta'mirlash…», CLI: `jsonreshape repair`):
-  natija yangi faylga yoziladi, har bir tuzatish joyi (qator, ustun, bayt) va sababi bilan hisobot beriladi
-  ([Asboblar](#asboblar)).
-* Tahrirlangan faylni saqlash uzilib qolsa (elektr o'chishi, jarayon o'ldirilishi), keyingi ochilishda
-  «Saqlashni yakunlash» taklif qilinadi; vaqtinchalik `.jrsave` fayllar 3 daqiqadan eski va hech qaysi jurnal
-  ularga ishora qilmasa, avtomatik tozalanadi (holat qatorida aytiladi).
+* JSON error: byte offset (in a UTF-16 file — the byte in the user's file; in gzip — the byte in the decompressed
+  data, which the message states), **line and column** (in characters), the surrounding text and a `^` marker;
+  the records before the error can be used (`--allow-partial`). A truncated file opens up to the last complete
+  record. If a JSON Lines file appears to have been detected with the wrong format, `--format jsonl` is suggested.
+* In JSONL, broken lines are skipped and listed (line number, reason).
+* Messages are in plain language: what happened and how to fix it (Uzbek; `--lang en` — English); OS
+  errors (file in use, read-only, disk full, path not found) are translated too.
+* Logs: `%LOCALAPPDATA%\jsonreshape\logs\jsonreshape.log` (5 MB × 3, rotating); on an internal error the CLI
+  shows the log file's path; if the log file cannot be opened, the program keeps working.
+* A file with a JSON error can be **repaired** (GUI: **Repair…** on the error panel, CLI: `jsonreshape repair`):
+  the result is written to a new file, with a report of every fix location (line, column, byte) and its reason
+  ([Tools](#asboblar)).
+* If saving an edited file is interrupted (power loss, the process being killed), **Finish the save** is offered
+  the next time the file is opened; temporary `.jrsave` files are cleaned up automatically when they are older
+  than 3 minutes and no journal points to them (the status bar says so).
 
 <a id="arxitektura"></a>
-## 12. Arxitektura
+## 12. Architecture
 
-Batafsil interfeys spetsifikatsiyasi: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Detailed interface specification: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ```text
-rust/                 Rust yadro (PyO3 0.30, maturin): validatsiyali skaner, reformatter, Aho-Corasick qidiruv,
-                      yo'l bo'yicha qiymat ajratish, raqamlar tekshiruvi — GIL qo'yib yuboriladi
+rust/                 Rust core (PyO3 0.30, maturin): validating scanner, reformatter, Aho-Corasick search,
+                      value extraction by path, number checks — the GIL is released
 jsonreshape/
-  core/               yadro API'si: _rscore (Rust) yoki _pycore (sof Python etalon) — natija aynan bir xil
-  codec.py            aniq raqamli JSON loads/dumps (orjson + aniq fallback)
-  paths.py            yo'llar: nuqtali, JSONPath, JSON Pointer, Python, JS; wildcard'lar
-  fileio.py           Windows shared-read, uzun yo'llar, gzip/UTF-16 tayyorlash, atomik yozish
-  reader.py           format aniqlash, indeks, yozuvlarga murojaat, Node daraxti, xato joyi
-  index.py            diskdagi binar indeks (mmap), kesh kaliti, LRU
-  stream.py           ulkan yozuvlar uchun ijson (yajl2_c) oqimi
-  recordset.py        RecordSet, filtr va tartib (tashqi merge sort)
-  sortkeys.py         turga mos tartib kalitlari, o'zbek kollatsiyasi, tabiiy tartib
-  query.py            filtr tili, vizual quruvchi modeli, JMESPath
-  textmatch.py        qidiruv rejimlari, casefold, apostroflar, lotin↔kirill
-  search.py           to'liq fayl bo'yicha qidiruv (bayt prefiltr + tasdiqlash), eksport, tarix
-  schema.py           tuzilma: turlar taqsimoti, mavjudlik foizi, misollar
-  writer.py           oqimli yozuvchilar: JSON, JSONL, CSV, XLSX, SQLite; bir nechta kirish, tugun eksporti
-  overlay.py          tahrir holati (o'zgarmas): piece table, kontent qatlamlari, virtual manzillar, ChangeSet
-  editstore.py        diskdagi tahrir qatlami: SQLite (WAL) qadamlar, segment fayllar, qulf, tiklash
-  editops.py          bayt darajasidagi tahrirlar va formatlash (sof funksiyalar)
-  edits.py            EditSession: barcha tahrir buyruqlari, undo/redo, kalit indeksi
-  bulk.py             ommaviy amallar: oldindan aniq sanash (preview) -> qo'llash
-  dupes.py            dublikatlar: kanonik kalit hash'lari, diskka chiqariladigan saralash
-  saver.py            saqlash: tekshirilgan yangi nusxa, atomik almashtirish, .bak, jurnal va tiklash
-  jsonpatch.py        RFC 6902 / 6901: qo'llash va sof farqni eksport qilish
-  mapping.py          tuzilma quruvchi modeli: daraxt, amallar, undo/redo, mapping fayli
-  engine.py           mapping'ni qo'llash (json-tuzilma.html bilan aynan bir xil, kompilyatsiya, jarayonlar havzasi)
-  stats.py            maydon statistikasi (aniq, kerak bo'lsa HyperLogLog + Misra-Gries)
-  jschema.py          JSON Schema 2020-12: yaratish va o'zimizning tekshiruvchimiz (aniq sonlar, ECMA regex)
-  filetools.py        bo'lish (split), birlashtirish (merge), ajratib olish (extract)
-  repair.py           buzuq JSON'ni ta'mirlash (gibrid: Rust skaner + tokenizator), hisobot
-  diff.py             strukturali taqqoslash: kalit / tekislash / o'rin / hujjat rejimlari
-  smartvalues.py      vaqt, sana, URL, rang, base64 rasmlarni aniqlash (Toshkent vaqti UTC+05:00)
-  cli.py              buyruq qatori
-  i18n.py             barcha UI matnlari (o'zbekcha asosiy, inglizcha zaxira) — bitta lug'at fayli
-  gui/                PySide6: virtual grid (100 mln+ qator), daraxt/jadval/matn/xom/tuzilma ko'rinishlari,
-                      sessiya (filtr -> tartib -> ko'rinish), fon vazifalari, panellar; tahrir boshqaruvchisi
-                      (editing.py), tahrir oynalari (editors.py), ommaviy amallar (bulkdialog.py), tuzilma
-                      quruvchi (mapview.py, mapmodel.py), statistika (statspanel.py), dublikatlar
-                      (dupesdialog.py), JSON Schema (validatepanel.py), ta'mirlash (repairdialog.py),
-                      bo'lish/birlashtirish (filetoolsdialog.py), taqqoslash (difftree.py, diffview.py,
-                      comparewindow.py), buyruqlar palitrasi (palette.py), tugmalar (keymap.py), sessiya va
-                      workspace (sessionstore.py, workspace.py), Windows «Open with» (osintegration.py)
-packaging/            PyInstaller spec, ishga tushirish skriptlari, versiya ma'lumoti (scripts/build_exe.ps1)
-tests/                pytest (+ hypothesis) testlari
-bench/                sintetik katta fayllar generatori va benchmark
+  core/               core API: _rscore (Rust) or _pycore (pure Python reference) — identical results
+  codec.py            exact-number JSON loads/dumps (orjson + exact fallback)
+  paths.py            paths: dotted, JSONPath, JSON Pointer, Python, JS; wildcards
+  fileio.py           Windows shared-read, long paths, gzip/UTF-16 preparation, atomic write
+  reader.py           format detection, index, record access, Node tree, error location
+  index.py            on-disk binary index (mmap), cache key, LRU
+  stream.py           ijson (yajl2_c) streaming for huge records
+  recordset.py        RecordSet, filter and sort (external merge sort)
+  sortkeys.py         type-aware sort keys, Uzbek collation, natural order
+  query.py            filter language, visual builder model, JMESPath
+  textmatch.py        search modes, casefold, apostrophes, Latin↔Cyrillic
+  search.py           full-file search (byte prefilter + confirmation), export, history
+  schema.py           structure: type distribution, presence percentage, examples
+  writer.py           streaming writers: JSON, JSONL, CSV, XLSX, SQLite; multiple inputs, node export
+  overlay.py          edit state (immutable): piece table, content layers, virtual addresses, ChangeSet
+  editstore.py        edit layer on disk: SQLite (WAL) steps, segment files, lock, recovery
+  editops.py          byte-level edits and formatting (pure functions)
+  edits.py            EditSession: all edit commands, undo/redo, key index
+  bulk.py             bulk operations: exact count up front (preview) -> apply
+  dupes.py            duplicates: canonical key hashes, sorting that spills to disk
+  saver.py            save: verified new copy, atomic replace, .bak, journal and recovery
+  jsonpatch.py        RFC 6902 / 6901: apply, and export of the pure diff
+  mapping.py          structure builder model: tree, operations, undo/redo, mapping file
+  engine.py           applying a mapping (identical to json-tuzilma.html, compilation, process pool)
+  stats.py            field statistics (exact; HyperLogLog + Misra-Gries when needed)
+  jschema.py          JSON Schema 2020-12: generation and our own validator (exact numbers, ECMA regex)
+  filetools.py        split, merge, extract
+  repair.py           repair of broken JSON (hybrid: Rust scanner + tokenizer), report
+  diff.py             structural compare: key / flatten / position / document modes
+  smartvalues.py      detection of times, dates, URLs, colours, base64 images (Tashkent time UTC+05:00)
+  cli.py              command line
+  i18n.py             all UI texts (Uzbek primary, English fallback) — a single dictionary file
+  gui/                PySide6: virtual grid (100 M+ rows), tree/table/text/raw/Schema views,
+                      session (filter -> sort -> view), background tasks, panels; edit controller
+                      (editing.py), edit dialogs (editors.py), bulk operations (bulkdialog.py), structure
+                      builder (mapview.py, mapmodel.py), statistics (statspanel.py), duplicates
+                      (dupesdialog.py), JSON Schema (validatepanel.py), repair (repairdialog.py),
+                      split/merge (filetoolsdialog.py), compare (difftree.py, diffview.py,
+                      comparewindow.py), command palette (palette.py), shortcuts (keymap.py), session and
+                      workspace (sessionstore.py, workspace.py), Windows "Open with" (osintegration.py)
+packaging/            PyInstaller spec, launch scripts, version info (scripts/build_exe.ps1)
+tests/                pytest (+ hypothesis) tests
+bench/                synthetic large-file generator and benchmark
 ```
 
 <a id="testlar"></a>
-## 13. Testlar
+## 13. Tests
 
 ```powershell
-.venv\Scripts\python -m pytest -q                                  # Rust yadrosi bilan
-$env:JSONRESHAPE_BACKEND="python"; .venv\Scripts\python -m pytest -q  # sof Python fallback bilan
+.venv\Scripts\python -m pytest -q                                  # with the Rust core
+$env:JSONRESHAPE_BACKEND="python"; .venv\Scripts\python -m pytest -q  # with the pure Python fallback
 .venv\Scripts\python -m pytest -q -m bench                         # 2 GB benchmark (test 25) + GUI benchmark
-.venv\Scripts\python -m pytest -q -m gui                           # faqat GUI testlari (ekransiz, pytest-qt)
-.venv\Scripts\python -m pytest -q -m packaging                     # tayyor .exe ustida (avval scripts\build_exe.ps1)
+.venv\Scripts\python -m pytest -q -m gui                           # GUI tests only (headless, pytest-qt)
+.venv\Scripts\python -m pytest -q -m packaging                     # on the built .exe (run scripts\build_exe.ps1 first)
 ```
 
-To'liq to'plam: **12 660 ta test** (6-bosqich oxirida, Rust yadro bilan, ~47 daqiqa; 5-bosqich oxirida 12 238 ta,
-2-bosqich oxirida 5431 ta edi); sof Python yadro bilan GUI'siz qismi — 9 208 ta test (~20 daqiqa). `-m packaging`
-testlari `dist\jsonreshape` bo'lmasa o'tkazib yuboriladi. GUI testlari ekransiz
-(`QT_QPA_PLATFORM=offscreen`) ishlaydi. Qulash va xotira testlari alohida jarayonlarda bajariladi (qulash
-pytest'ni to'xtatmaydi, test xato bo'ladi).
+Full suite: **12,660 tests** (at the end of stage 6, with the Rust core, ~47 minutes; it was 12,238 at the end of
+stage 5 and 5,431 at the end of stage 2); the non-GUI part with the pure Python core — 9,208 tests (~20 minutes).
+The `-m packaging` tests are skipped when `dist\jsonreshape` does not exist. GUI tests run headless
+(`QT_QPA_PLATFORM=offscreen`). Crash and memory tests run in separate processes (a crash does not stop
+pytest; the test fails).
 
-AGENT_PROMPT §14 bo'yicha 1-bosqich qabul testlari:
+Stage 1 acceptance tests per AGENT_PROMPT §14:
 
-| № | Mazmun | Test fayllari |
+| No. | What is tested | Test files |
 |---|---|---|
-| 11 | har `(start, end)` bo'lagi asl yozuv bilan bir xil, barcha formatlar | `test_reader_formats.py` |
-| 12 | Rust yadro va Python fallback natijasi aynan bir xil | `test_core.py`, `test_core_fuzz.py`, `test_core_rust_smoke.py` |
-| 13 | xato joyi (qator/ustun), kesilgan fayl | `test_reader_errors.py` |
-| 14 | 1 mln elementli tugun xotirani to'ldirmaydi | `test_nodes.py` |
-| 15 | qidiruv natijasi to'liq parse + oddiy tekshiruv bilan aynan bir xil | `test_search.py` |
-| 16 | apostroflar va lotin↔kirill | `test_textmatch.py`, `test_search.py` |
-| 17 | tartib barqaror, turlar, tabiiy tartib, tashqi sort = xotiradagi | `test_sortkeys.py`, `test_sort_runner.py` |
-| 18 | filtr ifodasi = vizual quruvchi, `eval` yo'q | `test_query.py`, `test_filter_runner.py`, `test_static.py` |
-| 22 | JSON → JSONL → JSON (`keyed` fayl `--as-keyed` bilan ham), CSV/XLSX ustunlari, XLSX bo'linishi | `test_writer.py`, `test_keyed_rebuild.py` |
-| 24 | raqam aniqligi va Unicode | `test_codec.py`, `test_numbers_e2e.py`, `test_cli.py` |
-| 25 | 2 GB fayl: indeks, qidiruv, tartib, eksport vaqti va peak RSS | `test_bench.py` (`-m bench`) |
+| 11 | every `(start, end)` span is identical to the original record, all formats | `test_reader_formats.py` |
+| 12 | the Rust core and the Python fallback give identical results | `test_core.py`, `test_core_fuzz.py`, `test_core_rust_smoke.py` |
+| 13 | error location (line/column), truncated file | `test_reader_errors.py` |
+| 14 | a node with 1 million elements does not fill memory | `test_nodes.py` |
+| 15 | search results are identical to a full parse + plain check | `test_search.py` |
+| 16 | apostrophes and Latin↔Cyrillic | `test_textmatch.py`, `test_search.py` |
+| 17 | stable sort, types, natural order, external sort = in-memory sort | `test_sortkeys.py`, `test_sort_runner.py` |
+| 18 | filter expression = visual builder, no `eval` | `test_query.py`, `test_filter_runner.py`, `test_static.py` |
+| 22 | JSON → JSONL → JSON (also a `keyed` file with `--as-keyed`), CSV/XLSX columns, XLSX splitting | `test_writer.py`, `test_keyed_rebuild.py` |
+| 24 | number precision and Unicode | `test_codec.py`, `test_numbers_e2e.py`, `test_cli.py` |
+| 25 | 2 GB file: index, search, sort, export times and peak RSS | `test_bench.py` (`-m bench`) |
 
-2-bosqich (ko'ruvchi GUI) testlari:
+Stage 2 (viewer GUI) tests:
 
-| № | Mazmun | Test fayllari |
+| No. | What is tested | Test files |
 |---|---|---|
-| 26 (2-bosqich qismi) | faylni ochish (buyruq qatori, sudrab tashlash), daraxtni ochish/yopish, qidiruv natijasiga o'tish, jadvalda tartiblash, filtr, yo'lga o'tish va tarix, eksport tugmasi, yopish — haqiqiy oyna orqali (to'liq ssenariy — 6-bosqich jadvalida) | `test_gui_e2e.py` |
-| — | har ko'rinish va panel: daraxt, jadval, matn, xom, tuzilma, qidiruv, filtr, tartib, eksport, sozlamalar, navigatsiya, holat qatori, fon vazifalari | `test_gui_*.py` (37 ta fayl) |
-| — | virtual grid (10¹² qator), FlatTree (hypothesis model testlari), yuklovchi, sessiya | `test_gui_vgrid.py`, `test_flattree.py`, `test_gui_loader.py`, `test_gui_session.py` |
-| — | ko'rib chiqishda topilgan xatolar uchun regressiya testlari (qulash, xotira oqishi, GIL, katta matn) | `test_gui_fix_*.py`, `test_schema_walk.py`, `test_recordset_locks.py` |
-| 25 (GUI) | katta fayllarda GUI: birinchi yozuvlar, indeks, aylantirish, 1 mln bolali tugun, qidiruv, filtr, tartib, eksport, RAM | `test_bench_gui.py` (`-m bench`), `bench/gui_bench.py` |
+| 26 (stage 2 part) | opening a file (command line, drag and drop), expanding/collapsing the tree, jumping to a search result, sorting in the table, filter, go to path and history, the export button, closing — through the real window (the full scenario is in the stage 6 table) | `test_gui_e2e.py` |
+| — | every view and panel: tree, table, text, raw, Schema, search, filter, sort, export, settings, navigation, status bar, background tasks | `test_gui_*.py` (37 files) |
+| — | virtual grid (10¹² rows), FlatTree (hypothesis model tests), loader, session | `test_gui_vgrid.py`, `test_flattree.py`, `test_gui_loader.py`, `test_gui_session.py` |
+| — | regression tests for bugs found in review (crashes, memory leaks, GIL, large text) | `test_gui_fix_*.py`, `test_schema_walk.py`, `test_recordset_locks.py` |
+| 25 (GUI) | GUI on large files: first records, index, scrolling, a node with 1 million children, search, filter, sort, export, RAM | `test_bench_gui.py` (`-m bench`), `bench/gui_bench.py` |
 
-3-bosqich (tahrirlash) testlari:
+Stage 3 (editing) tests:
 
-| № | Mazmun | Test fayllari |
+| No. | What is tested | Test files |
 |---|---|---|
-| 19 | tahrirlar bilan saqlash va qayta ochish (barcha 7 format, kodirovkalar, gzip, BOM), asl fayl o'zgarmaydi, undo/redo to'liq qaytaradi | `test_saver*.py` (8 ta fayl), `test_edits*.py`, `test_overlay*.py`, `test_jsonpatch*.py`, `test_cli_patch.py` |
-| 20 | ommaviy amal oldidan berilgan hisob = haqiqiy o'zgarishlar (oddiy etalon bilan solishtirish, tahrirlangan hujjatlarda ham) | `test_bulk.py`, `test_bulk_matrix*.py`, `test_bulk_scopes.py` |
-| 21 | avtosaqlash va qulashdan keyin tiklash: jarayonni saqlash/commit'ning har bosqichida haqiqatan o'ldirib, keyin tiklash; buzilgan qatlam aniqlanadi | `test_edits_crash.py`, `test_editstore_crash.py`, `test_fix3_journal.py`, `test_fix3_layer.py`, `test_gui_editing_recovery.py` |
-| — | GUI tahriri: daraxt, jadval, matn, sudrab tashlash, tahrir oynalari, boshqaruvchi, ko'rib chiqishda topilgan xatolar | `test_gui_*edit*.py`, `test_gui_editors.py`, `test_gui_bulkdialog*.py`, `test_fix3_ctl*.py`, `test_fix3_gui.py` |
+| 19 | save with edits and reopen (all 7 formats, encodings, gzip, BOM), the original file does not change, undo/redo fully restores | `test_saver*.py` (8 files), `test_edits*.py`, `test_overlay*.py`, `test_jsonpatch*.py`, `test_cli_patch.py` |
+| 20 | the count shown before a bulk operation = the actual changes (compared with a simple reference, also on edited documents) | `test_bulk.py`, `test_bulk_matrix*.py`, `test_bulk_scopes.py` |
+| 21 | autosave and recovery after a crash: the process is really killed at every stage of save/commit, then recovered; a corrupted layer is detected | `test_edits_crash.py`, `test_editstore_crash.py`, `test_fix3_journal.py`, `test_fix3_layer.py`, `test_gui_editing_recovery.py` |
+| — | GUI editing: tree, table, text, drag and drop, edit dialogs, controller, bugs found in review | `test_gui_*edit*.py`, `test_gui_editors.py`, `test_gui_bulkdialog*.py`, `test_fix3_ctl*.py`, `test_fix3_gui.py` |
 
-4-bosqich (tuzilma quruvchi) testlari:
+Stage 4 (structure builder) tests:
 
-| № | Mazmun | Test fayllari |
+| No. | What is tested | Test files |
 |---|---|---|
-| 1–9 | identity, rekursiv tekislash, ko'chirish, unwrap, gather, broadcast, guruh, birlashtirish, sudrab tashlash qoidalari | `test_mapping.py`, `test_engine.py`, `test_mapping_golden.py` |
-| 10 | etalon bilan solishtirish: `node` orqali `json-tuzilma.html` engine'i ishga tushirilib golden natijalar yasaladi; Python natijasi aynan bir xil (node bo'lmasa — saqlangan goldenlar bilan) | `test_mapping_golden.py`, `tests/golden/` |
-| — | tasodifiy tahrir skriptlari bilan differensial fuzz (oddiy port, kompilyatsiya qilingan engine, etalon), oqimli qo'llash har format va jarayonlar havzasi bilan, CLI `apply`/`flatten`, GUI quruvchi | `test_mapping_random.py`, `test_engine_apply.py`, `test_mapping_document.py`, `test_cli_mapping.py`, `test_gui_mapview*.py`, `test_gui_mapmodel.py` |
+| 1–9 | identity, recursive flatten, move, unwrap, gather, broadcast, group, merge, drag-and-drop rules | `test_mapping.py`, `test_engine.py`, `test_mapping_golden.py` |
+| 10 | comparison with the reference: golden results are produced by running the `json-tuzilma.html` engine via `node`; the Python result is identical (without node — against the stored goldens) | `test_mapping_golden.py`, `tests/golden/` |
+| — | differential fuzz with random edit scripts (plain port, compiled engine, reference), streaming apply with every format and with the process pool, CLI `apply`/`flatten`, GUI builder | `test_mapping_random.py`, `test_engine_apply.py`, `test_mapping_document.py`, `test_cli_mapping.py`, `test_gui_mapview*.py`, `test_gui_mapmodel.py` |
 
-5-bosqich (asboblar) testlari:
+Stage 5 (tools) tests:
 
-| № | Mazmun | Test fayllari |
+| No. | What is tested | Test files |
 |---|---|---|
-| 22 | JSON → JSONL → JSON aylanmasi, CSV/XLSX ustunlari va bo'linishi; bo'lish → birlashtirish aylanmasi qiymatma-qiymat bir xil | `test_writer*.py`, `test_keyed_rebuild.py`, `test_filetools_*.py` |
-| 23 | ta'mirlash: har bir buzilish turi uchun test, hisobot (joyi, sababi, kodlari) to'g'ri, natija doim to'g'ri JSON, har o'zgargan bayt hisobotda | `test_repair.py`, `test_repair_props.py`, `test_cli_repair.py` |
-| — | statistika (oddiy etalon bilan aniqlik, sketch xatolik chegarasi), dublikatlar, JSON Schema (rasmiy test to'plami + `jsonschema` bilan differensial), diff (rejimlar, aniq sonlar), aqlli qiymatlar, CLI buyruqlari, GUI oynalari | `test_stats*.py`, `test_dupes*.py`, `test_jschema*.py`, `test_diff*.py`, `test_smartvalues.py`, `test_cli_*.py`, `test_gui_statspanel.py`, `test_gui_dupesdialog.py`, `test_gui_validatepanel.py`, `test_gui_repairdialog.py`, `test_gui_filetoolsdialog.py`, `test_gui_diffview.py`, `test_gui_comparewindow.py`, `test_fix5_*.py` |
+| 22 | JSON → JSONL → JSON round trip, CSV/XLSX columns and splitting; split → merge round trip identical value for value | `test_writer*.py`, `test_keyed_rebuild.py`, `test_filetools_*.py` |
+| 23 | repair: a test for every kind of damage, the report (location, reason, codes) is correct, the result is always valid JSON, every changed byte is in the report | `test_repair.py`, `test_repair_props.py`, `test_cli_repair.py` |
+| — | statistics (accuracy against a simple reference, sketch error bounds), duplicates, JSON Schema (official test suite + differential against `jsonschema`), diff (modes, exact numbers), smart values, CLI commands, GUI windows | `test_stats*.py`, `test_dupes*.py`, `test_jschema*.py`, `test_diff*.py`, `test_smartvalues.py`, `test_cli_*.py`, `test_gui_statspanel.py`, `test_gui_dupesdialog.py`, `test_gui_validatepanel.py`, `test_gui_repairdialog.py`, `test_gui_filetoolsdialog.py`, `test_gui_diffview.py`, `test_gui_comparewindow.py`, `test_fix5_*.py` |
 
-6-bosqich (silliqlash) testlari:
+Stage 6 (polish) tests:
 
-| № | Mazmun | Test fayllari |
+| No. | What is tested | Test files |
 |---|---|---|
-| 26 | butun ssenariy haqiqiy oynada klaviatura va sichqoncha bilan: ochish, daraxtni ochish/yopish, qidiruv natijasidan tugunga, jadval sarlavhasi bilan tartib, Enter bilan tahrir, Ctrl+Z / Ctrl+Y, Ctrl+S (disk baytma-bayt, `.bak`), eksport tugmasi, buyruqlar palitrasi, qayta ishga tushirishda sessiya tiklanishi | `test_gui_e2e.py::test_acceptance_26_the_whole_scenario` |
-| — | buyruqlar palitrasi (yig'ish, lotin/kirill qidiruv, tartib, o'chiq buyruqlar), tugmalarni sozlash (band va qat'iy tugmalar rad etiladi) | `test_gui_palette.py`, `test_gui_keymap.py` |
-| — | sessiyani tiklash va workspace (model, `.jrworkspace` tekshiruvi, nisbiy yo'llar, ochilgan tugunlar, qayta ishga tushirish) | `test_sessionstore.py`, `test_gui_session_restore.py`, `test_workspace.py`, `test_gui_workspace.py` |
-| — | Windows «Open with» (soxta reestr: faqat HKCU, olib tashlash faqat o'zi yozganini o'chiradi) | `test_osintegration.py` |
-| — | mavzular: mavzu tashqarisidagi ranglarni taqiqlovchi statik test, kontrast, qorong'i rejimda 3–5-bosqich oynalari | `test_theme_colours.py` |
-| — | `.exe`: muzlatilgan dasturda ishchi jarayonlar, tayyor exe ustida smoke-testlar (`-m packaging`, `dist\jsonreshape` bo'lsa) | `test_frozen_spawn.py`, `test_packaging.py` |
-| — | P6 unumdorlik: CSV ishchi jarayonlari (bitta oqim bilan baytma-bayt bir xil), qatlam nazorat yig'indilari parallel, benchmark skriptlari | `test_perf6_*.py`, `test_bench_tools.py`, `test_bench.py` |
+| 26 | the whole scenario in the real window with keyboard and mouse: opening, expanding/collapsing the tree, from a search result to the node, sorting by the table header, editing with Enter, Ctrl+Z / Ctrl+Y, Ctrl+S (disk byte for byte, `.bak`), the export button, the command palette, session restore on restart | `test_gui_e2e.py::test_acceptance_26_the_whole_scenario` |
+| — | command palette (gathering commands, Latin/Cyrillic search, order, disabled commands), shortcut customization (taken and fixed keys are rejected) | `test_gui_palette.py`, `test_gui_keymap.py` |
+| — | session restore and workspace (model, `.jrworkspace` validation, relative paths, expanded nodes, restart) | `test_sessionstore.py`, `test_gui_session_restore.py`, `test_workspace.py`, `test_gui_workspace.py` |
+| — | Windows "Open with" (fake registry: HKCU only, removal deletes only what it wrote itself) | `test_osintegration.py` |
+| — | themes: a static test that forbids colours outside the theme, contrast, stage 3–5 windows in dark mode | `test_theme_colours.py` |
+| — | `.exe`: worker processes in the frozen app, smoke tests on the built exe (`-m packaging`, when `dist\jsonreshape` exists) | `test_frozen_spawn.py`, `test_packaging.py` |
+| — | P6 performance: CSV worker processes (byte for byte identical to a single stream), layer checksums in parallel, benchmark scripts | `test_perf6_*.py`, `test_bench_tools.py`, `test_bench.py` |
 
 <a id="olchovlar"></a>
-## 14. O'lchovlar (benchmark)
+## 14. Measurements (benchmark)
 
-Yakuniy o'lchov — 2026-10-19, 6-bosqich oxiridagi kod bilan; kompyuterda boshqa agent yoki og'ir ish yo'q edi
-(o'lchovlardan oldingi tizim yuklamasi ~2–17 %, o'rtacha ~6 %). To'liq natijalar, har bir takror, o'lchash shartlari
-va kompyuter tavsifi: yadro, CLI va mapping — [`bench/results/latest.md`](bench/results/latest.md); GUI —
-[`gui_latest.md`](bench/results/gui_latest.md); tahrirlar — [`edit_latest.md`](bench/results/edit_latest.md);
-jadval eksportlari (CSV, XLSX, SQLite) — [`export_latest.md`](bench/results/export_latest.md); 5-bosqich asboblari —
-[`tools_latest.md`](bench/results/tools_latest.md). Qayta o'lchash: `.venv\Scripts\python bench\run_bench.py`,
-`bench\gui_bench.py`, `bench\edit_bench.py --work PAPKA`, `bench\tools_bench.py --work-dir PAPKA`.
+Final measurement — 2026-10-19, with the code at the end of stage 6; no other agent or heavy work was running on the
+computer (system load before the measurements ~2–17 %, average ~6 %). Full results, every repetition, measurement
+conditions and the computer description: core, CLI and mapping — [`bench/results/latest.md`](bench/results/latest.md)
+(in Uzbek; the scripts write English with `--lang en`); GUI — [`gui_latest.md`](bench/results/gui_latest.md);
+edits — [`edit_latest.md`](bench/results/edit_latest.md); table exports (CSV, XLSX, SQLite) —
+[`export_latest.md`](bench/results/export_latest.md); stage 5 tools —
+[`tools_latest.md`](bench/results/tools_latest.md). To measure again: `.venv\Scripts\python bench\run_bench.py`,
+`bench\gui_bench.py`, `bench\edit_bench.py --work DIR`, `bench\tools_bench.py --work-dir DIR`.
 
-Kompyuter: Intel Core Ultra 9 285 (24 yadro: 8 P + 16 E), 205 GB RAM, ikkita NVMe SSD (ma'lumot fayllari E: da,
-chiqish fayllari C: da — u 89 % to'la, katta fayl yozilganda `fsync` ~2–7 s), Windows 11, Python 3.14, Rust yadro.
-Har amal alohida yangi jarayonda, yangi bo'sh `JSONRESHAPE_HOME` bilan; ma'lumot fayllari OS keshida (iliq kesh),
-bitta sovuq o'qish alohida o'lchandi. **RAM — butun dastur**: ishchi jarayonli amallarda asosiy jarayon va ishchi
-jarayonlar ishchi to'plamlarining bir paytdagi yig'indisi (har 20 ms namuna) yoki bitta jarayonning aniq peak'i —
-qaysi biri katta bo'lsa. §12 maqsadlari 5 GB fayl va «oddiy noutbuk» uchun: tezliklar fayl hajmiga bog'liq emas
-(5.4 GB massiv ham o'lchandi), noutbukda CPU'ga bog'liq amallar sekinroq bo'ladi.
+Computer: Intel Core Ultra 9 285 (24 cores: 8 P + 16 E), 205 GB RAM, two NVMe SSDs (data files on E:, output files
+on C: — it is 89 % full, so `fsync` takes ~2–7 s when a large file is written), Windows 11, Python 3.14, Rust core.
+Each operation runs in a separate new process with a new empty `JSONRESHAPE_HOME`; the data files are in the OS cache
+(warm cache), and one cold read was measured separately. **RAM — the whole program**: for operations with worker
+processes, the simultaneous sum of the working sets of the main process and the worker processes (sampled every
+20 ms) or the exact peak of a single process — whichever is larger. The §12 targets are for a 5 GB file and an
+"ordinary laptop": the speeds do not depend on the file size (a 5.4 GB array was measured too); on a laptop,
+CPU-bound operations will be slower.
 
-O'lchovlar oxirida bitta tuzatish kiritildi: kichik fayllar (mapping, JSON Schema, workspace, sozlamalar, GUI holati,
-tahrir qatlamlari ro'yxati) endi fayl hajmicha o'qiladi (`fileio.read_limited`; avval `read(chegara + 1)` har safar
-chegara hajmidagi buferni — mapping uchun 128 MiB — ajratib, Windows'da ishchi to'plamni shuncha oshirardi).
-`apply` qatorlari va asboblar benchmarki shu tuzatishdan keyin o'lchandi; qolgan o'lchovlarga u faqat xotirani
-kamaytirishi mumkin (tahrir qatlamini tiklashda ≤ 17 MB).
+One fix was made at the end of the measurements: small files (mapping, JSON Schema, workspace, settings, GUI state,
+the list of edit layers) are now read by their file size (`fileio.read_limited`; before, `read(limit + 1)` allocated
+a buffer the size of the limit every time — 128 MiB for a mapping — and on Windows raised the working set by as much).
+The `apply` rows and the tools benchmark were measured after this fix; for the other measurements it can only reduce
+memory (≤ 17 MB when restoring an edit layer).
 
-### Yadro va CLI
+### Core and CLI
 
-| Amal (AGENT_PROMPT §12) | Maqsad | Natija | Holat |
+| Operation (AGENT_PROMPT §12) | Target | Result | Status |
 |---|---|---|:---:|
-| Ochish, birinchi yozuvlar ko'rinishi (2.1 GB; 5.4 GB; sovuq disk) | < 1 s | 11 ms; 12 ms; 36 ms | ✅ |
-| To'liq indeks, Rust yadro (2.1 GB massiv; 5.4 GB; 3.3 GB JSONL) | ≥ 150 MB/s | 725; 634; 666 MB/s (sovuq disk: 805 MB/s) | ✅ |
-| 1 000 000 bolali tugunni ochish (virtual) | < 200 ms | 95 ms (keshdan qayta: 4.3 ms) | ✅ |
-| To'liq matn qidiruvi, bayt rejimi: kam uchraydigan so'z (2.1 GB; 5.4 GB) | ≥ 100 MB/s, natijalar darhol | 745; 854 MB/s, birinchi natija 11–12 ms | ✅ |
-| … o'rtacha so'z «Toshkent» (6 % yozuvda) | ≥ 100 MB/s | 621 MB/s, birinchi natija 12 ms | ✅ |
-| … ko'p uchraydigan so'z «ko'chasi» (60 % yozuvda) | ≥ 100 MB/s | 272 MB/s, birinchi natija 14 ms | ✅ |
-| 10 000 000 yozuvni bitta maydon bo'yicha tartiblash **va natijani yozish** (`jsonreshape sort` kabi, ochishdan oxirigacha) | < 2 daqiqa, RAM < 1 GB | 77.6 s, peak 379 MB (indeks 5.1 s, tartiblash 22.9 s, tartiblangan eksport 66.3 MB/s) | ✅ |
-| Eksport JSON → JSONL / JSON (indent 2), 2.1 GB, mapping va tahrirlarsiz | ≥ 50 MB/s, RAM < 300 MB | 180 / 214 MB/s, peak 89 / 71 MB | ✅ |
-| Eksport CSV: avtomatik ustunlar / 9 ta skalyar ustun (4 ta ishchi jarayon) | ≥ 50 MB/s, RAM < 300 MB | 105 / 224 MB/s, RAM 226 / 222 MB (private 175 / 167 MB) | ✅ |
-| Dasturning umumiy xotirasi (tartiblashdan boshqa barcha amallarning eng kattasi, ishchi jarayonlari bilan) | < 500 MB | 299 MB (`flatten`, 3 ta ishchi jarayon bilan; private 246 MB) | ✅ |
+| Open, first records shown (2.1 GB; 5.4 GB; cold disk) | < 1 s | 11 ms; 12 ms; 36 ms | ✅ |
+| Full index, Rust core (2.1 GB array; 5.4 GB; 3.3 GB JSONL) | ≥ 150 MB/s | 725; 634; 666 MB/s (cold disk: 805 MB/s) | ✅ |
+| Opening a node with 1,000,000 children (virtual) | < 200 ms | 95 ms (again from cache: 4.3 ms) | ✅ |
+| Full text search, byte mode: rare word (2.1 GB; 5.4 GB) | ≥ 100 MB/s, results immediately | 745; 854 MB/s, first result 11–12 ms | ✅ |
+| … medium-frequency word "Toshkent" (in 6 % of records) | ≥ 100 MB/s | 621 MB/s, first result 12 ms | ✅ |
+| … frequent word "ko'chasi" (in 60 % of records) | ≥ 100 MB/s | 272 MB/s, first result 14 ms | ✅ |
+| Sorting 10,000,000 records by one field **and writing the result** (like `jsonreshape sort`, from opening to the end) | < 2 minutes, RAM < 1 GB | 77.6 s, peak 379 MB (index 5.1 s, sort 22.9 s, sorted export 66.3 MB/s) | ✅ |
+| Export JSON → JSONL / JSON (indent 2), 2.1 GB, without mapping or edits | ≥ 50 MB/s, RAM < 300 MB | 180 / 214 MB/s, peak 89 / 71 MB | ✅ |
+| Export CSV: automatic columns / 9 scalar columns (4 worker processes) | ≥ 50 MB/s, RAM < 300 MB | 105 / 224 MB/s, RAM 226 / 222 MB (private 175 / 167 MB) | ✅ |
+| Total memory of the program (the largest of all operations except sorting, with worker processes) | < 500 MB | 299 MB (`flatten`, with 3 worker processes; private 246 MB) | ✅ |
 
-Qo'shimcha: filtr (extract) 207 MB/s; filtr + natijani yozish (2.1 GB, ochishdan oxirigacha) 16.9 s; tuzilma namunasi
-(10 000 yozuv) 176 ms; keshdagi indeks bilan qayta ochish 9.2 ms; sof Python yadro bilan indeks 70.8 MB/s (zaxira
-maqsadi ≥ 15 MB/s). 2-bosqichdagi «CSV avtomatik ustunlar 26 MB/s» kamchiligi 6-bosqichda yopildi: qatorlar va
-ustunlarni aniqlash ishchi jarayonlarda (natija bitta oqimdagi bilan baytma-bayt bir xil).
+Additionally: filter (extract) 207 MB/s; filter + writing the result (2.1 GB, from opening to the end) 16.9 s; schema
+sample (10,000 records) 176 ms; reopening with a cached index 9.2 ms; index with the pure Python core 70.8 MB/s
+(fallback target ≥ 15 MB/s). The stage 2 shortcoming "CSV automatic columns 26 MB/s" was closed in stage 6: detecting
+the rows and columns runs in worker processes (the result is byte-for-byte identical to the single-threaded one).
 
-### Tuzilma quruvchi: mapping bilan eksport (`jsonreshape apply` / `flatten`, 2.1 GB → 3.3–3.7 GB)
+### Structure builder: export with a mapping (`jsonreshape apply` / `flatten`, 2.1 GB → 3.3–3.7 GB)
 
-Mapping — `bench/mapping_syn.json`: 10 000 yozuvli namunadan olingan daraxt + 6 qadam (`contact.address.city`
-yozuv darajasiga, `contact` ochildi, `orders[].oid` yig'ildi, `tags` o'chirildi, `score` → `ball`, yangi `holat`
-guruhi). Tezlik — buyruqning indeksdan keyingi qismi (GUI'da indeks fayl ochilganda quriladi; indeks 2.8–3.2 s).
+Mapping — `bench/mapping_syn.json`: a tree taken from a 10,000-record sample + 6 steps (`contact.address.city` moved
+to the record level, `contact` unwrapped, `orders[].oid` gathered, `tags` deleted, `score` → `ball`, a new `holat`
+group). Speed — the part of the command after the index (in the GUI the index is built when the file is opened; index
+2.8–3.2 s).
 
-| Amal | Maqsad | Natija | Holat |
+| Operation | Target | Result | Status |
 |---|---|---|:---:|
-| `apply` → JSON (indent 2), ishchi jarayonlar avtomatik (3 ta) | ≥ 50 MB/s, RAM < 300 MB | 97.5 MB/s; RAM 264 MB (4 jarayon, private 242 MB) | ✅ |
-| `apply` → JSONL, avtomatik (3 ta) | ≥ 50 MB/s, RAM < 300 MB | 101 MB/s; RAM 258 MB (private 238 MB) | ✅ |
-| `apply --workers 1` (bitta jarayon) | ≥ 50 MB/s, RAM < 300 MB | 47.5 MB/s; RAM 101 MB | ❌ (tezlik) |
-| `flatten --children-key children` → JSON, avtomatik (3 ta) | ≥ 50 MB/s, RAM < 300 MB | 129 MB/s; RAM 299 MB (private 246 MB) | ✅ * |
-| `flatten --workers 1` | ≥ 50 MB/s, RAM < 300 MB | 46.0 MB/s; RAM 141 MB | ❌ (tezlik) |
+| `apply` → JSON (indent 2), worker processes automatic (3) | ≥ 50 MB/s, RAM < 300 MB | 97.5 MB/s; RAM 264 MB (4 processes, private 242 MB) | ✅ |
+| `apply` → JSONL, automatic (3) | ≥ 50 MB/s, RAM < 300 MB | 101 MB/s; RAM 258 MB (private 238 MB) | ✅ |
+| `apply --workers 1` (single process) | ≥ 50 MB/s, RAM < 300 MB | 47.5 MB/s; RAM 101 MB | ❌ (speed) |
+| `flatten --children-key children` → JSON, automatic (3) | ≥ 50 MB/s, RAM < 300 MB | 129 MB/s; RAM 299 MB (private 246 MB) | ✅ * |
+| `flatten --workers 1` | ≥ 50 MB/s, RAM < 300 MB | 46.0 MB/s; RAM 141 MB | ❌ (speed) |
 
-Ishchi jarayonlar soni xotira chegarasidan hisoblanadi (standart 512 MiB bilan 3 ta; qaror 40): 4 ta bilan `apply`
-13–20 % tezroq (113–127 MB/s), `flatten` esa o'sha tezlikda (127 MB/s) edi, lekin butun dastur 321–355 MB bo'lardi. \* `flatten`'ning
-299 MB'idan ~55 MB — 10 000 yozuvli namunani o'qishda xotiraga proyeksiyalangan kirish fayli sahifalari (OS kerak
-bo'lsa darhol bo'shatadi; asosiy jarayonning xususiy xotirasi `apply`'dagi bilan bir xil, ~77 MB).
+The number of worker processes is computed from the memory limit (3 with the default 512 MiB; decision 40): with 4,
+`apply` was 13–20 % faster (113–127 MB/s) and `flatten` ran at the same speed (127 MB/s), but the whole program would
+take 321–355 MB. \* Of `flatten`'s 299 MB, ~55 MB are memory-mapped pages of the input file from reading the
+10,000-record sample (the OS frees them immediately if needed; the main process's private memory is the same as in
+`apply`, ~77 MB).
 
-### Tahrirlar bilan eksport va saqlash (3-bosqich; 2.1 GB, 6.5 mln yozuv)
+### Export and save with edits (stage 3; 2.1 GB, 6.5 M records)
 
-To'rt holat: 100 ta nuqtaviy tahrir; har 3-yozuv o'zgargan; hamma yozuv o'zgargan; 10 % yozuv o'chirilgan + 1 000 ta
-qo'shilgan (ommaviy amallar bilan yasalgan). «Oldin» ustuni (3-bosqichning unumdorlik ishidan oldingi kod) va har
-qator — `edit_latest.md` da.
+Four cases: 100 point edits; every 3rd record changed; every record changed; 10 % of the records deleted + 1,000
+inserted (made with bulk operations). The "Before" column (the code before the stage 3 performance work) and every
+row are in `edit_latest.md`.
 
-| Amal | Maqsad | Natija (to'rt holat) | Holat |
+| Operation | Target | Result (four cases) | Status |
 |---|---|---|:---:|
-| Eksport JSON (indent 2) | ≥ 50 MB/s, RAM < 300 MB | 147; 84.5; 118; 101 MB/s; RAM 73–135 MB | ✅ |
-| Eksport JSON Lines | ≥ 50 MB/s, RAM < 300 MB | 227; 105; 139; 115 MB/s; RAM 91–126 MB | ✅ |
-| Eksport CSV (9 ta skalyar ustun; 4 ta ishchi jarayon) | ≥ 50 MB/s, RAM < 300 MB | 231; 187; 199; 186 MB/s; RAM 222–244 MB | ✅ |
-| Boshqacha saqlash (Save As) | ≥ 50 MB/s, RAM < 300 MB | 458; 111; 272; 309 MB/s; RAM 57–111 MB | ✅ |
-| Ommaviy amal ko'rib chiqishi, 6.5 mln yozuvning hammasi: set_field, replace, rename_key, delete_field, convert_type | ≥ 50 MB/s, dastur < 500 MB | 102–151 MB/s; RAM 294–303 MB | ✅ |
-| … clean_strings (hech narsa o'zgarmaydi) / dedupe (id bo'yicha) | dastur < 500 MB | 193 / 162 MB/s; RAM 234 / 238 MB | ✅ |
-| JSON Patch eksporti / importi (yangi sessiyaga), hamma yozuv o'zgargan — 6.5 mln amal | dastur < 500 MB | 18.4 s (121 MB/s) / 132 s (49 197 amal/s); RAM 358 / 422 MB | ✅ |
-| Ochish + qatlamni tiklash (keshdagi indeks): 100 tahrir; hamma yozuv o'zgargan | — | 22 ms; 423 ms | — |
-| Undo / redo (hamma yozuv o'zgargan holatda) | — | 6 / 3 ms | — |
-| Dasturning umumiy xotirasi (barcha tahrir amallari) | < 500 MB | 422 MB (JSON Patch importi, 6.5 mln amal) | ✅ |
+| Export JSON (indent 2) | ≥ 50 MB/s, RAM < 300 MB | 147; 84.5; 118; 101 MB/s; RAM 73–135 MB | ✅ |
+| Export JSON Lines | ≥ 50 MB/s, RAM < 300 MB | 227; 105; 139; 115 MB/s; RAM 91–126 MB | ✅ |
+| Export CSV (9 scalar columns; 4 worker processes) | ≥ 50 MB/s, RAM < 300 MB | 231; 187; 199; 186 MB/s; RAM 222–244 MB | ✅ |
+| Save As | ≥ 50 MB/s, RAM < 300 MB | 458; 111; 272; 309 MB/s; RAM 57–111 MB | ✅ |
+| Bulk operation preview, all 6.5 M records: set_field, replace, rename_key, delete_field, convert_type | ≥ 50 MB/s, program < 500 MB | 102–151 MB/s; RAM 294–303 MB | ✅ |
+| … clean_strings (nothing changes) / dedupe (by id) | program < 500 MB | 193 / 162 MB/s; RAM 234 / 238 MB | ✅ |
+| JSON Patch export / import (into a new session), every record changed — 6.5 M operations | program < 500 MB | 18.4 s (121 MB/s) / 132 s (49,197 operations/s); RAM 358 / 422 MB | ✅ |
+| Open + restore the layer (cached index): 100 edits; every record changed | — | 22 ms; 423 ms | — |
+| Undo / redo (with every record changed) | — | 6 / 3 ms | — |
+| Total memory of the program (all edit operations) | < 500 MB | 422 MB (JSON Patch import, 6.5 M operations) | ✅ |
 
-**Jadval eksportlari** (`export_latest.md`): CSV avtomatik ustunlar bilan — tahrirsiz 117 MB/s, tahrirlar bilan
-84–102 MB/s ✅; **XLSX** (9 ta ustun) 12.0 MB/s (hamma yozuv o'zgarganda 7.3 MB/s) va **SQLite** 16.4 MB/s (8.9 MB/s),
-RAM 138–159 MB — tezlik maqsadidan past ❌ (sabab va variantlar pastda).
+**Table exports** (`export_latest.md`): CSV with automatic columns — 117 MB/s without edits, 84–102 MB/s with edits ✅;
+**XLSX** (9 columns) 12.0 MB/s (7.3 MB/s with every record changed) and **SQLite** 16.4 MB/s (8.9 MB/s),
+RAM 138–159 MB — below the speed target ❌ (cause and options below).
 
 ### GUI
 
-Har o'lchov alohida jarayonda, haqiqiy oyna (`jsonreshape.gui.app.main`) bilan, Qt offscreen platformasida;
-«UI javob berishi» — GUI oqimidagi 5 ms taymer urishlari orasidagi eng uzun oraliq (foydalanuvchi bosgan tugma
-shuncha kutadi).
+Each measurement runs in a separate process, with the real window (`jsonreshape.gui.app.main`), on the Qt offscreen
+platform; "UI responsiveness" is the longest gap between 5 ms timer ticks in the GUI thread (a key the user pressed
+waits that long).
 
-| Amal | Maqsad | Natija | Holat |
+| Operation | Target | Result | Status |
 |---|---|---|:---:|
-| Jarayon ishga tushganidan daraxtda birinchi yozuvlar chizilguncha (2.1 GB; 5.4 GB; 3.3 GB JSONL) | < 1 s | 641; 627; 621 ms (`main()` dan: 463; 456; 457 ms) | ✅ |
-| To'liq indeks GUI ichida, UI javob berib turadi (2.1 GB; 5.4 GB; 3.3 GB JSONL) | ≥ 150 MB/s | 772; 749; 722 MB/s; UI max oraliq 7–10 ms | ✅ |
-| Skrollbarni oxiriga sakratish (6.5 mln; 16 mln; 10 mln qator) | — | 5.8; 5.6; 5.6 ms | — |
-| 1 000 000 bolali tugunni ochish | < 200 ms | birinchi marta 104 ms (bolalar indeksi 98 + chizish 6); qayta 3.0 ms | ✅ |
-| To'liq qidiruv (qidiruv paneli): kam uchraydigan so'z; «Toshkent» | ≥ 100 MB/s, birinchi natija < 1 s | 1 086 MB/s, 46 ms; 818 MB/s, 20 ms | ✅ |
-| Filtr 10 mln yozuvda (filtr paneli) | — | birinchi qisman natijalar 143 ms; hammasi 14.0 s (236 MB/s); UI max 12 ms | — |
-| 10 mln yozuvni `name` bo'yicha tartiblash (GUI orqali) | < 2 daqiqa, RAM < 1 GB | 17.2 s, peak RSS 470 MB; UI max 23 ms | ✅ |
-| Tartiblangan ko'rinishni JSONL'ga eksport (eksport oynasi) | ≥ 50 MB/s, RAM < 300 MB | 79.7 MB/s; xususiy xotira 127 MB (RSS 429 MB) | ✅ * |
-| 1 mln elementli tugunni matn panelida ko'rsatish | — | 0.78 s, RAM +78 MB | — |
-| Butun GUI sessiyasi, tartiblashsiz (ochish, indeks, skroll, jadval, qidiruv, filtr, tuzilma, matn, eksport) | < 500 MB | peak RSS 290 MB; tab yopilgach 147 MB (ochishdan oldin 116 MB) | ✅ |
+| From process start until the first records are drawn in the tree (2.1 GB; 5.4 GB; 3.3 GB JSONL) | < 1 s | 641; 627; 621 ms (from `main()`: 463; 456; 457 ms) | ✅ |
+| Full index inside the GUI, the UI stays responsive (2.1 GB; 5.4 GB; 3.3 GB JSONL) | ≥ 150 MB/s | 772; 749; 722 MB/s; UI max gap 7–10 ms | ✅ |
+| Jumping the scrollbar to the end (6.5 M; 16 M; 10 M rows) | — | 5.8; 5.6; 5.6 ms | — |
+| Opening a node with 1,000,000 children | < 200 ms | first time 104 ms (children index 98 + drawing 6); again 3.0 ms | ✅ |
+| Full search (search panel): rare word; "Toshkent" | ≥ 100 MB/s, first result < 1 s | 1,086 MB/s, 46 ms; 818 MB/s, 20 ms | ✅ |
+| Filter on 10 M records (filter panel) | — | first partial results 143 ms; all 14.0 s (236 MB/s); UI max 12 ms | — |
+| Sorting 10 M records by `name` (through the GUI) | < 2 minutes, RAM < 1 GB | 17.2 s, peak RSS 470 MB; UI max 23 ms | ✅ |
+| Exporting the sorted view to JSONL (export dialog) | ≥ 50 MB/s, RAM < 300 MB | 79.7 MB/s; private memory 127 MB (RSS 429 MB) | ✅ * |
+| Showing a node with 1 M elements in the text panel | — | 0.78 s, RAM +78 MB | — |
+| The whole GUI session, without sorting (open, index, scroll, table, search, filter, schema, text, export) | < 500 MB | peak RSS 290 MB; 147 MB after the tab is closed (116 MB before opening) | ✅ |
 
-\* 2026-10-18 qarori bo'yicha tartiblangan eksportning «RAM < 300 MB» maqsadi jarayonning xususiy xotirasi bilan
-o'lchanadi: RSS'ning qolgan qismi — tartib bo'yicha o'qilgan indeks (`.jri`, 160 MB) va RecordSet (`.u64`, 80 MB)
-fayllarining xotiraga proyeksiyalangan sahifalari (OS kerak bo'lsa darhol bo'shatadi). `gui_latest.md` jadvali RSS
-bo'yicha ❌ ko'rsatadi.
+\* Per the 2026-10-18 decision, the "RAM < 300 MB" target of the sorted export is measured by the process's private
+memory: the rest of the RSS is the memory-mapped pages of the index (`.jri`, 160 MB) and RecordSet (`.u64`, 80 MB)
+files read in sort order (the OS frees them immediately if needed). The `gui_latest.md` table shows ❌ based on RSS.
 
-Test 26 (`tests/test_gui_e2e.py::test_acceptance_26_the_whole_scenario`) haqiqiy oynada butun ssenariyni
-klaviatura va sichqoncha bilan bajaradi: faylni ochish, daraxtni ochish/yopish, qidiruv natijasidan tugunga o'tish,
-jadval sarlavhasi bilan tartiblash, Enter + yozish + Enter bilan tahrir, Ctrl+Z / Ctrl+Y, Ctrl+S (diskdagi fayl
-baytma-bayt tekshiriladi, `.bak` eski nusxa), eksport tugmasi, buyruqlar palitrasi (Ctrl+Shift+P, «saqlash», Enter)
-va `main()` qayta ishga tushirilganda sessiyaning tiklanishi.
+Test 26 (`tests/test_gui_e2e.py::test_acceptance_26_the_whole_scenario`) runs the whole scenario in the real window
+with the keyboard and mouse: opening the file, expanding/collapsing the tree, going from a search result to its node,
+sorting by a table header, editing with Enter + typing + Enter, Ctrl+Z / Ctrl+Y, Ctrl+S (the file on disk is checked
+byte for byte, `.bak` is the old copy), the export button, the command palette (Ctrl+Shift+P, typing "saqlash" — Uzbek for "save" — and Enter) and
+session restore when `main()` is started again.
 
-### Asboblar (5-bosqich; `jsonreshape <buyruq>`, 2.1 GB, 6.5 mln yozuv)
+### Tools (stage 5; `jsonreshape <command>`, 2.1 GB, 6.5 M records)
 
-§12 asboblar uchun faqat umumiy xotira maqsadini qo'yadi; tezlik — buyruqning indeksdan keyingi qismi (indeks
-2.6–2.7 s, ikki faylli buyruqlarda 5.5 s).
+§12 sets only the overall memory target for the tools; speed is the part of the command after the index (index
+2.6–2.7 s, 5.5 s for two-file commands).
 
-| Amal | Maqsad | Natija | Holat |
+| Operation | Target | Result | Status |
 |---|---|---|:---:|
-| Statistika: 1 maydon; 4 maydon; aniq hisoblash (4.6 mln xil qiymat) | dastur < 500 MB | 556; 124; 108 MB/s; RAM 81; 105; 197 MB | ✅ |
-| Takroriy yozuvlar (`--key contact.phone`, 1.5 mln guruh) | dastur < 500 MB | 170 MB/s; RAM 263 MB | ✅ |
-| JSON Schema: barcha yozuvlardan yaratish; tekshirish | dastur < 500 MB | 42.5; 74.0 MB/s; RAM 81 MB | ✅ |
-| Bo'lish 4 qismga: bayt nusxa; JSON Lines'ga | dastur < 500 MB | 758; 288 MB/s; RAM 65; 102 MB | ✅ |
-| Birlashtirish, `--dedupe-by id` (2 × 2.1 GB) | dastur < 500 MB | 117 MB/s; RAM 264 MB | ✅ |
-| Ajratish (`--gather "orders[*]"`, 9.8 mln qiymat) | dastur < 500 MB | 383 MB/s; RAM 87 MB | ✅ |
-| Ta'mirlash: buzilmagan fayl; 1 % yozuv buzilgan (78 160 tuzatish) | dastur < 500 MB | 335; 217 MB/s; RAM 102; 69 MB | ✅ |
-| Taqqoslash: kalit bo'yicha; o'rin bo'yicha; mazmun bo'yicha tekislab (2 × 190 MiB) | dastur < 500 MB | 99.6; 203; 178 MB/s; RAM 402; 97; 169 MB | ✅ |
+| Statistics: 1 field; 4 fields; exact count (4.6 M distinct values) | program < 500 MB | 556; 124; 108 MB/s; RAM 81; 105; 197 MB | ✅ |
+| Duplicates (`--key contact.phone`, 1.5 M groups) | program < 500 MB | 170 MB/s; RAM 263 MB | ✅ |
+| JSON Schema: generate from all records; validate | program < 500 MB | 42.5; 74.0 MB/s; RAM 81 MB | ✅ |
+| Split into 4 parts: byte copy; to JSON Lines | program < 500 MB | 758; 288 MB/s; RAM 65; 102 MB | ✅ |
+| Merge, `--dedupe-by id` (2 × 2.1 GB) | program < 500 MB | 117 MB/s; RAM 264 MB | ✅ |
+| Extract (`--gather "orders[*]"`, 9.8 M values) | program < 500 MB | 383 MB/s; RAM 87 MB | ✅ |
+| Repair: an intact file; 1 % of records broken (78,160 fixes) | program < 500 MB | 335; 217 MB/s; RAM 102; 69 MB | ✅ |
+| Compare: by key; by position; aligned by content (2 × 190 MiB) | program < 500 MB | 99.6; 203; 178 MB/s; RAM 402; 97; 169 MB | ✅ |
 
-### Maqsadga yetilmagan joylar va variantlar
+### Targets not met and options
 
-* **XLSX eksporti** 12.0 MB/s (hamma yozuv o'zgarganda 7.3 MB/s) va **SQLite eksporti** 16.4 MB/s (8.9 MB/s) — maqsad
-  ≥ 50 MB/s; xotira maqsad ichida (138–159 MB). Sabab: XLSX kataklarini `xlsxwriter` bitta oqimda XML'ga yozadi
-  (cProfile bo'yicha vaqtning ~80 %; qiymatlarni tayyorlash allaqachon ishchi jarayonlarda), SQLite'ga yozuvlar ikki
-  o'tishda Python'da jadvallarga bo'linib, bitta oqimda kiritiladi. Variantlar: 1) o'z XLSX yozuvchimiz — varaq
-  XML'i ishchi jarayonlarda, zip alohida oqimda (qaror 39); 2) SQLite uchun map'larni topish va qatorlarni
-  tayyorlashni ishchi jarayonlarga o'tkazish; hozircha katta jadvallar uchun CSV (100–250 MB/s).
-* **Mapping bitta jarayonda** (`--workers 1`): `apply` 47.5 MB/s, `flatten` 46.0 MB/s — maqsadga yaqin, lekin
-  past. Standart rejimda 64 MB dan katta fayl parallel qayta ishlanadi (yuqoridagi jadval). Variant: mapping
-  qoidalarini Rust yadroda bajarish.
-* 6-bosqichda yopilganlar: CSV avtomatik ustunlar bilan (26 → 105 MB/s), tahrirli CSV eksporti (28–41 → 186–231
-  MB/s), mapping bilan eksportning xotirasi (avtomatik 4 ta ishchi jarayon bilan 321–355 MB → 3 ta bilan
-  258–299 MB; mapping faylini o'qishdagi 134 MB'lik sakrash olib tashlandi).
+* **XLSX export** 12.0 MB/s (7.3 MB/s with every record changed) and **SQLite export** 16.4 MB/s (8.9 MB/s) — the
+  target is ≥ 50 MB/s; memory is within the target (138–159 MB). Cause: `xlsxwriter` writes the XLSX cells to XML in a
+  single thread (~80 % of the time according to cProfile; preparing the values already runs in worker processes); for
+  SQLite, the records are split into tables in Python in two passes and inserted in a single thread. Options: 1) our
+  own XLSX writer — the sheet XML in worker processes, the zip in a separate thread (decision 39); 2) for SQLite, move
+  finding the maps and preparing the rows into worker processes; for now, use CSV for large tables (100–250 MB/s).
+* **Mapping in a single process** (`--workers 1`): `apply` 47.5 MB/s, `flatten` 46.0 MB/s — close to the target, but
+  below it. In the default mode a file larger than 64 MB is processed in parallel (the table above). Option: run the
+  mapping rules in the Rust core.
+* Closed in stage 6: CSV with automatic columns (26 → 105 MB/s), CSV export with edits (28–41 → 186–231 MB/s), the
+  memory of export with a mapping (321–355 MB with 4 automatic worker processes → 258–299 MB with 3; the 134 MB jump
+  when reading the mapping file was removed).
 
 <a id="qarorlar"></a>
-## 15. Qabul qilingan qarorlar va ochiq savollar
+## 15. Decisions and open questions
 
-### Qabul qilingan qarorlar (o'zgartirish mumkin)
+### Decisions made (can be changed)
 
-1. **Yozuv raqamlari 0 dan** boshlanadi (`#0` — birinchi yozuv, `$index`), JSON massiv indekslari bilan bir xil.
-2. **`keyed` format**: yozuv = yuqori darajadagi a'zo; filtr, tartib va qidiruv yo'llari qiymatga nisbatan,
-   a'zoning kaliti `$key`. JSON'ga eksportda kalitli obyekt saqlanadi, JSONL'da esa `{"kalit": qiymat}` qatorlari;
-   bu qatorlardan kalitli obyekt `--as-keyed` bilan qayta tiklanadi.
-3. **Format aniqlash** evristik (4-bo'lim); noto'g'ri bo'lsa `--format` / `--record-path` bilan tuzatiladi.
-   `inspect` topilgan barcha massiv yo'llarini ko'rsatadi.
-4. **O'zbek kollatsiyasi** (standart): rasmiy alifbo tartibi — `oʻ gʻ sh ch ng` alohida harflar, `z` dan
-   keyin; lotin harflari kirilldan oldin; katta-kichik harf ikkinchi darajada; raqamlar "tabiiy" tartibda.
-5. **Aralash turlarni tartiblash**: sonlar < satrlar < mantiqiy < massivlar < obyektlar (massiv va obyektlar
-   ixcham JSON matni bo'yicha); `null` va yo'q qiymatlar standart bo'yicha oxirida.
-6. **Filtr semantikasi**: massiv yo'llari "kamida bittasi"; `!=` = `not (==)`; turlar majburan
-   o'zgartirilmaydi; `is null` — maydon bor va `null`; sonlar aniq qiymat bo'yicha.
-7. **Qidiruv**: apostrof variantlari doim teng; sonlar, `true/false/null` ham JSON matni bo'yicha qidiriladi;
-   `--number` faqat sonlarga qo'llanadi.
-8. **Raqamlar**: JSON/JSONL'da baytma-bayt; XLSX'da 15 dan ortiq ma'noli raqamli sonlar matn; SQLite'da
-   aniq saqlanmaydiganlari `TEXT` (har biri ogohlantirish bilan).
-9. **CSV**: UTF-8 BOM bilan va `\r\n` qator oxiri (Excel uchun qulay; `--no-bom`).
-10. **`--sort-keys`** standart bo'yicha alifbo (o'zbek) tartibida; `--sort-keys codepoint` — kod nuqtasi tartibi.
-11. **Ulkan yozuvlar** (> 50 MB) ijson oqimi bilan ishlanadi; faqat shu yozuvlarda `-0` → `0` va eksponent
-    ko'rinishi (`1e400` → `1E+400`) farq qilishi mumkin (qiymat bir xil).
-12. **Kirish fayli o'zgarsa** — natija saqlanmaydi (kod 2); faqat oxiriga qo'shilsa — ochilgan paytdagi holat
-    ishlatiladi va ogohlantirish chiqadi.
-13. **GUI ro'yxatlari o'zimizning virtual vidjetimiz** (`gui/vgrid.py`): Qt'ning tayyor jadval/daraxtlari har
-    qator uchun xotira oladi va 2³¹ dan ortiq qatorni ko'tarmaydi.
-14. **GUI'da Python chiqindi yig'uvchisi faqat GUI oqimida** ishlaydi va GIL almashish oralig'i 0.5 ms —
-    ko'rib chiqishda topilgan qulash (fon oqimidagi GC Qt obyektini yo'q qilishi) va "qotishlar" shu bilan
-    tuzatildi. Og'ir fon vazifalari (filtr, tartib, eksport, to'liq tuzilma) bir vaqtda ko'pi bilan 2 ta,
-    qolganlari navbatda kutadi.
-15. **Matn ko'rinishi** 4 MB gacha chiroyli matn ko'rsatadi (Qt hujjati matndan ~20 baravar ko'p xotira oladi);
-    kattaroq tugunlar uchun boshi va «Xom ko'rinishda ochish».
-16. **Qidiruv natijasi ochilgan bo'lsa** filtr va tartib o'sha yozuvlar ustida ishlaydi; filtr/tartib hali
-    ishlayotganda to'liq qidiruv boshlanmaydi (natija yarim ko'rinish bo'yicha bo'lib qolmasligi uchun).
-17. **Eksport fonda** ishlaydi va dialog yopilsa ham, fayl qayta ochilsa ham oxirigacha davom etadi.
+1. **Record numbers start at 0** (`#0` is the first record, `$index`), the same as JSON array indexes.
+2. **`keyed` format**: a record = a top-level member; filter, sort and search paths are relative to the value, and
+   the member's key is `$key`. Export to JSON keeps the keyed object, while JSONL gets `{"key": value}` lines;
+   the keyed object is rebuilt from these lines with `--as-keyed`.
+3. **Format detection** is heuristic (section 4); if it is wrong, correct it with `--format` / `--record-path`.
+   `inspect` shows all the array paths it found.
+4. **Uzbek collation** (default): the official alphabet order — `oʻ gʻ sh ch ng` are separate letters, after
+   `z`; Latin letters before Cyrillic; case is a secondary level; numbers in "natural" order.
+5. **Sorting mixed types**: numbers < strings < booleans < arrays < objects (arrays and objects by their compact
+   JSON text); `null` and missing values come last by default.
+6. **Filter semantics**: array paths mean "at least one"; `!=` = `not (==)`; types are not coerced;
+   `is null` — the field exists and is `null`; numbers are compared by exact value.
+7. **Search**: apostrophe variants are always equal; numbers and `true/false/null` are also searched by their JSON
+   text; `--number` applies only to numbers.
+8. **Numbers**: byte for byte in JSON/JSONL; in XLSX, numbers with more than 15 significant digits become text; in
+   SQLite, those that cannot be stored exactly become `TEXT` (each with a warning).
+9. **CSV**: with a UTF-8 BOM and `\r\n` line endings (convenient for Excel; `--no-bom`).
+10. **`--sort-keys`** uses alphabetical (Uzbek) order by default; `--sort-keys codepoint` — code point order.
+11. **Huge records** (> 50 MB) are processed with an ijson stream; only in these records `-0` → `0` and the
+    exponent form (`1e400` → `1E+400`) may differ (the value is the same).
+12. **If the input file changes**, the result is not saved (code 2); if it is only appended to, the state at the
+    time it was opened is used and a warning is shown.
+13. **GUI lists are our own virtual widget** (`gui/vgrid.py`): Qt's ready-made tables/trees take memory for every
+    row and cannot handle more than 2³¹ rows.
+14. **In the GUI the Python garbage collector runs only in the GUI thread** and the GIL switch interval is 0.5 ms —
+    this fixed the crash found in review (GC in a background thread destroying a Qt object) and the "freezes".
+    Heavy background tasks (filter, sort, export, full schema) run at most 2 at a time; the rest wait in a
+    queue.
+15. **The text view** shows pretty text up to 4 MB (a Qt document takes ~20 times more memory than the text); for
+    larger nodes, the beginning and **Open in the raw view**.
+16. **If a search result is open**, filter and sort work on those records; a full search does not start while a
+    filter/sort is still running (so that the result is not based on a half-built view).
+17. **Export runs in the background** and continues to the end even if the dialog is closed or the file is reopened.
 
-**3-bosqich — tahrirlash**
+**Stage 3 — editing**
 
-18. **Tahrir qatlami** dastur papkasida: `%LOCALAPPDATA%\jsonreshape\edits\` (har doim yozsa bo'ladi); sozlamada
-    «fayl yonida» (`fayl.json.jredit\`) tanlovi bor — u yerga yozib bo'lmasa, dastur papkasi ishlatiladi va aytiladi.
-19. **`.bak` zaxira standart bo'yicha yoqilgan.** U qattiq havola (hard link) bilan bir zumda yaratiladi; diskda
-    eski va yangi nusxa birga turadi (har qanday atomik saqlashdagi kabi). Sozlamada o'chiriladi.
-20. **Enter = tahrirlash** (ochish/yopish → va ← da qoladi); xatcho'p **Ctrl+B** ga ko'chdi, Ctrl+D — «nusxasini
-    qo'shish» (AGENT_PROMPT §8.1).
-21. **Tashqi yozuv raqamlari = tahrirlangan hujjatdagi o'rin** (`#0..N-1`, zich); qatlam ichida yozuvlarning
-    o'zgarmas identifikatorlari bor. Qo'shish/o'chirish/surishdan keyin filtr, tartib, qidiruv natijalari va
-    tanlov yangi o'rinlarga o'tkaziladi.
-22. **Ommaviy amal natijasi «Ko'rib chiqish» paytida hisoblanadi** va «Qo'llash» aynan o'sha natijani qatlamga
-    qo'shadi (AGENT_PROMPT §8.3 dagi «saqlashda qo'llanadi» o'rniga): oldindan sanalgan son qo'llangan o'zgarish
-    bilan doim teng (test 20), ko'rinishlar, qidiruv va filtr natijani darhol ko'radi. Narxi: diskda ≈ o'zgargan
-    yozuvlar hajmi (bo'sh joy oldindan tekshiriladi).
-23. **Saqlash faylning o'z turi, kodirovkasi va siqilishini saqlaydi**; `brace_list` (`{...},{...}`) JSON massiv
-    bo'lib saqlanadi, JSONL'dagi buzuq qatorlar olib tashlanadi, zaxirasiz saqlashda gzip oxiridagi ortiqcha
-    ma'lumot tashlab yuboriladi — har biri avval so'raladi.
-24. **Uzilgan saqlashni yakunlash dalilga asoslanadi** (fayl identifikatori NTFS/ReFS'da, o'zgarish vaqti, hajm,
-    hash'lar); qaror aniq bo'lmasa — «ziddiyat»: hech narsa o'chirilmaydi, tegishli fayllar nomma-nom aytiladi.
-25. **50 MB dan katta bitta yozuv tahrirlanmaydi** (xotirada tahrirlab bo'lmaydi); bunday bitta hujjat yoki
-    o'rama faqat o'qish uchun. Ommaviy amallar bunday yozuvlarni o'tkazib yuborib sanaydi.
-26. **Kutilgan foydalanuvchi xatolari** (mavjud kalit, mumkin bo'lmagan tur o'zgartirish, buferdagi noto'g'ri JSON)
-    xato oynasida emas, tahrir maydonida yoki holat qatorida aytiladi; xato oynasi — haqiqiy nosozliklar uchun.
+18. **The edit layer** is in the app folder: `%LOCALAPPDATA%\jsonreshape\edits\` (always writable); the settings
+    have a **Next to the file** option (`file.json.jredit\`) — if that place is not writable, the app folder is used
+    and the user is told.
+19. **The `.bak` backup is on by default.** It is created instantly with a hard link; the old and the new copy
+    coexist on disk (as with any atomic save). It can be turned off in the settings.
+20. **Enter = edit** (expand/collapse stays on → and ←); bookmark moved to **Ctrl+B**, Ctrl+D is **Duplicate**
+    (AGENT_PROMPT §8.1).
+21. **External record numbers = the position in the edited document** (`#0..N-1`, dense); inside the layer the
+    records have immutable identifiers. After insert/delete/move, the filter, sort and search results and the
+    selection are moved to the new positions.
+22. **A bulk operation's result is computed during "Preview"** and "Apply" adds exactly that result to the layer
+    (instead of "applied on save" in AGENT_PROMPT §8.3): the count shown in advance always equals the applied change
+    (test 20), and the views, search and filter see the result immediately. The cost: on disk ≈ the size of the
+    changed records (free space is checked in advance).
+23. **Save keeps the file's own type, encoding and compression**; `brace_list` (`{...},{...}`) is saved as a JSON
+    array, broken lines in JSONL are dropped, and on a save without a backup the extra data after the end of the gzip
+    stream is discarded — each of these is asked first.
+24. **Finishing an interrupted save is evidence-based** (the file identifier on NTFS/ReFS, modification time, size,
+    hashes); if the decision is not clear — "conflict": nothing is deleted, and the files involved are named one by
+    one.
+25. **A single record larger than 50 MB is not editable** (it cannot be edited in memory); such a single document or
+    wrapper is read-only. Bulk operations skip such records and count them.
+26. **Expected user errors** (an existing key, an impossible type conversion, invalid JSON in the clipboard) are
+    reported in the edit field or the status bar, not in an error window; the error window is for real failures.
 
-**4-bosqich — tuzilma quruvchi**
+**Stage 4 — structure builder**
 
-27. **Semantika `json-tuzilma.html` etaloni bilan aynan bir xil** (bog'lash, yig'ish, takrorlash, «yo'q» ≠ `null`,
-    kalit to'qnashuvida `_2`, `_3`, `_depth` qoidalari, har bir amalning shartlari va xabarlari). Ataylab farqlar
-    (JavaScript cheklovlari): sonlar aniq, kalitlar tartibi saqlanadi, redo bor, tarix 1000 qadam, yozuv raqamlari 0
-    dan.
-28. **Kalitli fayllar** (millionlab kalitli obyekt) har bir a'zo bo'yicha qayta quriladi (etalon har kalitga alohida
-    tugun yaratadi — bu katta faylda ishlamaydi); natijada kalitlar tartib bilan saqlanadi.
-29. **Tuzilma namunadan** (standart 10 000 yozuv) yoki «To'liq skanerlash» bilan quriladi; namunada uchramagan
-    maydonlar natijaga tushmaydi (etalon qoidasi) — `apply` hisobotida bunday yozuvlar soni aytiladi.
-30. **Qo'llash tezligi**: 64 MB dan katta fayllar parallel jarayonlarda (`--workers`), natija tartib bilan yoziladi.
+27. **The semantics are exactly the same as the `json-tuzilma.html` reference** (binding, gather, broadcast,
+    "missing" ≠ `null`, `_2`, `_3` on key collisions, the `_depth` rules, the conditions and messages of every
+    operation). Deliberate differences (JavaScript limitations): numbers are exact, key order is kept, there is
+    redo, the history is 1,000 steps, record numbers start at 0.
+28. **Keyed files** (millions of keyed objects) are rebuilt member by member (the reference creates a separate node
+    for each key — that does not work on a large file); the keys are kept in order in the result.
+29. **The structure is built from a sample** (10,000 records by default) or with "Full scan"; fields not seen in the
+    sample do not get into the result (the reference's rule) — the `apply` report gives the number of such records.
+30. **Apply speed**: files larger than 64 MB are processed in parallel processes (`--workers`), and the result is
+    written in order.
 
-**5-bosqich — asboblar**
+**Stage 5 — tools**
 
-31. **Statistika**: xotira byudjeti ichida aniq hisob, oshsa noyob qiymatlar soni HyperLogLog (p=14, ±0,8 %),
-    eng ko'p uchraydiganlar Misra–Gries bilan — «≈» belgisi va xatolik chegarasi bilan; «Aniq hisoblash» /
-    `--exact` diskka chiqarib aniq sanaydi. Panelning standart doirasi — joriy ko'rinish.
-32. **JSON Schema**: o'zimizning draft 2020-12 tekshiruvchimiz (aniq sonlar, ECMA-262 regex, tarmoqsiz,
-    `jsonschema` paketidan ~10 baravar tez); `$dynamicRef`, masofaviy `$ref`, maxsus `$vocabulary` aniq xato bilan
-    rad etiladi (jimgina e'tiborsiz qoldirilmaydi). Rasmiy JSON-Schema-Test-Suite — muvofiqlik testi. Yaratilgan
-    schema standart bo'yicha yumshoq; qat'iy cheklovlar (min/max, enum, `additionalProperties: false`, formatlar) —
-    `--strict` bilan.
-33. **Yangi chiqish kodi 5** = «ma'lumot mos emas» (`validate` xato topdi, `diff --exit-code` farq topdi);
-    0–4 ma'nosi o'zgarmadi.
-34. **Bo'lish (split)** har qismda tur, kodirovka, siqilish va o'ramani saqlaydi (`--no-wrapper` — o'ramasiz);
-    `--parts N` hajm bo'yicha teng bo'ladi (`--balance records` — yozuvlar soni bo'yicha); `--size` ikkilik
-    birliklarda (`500MB` = 500 MiB); nomlar `<nom>_<k><kengaytma>` (`k` 1 dan, N ning xonalari soniga qadar nol
-    bilan); hammasi yoki hech narsa (bittasi yozilmasa, eski qismlar tegilmaydi); JSON xatosi bor fayl bo'linmaydi
-    (avval ta'mirlang).
-35. **Birlashtirish (merge)** yozuvchi orqali (qayta formatlanadi, aniq tokenlar): obyekt ildiz — faqat hamma
-    kirishlar kalitli bo'lsa; birinchi kirishning o'ramasi saqlanadi; `--dedupe-by KEY` (`$` — butun yozuv,
-    `$key` — a'zo kaliti), standart bo'yicha birinchisi qoladi.
-36. **Ta'mirlash** hech qachon joyida emas; NaN/Infinity → `null` (`--nan string` — matn); vergul faqat o'zi
-    chegaralangan tokenlar orasida qo'shiladi; qo'shtirnoqsiz kalitlar, Python literallari (`True`, `None`,
-    `'...'`), `undefined` tuzatiladi; qo'shtirnoqsiz satr qiymatlari va mos kelmagan yopuvchi qavslar
-    tuzatilmaydi; noto'g'ri UTF-8 → U+FFFD (1000 tadan oshsa to'xtaydi); natija turi kirish turi bilan bir xil
-    (`brace_list`/oqim → massiv, JSONL — JSONL); tuzatib bo'lmasa hech narsa yozilmaydi (`--allow-partial` —
-    xatogacha bo'lgan qism, tashlab yuborilgani hisobotda).
-37. **Taqqoslash (diff)**: kanonik tenglik — sonlar aniq qiymat bo'yicha (`1` = `1.0`), kalitlar tartibi e'tiborga
-    olinmaydi (`--numbers text` — yozilishi bo'yicha); massivlar standart bo'yicha mazmun bo'yicha tekislanadi (yoki
-    indeks, yoki element kaliti bo'yicha — ko'chishlar bilan); `diff_align_max_bytes` (200 MB) gacha fayllar
-    kalitsiz to'liq taqqoslanadi, kattaroqlariga `--key` (har qanday hajm) yoki `--by-position` kerak; takroriy
-    kalitlar i-chisi i-chisi bilan juftlanadi va ogohlantiriladi.
-38. **«Aqlli» qiymatlar**: unix soniya/millisekund va ISO sanalar Toshkent vaqtida (qat'iy UTC+05:00 — 1992 dan
-    beri aniq, yozgi vaqt yo'q; `tzdata` qo'shilmadi; eski sanalar uchun izohda aytiladi); URL'lar faqat «Brauzerda
-    ochilsinmi?» tasdig'idan keyin ochiladi — dasturning o'zi tarmoqqa hech narsa yubormaydi; `#rgb` / `#rrggbb`
-    ranglar namunasi; base64 rasmlar (PNG/JPEG/GIF/WebP) to'liq qiymat oynasida kichik rasm sifatida.
-39. **XLSX** eksporti `xlsxwriter` bilan qoldi (~11 MB/s; qiymatlar parallel jarayonlarda tayyorlanadi, kataklarni
-    `xlsxwriter` bitta oqimda yozadi); tezroq o'z yozuvchimiz — keyinroq ixtiyoriy.
+31. **Statistics**: exact counting within the memory budget; when it is exceeded, distinct value counts use
+    HyperLogLog (p=14, ±0.8 %) and the most frequent values use Misra–Gries — with the "≈" sign and the error bound;
+    "Exact count" / `--exact` counts exactly by spilling to disk. The panel's default scope is the current view.
+32. **JSON Schema**: our own draft 2020-12 validator (exact numbers, ECMA-262 regex, no network, ~10 times faster
+    than the `jsonschema` package); `$dynamicRef`, remote `$ref` and custom `$vocabulary` are rejected with a clear
+    error (not silently ignored). The official JSON-Schema-Test-Suite is the conformance test. A generated schema is
+    lenient by default; strict constraints (min/max, enum, `additionalProperties: false`, formats) come with
+    `--strict`.
+33. **New exit code 5** = "data does not match" (`validate` found errors, `diff --exit-code` found differences);
+    the meaning of 0–4 has not changed.
+34. **Split** keeps the type, encoding, compression and wrapper in each part (`--no-wrapper` — without the wrapper);
+    `--parts N` splits into equal sizes (`--balance records` — by record count); `--size` is in binary units
+    (`500MB` = 500 MiB); the names are `<name>_<k><ext>` (`k` from 1, zero-padded to the number of digits of
+    N); all or nothing (if one part cannot be written, the old parts are not touched); a file with a JSON error is not
+    split (repair it first).
+35. **Merge** goes through the writer (reformatted, exact tokens): an object root only if all the inputs are keyed;
+    the wrapper of the first input is kept; `--dedupe-by KEY` (`$` — the whole record, `$key` — the member key), by
+    default the first one is kept.
+36. **Repair** is never in place; NaN/Infinity → `null` (`--nan string` — as text); a comma is inserted only between
+    self-delimiting tokens; unquoted keys, Python literals (`True`, `None`, `'...'`) and `undefined` are fixed;
+    unquoted string values and mismatched closing brackets are not fixed; invalid UTF-8 → U+FFFD (it stops after
+    more than 1,000); the result type is the same as the input type (`brace_list`/stream → array, JSONL — JSONL);
+    if the file cannot be repaired, nothing is written (`--allow-partial` — the part up to the error, with what was
+    dropped listed in the report).
+37. **Compare (diff)**: canonical equality — numbers by exact value (`1` = `1.0`), key order is ignored
+    (`--numbers text` — by spelling); arrays are aligned by content by default (or by index, or by element key —
+    with moves); files up to `diff_align_max_bytes` (200 MB) are compared fully without a key, larger ones need
+    `--key` (any size) or `--by-position`; duplicate keys are paired i-th with i-th, with a warning.
+38. **"Smart" values**: unix seconds/milliseconds and ISO dates in Tashkent time (fixed UTC+05:00 — exact since
+    1992, no daylight saving time; `tzdata` was not added; the tooltip says so for older dates); URLs are opened only
+    after the "Open in the browser?" confirmation — the program itself sends nothing to the network; `#rgb` /
+    `#rrggbb` color swatches; base64 images (PNG/JPEG/GIF/WebP) as a thumbnail in the full-value window.
+39. **XLSX** export stays with `xlsxwriter` (~11 MB/s; the values are prepared in parallel processes, and
+    `xlsxwriter` writes the cells in a single thread); a faster writer of our own is optional, later.
 
-**6-bosqich — silliqlash**
+**Stage 6 — polish**
 
-40. **Parallel jarayonlar avtomatik**: 64 MB dan katta ishlarda mapping qo'llash, ommaviy amal ko'rib chiqishi, JSON
-    Patch eksporti, CSV/XLSX qatorlari va ustunlarni aniqlash bir nechta jarayonda bajariladi (xotira chegarasiga
-    qarab; standart 512 MiB bilan mapping qo'llashda 3 ta — butun dastur 300 MB dan kam qolishi uchun, qolganlarida
-    4 ta), natija tartib bilan va bitta oqimdagi bilan baytma-bayt bir xil; `.exe` ichida ham. `--workers N` bilan
-    o'zgartiriladi.
-41. **Buyruqlar palitrasi** menyulardan avtomatik yig'iladi (yangi buyruqlar o'z-o'zidan qo'shiladi); qidiruv lotin /
-    kirill / apostroflarga sezgir emas.
-42. **Tugmalar** faqat oyna darajasidagi buyruqlar uchun o'zgartiriladi; daraxt va jadvalning o'z tugmalari qat'iy
-    (ular ko'rinishlarning tugma ishlovchilarida); bitta buyruqqa bitta tugmalar birikmasi (Ctrl+K, Ctrl+S kabi
-    ketma-ketliklar yo'q).
-43. **Sessiya** standart bo'yicha har doim tiklanadi (fayl berilmasa); qidiruv natijasi ko'rinishi tiklanmaydi (so'rov
-    tiklanadi); daraxtdagi faqat-ko'rinish tartiblari va panel o'lchamlari saqlanmaydi.
-44. **Workspace** tahrir qatlamini ko'chirmaydi (saqlanmagan o'zgarishlar faylning o'z tiklash paneli orqali
-    taklif qilinadi); yo'llar nisbiy va mutlaq ko'rinishda saqlanadi.
-45. **«Open with»** faqat joriy foydalanuvchi uchun va standart dasturni o'zgartirmaydi (Windows buni jimgina qilishga
-    ruxsat bermaydi; foydalanuvchi o'zi tanlaydi).
-46. **`.exe` — bitta papka** (onedir): bitta fayl (onefile) har ishga tushishda ~150 MB ni vaqtinchalik papkaga
-    ochadi va sekin ishga tushadi.
+40. **Parallel processes are automatic**: for jobs larger than 64 MB, mapping apply, bulk operation preview, JSON
+    Patch export, CSV/XLSX rows and column detection run in several processes (depending on the memory limit; with
+    the default 512 MiB, 3 for mapping apply — so that the whole program stays under 300 MB — and 4 for the rest);
+    the result is in order and byte-for-byte identical to the single-threaded one; inside the `.exe` too. Changed
+    with `--workers N`.
+41. **The command palette** is collected automatically from the menus (new commands are added by themselves); its
+    search is insensitive to Latin / Cyrillic / apostrophes.
+42. **Shortcuts** can be changed only for window-level commands; the tree's and the table's own keys are fixed
+    (they live in the views' key handlers); one key combination per command (no sequences such as Ctrl+K, Ctrl+S).
+43. **The session** is always restored by default (when no file is given); a search result view is not restored
+    (the query is); view-only sorts in the tree and panel sizes are not saved.
+44. **A workspace** does not carry the edit layer (unsaved changes are offered through the file's own recovery
+    panel); paths are saved in both relative and absolute form.
+45. **"Open with"** is only for the current user and does not change the default program (Windows does not allow
+    doing that silently; the user chooses).
+46. **The `.exe` is one folder** (onedir): a single file (onefile) unpacks ~150 MB into a temporary folder on every
+    start and starts slowly.
 
-### Ma'lum cheklovlar
+### Known limitations
 
-* gzip va UTF-16 fayllar birinchi yozuv ko'rinishidan oldin to'liq UTF-8 nusxaga o'giriladi (oqim bilan,
-  xotira cheklangan; 200 MB ~0.5 s).
-* Fayl dasturda ochiq turganda boshqa dastur uni `MoveFileEx`/`os.replace` bilan **ustidan almashtira olmaydi**
-  (Windows qoidasi); oddiy yozish, qo'shish, nomini o'zgartirish va o'chirish ishlaydi va aniqlanadi.
-* Hajmi va mtime'i saqlangan, faqat hash qilinmagan o'rta baytlarga tegadigan tahrir keshdagi indeks bilan
-  sezilmasligi mumkin (`--no-cache` bilan qayta indekslang).
-* Bitta juda uzun satr qiymati (yuzlab MB) tekshirilayotganda xotirada ~2 baravar joy oladi.
-* Tahrirlash: 50 MB dan katta bitta yozuv va JSON xatosi bor (qisman ochilgan) fayl faqat o'qish uchun; bitta
-  faylning saqlanmagan o'zgarishlari boshqa yozilishdagi yo'l (masalan, qisqa 8.3 nom) bilan ochilganda tiklash
-  uchun taklif qilinmaydi (tahrir esa baribir bir vaqtda faqat bitta joyda mumkin).
-* Tugunni bo'lish yoki tugunni CSV/XLSX/SQLite'ga eksport tahrirlangan va JSONL/oqim fayllarda mumkin emas (avval
-  saqlang); qolgan formatlar va doiralar ishlaydi.
-* `diff --ignore-order` kalitsiz ishlatilganda yozuvlar butun qiymati bo'yicha juftlanadi va bunda massivlar
-  tartibi hisobga olinadi — faqat massiv tartibi farq qiladigan yozuvlar uchun `--key` kerak.
-* Ta'mirlash xatolar zich fayllarda sekinroq (har tuzatish aniq joyi va bekor qilish ma'lumoti bilan yoziladi):
-  1 % buzuq yozuv ~185 MB/s, 10 % ~47 MB/s, JSON5 uslubi ~35 MB/s, hamma satrlar bitta tirnoqda ~2 MB/s.
-* XLSX (~11 MB/s) va SQLite (~15–17 MB/s) eksporti 50 MB/s dan sekin: XLSX kataklarini `xlsxwriter` bitta oqimda
-  yozadi, SQLite'ga yozuvlar bitta oqimda kiritiladi (variantlar 14-bo'limda). CSV, JSON va JSONL maqsaddan tez.
-* Sessiya va workspace daraxtdagi faqat-ko'rinish tartiblarini, panel o'lchamlarini va tab yo'nalishini saqlamaydi.
-* GUI tilini almashtirish to'liq kuchga dastur qayta ishga tushirilgandan keyin kiradi (ochiq oynalardagi
-  ba'zi matnlar eski tilda qoladi; sozlamalar oynasi buni aytadi).
-* Tezkor qidiruv (Ctrl+F) faqat yuklangan qismda qidiradi (talab bo'yicha); butun fayl uchun Ctrl+Shift+F.
-* GUI orqali 10 mln yozuvni tartiblash va tartiblangan ko'rinishni eksport qilishda RSS ~500 MB gacha
-  ko'tariladi; buning katta qismi indeks va RecordSet fayllarining xotiraga proyeksiyalangan sahifalari (OS
-  kerak bo'lsa bo'shatadi); jarayonning xususiy xotirasi ~110–420 MB.
+* gzip and UTF-16 files are converted to a full UTF-8 copy before the first records are shown (streamed, with
+  bounded memory; 200 MB ~0.5 s).
+* While a file is open in the program, another program **cannot replace it** with `MoveFileEx`/`os.replace`
+  (a Windows rule); plain writing, appending, renaming and deleting work and are detected.
+* An edit that keeps the size and mtime and touches only middle bytes that are not hashed may go unnoticed with a
+  cached index (reindex with `--no-cache`).
+* A single very long string value (hundreds of MB) takes ~2 times its size in memory while it is being checked.
+* Editing: a single record larger than 50 MB and a file with a JSON error (partially opened) are read-only; a file's
+  unsaved changes are not offered for recovery when it is opened by a differently spelled path (for example, a short
+  8.3 name) (and editing is possible in only one place at a time anyway).
+* Splitting a node or exporting a node to CSV/XLSX/SQLite is not possible in edited files and in JSONL/stream files
+  (save first); the other formats and scopes work.
+* When `diff --ignore-order` is used without a key, records are paired by their whole value, and array order is
+  taken into account — records that differ only in array order need `--key`.
+* Repair is slower on files with many errors (each fix is recorded with its exact location and undo information):
+  1 % broken records ~185 MB/s, 10 % ~47 MB/s, JSON5 style ~35 MB/s, all strings in single quotes ~2 MB/s.
+* XLSX (~11 MB/s) and SQLite (~15–17 MB/s) export are slower than 50 MB/s: `xlsxwriter` writes the XLSX cells in a
+  single thread, and records are inserted into SQLite in a single thread (options in section 14). CSV, JSON and
+  JSONL are faster than the target.
+* The session and the workspace do not save view-only sorts in the tree, panel sizes or the tab orientation.
+* Switching the GUI language takes full effect after the program is restarted (some texts in open windows stay in
+  the old language; the settings window says so).
+* Quick find (Ctrl+F) searches only the loaded part (as required); for the whole file use Ctrl+Shift+F.
+* When 10 M records are sorted through the GUI and the sorted view is exported, RSS rises to ~500 MB; most of it is
+  memory-mapped pages of the index and RecordSet files (the OS frees them if needed); the process's private memory
+  is ~110–420 MB.
 
-### Ochiq savollar
+### Open questions
 
-Hozircha yo'q. 6-bosqichdagi tanlovlar ham tavsiya bo'yicha qilindi (qarorlar 40–46) va o'zgartirish mumkin.
+None for now. The stage 6 choices were also made as recommended (decisions 40–46) and can be changed.
+
+<a id="muallif"></a>
+## 16. Author, contact and copyright
+
+**Author:** Erkin Pardayev
+
+* GitHub: [github.com/Erkinbek](https://github.com/Erkinbek)
+* Repository: [github.com/Erkinbek/jsonreshape](https://github.com/Erkinbek/jsonreshape)
+* E-mail: [erkin.pardayev@gmail.com](mailto:erkin.pardayev@gmail.com)
+
+Bug reports and suggestions: [GitHub Issues](https://github.com/Erkinbek/jsonreshape/issues).
+
+**Built with Claude Opus 5.5.** The code, tests, benchmarks and documentation were written with Anthropic's
+Claude Opus 5.5 model (in Claude Code), following the author's specification (`AGENT_PROMPT.md`) and decisions.
+
+Copyright © 2026 Erkin Pardayev. All rights reserved.

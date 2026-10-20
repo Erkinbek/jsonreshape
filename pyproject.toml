@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "jsonreshape"
 version = "0.1.0"
-description = "Katta JSON fayllar uchun ko'ruvchi, muharrir va tuzilma quruvchi (viewer, editor and reshaper for huge JSON files)"
+description = "Viewer, editor and reshaper for huge JSON files (katta JSON fayllar uchun ko'ruvchi, muharrir va tuzilma quruvchi)"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Proprietary" }
