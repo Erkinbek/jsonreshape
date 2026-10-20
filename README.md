@@ -61,6 +61,8 @@ results (checked by tests), only slower. To force it: `JSONRESHAPE_BACKEND=pytho
 (or `--backend python` in the CLI).
 
 For the graphical interface: `.venv\Scripts\python -m pip install -e ".[gui]"` (PySide6).
+Parquet export needs the optional `pyarrow` package: `pip install "jsonreshape[parquet]"` (the program works
+without it; a Parquet export then says how to install it).
 
 Running: `jsonreshape ...` (CLI) or `python -m jsonreshape ...`; GUI — `jsonreshape-gui [file ...]`
 or `python -m jsonreshape.gui` ([section 3](#gui)).
@@ -505,6 +507,12 @@ Encoding: UTF-8 (with or without BOM), UTF-16 LE/BE (with or without BOM), `.jso
 gzip files are first converted to a UTF-8 copy (streamed, with bounded memory) and cached; the first records are
 not visible until the copy is ready (~0.5 s for 200 MB of data). UTF-32 is rejected (with a clear message).
 
+**Output formats** (`convert`, `filter`, `sort`, the export dialog): JSON, JSON Lines, CSV, XLSX, SQLite and
+**Parquet** (`.parquet`; needs `pip install "jsonreshape[parquet]"`). The three table formats — CSV, XLSX,
+Parquet — share one column model (`--columns`, automatic columns, `a.b.c`, `--array-mode`, `--explode`), so the
+same export gives the same header and rows in each of them. `.parquet.gz` is refused like `.xlsx.gz`: Parquet
+compresses its own pages (`--parquet-compression zstd|snappy|gzip|none`, default `zstd`).
+
 Detection rules for a file with an object root: if the start of the file (`head_bytes`, default 4 MiB) contains a
 large array that is not closed yet — `wrapped` (that array's path is chosen automatically and a warning is shown);
 in a small file, if an array whose values are mostly objects takes up most of the file — `wrapped`; if ≥ 80% of
@@ -641,6 +649,19 @@ while it is being checked.
   truncated (with a warning), but the row is still written. CSV: UTF-8 BOM (for Excel; `--no-bom`), delimiter
   `--delimiter`. XLSX: above 1,048,576 rows the output is split automatically into new sheets
   (`--xlsx-split sheets`) or files (`files`).
+* **Parquet** (`out.parquet`, `--to parquet`; optional `pyarrow`, `pip install "jsonreshape[parquet]"`): the
+  columns and rows of CSV/XLSX (the same `--columns`, automatic columns, `--array-mode`, `--explode`, `--sep`)
+  with **typed columns**: `int64` for columns of integers that fit 64 bits, `double` only for numbers a double
+  holds exactly as written (`0.1`, `1.10`, `1E3`, `3.141592653589793`), `bool`, and `string` for text and for
+  every column whose values mix types or hold numbers no type keeps exactly — integers beyond 64 bits,
+  `1e400`, `123456789.123456789` are written as their exact text (named in a warning), so no digit is ever lost.
+  Arrays in join mode are one joined string, objects not expanded into columns are JSON text, `null` is null in
+  any type. The types are decided from the first 65 536 rows; when a later value does not fit (an integer column
+  meets a decimal), the export is redone in two passes with the types decided from every row — never an error,
+  never a lost value — and a warning names the column and the record. Row groups of ~64 MiB (at most
+  1 048 576 rows); compression `--parquet-compression zstd` (default) | `snappy` | `gzip` | `none`; the rows are
+  built in worker processes exactly as for CSV (the file is byte for byte the same with one thread). In the
+  export dialog Parquet is a third table format (the columns page), also for an array / object node.
 * **SQLite**: a separate table for each array, with parent–child links (`_id`, `_parent`, `_idx`); if a table has
   more than 1,500 columns, the remaining fields are written to the `_extra` (JSON text) column; "dictionary"
   objects are stored as JSON text; up to 200 child tables (the rest as JSON text).
@@ -899,6 +920,7 @@ memory (≤ 17 MB when restoring an edit layer).
 | Sorting 10,000,000 records by one field **and writing the result** (like `jsonreshape sort`, from opening to the end) | < 2 minutes, RAM < 1 GB | 77.6 s, peak 379 MB (index 5.1 s, sort 22.9 s, sorted export 66.3 MB/s) | ✅ |
 | Export JSON → JSONL / JSON (indent 2), 2.1 GB, without mapping or edits | ≥ 50 MB/s, RAM < 300 MB | 180 / 214 MB/s, peak 89 / 71 MB | ✅ |
 | Export CSV: automatic columns / 9 scalar columns (4 worker processes) | ≥ 50 MB/s, RAM < 300 MB | 105 / 224 MB/s, RAM 226 / 222 MB (private 175 / 167 MB) | ✅ |
+| Export JSON → Parquet, automatic columns (zstd, 4 workers) | — | 83.6 MB/s (25.7 s; output 220.7 MB, 20 row groups) | — |
 | Total memory of the program (the largest of all operations except sorting, with worker processes) | < 500 MB | 299 MB (`flatten`, with 3 worker processes; private 246 MB) | ✅ |
 
 Additionally: filter (extract) 207 MB/s; filter + writing the result (2.1 GB, from opening to the end) 16.9 s; schema
@@ -1145,6 +1167,19 @@ session restore when `main()` is started again.
     doing that silently; the user chooses).
 46. **The `.exe` is one folder** (onedir): a single file (onefile) unpacks ~150 MB into a temporary folder on every
     start and starts slowly.
+
+**Stage 7 — distribution and extensions**
+
+47. **Parquet types**: one Arrow type per column for the whole file, decided from the values: `int64` (integers
+    within 64 bits; `-0` is 0), `double` only when the double holds the exact decimal value of the number text (the
+    SQLite rule — stricter than Excel's 15 digits where the double would be inexact, looser where it is exact),
+    `bool`, else `string` with the exact JSON text of non-strings (mixed columns, integers beyond 64 bits, `1e400`,
+    numbers with more digits than a double keeps; such number-only columns are named in a warning). Decided from
+    the first 65 536 rows (fewer for very wide tables); a later value that does not fit restarts the export in two
+    passes (types from every row) instead of failing: the user has no way to force a column's type, and two passes
+    never lose data. The result is the same file whatever the batching, so one thread and worker processes write
+    byte-identical files. A column that is `null` everywhere is `string`. The Windows `.exe` does not bundle `pyarrow`
+    (it would add ~100 MB): Parquet export is a feature of the Python package (`pip install "jsonreshape[parquet]"`).
 
 ### Known limitations
 

@@ -80,6 +80,7 @@ jsonreshape/
   search.py               full-file search runner (byte prefilter + parse confirmation)
   schema.py               structure inference (types, presence, examples) from a sample
   writer.py               streaming writers: JSON, JSONL, CSV, XLSX, SQLite
+  writer_parquet.py       Parquet export: typed columns, type decision + two-pass restart, row groups (§8; optional pyarrow)
   overlay.py              edit state: piece table, content layers, virtual address space, Remap/ChangeSet (§12.1)
   editstore.py            edit layer on disk: SQLite steps + units.dat, recovery, locks (§12.2)
   editops.py              byte-level node edits, style detection, formatting, type conversion (§12.4)
@@ -680,12 +681,13 @@ mode that makes `tsirk`/`sirk` ~ `цирк`, `militsiya`/`milisiya` ~ `мили�
 
 ```python
 class ExportOptions:  # dataclass
-    fmt: str                 # json|jsonl|csv|xlsx|sqlite
+    fmt: str                 # json|jsonl|csv|xlsx|sqlite|parquet
     indent: int|str|None=2; sort_keys: bool|str=False   # True == "alpha" (uz collation) | "codepoint"
     keep_wrapper=True
     columns: list[str]|None=None; array_mode="join"|"rows"; explode: str|None=None
     join_sep=";"; csv_delimiter=","; csv_bom=True
     xlsx_max_rows=1048576; xlsx_split="sheets"|"files"
+    parquet_compression="zstd"|"snappy"|"gzip"|"none"   # stage 7, writer_parquet.py
     as_keyed: bool = False   # JSON only (else UserInputError writer.invalid_option): one keyed object from {"k": v} records
 def discover_columns(doc, source=None, *, sample=None, array_mode="join", explode=None,
                      progress=None, cancel=None) -> list[str]   # sample=None: every record
@@ -728,6 +730,31 @@ def export(doc, out_path, opts, source=None, *, progress=None, cancel=None) -> E
   ≤ 1500 columns per table plus an overflow JSON column (`_extra`, renamed when taken);
   map-like objects pooled as JSON text; ≤ 200 child tables (overflow as JSON text).
 * Every export calls `doc.ensure_unchanged()` right before the atomic commit.
+
+**Parquet (stage 7, as built; `writer_parquet.py` is authoritative).** `fmt="parquet"` is the third table format
+(`writer.TABLE_FORMATS = ("csv", "xlsx", "parquet")`): `_prepare_columns`, the column scan, `plan_columns`, the
+wrapper notice and the option/format tables of the CLI and the export dialog treat it exactly as CSV/XLSX, so the
+three formats of one export share header and rows. `_EXPORTERS["parquet"]` imports the module lazily (pyarrow is
+an optional extra `parquet = ["pyarrow>=17"]`; `export()` checks it before any work: `writer.error.parquet_missing`
+names `pip install "jsonreshape[parquet]"`). Cells: `_ParquetCells` keeps the decoded scalars (`int`/`JsonInt`,
+`float`/`JsonFloat`, `bool`, `str`, `None`) and gives arrays / objects their CSV texts; `_RowsJob` builds such rows
+in the worker processes (the XLSX path of `_RowsPool`), the calling thread converts them to Arrow arrays in block
+order. Types per column: `int64` (all integers within int64; `-0` → 0), `double` (every value exactly a double —
+`writer._exact_double`'s rule — and integers ≤ 2**53 among them), `bool`, else `string` with the exact JSON text of
+non-strings; number-only columns that became text are named in `writer.warn.parquet_number_text`; an all-null
+column is `string`. Decision: the first `TYPE_ROWS` = 65 536 rows (bounded by `2 × cell budget` cells, at least
+1024) are buffered, the schema is fixed, writing starts; a later misfit raises `_Restart`: the attempt's temporary
+file, counters and warnings are dropped, a types-only pass over every row (same row machinery, workers included)
+decides the schema, a second pass writes it (`writer.warn.parquet_restarted` with column and record number;
+progress total grows by two passes). The prefix rule is monotone (a string-forcing mix stays string; an all-null
+prefix is provisional and any later non-string value restarts), so the final schema is always the all-rows
+decision and the file is a function of the rows alone. Writing: `pq.ParquetWriter` on a cancel-checking file
+wrapper inside `atomic_path`, compression from `ExportOptions.parquet_compression`; Arrow record batches are
+accumulated and a row group is written every `G` rows, `G` = ~64 MiB estimated from the first rows (1024 …
+1 048 576), each group `combine_chunks()`-ed into one contiguous chunk (Arrow's page splitting depends on the
+chunks it is given) — hence byte-identical files for `workers=1` and `workers=N`; only > 512 MiB of pending batches
+cuts a group early (memory bound; data unchanged). Lone surrogates become the text `\ud800` (as CSV/XLSX).
+Measured on `bench/data/syn_2g.json` (2.1 GB, 6.5 M records): see "Measured speed" below.
 
 ## 9. Filter language
 

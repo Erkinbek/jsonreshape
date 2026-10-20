@@ -124,13 +124,14 @@ log = logging.getLogger(__name__)
 __all__ = ["ExportDialog", "ExportJob", "ExportOutcome", "ExportReportDialog", "ExportRunner", "FORMATS",
            "MappingSource", "export_node", "export_runner", "mapping_report"]
 
-FORMATS = ("json", "jsonl", "csv", "xlsx", "sqlite")
+FORMATS = ("json", "jsonl", "csv", "xlsx", "sqlite", "parquet")
 NODE_FORMATS = ("json", "jsonl")                 # any node: writer.export_node
-TABLE_NODE_FORMATS = ("csv", "xlsx", "sqlite")   # an array / object node re-opened as a record container
+TABLE_NODE_FORMATS = ("csv", "xlsx", "sqlite", "parquet")   # an array / object node re-opened as a record container
 MAPPING_FORMATS = ("json", "jsonl")
 MAPPING_SUFFIX = "_yangi"          # the prototype's default output name: <name>_yangi.json
 SCOPES = ("view", "all", "selected", "node", "records")
-EXTENSIONS = {"json": ".json", "jsonl": ".jsonl", "csv": ".csv", "xlsx": ".xlsx", "sqlite": ".sqlite"}
+EXTENSIONS = {"json": ".json", "jsonl": ".jsonl", "csv": ".csv", "xlsx": ".xlsx", "sqlite": ".sqlite",
+              "parquet": ".parquet"}
 STATE_KEY = "export_last"
 DIR_KEY = "last_export_dir"
 
@@ -1081,7 +1082,7 @@ class ExportDialog(QDialog):
         elif fmt == "jsonl":
             if not node:
                 kw["sort_keys"] = self.jsonl_sort_combo.currentData()
-        elif fmt in ("csv", "xlsx"):
+        elif fmt in ("csv", "xlsx", "parquet"):
             if self.auto_columns_check.isChecked():
                 kw["columns"] = None
             else:
@@ -1096,7 +1097,7 @@ class ExportDialog(QDialog):
             if fmt == "csv":
                 kw["csv_delimiter"] = _parse_delimiter(self.delimiter_combo.currentText())
                 kw["csv_bom"] = self.bom_check.isChecked()
-            else:
+            elif fmt == "xlsx":
                 kw["xlsx_split"] = self.split_combo.currentData()
                 kw["xlsx_max_rows"] = self.max_rows_spin.value()
         return ExportOptions.from_settings(fmt, self.app.settings, **kw)
@@ -1104,7 +1105,7 @@ class ExportDialog(QDialog):
     # -------------------------------------------------------------------------------- reactions
     @staticmethod
     def _page_index(fmt: str) -> int:
-        return {"json": 0, "jsonl": 1, "csv": 2, "xlsx": 2, "sqlite": 3}[fmt]
+        return {"json": 0, "jsonl": 1, "csv": 2, "xlsx": 2, "parquet": 2, "sqlite": 3}[fmt]
 
     def _on_path_changed(self, text: str) -> None:
         if self._syncing:

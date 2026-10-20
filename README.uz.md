@@ -62,6 +62,8 @@ Rust bo'lmasa ham dastur ishlaydi: yadroning sof Python nusxasi (fallback) bor, 
 (yoki CLI'da `--backend python`).
 
 Grafik interfeys uchun: `.venv\Scripts\python -m pip install -e ".[gui]"` (PySide6).
+Parquet eksporti ixtiyoriy `pyarrow` paketini talab qiladi: `pip install "jsonreshape[parquet]"` (dastur usiz
+ham ishlaydi; Parquet eksporti o'rnatish buyrug'ini aytadi).
 
 Ishga tushirish: `jsonreshape ...` (CLI) yoki `python -m jsonreshape ...`; GUI — `jsonreshape-gui [fayl ...]`
 yoki `python -m jsonreshape.gui` ([3-bo'lim](#gui)).
@@ -508,6 +510,12 @@ gzip). UTF-16 va gzip fayllar oldin UTF-8 nusxaga o'giriladi (oqim bilan, xotira
 nusxa tayyor bo'lgunicha birinchi yozuvlar ko'rinmaydi (200 MB'lik ma'lumot ~0.5 s). UTF-32 rad etiladi
 (tushunarli xabar bilan).
 
+**Natija formatlari** (`convert`, `filter`, `sort`, eksport oynasi): JSON, JSON Lines, CSV, XLSX, SQLite va
+**Parquet** (`.parquet`; `pip install "jsonreshape[parquet]"` kerak). Uchta jadval formati — CSV, XLSX, Parquet —
+bitta ustun modelini ishlatadi (`--columns`, avtomatik ustunlar, `a.b.c`, `--array-mode`, `--explode`), shuning
+uchun bir xil eksport har birida bir xil sarlavha va qatorlar beradi. `.parquet.gz` `.xlsx.gz` kabi rad etiladi:
+Parquet o'z sahifalarini o'zi siqadi (`--parquet-compression zstd|snappy|gzip|none`, standart `zstd`).
+
 Obyekt ildizli fayl uchun aniqlash qoidalari: faylning boshidagi (`head_bytes`, standart 4 MiB) qismida hali
 yopilmagan katta massiv bo'lsa — `wrapped` (shu massiv yo'li avtomatik tanlanadi va ogohlantirish chiqadi);
 kichik faylda ko'pchilik qiymati obyekt bo'lgan massiv faylning asosiy qismini egallasa — `wrapped`;
@@ -644,6 +652,19 @@ ikki baravari joy egallaydi.
   bo'lsa, u qisqartiriladi (ogohlantirish bilan), qator esa baribir yoziladi. CSV: UTF-8 BOM (Excel uchun,
   `--no-bom`), ajratuvchi `--delimiter`. XLSX: 1 048 576 qatordan oshsa avtomatik yangi varaqlarga
   (`--xlsx-split sheets`) yoki fayllarga (`files`) bo'linadi.
+* **Parquet** (`out.parquet`, `--to parquet`; ixtiyoriy `pyarrow`, `pip install "jsonreshape[parquet]"`):
+  CSV/XLSX ustun va qatorlari (xuddi shu `--columns`, avtomatik ustunlar, `--array-mode`, `--explode`, `--sep`)
+  **turli ustunlar** bilan: 64 bitga sig'adigan butun sonlar ustuni `int64`, faqat double aynan saqlay oladigan
+  sonlar `double` (`0.1`, `1.10`, `1E3`, `3.141592653589793`), `bool`, matn uchun va turlari aralash yoki hech
+  bir tur aniq saqlay olmaydigan sonli ustunlar uchun `string` — 64 bitdan katta butun sonlar, `1e400`,
+  `123456789.123456789` aynan matni bilan yoziladi (ogohlantirishda nomlanadi), demak bitta raqam ham yo'qolmaydi.
+  Join rejimida massiv bitta birlashtirilgan satr, ustunlarga yoyilmagan obyektlar JSON matn, `null` har turda
+  null. Turlar birinchi 65 536 qatordan aniqlanadi; keyingi qiymat sig'masa (butun sonlar ustunida kasr
+  uchrasa) eksport ikki o'tishda, turlar barcha qatorlardan aniqlangan holda qayta bajariladi — xato ham,
+  yo'qolgan qiymat ham bo'lmaydi — va ogohlantirish ustun bilan yozuvni nomlaydi. Row group'lar ~64 MiB (ko'pi
+  bilan 1 048 576 qator); siqish `--parquet-compression zstd` (standart) | `snappy` | `gzip` | `none`; qatorlar
+  CSV'dagidek ishchi jarayonlarda quriladi (fayl bitta oqimdagi bilan baytma-bayt bir xil). Eksport oynasida
+  Parquet uchinchi jadval formati (ustunlar sahifasi), massiv / obyekt tuguni uchun ham.
 * **SQLite**: har massiv uchun alohida jadval, ota-bola bog'lanishi bilan (`_id`, `_parent`, `_idx`);
   jadvalda 1500 dan ortiq ustun bo'lsa, qolgan maydonlar `_extra` (JSON matn) ustuniga yoziladi; "lug'at"
   obyektlar JSON matn sifatida saqlanadi, bola jadvallar soni 200 tagacha (qolgani JSON matn).
@@ -901,6 +922,7 @@ kamaytirishi mumkin (tahrir qatlamini tiklashda ≤ 17 MB).
 | 10 000 000 yozuvni bitta maydon bo'yicha tartiblash **va natijani yozish** (`jsonreshape sort` kabi, ochishdan oxirigacha) | < 2 daqiqa, RAM < 1 GB | 77.6 s, peak 379 MB (indeks 5.1 s, tartiblash 22.9 s, tartiblangan eksport 66.3 MB/s) | ✅ |
 | Eksport JSON → JSONL / JSON (indent 2), 2.1 GB, mapping va tahrirlarsiz | ≥ 50 MB/s, RAM < 300 MB | 180 / 214 MB/s, peak 89 / 71 MB | ✅ |
 | Eksport CSV: avtomatik ustunlar / 9 ta skalyar ustun (4 ta ishchi jarayon) | ≥ 50 MB/s, RAM < 300 MB | 105 / 224 MB/s, RAM 226 / 222 MB (private 175 / 167 MB) | ✅ |
+| Eksport JSON → Parquet, avtomatik ustunlar (zstd, 4 ta ishchi jarayon) | — | 83.6 MB/s (25.7 s; chiqish 220.7 MB, 20 row group) | — |
 | Dasturning umumiy xotirasi (tartiblashdan boshqa barcha amallarning eng kattasi, ishchi jarayonlari bilan) | < 500 MB | 299 MB (`flatten`, 3 ta ishchi jarayon bilan; private 246 MB) | ✅ |
 
 Qo'shimcha: filtr (extract) 207 MB/s; filtr + natijani yozish (2.1 GB, ochishdan oxirigacha) 16.9 s; tuzilma namunasi
@@ -1145,6 +1167,20 @@ va `main()` qayta ishga tushirilganda sessiyaning tiklanishi.
     ruxsat bermaydi; foydalanuvchi o'zi tanlaydi).
 46. **`.exe` — bitta papka** (onedir): bitta fayl (onefile) har ishga tushishda ~150 MB ni vaqtinchalik papkaga
     ochadi va sekin ishga tushadi.
+
+**7-bosqich — tarqatish va kengaytmalar**
+
+47. **Parquet turlari**: har ustunga butun fayl uchun bitta Arrow turi, qiymatlardan aniqlanadi: `int64` (64 bit
+    ichidagi butun sonlar; `-0` — 0), `double` faqat double son matnining aniq o'nlik qiymatini saqlay olganda
+    (SQLite qoidasi — double aniq bo'lmagan joyda Excel'ning 15 raqamidan qattiqroq, aniq bo'lgan joyda yumshoqroq),
+    `bool`, aks holda `string` — satr bo'lmaganlar aniq JSON matni bilan (aralash ustunlar, 64 bitdan katta butun
+    sonlar, `1e400`, double saqlay olmaydigan raqamli sonlar; faqat sonli bunday ustunlar ogohlantirishda
+    nomlanadi). Birinchi 65 536 qatordan aniqlanadi (juda keng jadvallarda kamroq); sig'maydigan keyingi qiymat
+    eksportni xato bilan to'xtatmaydi, ikki o'tishda (turlar barcha qatorlardan) qayta boshlaydi: foydalanuvchi
+    ustun turini majburlay olmaydi, ikki o'tish esa ma'lumot yo'qotmaydi. Natija bo'laklashdan qat'i nazar bir xil
+    fayl, shuning uchun bitta oqim va ishchi jarayonlar baytma-bayt bir xil fayl yozadi. Hamma yerda `null`
+    bo'lgan ustun — `string`. Windows `.exe` ichida `pyarrow` yo'q (u ~100 MB qo'shardi): Parquet eksporti Python
+    paketining imkoniyati (`pip install "jsonreshape[parquet]"`).
 
 ### Ma'lum cheklovlar
 

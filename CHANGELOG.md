@@ -19,6 +19,13 @@ All notable changes to jsonreshape are recorded here. The format follows
   file and the winget manifests, and opens a draft GitHub release; optional PyPI trusted publishing);
   `scripts/build_exe.ps1 -Installer` / `-Sign`, `packaging/installer.iss`, `packaging/winget/`,
   `scripts/release_assets.py`, `scripts/winget_manifest.py`, `tests/test_packaging_pipeline.py`.
+- **Parquet export** (`jsonreshape convert in.json out.parquet`, `--to parquet`, the export dialog; optional
+  `pyarrow`: `pip install "jsonreshape[parquet]"`): the CSV/XLSX columns and rows with typed columns (`int64`,
+  `double` only for exactly representable numbers, `bool`, `string` with the exact text of everything else —
+  digits are never lost), types decided from the first 65 536 rows with an automatic two-pass restart when a later
+  value does not fit, row groups of ~64 MiB, `--parquet-compression zstd|snappy|gzip|none`, rows built in worker
+  processes like CSV (byte-identical to one thread), atomic output, progress and cancellation
+  (`jsonreshape/writer_parquet.py`, `ExportOptions.parquet_compression`, `writer.TABLE_FORMATS`).
 
 ## [0.1.0] — 2026-10-20
 

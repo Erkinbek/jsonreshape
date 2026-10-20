@@ -1,4 +1,4 @@
-r"""Streaming exporters: JSON, JSON Lines, CSV, Excel (XLSX) and SQLite (docs/ARCHITECTURE.md §8).
+r"""Streaming exporters: JSON, JSON Lines, CSV, Excel (XLSX), SQLite and Parquet (docs/ARCHITECTURE.md §8).
 
 Requirements: AGENT_PROMPT §10 "Konvertatsiya" (JSON <-> JSONL pretty or compact, indent
 2 / 4 / tab, sorted keys, "Unicode \u ga aylantirilmaydi"; CSV and Excel with nested columns
@@ -286,6 +286,18 @@ CSV and XLSX
   the row are complete. With automatic columns huge records are skipped
   (``writer.warn.huge_skipped``).
 
+Parquet
+=======
+``fmt="parquet"`` (``.parquet``; stage 7) is the third table format: the columns, rows and cell
+texts of CSV/XLSX (``columns``, automatic columns, ``array_mode``, ``explode``, ``join_sep``) with
+typed columns -- ``int64`` / ``double`` (only numbers a double holds exactly) / ``bool`` /
+``string`` (mixed columns and numbers no type keeps exactly, as their exact text) -- decided from
+the first 65 536 rows and redone in two passes when a later value does not fit; row groups of
+about 64 MiB; ``parquet_compression`` (``zstd`` default); rows in worker processes exactly as
+CSV; the optional ``pyarrow`` package (``writer.error.parquet_missing`` names
+``pip install "jsonreshape[parquet]"``). The whole description is the docstring of
+:mod:`jsonreshape.writer_parquet`, which :func:`export` calls through ``_EXPORTERS``.
+
 SQLite
 ======
 Table ``records``: ``_id`` (INTEGER PRIMARY KEY = the record number), ``$key`` for member
@@ -438,7 +450,9 @@ __all__ = [
     "MAX_AUTO_COLUMNS",
     "META_TABLE",
     "NODE_FORMATS",
+    "PARQUET_COMPRESSIONS",
     "SORT_KEYS",
+    "TABLE_FORMATS",
     "WRAPPER_TABLE",
     "XLSX_MAX_COLUMNS",
     "XLSX_MAX_STRING",
@@ -461,9 +475,12 @@ __all__ = [
 KiB = 1 << 10
 MiB = 1 << 20
 
-FORMATS = ("json", "jsonl", "csv", "xlsx", "sqlite")
+FORMATS = ("json", "jsonl", "csv", "xlsx", "sqlite", "parquet")
 GZIP_FORMATS = ("json", "jsonl", "csv")   # formats written gzip-compressed to a ".gz" name
-FORMAT_NAMES = {"json": "JSON", "jsonl": "JSON Lines", "csv": "CSV", "xlsx": "Excel (XLSX)", "sqlite": "SQLite"}
+TABLE_FORMATS = ("csv", "xlsx", "parquet")   # the formats with columns (``columns``, ``array_mode``, ``explode``)
+FORMAT_NAMES = {"json": "JSON", "jsonl": "JSON Lines", "csv": "CSV", "xlsx": "Excel (XLSX)", "sqlite": "SQLite",
+                "parquet": "Parquet"}
+PARQUET_COMPRESSIONS = ("zstd", "snappy", "gzip", "none")   # ExportOptions.parquet_compression (writer_parquet)
 GZIP_LEVEL = 6                    # zlib level of ".gz" outputs (one member, header mtime 0)
 GZIP_FEED = 1 << 20               # ... fed to zlib in pieces of exactly this many bytes (_Sink)
 ARRAY_MODES = ("join", "rows")
@@ -540,6 +557,7 @@ _EXT_FORMATS = {
     ".sqlite": "sqlite",
     ".sqlite3": "sqlite",
     ".db": "sqlite",
+    ".parquet": "parquet",
 }
 _INT64_MIN = -(2**63)
 _INT64_MAX = 2**63 - 1
@@ -718,17 +736,18 @@ def _norm_max_rows(value: Any) -> int:
 class ExportOptions:
     """What :func:`export` writes (docs/ARCHITECTURE.md §8).
 
-    * ``fmt``: ``json``, ``jsonl``, ``csv``, ``xlsx`` or ``sqlite`` (case-insensitive);
+    * ``fmt``: ``json``, ``jsonl``, ``csv``, ``xlsx``, ``sqlite`` or ``parquet`` (case-insensitive);
     * ``indent`` (JSON): ``None`` (compact), an int 0..16 (2, 4, ...) or ``"\\t"`` (``"tab"``
       is accepted); ``sort_keys`` (JSON/JSONL): ``False``, ``"alpha"`` (``True`` means the
       same: alphabetical, Uzbek collation, natural, case-insensitive) or ``"codepoint"``
       (code point order) -- the keys of every object of every record;
       ``keep_wrapper`` (JSON, wrapped documents): keep the bytes around the record container;
-    * ``columns`` (CSV/XLSX): column paths (``None`` = automatic, see :func:`discover_columns`);
+    * ``columns`` (CSV/XLSX/Parquet): column paths (``None`` = automatic, see :func:`discover_columns`);
       ``array_mode``: ``join`` or ``rows``; ``explode``: the array expanded into rows (a
       concrete path; implies ``rows``); ``join_sep``: separator of joined array elements;
     * ``csv_delimiter`` / ``csv_bom``; ``xlsx_max_rows`` (2..1048576, header row included)
-      and ``xlsx_split`` (``sheets`` or ``files``);
+      and ``xlsx_split`` (``sheets`` or ``files``); ``parquet_compression`` (``zstd`` -- the
+      default --, ``snappy``, ``gzip`` or ``none``);
     * ``as_keyed`` (JSON only): write ONE object whose members are the members of the
       records -- every record must be a one-member object ``{"key": value}`` (the JSON Lines
       form of a keyed document), see "Keyed object from one-member records" in the module
@@ -753,6 +772,7 @@ class ExportOptions:
     xlsx_max_rows: int = XLSX_MAX_ROWS
     xlsx_split: str = "sheets"
     as_keyed: bool = False
+    parquet_compression: str = "zstd"
 
     def __post_init__(self) -> None:
         self.validate()
@@ -773,6 +793,8 @@ class ExportOptions:
         self.csv_bom = _check_bool("csv_bom", self.csv_bom)
         self.xlsx_max_rows = _norm_max_rows(self.xlsx_max_rows)
         self.xlsx_split = _choice("xlsx_split", self.xlsx_split, XLSX_SPLITS, "writer.expected.split")
+        self.parquet_compression = _choice("parquet_compression", self.parquet_compression, PARQUET_COMPRESSIONS,
+                                           "writer.expected.parquet_compression")
         self.as_keyed = _check_bool("as_keyed", self.as_keyed)
         if self.as_keyed and self.fmt != "json":
             raise _invalid("as_keyed", self.as_keyed, "writer.expected.as_keyed", fmt=self.fmt)
@@ -796,7 +818,7 @@ class ExportOptions:
 
 def format_for_path(path: StrPath) -> str | None:
     """Export format implied by the extension of ``path`` (``.json``, ``.jsonl``/``.ndjson``,
-    ``.csv``, ``.xlsx``, ``.sqlite``/``.sqlite3``/``.db``; ``.json.gz``, ``.jsonl.gz``,
+    ``.csv``, ``.xlsx``, ``.sqlite``/``.sqlite3``/``.db``, ``.parquet``; ``.json.gz``, ``.jsonl.gz``,
     ``.csv.gz``, ... are the compressed JSON / JSON Lines / CSV outputs), or ``None``."""
     base, ext = os.path.splitext(os.fspath(path))
     ext = ext.lower()
@@ -1913,7 +1935,7 @@ class _Ctx:
             self.warn("writer.warn.partial", add=0)   # count: records exported (see finish())
         if doc.kind == "jsonl" and doc.broken_count:
             self.warn("writer.warn.broken_lines", add=doc.broken_count)
-        if doc.kind == "wrapped" and self.opts.keep_wrapper and self.opts.fmt in ("jsonl", "csv", "xlsx"):
+        if doc.kind == "wrapped" and self.opts.keep_wrapper and self.opts.fmt in ("jsonl", "csv", "xlsx", "parquet"):
             self.wrapper_not_written()
 
     def wrapper_not_written(self) -> None:
@@ -2109,7 +2131,7 @@ def plan_columns(doc: Document, opts: ExportOptions, source: Any = None, *, prog
     if not isinstance(opts, ExportOptions):
         raise TypeError("opts must be an ExportOptions instance")
     opts.validate()
-    if opts.fmt not in ("csv", "xlsx"):
+    if opts.fmt not in TABLE_FORMATS:
         raise _invalid("fmt", opts.fmt, "writer.expected.table_fmt")
     doc = _pin(doc, source)
     _ensure_index(doc, progress, cancel)
@@ -2132,7 +2154,7 @@ def _scan_passes(opts: ExportOptions) -> int:
     for SQLite (its map detection)."""
     if opts.fmt == "sqlite":
         return 2
-    if opts.fmt not in ("csv", "xlsx"):
+    if opts.fmt not in TABLE_FORMATS:
         return 1
     if opts.columns is None:
         return 2
@@ -2175,6 +2197,10 @@ def export(doc: Document, out_path: StrPath, opts: ExportOptions, source: Any = 
     out = Path(os.path.abspath(os.fspath(out_path)))
     _check_target(doc, out)
     gz = _check_gzip(opts, out, gzip)
+    if opts.fmt == "parquet":            # the optional pyarrow package, before any work
+        from .writer_parquet import require_pyarrow
+
+        require_pyarrow()
     refuse_edited_targets([out])         # (the XLSX "files" parts are checked once they are named)
     _purge_staging(doc.settings)
     _ensure_index(doc, progress, cancel)
@@ -2182,14 +2208,14 @@ def export(doc: Document, out_path: StrPath, opts: ExportOptions, source: Any = 
     ctx = _Ctx(doc, opts, src, count, progress, cancel, out)
     ctx.gzip = gz
     ctx.want_workers = workers
-    planned = column_plan is not None and opts.fmt in ("csv", "xlsx")
+    planned = column_plan is not None and opts.fmt in TABLE_FORMATS
     try:
         ctx.begin(1 if planned else _scan_passes(opts))
         if planned:
             assert column_plan is not None
             ctx.columns = list(column_plan._columns)
             ctx.explode = column_plan._explode
-        elif opts.fmt in ("csv", "xlsx"):
+        elif opts.fmt in TABLE_FORMATS:
             _prepare_columns(ctx)
         files = _EXPORTERS[opts.fmt](ctx, out)
     finally:
@@ -4355,7 +4381,14 @@ class _RowsJob:
     def __init__(self, fmt: str, columns: list[_Column], explode: tuple | None, sep: str, delimiter: str,
                  track: bool, member: bool, cell_budget: int) -> None:
         self.csv = fmt == "csv"
-        self.cells: Any = _TextCells(sep) if self.csv else _XlsxCells(sep)
+        if self.csv:
+            self.cells: Any = _TextCells(sep)
+        elif fmt == "parquet":
+            from .writer_parquet import _ParquetCells   # (the rows are typed cells, the XLSX way)
+
+            self.cells = _ParquetCells(sep)
+        else:
+            self.cells = _XlsxCells(sep)
         self.builder = _RowBuilder(columns, self.cells, explode, sep, track=track)
         self.probes = dict(self.builder.unfound)
         self.member = member
@@ -5984,10 +6017,18 @@ def _export_sqlite(ctx: _Ctx, out: Path) -> list[Path]:
     return [out]
 
 
+def _export_parquet(ctx: _Ctx, out: Path) -> list[Path]:
+    """Parquet (stage 7): :func:`jsonreshape.writer_parquet.export_parquet` (imported here: pyarrow is optional)."""
+    from .writer_parquet import export_parquet
+
+    return export_parquet(ctx, out)
+
+
 _EXPORTERS: dict[str, Callable[[_Ctx, Path], list[Path]]] = {
     "json": _export_json,
     "jsonl": _export_jsonl,
     "csv": _export_csv,
     "xlsx": _export_xlsx,
     "sqlite": _export_sqlite,
+    "parquet": _export_parquet,
 }

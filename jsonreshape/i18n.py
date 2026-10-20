@@ -2212,7 +2212,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Eksport sozlamasi noto'g'ri: {name} = {value}. Kutilgan qiymat: {expected}.",
         "en": "Invalid export option: {name} = {value}. Expected: {expected}.",
     },
-    "writer.expected.fmt": {"uz": "json, jsonl, csv, xlsx yoki sqlite", "en": "json, jsonl, csv, xlsx or sqlite"},
+    "writer.expected.fmt": {
+        "uz": "json, jsonl, csv, xlsx, sqlite yoki parquet",
+        "en": "json, jsonl, csv, xlsx, sqlite or parquet",
+    },
     "writer.expected.indent": {
         "uz": "bo'sh (ixcham), 0 dan 16 gacha son yoki tab",
         "en": "nothing (compact), a number from 0 to 16, or tab",
@@ -2545,7 +2548,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Fayl nomi oxiridagi .gz ni olib tashlang: gzip faqat JSON, JSON Lines va CSV fayllar uchun.",
         "en": "Remove the .gz at the end of the file name: gzip is available for JSON, JSON Lines and CSV files only.",
     },
-    "writer.expected.table_fmt": {"uz": "csv yoki xlsx", "en": "csv or xlsx"},
+    "writer.expected.table_fmt": {"uz": "csv, xlsx yoki parquet", "en": "csv, xlsx or parquet"},
     "writer.expected.as_keyed_many": {
         "uz": "false — bir nechta fayl birlashtirilganda kalitli obyekt tiklanmaydi",
         "en": "false — a keyed object is not rebuilt when several files are merged",
@@ -2619,6 +2622,46 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Open the file again and try again.",
     },
     "writer.progress.node": {"uz": "Tugun yozilmoqda: {name}", "en": "Writing the node: {name}"},
+    # Parquet (writer_parquet.py, stage 7)
+    "writer.error.parquet_missing": {
+        "uz": "Parquet eksporti uchun pyarrow paketi kerak: pip install \"jsonreshape[parquet]\" ({detail})",
+        "en": "The Parquet export needs the pyarrow package: pip install \"jsonreshape[parquet]\" ({detail})",
+    },
+    "writer.error.parquet_missing.hint": {
+        "uz": "Paketni o'rnating: pip install \"jsonreshape[parquet]\" — dasturning qolgan qismi usiz ham ishlaydi.",
+        "en": "Install the package: pip install \"jsonreshape[parquet]\" — the rest of the program works without it.",
+    },
+    "writer.error.parquet": {
+        "uz": "Parquet faylini yozib bo'lmadi: {detail}",
+        "en": "The Parquet file could not be written: {detail}",
+    },
+    "writer.error.parquet_type": {
+        "uz": "{column} ustuni: #{index} yozuvdagi qiymat turi barcha qatorlardan aniqlangan ustun turiga mos "
+              "kelmaydi (eksport davomida asl fayl o'zgarganmi?).",
+        "en": "Column {column}: the value at record #{index} does not fit the column type decided from all rows "
+              "(did the source change during the export?).",
+    },
+    "writer.expected.parquet_compression": {"uz": "zstd, snappy, gzip yoki none", "en": "zstd, snappy, gzip or none"},
+    "writer.warn.parquet_restarted": {
+        "uz": "{column} ustuni: #{index} yozuvdagi qiymat turi ustun turlari aniqlangan dastlabki {rows} qatordan "
+              "farq qiladi; eksport ikki o'tishda qayta bajarildi (turlar barcha qatorlardan aniqlandi).",
+        "en": "Column {column}: record #{index} holds a value of another type than the first {rows} rows, from which "
+              "the column types had been fixed; the export was done again in two passes (the types decided from "
+              "every row).",
+    },
+    "writer.warn.parquet_number_text": {
+        "uz": "{count} ta ustunda int64 yoki double aniq saqlay olmaydigan sonlar bor (64 bitdan katta butun sonlar, "
+              "double sig'dirmaydigan raqamlar, 1e400): ular matn sifatida yozildi: {columns}",
+        "en": "{count} columns hold numbers no int64 or double keeps exactly (integers beyond 64 bits, more digits "
+              "than a double holds, 1e400): they were written as text: {columns}",
+    },
+    "writer.warn.parquet_number_text.one": {
+        "uz": "{count} ta ustunda int64 yoki double aniq saqlay olmaydigan sonlar bor (64 bitdan katta butun sonlar, "
+              "double sig'dirmaydigan raqamlar, 1e400): u matn sifatida yozildi: {columns}",
+        "en": "{count} column holds numbers no int64 or double keeps exactly (integers beyond 64 bits, more digits "
+              "than a double holds, 1e400): it was written as text: {columns}",
+    },
+    "writer.progress.parquet_types": {"uz": "Ustun turlari aniqlanmoqda: {name}", "en": "Deciding the column types: {name}"},
     # ---- filetools ----
     # split / merge / extract / --select (filetools.py, docs/ARCHITECTURE.md §14.4)
     "filetools.error.option": {
@@ -4569,6 +4612,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "1 048 576 qatordan oshsa: sheets (yangi varaqlar) yoki files (yangi fayllar)",
         "en": "above 1,048,576 rows: sheets (new sheets) or files (new files)",
     },
+    "cli.help.parquet_compression": {
+        "uz": "Parquet siqish usuli: zstd (standart), snappy, gzip yoki none",
+        "en": "Parquet compression: zstd (default), snappy, gzip or none",
+    },
     "cli.group.global": {"uz": "umumiy parametrlar", "en": "general options"},
     "cli.group.input": {"uz": "kirish fayli parametrlari", "en": "input options"},
     "cli.group.output": {"uz": "natija fayli parametrlari", "en": "output options"},
@@ -5087,9 +5134,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "The output format cannot be told from the file name: {path}",
     },
     "cli.error.output_format.hint": {
-        "uz": "--to json, jsonl, csv, xlsx yoki sqlite qo'shing yoki .json, .jsonl, .csv, .xlsx, .sqlite "
-              "kengaytmasini ishlating.",
-        "en": "Add --to json, jsonl, csv, xlsx or sqlite, or use a .json, .jsonl, .csv, .xlsx or .sqlite name.",
+        "uz": "--to json, jsonl, csv, xlsx, sqlite yoki parquet qo'shing yoki .json, .jsonl, .csv, .xlsx, .sqlite, "
+              ".parquet kengaytmasini ishlating.",
+        "en": "Add --to json, jsonl, csv, xlsx, sqlite or parquet, or use a .json, .jsonl, .csv, .xlsx, .sqlite or "
+              ".parquet name.",
     },
     "cli.error.backend": {
         "uz": "Tanlangan yadroni ({backend}) yuklab bo'lmadi: {detail}",
@@ -9161,11 +9209,13 @@ MESSAGES: dict[str, dict[str, str]] = {
     "gui.export.format.jsonl": {"uz": "JSON Lines (har qatorda bitta yozuv)", "en": "JSON Lines (one record per line)"},
     "gui.export.format.csv": {"uz": "CSV (jadval)", "en": "CSV (table)"},
     "gui.export.format.xlsx": {"uz": "Excel (XLSX)", "en": "Excel (XLSX)"},
+    "gui.export.format.parquet": {"uz": "Parquet (ustunli jadval)", "en": "Parquet (columnar table)"},
     "gui.export.format.sqlite": {"uz": "SQLite ma'lumotlar bazasi", "en": "SQLite database"},
     "gui.export.filter.json": {"uz": "JSON (*.json)", "en": "JSON (*.json)"},
     "gui.export.filter.jsonl": {"uz": "JSON Lines (*.jsonl *.ndjson)", "en": "JSON Lines (*.jsonl *.ndjson)"},
     "gui.export.filter.csv": {"uz": "CSV (*.csv)", "en": "CSV (*.csv)"},
     "gui.export.filter.xlsx": {"uz": "Excel (*.xlsx)", "en": "Excel (*.xlsx)"},
+    "gui.export.filter.parquet": {"uz": "Parquet (*.parquet)", "en": "Parquet (*.parquet)"},
     "gui.export.filter.sqlite": {"uz": "SQLite (*.sqlite *.sqlite3 *.db)", "en": "SQLite (*.sqlite *.sqlite3 *.db)"},
     "gui.export.scope.title": {"uz": "Nimani eksport qilamiz", "en": "What to export"},
     "gui.export.scope.view": {
@@ -9267,6 +9317,12 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Excel faylida tashqi o'rama uchun joy yo'q: belgilansa hisobotda bu haqda eslatma chiqadi; "
               "belgilanmasa faqat yozuvlar so'ralgan hisoblanadi.",
         "en": "An Excel file has no place for the wrapper: when checked, the report notes that it was not written; "
+              "unchecked means only the records are wanted.",
+    },
+    "gui.export.keep_wrapper.tip.parquet": {
+        "uz": "Parquet faylida tashqi o'rama uchun joy yo'q: belgilansa hisobotda bu haqda eslatma chiqadi; "
+              "belgilanmasa faqat yozuvlar so'ralgan hisoblanadi.",
+        "en": "A Parquet file has no place for the wrapper: when checked, the report notes that it was not written; "
               "unchecked means only the records are wanted.",
     },
     "gui.export.keep_wrapper.node": {

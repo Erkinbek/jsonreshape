@@ -226,7 +226,8 @@ assert format_for_path("x.csv.gz") == "csv" and format_for_path("x.ndjson") == "
 
 `ExportOptions(fmt, indent=2, sort_keys=False, keep_wrapper=True, columns=None, array_mode="join",
 explode=None, join_sep=";", csv_delimiter=",", csv_bom=True, xlsx_max_rows=1048576, xlsx_split="sheets",
-as_keyed=False)`; `ExportOptions.from_settings(fmt)` takes the defaults from the user settings. A name
+as_keyed=False, parquet_compression="zstd")`; `fmt` is one of `json`, `jsonl`, `csv`, `xlsx`, `sqlite`, `parquet`
+(Parquet needs the optional `pyarrow`: `pip install "jsonreshape[parquet]"`); `ExportOptions.from_settings(fmt)` takes the defaults from the user settings. A name
 ending in `.gz` gives a gzip-compressed JSON / JSON Lines / CSV file. `ExportReport` has `records`, `rows`,
 `bytes_written`, `files`, `columns`, `tables`, `warnings` (localized texts) and `warning_keys`.
 `jsonreshape.writer.export_many([(doc_a, None), (doc_b, rs)], "all.json", opts)` writes several documents
