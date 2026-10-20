@@ -14,8 +14,8 @@ import re
 from pathlib import Path
 
 PRODUCT = "JSON Reshape"
-COMPANY = "jsonreshape"
-COPYRIGHT = "jsonreshape"
+COMPANY = "Erkin Pardayev"
+COPYRIGHT = "© 2026 Erkin Pardayev"
 
 _VERSION_RE = re.compile(r"""^__version__\s*=\s*["']([^"']+)["']""", re.MULTILINE)
 

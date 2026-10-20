@@ -9,6 +9,7 @@ description = "Katta JSON fayllar uchun ko'ruvchi, muharrir va tuzilma quruvchi 
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Proprietary" }
+authors = [{ name = "Erkin Pardayev", email = "erkin.pardayev@gmail.com" }]
 dependencies = [
     "orjson>=3.10",
     "ijson>=3.3",
@@ -16,6 +17,10 @@ dependencies = [
     "jmespath>=1.0",
     "psutil>=5.9",
 ]
+
+[project.urls]
+Repository = "https://github.com/Erkinbek/jsonreshape"
+Author = "https://github.com/Erkinbek"
 
 [project.optional-dependencies]
 gui = ["PySide6>=6.8"]

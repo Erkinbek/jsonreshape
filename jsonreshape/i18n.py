@@ -11698,8 +11698,8 @@ MESSAGES: dict[str, dict[str, str]] = {
     "gui.main.env.title": {"uz": "Muhit haqida", "en": "Environment"},
     "gui.main.about.title": {"uz": "Dastur haqida", "en": "About"},
     "gui.main.about.text": {
-        "uz": "JSON Reshape {version}\nKatta JSON fayllarni ko'rish, qidirish, filtrlash va eksport qilish uchun.\n\nTezkor yadro: {backend}\n\nDastur to'liq oflayn ishlaydi: hech qanday ma'lumot tarmoqqa yuborilmaydi, telemetriya ham, yangilanish tekshiruvi ham yo'q.",
-        "en": "JSON Reshape {version}\nView, search, filter and export huge JSON files.\n\nFast core: {backend}\n\nThe program works fully offline: nothing is sent over the network, there is no telemetry and no update check.",
+        "uz": "JSON Reshape {version}\nKatta JSON fayllarni ko'rish, qidirish, filtrlash va eksport qilish uchun.\n\nTezkor yadro: {backend}\n\nDastur to'liq oflayn ishlaydi: hech qanday ma'lumot tarmoqqa yuborilmaydi, telemetriya ham, yangilanish tekshiruvi ham yo'q.\n\n© 2026 Erkin Pardayev · github.com/Erkinbek\nClaude Opus 5.5 yordamida yaratilgan.",
+        "en": "JSON Reshape {version}\nView, search, filter and export huge JSON files.\n\nFast core: {backend}\n\nThe program works fully offline: nothing is sent over the network, there is no telemetry and no update check.\n\n© 2026 Erkin Pardayev · github.com/Erkinbek\nBuilt with Claude Opus 5.5.",
     },
 }
 
