@@ -41,8 +41,11 @@
              [--numbers value|exact|text] [--ignore-order] [--max-changes N] [--limit N] [--summary]
              [--json] [-o FILE.json|FILE.jsonl|FILE.csv] [--exit-code] [--memory-limit SIZE]
     presets  [--delete NAME] [--json]
+    import   INPUT [OUTPUT | -o OUTPUT] [--from csv|yaml|xml] [--to json|jsonl | --jsonl] [--compact | --indent N]
+             [--types auto|string] [--empty null|string] [--delimiter D] [--no-header] [--no-nest]
+             [--encoding ENC] [--skip-bad] [--record-tag TAG | --record-path a/b/c] [--json]
 
-    input options (every command but presets and repair): --record-path P,
+    input options (every command but presets, repair and import): --record-path P,
         --format auto|array|jsonl|brace_list|wrapped|keyed|single|stream, --allow-partial (not split),
         --no-cache
     output options: --to json|jsonl|csv|xlsx|sqlite|parquet (default: from the OUTPUT extension, see
@@ -1105,6 +1108,7 @@ def build_parser() -> _ArgumentParser:
     _add_global_options(p, repeated=True)
 
     _add_tool_commands(sub)
+    _add_import_command(sub)
 
     p = _add_command(sub, "presets", t("cli.cmd.presets.help"), t("cli.cmd.presets.description"),
                      t("cli.cmd.presets.epilog"))
@@ -4425,6 +4429,76 @@ def _version_lines(backend: str | None, detail: str | None = None) -> list[str]:
 # ==================================================================================
 # main
 # ==================================================================================
+# ==================================================================================
+# import (CSV / YAML / XML -> JSON / JSON Lines; docs/ARCHITECTURE.md §17)
+# ==================================================================================
+IMPORT_FORMATS = ("auto", "csv", "yaml", "xml")       # importers.FORMATS
+IMPORT_OUTPUTS = ("json", "jsonl")                      # importers.OUTPUT_FORMATS
+IMPORT_TYPES = ("auto", "string")                       # importers.TYPE_MODES
+IMPORT_EMPTY = ("null", "string")                       # importers.EMPTY_MODES
+
+
+def _add_import_command(sub: Any) -> None:
+    """``import INPUT [OUTPUT | -o OUTPUT] [--from csv|yaml|xml] [--to json|jsonl | --jsonl] [--compact |
+    --indent N] [--types auto|string] [--empty null|string] [--json] [CSV options] [XML options]``."""
+    p = _tool_command(sub, "import")
+    p.add_argument("input", metavar="INPUT", help=t("cli.help.import_input"))
+    p.add_argument("output", metavar="OUTPUT", nargs="?", default=None, help=t("cli.help.import_output"))
+    g = p.add_argument_group(t("cli.group.import"))
+    _add_output_file_option(g, "output_opt", "cli.help.output_opt")
+    g.add_argument("--from", "--format", dest="from_fmt", choices=IMPORT_FORMATS, default="auto",
+                   help=t("cli.help.import_from"))
+    g.add_argument("--to", dest="to_fmt", choices=IMPORT_OUTPUTS, default=None, help=t("cli.help.import_to"))
+    g.add_argument("--jsonl", action="store_true", help=t("cli.help.import_jsonl"))
+    _add_json_layout_options(g)
+    g.add_argument("--types", choices=IMPORT_TYPES, default="auto", help=t("cli.help.import_types"))
+    g.add_argument("--empty", choices=IMPORT_EMPTY, default="null", help=t("cli.help.import_empty"))
+    g.add_argument("--json", action="store_true", help=t("cli.help.import_json"))
+    g = p.add_argument_group(t("cli.group.import_csv"))
+    g.add_argument("--delimiter", metavar="D", type=_delimiter_value, default=None, help=t("cli.help.import_delimiter"))
+    g.add_argument("--no-header", action="store_true", help=t("cli.help.import_no_header"))
+    g.add_argument("--no-nest", action="store_true", help=t("cli.help.import_no_nest"))
+    g.add_argument("--encoding", metavar="ENC", default=None, help=t("cli.help.import_encoding"))
+    g.add_argument("--skip-bad", action="store_true", help=t("cli.help.import_skip_bad"))
+    g = p.add_argument_group(t("cli.group.import_xml"))
+    mx = g.add_mutually_exclusive_group()
+    mx.add_argument("--record-tag", metavar="TAG", default=None, help=t("cli.help.import_record_tag"))
+    mx.add_argument("--record-path", metavar="P", default=None, help=t("cli.help.import_record_path"))
+    _add_global_options(p, repeated=True)
+
+
+def _cmd_import(ctx: _Ctx) -> int:
+    """import: a CSV / TSV, YAML or XML file -> JSON / JSON Lines (:func:`jsonreshape.importers.import_file`);
+    the summary line, the report's notes and warnings, ``--json``."""
+    from .importers import ImportOptions, format_name, import_file
+
+    args = ctx.args
+    _check_input(args.input)
+    output = _one_output(args, required=True)
+    _check_output(args.input, output)
+    indent: Any = None if args.compact else (args.indent if args.indent is not None else ctx.settings.export_indent)
+    opts = ImportOptions(fmt=None if args.from_fmt == "auto" else args.from_fmt,
+                         output="jsonl" if args.jsonl else args.to_fmt, indent=indent, types=args.types,
+                         empty=args.empty, delimiter=args.delimiter, header=not args.no_header,
+                         nest=not args.no_nest, encoding=args.encoding, skip_bad=bool(args.skip_bad),
+                         record_tag=args.record_tag, record_path=args.record_path)
+    try:
+        rep = import_file(args.input, output, opts, settings=ctx.settings, progress=ctx.stage(t("cli.stage.importing")),
+                          cancel=ctx.cancel)
+    finally:
+        ctx.end_stage()
+    if args.json:
+        ctx.console.out(_json_text(rep.to_dict()))
+    ctx.info(_tn("cli.summary.import", rep.records, records=_num(rep.records), input=_display_path(args.input),
+                 fmt=format_name(rep.fmt), output=_display_path(output), size=format_bytes(rep.bytes_written),
+                 seconds=format_duration(rep.elapsed)))
+    for text in rep.notes:
+        ctx.info(text)
+    for text in rep.warnings:
+        ctx.warn(text)
+    return EXIT_OK
+
+
 _COMMANDS: dict[str, Callable[[_Ctx], int]] = {
     "inspect": _cmd_inspect,
     "search": _cmd_search,
@@ -4442,6 +4516,7 @@ _COMMANDS: dict[str, Callable[[_Ctx], int]] = {
     "merge": _cmd_merge,
     "extract": _cmd_extract,
     "repair": _cmd_repair,
+    "import": _cmd_import,
     "diff": _cmd_diff,
     "presets": _cmd_presets,
 }

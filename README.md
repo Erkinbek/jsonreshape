@@ -181,6 +181,14 @@ jsonreshape extract data.json orders.jsonl --gather "orders[*]"
 # --check: check only
 jsonreshape repair broken.json repaired.json --report fixes.csv
 jsonreshape diff old.json new.json --key id --exit-code
+
+# Import: CSV / TSV, YAML or XML -> JSON Lines (default) or a JSON array (.json); numbers keep their text
+jsonreshape import data.csv data.jsonl
+jsonreshape import data.csv data.json --indent 4
+jsonreshape import table.tsv -o table.jsonl --no-header --types string
+jsonreshape import export.csv -o export.jsonl --delimiter ";" --encoding cp1251 --skip-bad
+jsonreshape import config.yaml config.json
+jsonreshape import catalog.xml -o catalog.jsonl --record-tag item
 ```
 
 If JMESPath needs a literal such as `` `100` ``: use a single-quoted string in PowerShell
@@ -416,6 +424,15 @@ source file or a file that is open in another tab with unsaved changes.
 * **Schema view**: a "null / missing" column (from the sample or a full scan — the header says which), the share of
   integers; "Statistics" (a double-click too) and "Duplicate records…".
 
+* **Import (CSV, YAML, XML)** (File → "Import (CSV, YAML, XML)…"): converts a CSV / TSV, YAML or XML file into a new
+  JSON Lines or JSON file and opens it in a new tab ("Open the result"). The type is detected from the extension (it
+  can be overridden); options: delimiter (automatic or `,` `;` tab `|`), header row, nested `a.b.c` columns,
+  encoding, skipping malformed rows, values (automatic numbers / `true` / `false` / `null`, or everything as text),
+  empty cells (`null` or `""`), the XML record tag or record path, the JSON indentation of a `.json` result. The
+  source file is never changed; the result is never written over the source or over a file with unsaved changes;
+  the import runs in the background with progress and "Stop"; the report shows the records, the converted numbers,
+  literals and empty cells, skipped rows and warnings.
+
 ### Convenience (stage 6)
 
 * **Command palette (Ctrl+Shift+P)** — a search box that opens over the window: every menu command ("File ▸ …",
@@ -512,6 +529,18 @@ not visible until the copy is ready (~0.5 s for 200 MB of data). UTF-32 is rejec
 Parquet — share one column model (`--columns`, automatic columns, `a.b.c`, `--array-mode`, `--explode`), so the
 same export gives the same header and rows in each of them. `.parquet.gz` is refused like `.xlsx.gz`: Parquet
 compresses its own pages (`--parquet-compression zstd|snappy|gzip|none`, default `zstd`).
+
+**Import of other formats** (`jsonreshape import`, File → "Import (CSV, YAML, XML)…"; `README` §2): CSV / TSV, YAML
+and XML files become JSON Lines (one record per line) or one JSON array / value. Numbers keep their text exactly
+(`1.10` stays `1.10`, `12345678901234567890` is not rounded; `007` stays a string). CSV: UTF-8 with or without BOM,
+UTF-16 with a BOM, or a given `--encoding`; the delimiter is detected (`,` `;` tab `|`) or given; RFC 4180 quoting
+with newlines inside fields; the header names the columns (`a.b.c` → nested objects); empty cell → `null`. YAML:
+needs the optional `pyyaml` (`pip install jsonreshape[import]`), one document → JSON, a `---` stream → JSON Lines;
+read into memory whole (PyYAML cannot stream: a warning above 256 MiB, refused above twice the memory limit); safe
+loader only. XML: streamed; attributes → `"@name"`, text → `"#text"`, repeated child elements → arrays, an element
+with text only → that text; records are the children of the root or the elements named by `--record-tag` /
+`--record-path`; documents with `<!ENTITY` declarations are refused (safety). Compressed (`.gz`) inputs are not
+imported (unpack them first).
 
 Detection rules for a file with an object root: if the start of the file (`head_bytes`, default 4 MiB) contains a
 large array that is not closed yet — `wrapped` (that array's path is chosen automatically and a warning is shown);
@@ -1180,6 +1209,33 @@ session restore when `main()` is started again.
     never lose data. The result is the same file whatever the batching, so one thread and worker processes write
     byte-identical files. A column that is `null` everywhere is `string`. The Windows `.exe` does not bundle `pyarrow`
     (it would add ~100 MB): Parquet export is a feature of the Python package (`pip install "jsonreshape[parquet]"`).
+48. **Import values**: a CSV / XML text becomes a number only when it is exactly a JSON number token (`1.10`,
+   `-0`, `1e400`; not `007`, `+1`, `1,5`, ` 1`); `true` / `false` / `null` become those values; everything else stays
+   a string (`--types string` keeps everything a string). Numbers keep their text through the codec's exact types.
+49. **CSV columns**: the header names the columns; `a.b.c` becomes nested objects (`--no-nest` keeps flat keys),
+   `tags.0` gives an object key `"0"` (never an array); an empty header cell is `cN`; a duplicate name is an error;
+   a column that is also the prefix of another (`a` and `a.b`) is an error. An empty cell is `null` (`--empty
+   string` for `""`). A row with another number of fields is an error at its line (`--skip-bad` skips and counts).
+50. **YAML**: read whole (PyYAML cannot stream); `yaml.CSafeLoader` / `SafeLoader` only; YAML 1.1 rules of PyYAML
+   (`yes` / `no` are booleans, `1e3` is a string, `017` is octal, `0o17` a string); non-JSON number forms (`0x1F`,
+   `017`, `1_000`, `+1`, `1:30`, `.5`) are written by value; `.inf` / `.nan` → `null` with a warning; dates →
+   ISO 8601 strings; `!!binary` → the base64 text; `!!set` → an object with `null` values (members sorted);
+   `!!omap` / `!!pairs` → arrays of `[key, value]`; merge keys resolved; aliases expanded (recursive aliases and
+   expansions above 2 × file size + 1 000 000 values are refused); non-string keys become their JSON text (`1` and
+   `true` collide as Python dict keys: the last wins); one document → JSON, several → JSON Lines (a `.json` target
+   gets an array).
+51. **XML**: attributes `"@name"`, text `"#text"` (only when the element also has attributes or children), an
+   element with text only is that text, an empty element is `null`, a child tag repeated among the children of one
+   element becomes an array (so the shapes of records may differ: once → value, twice → array); whitespace-only
+   text is dropped; mixed content is joined with one space; namespaces are written `prefix:name` with the
+   document's prefixes (the default namespace gives the local name); comments and processing instructions are
+   dropped. Records: the children of the root by default, `--record-tag TAG` (qualified or local name; not inside
+   another record) or `--record-path a/b/c` from the root. A prolog with `<!ENTITY` is refused (entity expansion).
+52. **Import output**: JSON Lines unless the target ends in `.json` (one array; a single YAML document is written
+   bare) or `--to json`; the JSON layout is the writer's (`--indent 2|4|tab`, `--compact`); the result is written
+   atomically, never over the source or a file with unsaved edits; `.gz` inputs and outputs are not supported by
+   `import` (use `convert` afterwards). The GUI default target is `<stem>.jsonl` beside the source (`<stem>.json`
+   for YAML).
 
 ### Known limitations
 

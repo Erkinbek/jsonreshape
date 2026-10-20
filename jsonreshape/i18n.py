@@ -4252,6 +4252,208 @@ MESSAGES: dict[str, dict[str, str]] = {
     "workspace.type.list": {"uz": "ro'yxat (JSON massiv)", "en": "a list (JSON array)"},
     "workspace.type.object": {"uz": "JSON obyekt", "en": "a JSON object"},
     "workspace.type.string_or_list": {"uz": "matn yoki ro'yxat", "en": "a string or a list"},
+    # ---- importers ----
+    # import of CSV / TSV, YAML and XML into JSON / JSON Lines (importers.py, docs/ARCHITECTURE.md §17)
+    "importers.format.csv": {"uz": "CSV / TSV", "en": "CSV / TSV"},
+    "importers.format.yaml": {"uz": "YAML", "en": "YAML"},
+    "importers.format.xml": {"uz": "XML", "en": "XML"},
+    "importers.progress.csv": {"uz": "CSV o'qilmoqda", "en": "Reading the CSV"},
+    "importers.progress.yaml": {"uz": "YAML tahlil qilinmoqda", "en": "Parsing the YAML"},
+    "importers.progress.xml": {"uz": "XML o'qilmoqda", "en": "Reading the XML"},
+    "importers.error.option": {
+        "uz": "Import parametri noto'g'ri: {name} = {value} (kutilgani: {expected})",
+        "en": "Invalid import option: {name} = {value} (expected: {expected})",
+    },
+    "importers.error.encoding_unknown": {"uz": "Noma'lum kodirovka: {encoding}", "en": "Unknown encoding: {encoding}"},
+    "importers.error.record_both": {
+        "uz": "Yozuv tegi va yozuv yo'lini birga berib bo'lmaydi: bittasini tanlang.",
+        "en": "A record tag and a record path cannot be given together: choose one.",
+    },
+    "importers.error.unknown_format": {
+        "uz": "Kirish faylining turi kengaytmasidan aniqlanmadi: {path}",
+        "en": "The type of the input file could not be told from its extension: {path}",
+    },
+    "importers.error.unknown_format.hint": {
+        "uz": "Tanilgan kengaytmalar: {extensions}. Turini qo'lda bering: --from csv|yaml|xml.",
+        "en": "Known extensions: {extensions}. Give the type by hand: --from csv|yaml|xml.",
+    },
+    "importers.error.gzip": {
+        "uz": "Siqilgan (gzip) faylni import qilib bo'lmaydi: {path}",
+        "en": "A gzip-compressed file cannot be imported: {path}",
+    },
+    "importers.error.gzip.hint": {
+        "uz": "Avval faylni oching (gunzip / 7-Zip), keyin import qiling.",
+        "en": "Unpack the file first (gunzip / 7-Zip), then import it.",
+    },
+    "importers.error.utf32": {
+        "uz": "UTF-32 kodirovkali fayl import qilinmaydi: {path}. Uni UTF-8 ga o'giring.",
+        "en": "A UTF-32 encoded file is not imported: {path}. Convert it to UTF-8 first.",
+    },
+    "importers.error.decode": {
+        "uz": "Faylni {encoding} kodirovkasida o'qib bo'lmadi ({line}-qator atrofida): {detail}",
+        "en": "The file could not be read as {encoding} (around line {line}): {detail}",
+    },
+    "importers.error.decode.hint": {
+        "uz": "Kodirovkani qo'lda bering: --encoding cp1251 (yoki utf-16, latin-1, ...).",
+        "en": "Give the encoding by hand: --encoding cp1251 (or utf-16, latin-1, ...).",
+    },
+    "importers.error.csv_duplicate_header": {
+        "uz": "CSV sarlavhasida «{name}» nomi takrorlangan ({columns}-ustunlar).",
+        "en": "The CSV header uses the name \"{name}\" more than once (columns {columns}).",
+    },
+    "importers.error.csv_duplicate_header.hint": {
+        "uz": "Ustun nomlarini farqli qiling yoki sarlavhasiz import qiling (--no-header: ustunlar c1..cN).",
+        "en": "Make the column names different, or import without a header (--no-header: columns c1..cN).",
+    },
+    "importers.error.csv_nest_conflict": {
+        "uz": "«{first}» ustuni ham qiymat, ham «{second}» ustunining obyekti bo'lishi kerak: ichma-ich qilib "
+              "bo'lmaydi.",
+        "en": "The column \"{first}\" would be both a value and the object holding \"{second}\": the columns cannot "
+              "be nested.",
+    },
+    "importers.error.csv_nest_conflict.hint": {
+        "uz": "Nomlarni tekis kalit sifatida qoldirish uchun --no-nest qo'shing.",
+        "en": "Add --no-nest to keep the names as flat keys.",
+    },
+    "importers.error.csv_malformed": {
+        "uz": "{line}-qator: CSV xatosi: {detail}",
+        "en": "Line {line}: CSV error: {detail}",
+    },
+    "importers.error.csv_malformed.hint": {
+        "uz": "Buzuq qatorlarni o'tkazib yuborish uchun --skip-bad qo'shing (ular hisobotda sanaladi).",
+        "en": "Add --skip-bad to skip malformed rows (they are counted in the report).",
+    },
+    "importers.error.csv_row_width": {
+        "uz": "{line}-qator: {got} ta maydon, sarlavhada esa {expected} ta.",
+        "en": "Line {line}: {got} fields, but the header has {expected}.",
+    },
+    "importers.error.csv_row_width.hint": {
+        "uz": "Buzuq qatorlarni o'tkazib yuborish uchun --skip-bad qo'shing; ajratuvchi noto'g'ri aniqlangan "
+              "bo'lsa, --delimiter bering.",
+        "en": "Add --skip-bad to skip malformed rows; if the delimiter was detected wrongly, give --delimiter.",
+    },
+    "importers.error.yaml_missing": {
+        "uz": "YAML import uchun «pyyaml» kutubxonasi o'rnatilmagan.",
+        "en": "The \"pyyaml\" library needed for YAML import is not installed.",
+    },
+    "importers.error.yaml_missing.hint": {
+        "uz": "O'rnatish: pip install pyyaml (yoki pip install jsonreshape[import]).",
+        "en": "Install it: pip install pyyaml (or pip install jsonreshape[import]).",
+    },
+    "importers.error.yaml_too_big": {
+        "uz": "YAML fayl juda katta ({size}): YAML butunlay xotiraga o'qiladi, ruxsat etilgani {limit} "
+              "(«{setting}» sozlamasining ikki baravari).",
+        "en": "The YAML file is too big ({size}): YAML is read into memory whole, and at most {limit} is allowed "
+              "(twice the \"{setting}\" setting).",
+    },
+    "importers.error.yaml": {
+        "uz": "YAML xatosi ({line}-qator, {column}-ustun): {reason}",
+        "en": "YAML error (line {line}, column {column}): {reason}",
+    },
+    "importers.error.yaml_plain": {"uz": "YAML xatosi: {reason}", "en": "YAML error: {reason}"},
+    "importers.error.yaml_key": {
+        "uz": "YAML kalitini JSON matniga aylantirib bo'lmaydi: {key}",
+        "en": "A YAML key cannot be turned into JSON text: {key}",
+    },
+    "importers.error.yaml_expanded": {
+        "uz": "YAML alias'lari (takroriy ishoralar) juda ko'p ma'lumotga kengayadi ({count} dan ortiq qiymat); "
+              "fayl import qilinmadi.",
+        "en": "The YAML aliases expand to too much data (more than {count} values); the file was not imported.",
+    },
+    "importers.error.yaml_recursive": {
+        "uz": "YAML hujjatda o'z-o'ziga ishora qiluvchi (rekursiv) alias bor; JSON bunday tuzilmani ifodalay "
+              "olmaydi.",
+        "en": "The YAML document has an alias that refers to itself (recursive); JSON cannot express that.",
+    },
+    "importers.error.yaml_deep": {
+        "uz": "YAML hujjat juda chuqur joylashgan (ichma-ich darajalar ko'p); import qilinmadi.",
+        "en": "The YAML document is nested too deeply; it was not imported.",
+    },
+    "importers.error.xml": {
+        "uz": "XML xatosi ({line}-qator, {column}-ustun): {reason}",
+        "en": "XML error (line {line}, column {column}): {reason}",
+    },
+    "importers.error.xml_entities": {
+        "uz": "XML faylning DOCTYPE qismida ENTITY e'lonlari bor; xavfsizlik uchun bunday fayl import qilinmaydi: "
+              "{path}",
+        "en": "The DOCTYPE of the XML file declares entities (ENTITY); for safety such a file is not imported: "
+              "{path}",
+    },
+    "importers.error.xml_entities.hint": {
+        "uz": "ENTITY e'lonlarini olib tashlang yoki faylni ishonchli vosita bilan oddiy XML'ga aylantiring.",
+        "en": "Remove the ENTITY declarations, or expand them with a trusted tool first.",
+    },
+    "importers.warn.skipped": {
+        "uz": "{count} ta buzuq qator o'tkazib yuborildi (birinchilari: {lines}-qatorlar).",
+        "en": "{count} malformed rows were skipped (the first ones end at lines {lines}).",
+    },
+    "importers.warn.skipped.one": {
+        "uz": "{count} ta buzuq qator o'tkazib yuborildi ({lines}-qator).",
+        "en": "{count} malformed row was skipped (it ends at line {lines}).",
+    },
+    "importers.warn.no_records": {"uz": "Birorta ham yozuv topilmadi.", "en": "No records were found."},
+    "importers.warn.xml_no_records": {
+        "uz": "Birorta ham yozuv topilmadi (ildiz elementi: <{root}>). Yozuv elementini --record-tag TEG yoki "
+              "--record-path a/b/c bilan ko'rsating.",
+        "en": "No records were found (the root element is <{root}>). Name the record element with --record-tag TAG "
+              "or --record-path a/b/c.",
+    },
+    "importers.warn.yaml_nonfinite": {
+        "uz": "{count} ta .inf / .nan qiymati null bo'ldi (JSON'da cheksizlik va NaN yo'q).",
+        "en": "{count} .inf / .nan values became null (JSON has no infinity or NaN).",
+    },
+    "importers.warn.yaml_nonfinite.one": {
+        "uz": "{count} ta .inf / .nan qiymati null bo'ldi (JSON'da cheksizlik va NaN yo'q).",
+        "en": "{count} .inf / .nan value became null (JSON has no infinity or NaN).",
+    },
+    "importers.warn.yaml_big": {
+        "uz": "YAML fayl katta ({size}): u butunlay xotiraga o'qiladi (PyYAML oqim bilan o'qiy olmaydi).",
+        "en": "The YAML file is big ({size}): it is read into memory whole (PyYAML cannot stream).",
+    },
+    "importers.note.numbers": {"uz": "{count} ta katak son bo'ldi.", "en": "{count} cells became numbers."},
+    "importers.note.numbers.one": {"uz": "{count} ta katak son bo'ldi.", "en": "{count} cell became a number."},
+    "importers.note.literals": {
+        "uz": "{count} ta katak true / false / null bo'ldi.",
+        "en": "{count} cells became true / false / null.",
+    },
+    "importers.note.literals.one": {
+        "uz": "{count} ta katak true / false / null bo'ldi.",
+        "en": "{count} cell became true / false / null.",
+    },
+    "importers.note.empty_null": {"uz": "{count} ta bo'sh katak null bo'ldi.", "en": "{count} empty cells became null."},
+    "importers.note.empty_null.one": {"uz": "{count} ta bo'sh katak null bo'ldi.", "en": "{count} empty cell became null."},
+    "importers.note.empty_string": {
+        "uz": "{count} ta bo'sh katak bo'sh matn (\"\") bo'ldi.",
+        "en": "{count} empty cells became empty strings (\"\").",
+    },
+    "importers.note.empty_string.one": {
+        "uz": "{count} ta bo'sh katak bo'sh matn (\"\") bo'ldi.",
+        "en": "{count} empty cell became an empty string (\"\").",
+    },
+    "importers.note.yaml_values": {
+        "uz": "{count} ta YAML son (0x1F, 017, 1_000, +1, 1:30, .5 ko'rinishidagi) qiymati bo'yicha yozildi.",
+        "en": "{count} YAML numbers in a non-JSON form (0x1F, 017, 1_000, +1, 1:30, .5) were written by value.",
+    },
+    "importers.note.yaml_values.one": {
+        "uz": "{count} ta YAML son (0x1F, 017, 1_000, +1, 1:30, .5 ko'rinishidagi) qiymati bo'yicha yozildi.",
+        "en": "{count} YAML number in a non-JSON form (0x1F, 017, 1_000, +1, 1:30, .5) was written by value.",
+    },
+    "importers.note.dates": {
+        "uz": "{count} ta YAML sana / vaqt ISO 8601 matn bo'ldi.",
+        "en": "{count} YAML dates / times became ISO 8601 strings.",
+    },
+    "importers.note.dates.one": {
+        "uz": "{count} ta YAML sana / vaqt ISO 8601 matn bo'ldi.",
+        "en": "{count} YAML date / time became an ISO 8601 string.",
+    },
+    "importers.note.binary": {
+        "uz": "{count} ta YAML binary qiymat base64 matn bo'ldi.",
+        "en": "{count} YAML binary values became base64 strings.",
+    },
+    "importers.note.binary.one": {
+        "uz": "{count} ta YAML binary qiymat base64 matn bo'ldi.",
+        "en": "{count} YAML binary value became a base64 string.",
+    },
     # ---- cli ----
     # argparse's own phrases (cli.ARGPARSE_MESSAGES maps argparse msgids to these keys)
     "cli.argparse.usage": {"uz": "foydalanish: ", "en": "usage: "},
@@ -4615,6 +4817,121 @@ MESSAGES: dict[str, dict[str, str]] = {
     "cli.help.parquet_compression": {
         "uz": "Parquet siqish usuli: zstd (standart), snappy, gzip yoki none",
         "en": "Parquet compression: zstd (default), snappy, gzip or none",
+    },
+    # import (CSV / YAML / XML -> JSON / JSON Lines; importers.py, docs/ARCHITECTURE.md §17)
+    "cli.cmd.import.help": {
+        "uz": "CSV, YAML yoki XML faylni JSON / JSON Lines'ga aylantirish",
+        "en": "convert a CSV, YAML or XML file to JSON / JSON Lines",
+    },
+    "cli.cmd.import.description": {
+        "uz": "CSV / TSV, YAML yoki XML faylni o'qib, yozuvlarini JSON Lines (standart) yoki bitta JSON massiv\n"
+              "sifatida OUTPUT ga yozadi. Kirish turi kengaytmadan (.csv .tsv .yaml .yml .xml) yoki --from dan,\n"
+              "natija formati OUTPUT kengaytmasidan (.json / .jsonl) yoki --to / --jsonl dan olinadi. Sonlar\n"
+              "matni aynan saqlanadi (1.10 o'zgarmaydi, 007 matn qoladi). Asl fayl o'zgarmaydi; natija kirish\n"
+              "fayli yoki saqlanmagan o'zgarishlari bor fayl bo'la olmaydi. CSV va XML oqim bilan o'qiladi; YAML\n"
+              "butunlay xotiraga o'qiladi (256 MiB dan katta bo'lsa ogohlantiradi).",
+        "en": "Reads a CSV / TSV, YAML or XML file and writes its records to OUTPUT as JSON Lines (default) or as\n"
+              "one JSON array. The input type comes from the extension (.csv .tsv .yaml .yml .xml) or --from, the\n"
+              "output format from the OUTPUT extension (.json / .jsonl) or --to / --jsonl. Number texts are kept\n"
+              "exactly (1.10 never changes, 007 stays a string). The original file is never modified; the output\n"
+              "may not be the input or a file with unsaved edits. CSV and XML are streamed; YAML is read into\n"
+              "memory whole (a warning above 256 MiB).",
+    },
+    "cli.cmd.import.epilog": {
+        "uz": "Misollar:\n"
+              "  jsonreshape import data.csv data.jsonl\n"
+              "  jsonreshape import data.csv data.json --indent 4\n"
+              "  jsonreshape import jadval.tsv -o jadval.jsonl --no-header --types string\n"
+              "  jsonreshape import eksport.csv -o eksport.jsonl --delimiter \";\" --encoding cp1251 --skip-bad\n"
+              "  jsonreshape import config.yaml config.json\n"
+              "  jsonreshape import katalog.xml -o katalog.jsonl --record-tag item\n"
+              "  jsonreshape import katalog.xml -o katalog.jsonl --record-path catalog/books/book --json\n"
+              "\n"
+              "Qoidalar: CSV sarlavhasi ustun nomlari (a.b.c ichma-ich obyekt bo'ladi; --no-nest); bo'sh katak null\n"
+              "(--empty string); XML'da atribut \"@nom\", matn \"#text\", takror elementlar massiv.\n"
+              "Chiqish kodlari: 0 - yozildi; 1 - noto'g'ri parametr (OUTPUT kirish faylining o'zi, noma'lum tur,\n"
+              "pyyaml o'rnatilmagan); 2 - kirish fayli buzuq (qator va sabab ko'rsatiladi); 3 - bekor qilindi.",
+        "en": "Examples:\n"
+              "  jsonreshape import data.csv data.jsonl\n"
+              "  jsonreshape import data.csv data.json --indent 4\n"
+              "  jsonreshape import table.tsv -o table.jsonl --no-header --types string\n"
+              "  jsonreshape import export.csv -o export.jsonl --delimiter \";\" --encoding cp1251 --skip-bad\n"
+              "  jsonreshape import config.yaml config.json\n"
+              "  jsonreshape import catalog.xml -o catalog.jsonl --record-tag item\n"
+              "  jsonreshape import catalog.xml -o catalog.jsonl --record-path catalog/books/book --json\n"
+              "\n"
+              "Rules: the CSV header names the columns (a.b.c becomes nested objects; --no-nest); an empty cell is\n"
+              "null (--empty string); in XML attributes are \"@name\", text is \"#text\", repeated elements arrays.\n"
+              "Exit codes: 0 - written; 1 - an invalid option (OUTPUT is the input itself, an unknown type, pyyaml\n"
+              "not installed); 2 - the input is malformed (the line and the reason are shown); 3 - cancelled.",
+    },
+    "cli.group.import": {"uz": "import parametrlari", "en": "import options"},
+    "cli.group.import_csv": {"uz": "CSV / TSV parametrlari", "en": "CSV / TSV options"},
+    "cli.group.import_xml": {"uz": "XML parametrlari", "en": "XML options"},
+    "cli.help.import_input": {
+        "uz": "kirish fayli: .csv, .tsv, .yaml, .yml yoki .xml (boshqa kengaytma uchun --from)",
+        "en": "input file: .csv, .tsv, .yaml, .yml or .xml (--from for another extension)",
+    },
+    "cli.help.import_output": {
+        "uz": "natija fayli: .jsonl (JSON Lines) yoki .json (bitta massiv); kirish fayli bo'lishi mumkin emas",
+        "en": "output file: .jsonl (JSON Lines) or .json (one array); must not be the input",
+    },
+    "cli.help.import_from": {
+        "uz": "kirish turi (standart: auto - kengaytmadan)",
+        "en": "input type (default: auto - from the extension)",
+    },
+    "cli.help.import_to": {
+        "uz": "natija formati (standart: OUTPUT kengaytmasidan; aks holda jsonl, YAML uchun json)",
+        "en": "output format (default: from the OUTPUT extension; else jsonl, json for YAML)",
+    },
+    "cli.help.import_jsonl": {"uz": "JSON Lines yozish (--to jsonl bilan bir xil)", "en": "write JSON Lines (same as --to jsonl)"},
+    "cli.help.import_types": {
+        "uz": "qiymatlar: auto - JSON son ko'rinishidagi katak son, true/false/null - shunday qiymat, qolgani "
+              "matn (standart); string - hammasi matn",
+        "en": "values: auto - a cell that is a JSON number becomes a number, true/false/null those values, the "
+              "rest strings (default); string - everything a string",
+    },
+    "cli.help.import_empty": {
+        "uz": "bo'sh CSV katak: null (standart) yoki string (bo'sh matn)",
+        "en": "an empty CSV cell: null (default) or string (an empty string)",
+    },
+    "cli.help.import_delimiter": {
+        "uz": "CSV ajratuvchisi: bitta belgi yoki tab (standart: fayl boshidan aniqlanadi: , ; tab |)",
+        "en": "CSV delimiter: one character or tab (default: detected from the start of the file: , ; tab |)",
+    },
+    "cli.help.import_no_header": {
+        "uz": "birinchi qator sarlavha emas: ustunlar c1..cN deb nomlanadi",
+        "en": "the first row is not a header: the columns are named c1..cN",
+    },
+    "cli.help.import_no_nest": {
+        "uz": "a.b.c ko'rinishidagi ustun nomlarini ichma-ich obyekt qilmaslik (tekis kalit qoladi)",
+        "en": "do not turn column names like a.b.c into nested objects (they stay flat keys)",
+    },
+    "cli.help.import_encoding": {
+        "uz": "CSV kodirovkasi, masalan cp1251 (standart: aniqlanadi: UTF-8 BOM bilan/BOMsiz, UTF-16 BOM bilan)",
+        "en": "CSV encoding, e.g. cp1251 (default: detected: UTF-8 with or without BOM, UTF-16 with a BOM)",
+    },
+    "cli.help.import_skip_bad": {
+        "uz": "buzuq CSV qatorlarni (maydonlar soni boshqa, tirnoq xatosi) o'tkazib yuborish; aks holda xato",
+        "en": "skip malformed CSV rows (another number of fields, a quoting error) instead of stopping",
+    },
+    "cli.help.import_record_tag": {
+        "uz": "XML: shu tegli elementlar yozuv bo'ladi (standart: ildiz elementining bolalari)",
+        "en": "XML: the elements with this tag become the records (default: the children of the root)",
+    },
+    "cli.help.import_record_path": {
+        "uz": "XML: yozuv elementlarining yo'li ildizdan, masalan catalog/books/book",
+        "en": "XML: the path of the record elements from the root, e.g. catalog/books/book",
+    },
+    "cli.help.import_json": {"uz": "hisobotni JSON sifatida chiqarish", "en": "print the report as JSON"},
+    "cli.stage.importing": {"uz": "Import qilinmoqda", "en": "Importing"},
+    "cli.summary.import": {
+        "uz": "{records} ta yozuv: {input} ({fmt}) -> {output} ({size}, {seconds})",
+        "en": "{records} records: {input} ({fmt}) -> {output} ({size}, {seconds})",
+    },
+    "cli.summary.import.one": {
+        "uz": "{records} ta yozuv: {input} ({fmt}) -> {output} ({size}, {seconds})",
+        "en": "{records} record: {input} ({fmt}) -> {output} ({size}, {seconds})",
     },
     "cli.group.global": {"uz": "umumiy parametrlar", "en": "general options"},
     "cli.group.input": {"uz": "kirish fayli parametrlari", "en": "input options"},
@@ -11550,6 +11867,162 @@ MESSAGES: dict[str, dict[str, str]] = {
     "gui.taskspanel.cancel.tip": {"uz": "Bekor qilish", "en": "Cancel"},
     "gui.taskspanel.cancelling": {"uz": "Bekor qilinmoqda…", "en": "Cancelling…"},
     "gui.taskspanel.title_message": {"uz": "{title} — {message}", "en": "{title} — {message}"},
+    # ---- gui.importdialog ----
+    # import of CSV / YAML / XML files (gui/importdialog.py, docs/ARCHITECTURE.md §17); the menu action of File
+    "gui.importdialog.menu.import": {"uz": "&Import (CSV, YAML, XML)…", "en": "&Import (CSV, YAML, XML)…"},
+    "gui.importdialog.menu.import.tip": {
+        "uz": "CSV, YAML yoki XML fayldan JSON / JSON Lines fayl yasash va uni ochish (manba fayl o'zgarmaydi)",
+        "en": "Make a JSON / JSON Lines file from a CSV, YAML or XML file and open it (the source is not changed)",
+    },
+    "gui.importdialog.title": {"uz": "Import — {name}", "en": "Import — {name}"},
+    "gui.importdialog.title_none": {"uz": "Import (CSV, YAML, XML)", "en": "Import (CSV, YAML, XML)"},
+    "gui.importdialog.intro": {
+        "uz": "CSV / TSV, YAML yoki XML fayl JSON yoki JSON Lines fayliga aylantiriladi. Manba fayl o'zgarmaydi; "
+              "sonlarning matni aynan saqlanadi (1.10 o'zgarmaydi, 007 matn qoladi).",
+        "en": "A CSV / TSV, YAML or XML file is converted into a JSON or JSON Lines file. The source file is not "
+              "changed; number texts are kept exactly (1.10 never changes, 007 stays a string).",
+    },
+    "gui.importdialog.browse": {"uz": "Tanlash…", "en": "Browse…"},
+    "gui.importdialog.source.label": {"uz": "&Manba:", "en": "&Source:"},
+    "gui.importdialog.source.title": {"uz": "Import qilinadigan faylni tanlash", "en": "Choose the file to import"},
+    "gui.importdialog.source.filter": {
+        "uz": "Import fayllari (*.csv *.tsv *.yaml *.yml *.xml);;CSV / TSV (*.csv *.tsv);;YAML (*.yaml *.yml);;"
+              "XML (*.xml);;Barcha fayllar (*)",
+        "en": "Import files (*.csv *.tsv *.yaml *.yml *.xml);;CSV / TSV (*.csv *.tsv);;YAML (*.yaml *.yml);;"
+              "XML (*.xml);;All files (*)",
+    },
+    "gui.importdialog.source.need": {"uz": "Import qilinadigan faylni tanlang.", "en": "Choose the file to import."},
+    "gui.importdialog.format.label": {"uz": "&Tur:", "en": "&Type:"},
+    "gui.importdialog.format.auto": {"uz": "Kengaytma bo'yicha", "en": "By the extension"},
+    "gui.importdialog.detected": {"uz": "Aniqlangan tur: {fmt}", "en": "Detected type: {fmt}"},
+    "gui.importdialog.detected.none": {
+        "uz": "Tur kengaytmadan aniqlanmadi: turni tanlang.",
+        "en": "The type is not known from the extension: choose it.",
+    },
+    "gui.importdialog.unknown_format.hint": {
+        "uz": "Turni (CSV, YAML yoki XML) ro'yxatdan tanlang.",
+        "en": "Choose the type (CSV, YAML or XML) from the list.",
+    },
+    "gui.importdialog.target.label": {"uz": "&Natija:", "en": "&Output:"},
+    "gui.importdialog.target.title": {"uz": "Natija faylini saqlash", "en": "Save the result"},
+    "gui.importdialog.target.filter": {
+        "uz": "JSON Lines (*.jsonl);;JSON (*.json);;Barcha fayllar (*)",
+        "en": "JSON Lines (*.jsonl);;JSON (*.json);;All files (*)",
+    },
+    "gui.importdialog.target.need": {"uz": "Natija fayli uchun nom bering.", "en": "Give a name for the result file."},
+    "gui.importdialog.same_file.hint": {
+        "uz": "Natija hech qachon manba faylning ustiga yozilmaydi: boshqa nom tanlang.",
+        "en": "The result is never written over the source file: choose another name.",
+    },
+    "gui.importdialog.overwrite": {
+        "uz": "{path} allaqachon bor. Ustiga yozilsinmi?",
+        "en": "{path} already exists. Overwrite it?",
+    },
+    "gui.importdialog.options": {"uz": "Parametrlar", "en": "Options"},
+    "gui.importdialog.types.label": {"uz": "&Qiymatlar:", "en": "&Values:"},
+    "gui.importdialog.types.auto": {
+        "uz": "Son, true / false / null — avtomatik; qolgani matn",
+        "en": "Numbers, true / false / null — automatically; the rest strings",
+    },
+    "gui.importdialog.types.string": {"uz": "Hammasi matn", "en": "Everything a string"},
+    "gui.importdialog.types.tip": {
+        "uz": "Aynan JSON son ko'rinishidagi katak son bo'ladi (1.10 o'zgarmaydi; 007, +1 matn qoladi), true / false / "
+              "null — shunday qiymat",
+        "en": "A cell that is exactly a JSON number becomes a number (1.10 stays 1.10; 007 and +1 stay strings), "
+              "true / false / null become those values",
+    },
+    "gui.importdialog.indent.label": {"uz": "JSON &chekinishi:", "en": "JSON &indentation:"},
+    "gui.importdialog.indent.2": {"uz": "2 bo'sh joy", "en": "2 spaces"},
+    "gui.importdialog.indent.4": {"uz": "4 bo'sh joy", "en": "4 spaces"},
+    "gui.importdialog.indent.tab": {"uz": "Tab", "en": "Tab"},
+    "gui.importdialog.indent.compact": {"uz": "Ixcham (bo'sh joylarsiz)", "en": "Compact (no whitespace)"},
+    "gui.importdialog.indent.tip": {
+        "uz": "Faqat .json natija uchun; JSON Lines har doim ixcham",
+        "en": "For a .json result only; JSON Lines is always compact",
+    },
+    "gui.importdialog.csv": {"uz": "CSV / TSV", "en": "CSV / TSV"},
+    "gui.importdialog.delimiter.label": {"uz": "&Ajratuvchi:", "en": "&Delimiter:"},
+    "gui.importdialog.delimiter.auto": {"uz": "Avtomatik ( , ; tab | )", "en": "Automatic ( , ; tab | )"},
+    "gui.importdialog.delimiter.comma": {"uz": "Vergul ( , )", "en": "Comma ( , )"},
+    "gui.importdialog.delimiter.semicolon": {"uz": "Nuqta-vergul ( ; )", "en": "Semicolon ( ; )"},
+    "gui.importdialog.delimiter.tab": {"uz": "Tab", "en": "Tab"},
+    "gui.importdialog.delimiter.pipe": {"uz": "Vertikal chiziq ( | )", "en": "Vertical bar ( | )"},
+    "gui.importdialog.encoding.label": {"uz": "&Kodirovka:", "en": "&Encoding:"},
+    "gui.importdialog.encoding.auto": {
+        "uz": "Avtomatik (UTF-8, BOM, UTF-16)",
+        "en": "Automatic (UTF-8, BOM, UTF-16)",
+    },
+    "gui.importdialog.encoding.tip": {
+        "uz": "Ro'yxatdan tanlang yoki kodirovka nomini yozing (masalan, cp1251)",
+        "en": "Choose from the list or type a codec name (for example cp1251)",
+    },
+    "gui.importdialog.empty.label": {"uz": "&Bo'sh katak:", "en": "&Empty cell:"},
+    "gui.importdialog.empty.null": {"uz": "null", "en": "null"},
+    "gui.importdialog.empty.string": {"uz": "Bo'sh matn (\"\")", "en": "Empty string (\"\")"},
+    "gui.importdialog.header": {"uz": "Birinchi qator — ustun nomlari (&sarlavha)", "en": "The first row names the columns (&header)"},
+    "gui.importdialog.header.tip": {
+        "uz": "Belgilanmasa, ustunlar c1, c2, … deb nomlanadi",
+        "en": "Unchecked: the columns are named c1, c2, …",
+    },
+    "gui.importdialog.nest": {"uz": "a.b.c ustunlar — ichma-ich &obyekt", "en": "a.b.c columns become nested &objects"},
+    "gui.importdialog.nest.tip": {
+        "uz": "Nuqtali ustun nomi ichma-ich obyekt bo'ladi: contact.city → {\"contact\": {\"city\": …}}; belgilanmasa, "
+              "nom tekis kalit qoladi",
+        "en": "A dotted column name becomes nested objects: contact.city → {\"contact\": {\"city\": …}}; unchecked, "
+              "the name stays a flat key",
+    },
+    "gui.importdialog.skip_bad": {"uz": "Buzuq qatorlarni o'tkazib &yuborish", "en": "Skip malformed &rows"},
+    "gui.importdialog.skip_bad.tip": {
+        "uz": "Maydonlar soni boshqa yoki tirnoqlari buzuq qatorlar hisobotda sanaladi; belgilanmasa, birinchi "
+              "bunday qatorda xato bilan to'xtaydi",
+        "en": "Rows with another number of fields or broken quoting are counted in the report; unchecked, the first "
+              "such row stops the import with an error",
+    },
+    "gui.importdialog.xml": {"uz": "XML", "en": "XML"},
+    "gui.importdialog.record_tag.label": {"uz": "Yozuv &tegi:", "en": "Record &tag:"},
+    "gui.importdialog.record_tag.placeholder": {
+        "uz": "masalan: item (bo'sh — ildiz elementining bolalari)",
+        "en": "for example: item (empty — the children of the root element)",
+    },
+    "gui.importdialog.record_path.label": {"uz": "Yozuv yo'&li:", "en": "Record &path:"},
+    "gui.importdialog.record_path.placeholder": {
+        "uz": "masalan: catalog/books/book (ildizdan)",
+        "en": "for example: catalog/books/book (from the root)",
+    },
+    "gui.importdialog.xml.note": {
+        "uz": "Atributlar \"@nom\", matn \"#text\", takrorlangan elementlar massiv bo'ladi; faqat matnli element — "
+              "shu matn.",
+        "en": "Attributes become \"@name\", text \"#text\", repeated elements arrays; an element with text only "
+              "is that text.",
+    },
+    "gui.importdialog.run": {"uz": "&Import", "en": "&Import"},
+    "gui.importdialog.run.tip": {
+        "uz": "Faylni aylantirish va natijani yangi faylga yozish",
+        "en": "Convert the file and write the result to a new file",
+    },
+    "gui.importdialog.stop": {"uz": "To'xtatish", "en": "Stop"},
+    "gui.importdialog.task": {"uz": "Import: {name}", "en": "Import: {name}"},
+    "gui.importdialog.progress": {"uz": "{done} / {total} · {rate}/s", "en": "{done} / {total} · {rate}/s"},
+    "gui.importdialog.progress_eta": {
+        "uz": "{done} / {total} · {rate}/s · {eta} qoldi",
+        "en": "{done} / {total} · {rate}/s · {eta} left",
+    },
+    "gui.importdialog.cancelled": {"uz": "To'xtatildi; hech narsa yozilmadi.", "en": "Stopped; nothing was written."},
+    "gui.importdialog.failed": {"uz": "Bajarilmadi: {error}", "en": "Failed: {error}"},
+    "gui.importdialog.status.written": {"uz": "Import qilindi: {path}", "en": "Imported: {path}"},
+    "gui.importdialog.confirm_stop": {
+        "uz": "Import hali tugamagan. U to'xtatilib, oyna yopilsinmi? (Hech narsa yozilmaydi.)",
+        "en": "The import has not finished. Stop it and close the window? (Nothing is written.)",
+    },
+    "gui.importdialog.report": {"uz": "Natija", "en": "Result"},
+    "gui.importdialog.report.summary": {
+        "uz": "{records} ta yozuv: {source} ({fmt}) → {output} ({kind}, {size}, {seconds})",
+        "en": "{records} records: {source} ({fmt}) → {output} ({kind}, {size}, {seconds})",
+    },
+    "gui.importdialog.output.json": {"uz": "JSON", "en": "JSON"},
+    "gui.importdialog.output.jsonl": {"uz": "JSON Lines", "en": "JSON Lines"},
+    "gui.importdialog.open": {"uz": "Natijani &ochish", "en": "&Open the result"},
+    "gui.importdialog.open.tip": {"uz": "Yangi varaqda ochish", "en": "Open it in a new tab"},
     # ---- gui.main ----
     "gui.main.folder_ignored": {
         "uz": "Papka ochilmaydi, faqat fayllar: {path}",

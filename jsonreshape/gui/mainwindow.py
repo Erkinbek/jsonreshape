@@ -1316,6 +1316,20 @@ class MainWindow(QMainWindow):
         self.dialogs["repair"] = dialog
         return dialog
 
+    def show_import(self, path: str | os.PathLike[str] | None = None) -> Any:
+        """File ▸ "Import (CSV, YAML, XML)…" (stage 7, docs/ARCHITECTURE.md §16): the import window
+        (:mod:`jsonreshape.gui.importdialog`); the result opens in a new tab through ``open_requested``."""
+        from jsonreshape.gui.importdialog import show_import_dialog
+
+        try:
+            dialog = show_import_dialog(self.app, os.fspath(path) if path else None, self, **self._path_askers())
+        except Exception as exc:
+            log.exception("opening the import window failed")
+            self.app.report_error(exc, self)
+            return None
+        self.dialogs["import"] = dialog
+        return dialog
+
     def _on_tab_repair(self, path: str, hints: dict) -> None:
         """A bar's "Ta'mirlash…" / "Standart JSON'ga aylantirish…" in a tab."""
         if self._sender_tab() is not None:
@@ -1480,6 +1494,9 @@ class MainWindow(QMainWindow):
         self._act("reopen", t("gui.main.act.reopen"), self.reopen_current, shortcut="F5", icon=sp.SP_BrowserReload,
                   tip=t("gui.main.act.reopen.tip"))
         self._act("record_path", t("gui.main.act.record_path"), self.choose_record_path)
+        # stage 7 (§16): CSV / YAML / XML -> JSON import (gui/importdialog.py); File menu, after "Record path"
+        self._act("import_file", t("gui.importdialog.menu.import"), self.show_import,
+                  tip=t("gui.importdialog.menu.import.tip"))
         self._act("save", t("gui.main.act.save"), self.save_current, shortcut=SAVE_KEYS, icon=sp.SP_DriveFDIcon,
                   tip=t("gui.main.act.save.tip"))
         self._act("save_as", t("gui.main.act.save_as"), self.save_as_current, shortcut=SAVE_AS_KEYS,
@@ -1624,6 +1641,7 @@ class MainWindow(QMainWindow):
         recent.aboutToShow.connect(self._fill_recent_menu)
         file_menu.addAction(a["reopen"])
         file_menu.addAction(a["record_path"])
+        file_menu.addAction(a["import_file"])         # stage 7 (§16): CSV / YAML / XML -> JSON import
         file_menu.addSeparator()
         # stage 6 (§15.0): workspace files
         file_menu.addAction(a["workspace_open"])

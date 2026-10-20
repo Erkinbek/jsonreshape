@@ -26,6 +26,11 @@ All notable changes to jsonreshape are recorded here. The format follows
   value does not fit, row groups of ~64 MiB, `--parquet-compression zstd|snappy|gzip|none`, rows built in worker
   processes like CSV (byte-identical to one thread), atomic output, progress and cancellation
   (`jsonreshape/writer_parquet.py`, `ExportOptions.parquet_compression`, `writer.TABLE_FORMATS`).
+- **Import of CSV / TSV, YAML and XML** (stage 7): `jsonreshape import INPUT OUTPUT` and File → "Import (CSV, YAML,
+  XML)…" convert such files into JSON Lines or a JSON array with exact numbers (`1.10` stays `1.10`), detected
+  encodings and delimiters, nested `a.b.c` columns, a safe YAML loader (optional `pyyaml`, extra
+  `jsonreshape[import]`), streaming XML with `@attribute` / `#text` conventions and record selection by tag or path;
+  the result opens in a new tab (`jsonreshape/importers.py`, `jsonreshape/gui/importdialog.py`).
 
 ## [0.1.0] — 2026-10-20
 

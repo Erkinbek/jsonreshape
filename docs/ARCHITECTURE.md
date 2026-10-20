@@ -2816,3 +2816,116 @@ surface in `tests-linux-python-core`; the Linux PyInstaller bundle depends on th
 the macOS bundle is unsigned and not notarized (Gatekeeper asks once). The Windows test job may need more than the
 45-minute limit on a slow runner (the fast selection takes ~20 min locally) — raise `timeout-minutes` or add
 `pytest-xdist` then.
+
+---------------------------------------------------------------------------------
+
+## 17. Importers (stage 7): CSV / TSV, YAML and XML -> JSON / JSON Lines
+
+Module `jsonreshape/importers.py` (its docstring is the detailed specification); CLI command `import`
+(`cli._cmd_import`, `cli._add_import_command`); GUI `jsonreshape/gui/importdialog.py` (`ImportDialog`,
+`show_import_dialog`; File ▸ "Import (CSV, YAML, XML)…" → `MainWindow.show_import`, action id `import_file`).
+Tests: `tests/test_importers.py`, `tests/test_cli_import.py`, `tests/test_gui_importdialog.py`.
+
+### 17.0 Interface
+
+```python
+FORMATS = ("csv", "yaml", "xml"); OUTPUT_FORMATS = ("json", "jsonl")
+TYPE_MODES = ("auto", "string"); EMPTY_MODES = ("null", "string")
+
+@dataclass
+class ImportOptions:
+    fmt: str | None = None          # None: detect_format(source) by extension (.csv .tsv .yaml .yml .xml)
+    output: str | None = None       # None: output_format_for(target) (.json / .jsonl / .ndjson), else jsonl
+    indent: int | str | None = 2    # JSON array layout: 0..16, "\t", None = compact (JSON Lines is always compact)
+    types: str = "auto"; empty: str = "null"
+    delimiter: str | None = None; header: bool = True; nest: bool = True; encoding: str | None = None
+    skip_bad: bool = False
+    record_tag: str | None = None; record_path: str | None = None       # XML; not both
+
+def import_file(source, target, opts=None, *, settings=None, progress=None, cancel=None) -> ImportReport
+def detect_format(path) -> str | None; def output_format_for(path) -> str | None
+def number_value(token: str) -> int | float | JsonFloat | JsonInt      # the exact value of a JSON number token
+```
+
+`ImportReport`: `fmt`, `output_fmt`, `source`, `output`, `records`, `bytes_read`, `bytes_written`, `elapsed`,
+`encoding`, `delimiter`, `columns` (CSV header), `numbers`, `literals`, `empty_cells`, `skipped`, `skipped_lines`
+(first 5), `dates`, `binaries`, `yaml_values`, `nonfinite`, `root_tag` (XML), `warnings` / `warning_keys` (skipped
+rows, big YAML, non-finite YAML values, no records), `notes` / `note_keys` (conversion counts); `to_dict()` for
+`--json`. Errors: `UserInputError` (options, a missing source, a refused target — `writer.error.same_file`,
+`fileio.error.is_directory`, `writer.error.no_dir`, `filetools.error.part_open_edited` through
+`writer.refuse_edited_targets` — `importers.error.unknown_format`, `importers.error.gzip`,
+`importers.error.yaml_missing`, `importers.error.yaml_too_big`, `importers.error.yaml_recursive`,
+`importers.error.yaml_expanded`, `importers.error.xml_entities`); `FileFormatError` for a malformed input
+(`importers.error.csv_row_width`, `csv_malformed`, `csv_duplicate_header`, `csv_nest_conflict`, `decode`, `utf32`,
+`yaml`, `xml`: the CLI exits 2). `Cancelled` leaves nothing behind (`fileio.atomic_write`).
+
+### 17.1 Streaming and memory
+
+* CSV: `open_shared` → a counting `RawIOBase` (`_Counter`: bytes handed out = progress; raises `Cancelled` at a
+  cancellation) → `io.BufferedReader` (1 MiB) → `io.TextIOWrapper(encoding, newline="")` → `csv.reader(strict=True)`;
+  one row is parsed, typed (`_Cells`: the value rule with counters) and written at a time (`codec.dumps_transient`
+  + `\n`, or fed to one `core.Reformatter(indent)` between `[` `,` `]` for the JSON array — the exact bytes of
+  `codec.dumps(records, indent)`). `csv.field_size_limit` is raised to `FIELD_LIMIT` (64 MiB) once: an unbalanced
+  quote cannot swallow the file into memory. Measured: a 100 MB CSV (1 M records) converts in ~7 s with a 35 MB
+  peak working set (`test_100mb_csv_converts_with_bounded_memory`, a subprocess measured with psutil).
+* Encoding: `fileio.sniff` on the first 64 KiB (UTF-8 BOM → `utf-8-sig`, UTF-16 BOM → `utf-16`, the BOM-less
+  UTF-16 pattern → `utf-16-le` / `-be`, UTF-32 refused, gzip refused) or the given codec (`utf-8` → `utf-8-sig`).
+  A decode error is reported with its line found by a second pass (`_decode_error_line`: the text wrapper decodes
+  whole buffers, so the row reader's line is not the place).
+* Delimiter: `_sniff_delimiter` over the sample's complete lines (≤ 20): the first of `, ; \t |` (tab first for
+  `.tsv`) that gives every row the same field count > 1, else the one with the most fields.
+* YAML: the loader (`yaml.CSafeLoader` when libyaml is present, else `SafeLoader`, subclassed once per process with
+  constructors for `!!int` / `!!float` — exact `number_value` for JSON tokens, by value otherwise — `!!timestamp`
+  → `isoformat()`, `!!binary` → the base64 text) reads the file through the same counting stream (progress = bytes
+  consumed; a cancellation ends the stream — `soft` — and is reported as `Cancelled` after the parser stops), but
+  constructs every document whole: `YAML_BIG_BYTES` (256 MiB) → `importers.warn.yaml_big`,
+  `Settings.memory_limit_bytes × 2` → refused. `_jsonify` walks each document iteratively: keys → text, tuples →
+  lists, sets → objects, a container met twice on the current path → `yaml_recursive`, more than
+  `2 × size + 1 000 000` values → `yaml_expanded` (the alias bomb). `check_data()` / `get_data()` document by
+  document decide JSON (one) vs JSON Lines (several) when the target's extension does not.
+* XML: `xml.etree.ElementTree.XMLPullParser(events=("start", "end", "start-ns"))` fed 8 MiB chunks; every chunk
+  before the root element is scanned for `<!ENTITY` (with an 8-byte carry over the chunk boundary) and the file is
+  refused when found — expat expands internal entities; external ones are never fetched. A stack of open elements
+  with their qualified names selects the records (`_Selector`: depth 2 by default, `record_tag` — not inside another
+  record —, or the `record_path` from the root); a record ending is converted (`_element_value`, iterative
+  post-order: no recursion limit) and written, then removed from its parent (`parent.remove(elem)`), so the tree
+  holds one record at a time plus the non-record shells. Namespaces: `start-ns` events build `uri → prefix` (first
+  declaration wins; `xml` prefix built in).
+* Output: `fileio.atomic_write(target, "wb")`; the target is checked before any work (`_check_target`: same file in
+  any spelling, folder, missing folder, `writer.refuse_edited_targets`). No trailing newline after a JSON array
+  (like the writer); JSON Lines end with `\n`.
+
+### 17.2 CLI
+
+`import INPUT [OUTPUT | -o OUTPUT] [--from csv|yaml|xml] [--to json|jsonl | --jsonl] [--compact | --indent N]
+[--types auto|string] [--empty null|string] [--delimiter D] [--no-header] [--no-nest] [--encoding ENC] [--skip-bad]
+[--record-tag TAG | --record-path a/b/c] [--json]`. `_check_input` / `_one_output(required=True)` / `_check_output`
+as every command; the default indent is `Settings.export_indent`; the summary line `cli.summary.import` ("{records}
+ta yozuv: {input} ({fmt}) -> {output} ({size}, {seconds})"), then the report's notes as info lines and its warnings
+as "Ogohlantirish:" lines; `--json` prints `ImportReport.to_dict()` on stdout. Exit codes: 0, 1 (user errors incl.
+a missing pyyaml), 2 (malformed input: `FileFormatError`), 3 (cancelled). Help texts `cli.cmd.import.*`,
+`cli.help.import_*`, groups `cli.group.import`, `cli.group.import_csv`, `cli.group.import_xml`.
+
+### 17.3 GUI
+
+`ImportDialog(app, source=None, parent=None, *, target=None, open_result=None, ask_open_path=None,
+ask_save_path=None)`: source + "Tanlash…" (filters per type), the detected type label and a format combo (override),
+target + "Tanlash…" (default `default_target(source, fmt)`: `<stem>.jsonl`, `<stem>.json` for YAML; follows the
+source until edited), options (values, indent — enabled for a `.json` target —, the CSV box: delimiter / encoding
+(editable combo) / empty cell / header / nest / skip bad; the XML box: record tag / record path; boxes shown for the
+chosen type), "Import" (default button) / "To'xtatish", progress bar + status (bytes, rate, ETA; "Navbatda" while
+queued), inline error label (`$danger`), the report box (headline `gui.importdialog.report.summary`, notes `$muted`,
+warnings `$warn`, "Natijani ochish"). The run is one heavy task (kind `import`) owned by a small `_ImportJob`
+(weak reference to the dialog: a late result is dropped); target checks before the run: `check_not_source`, folder,
+`open_target_check` (review S3: refused with changes, asked when shown unchanged → those tabs reload), the overwrite
+question; closing while running asks and cancels. "Natijani ochish" → `open_result(path, options)` or
+`app.request_open(path, {"format": "jsonl"} | {})`. `show_import_dialog(app, source, parent, **kw)` reuses the open
+window (and gives it the new source). `MainWindow.show_import(path=None)` (File menu, after "Record path…"; keymap
+id `import_file`, no default shortcut) stores it in `dialogs["import"]`.
+
+### 17.4 Decisions
+
+See README §15 (import items): the value rule, CSV columns and rows, YAML (PyYAML 1.1 semantics, limits, aliases,
+keys), XML conventions and record selection, output format and defaults. Not done: `.gz` import, CSV type hints
+per column, XML attributes/text naming options (`--attr-prefix`), an "always array" list for XML tags, streaming
+YAML (impossible with PyYAML).

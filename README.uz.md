@@ -182,6 +182,14 @@ jsonreshape extract data.json buyurtmalar.jsonl --gather "orders[*]"
 # --check: faqat tekshirish
 jsonreshape repair buzuq.json tuzatilgan.json --report tuzatishlar.csv
 jsonreshape diff eski.json yangi.json --key id --exit-code
+
+# Import: CSV / TSV, YAML yoki XML -> JSON Lines (standart) yoki JSON massiv (.json); sonlar matni saqlanadi
+jsonreshape import data.csv data.jsonl
+jsonreshape import data.csv data.json --indent 4
+jsonreshape import jadval.tsv -o jadval.jsonl --no-header --types string
+jsonreshape import eksport.csv -o eksport.jsonl --delimiter ";" --encoding cp1251 --skip-bad
+jsonreshape import config.yaml config.json
+jsonreshape import katalog.xml -o katalog.jsonl --record-tag item
 ```
 
 JMESPath'da `` `100` `` kabi literal kerak bo'lsa: PowerShell'da bitta tirnoqli satr
@@ -419,6 +427,15 @@ hech qachon manba fayl yoki boshqa tabda saqlanmagan o'zgarishlar bilan ochiq fa
 * **Tuzilma ko'rinishi**: «null / yo'q» ustuni (namuna yoki to'liq skanerlash bo'yicha — sarlavhada aytiladi), butun
   sonlar ulushi; «Statistika» (ikki marta bosish ham) va «Takroriy yozuvlar…».
 
+* **Import (CSV, YAML, XML)** (Fayl → "Import (CSV, YAML, XML)…"): CSV / TSV, YAML yoki XML faylni yangi JSON Lines
+  yoki JSON faylga aylantiradi va uni yangi varaqda ochadi ("Natijani ochish"). Tur kengaytmadan aniqlanadi (qo'lda
+  o'zgartirish mumkin); parametrlar: ajratuvchi (avtomatik yoki `,` `;` tab `|`), sarlavha qatori, ichma-ich `a.b.c`
+  ustunlar, kodirovka, buzuq qatorlarni o'tkazib yuborish, qiymatlar (son / `true` / `false` / `null` avtomatik yoki
+  hammasi matn), bo'sh katak (`null` yoki `""`), XML yozuv tegi yoki yo'li, `.json` natijaning chekinishi. Manba
+  fayl o'zgarmaydi; natija hech qachon manba faylning yoki saqlanmagan o'zgarishlari bor faylning ustiga yozilmaydi;
+  import fonda, progress va "To'xtatish" bilan bajariladi; hisobotda yozuvlar soni, songa aylangan kataklar,
+  true / false / null va bo'sh kataklar, o'tkazib yuborilgan qatorlar va ogohlantirishlar ko'rinadi.
+
 ### Qulaylik (6-bosqich)
 
 * **Buyruqlar palitrasi (Ctrl+Shift+P)** — oyna ustida ochiladigan qidiruv oynachasi: menyulardagi barcha buyruqlar
@@ -515,6 +532,18 @@ nusxa tayyor bo'lgunicha birinchi yozuvlar ko'rinmaydi (200 MB'lik ma'lumot ~0.5
 bitta ustun modelini ishlatadi (`--columns`, avtomatik ustunlar, `a.b.c`, `--array-mode`, `--explode`), shuning
 uchun bir xil eksport har birida bir xil sarlavha va qatorlar beradi. `.parquet.gz` `.xlsx.gz` kabi rad etiladi:
 Parquet o'z sahifalarini o'zi siqadi (`--parquet-compression zstd|snappy|gzip|none`, standart `zstd`).
+
+**Boshqa formatlardan import** (`jsonreshape import`, Fayl → "Import (CSV, YAML, XML)…"; 2-bo'lim): CSV / TSV, YAML
+va XML fayllar JSON Lines (har qatorda bir yozuv) yoki bitta JSON massiv / qiymat bo'ladi. Sonlarning matni aynan
+saqlanadi (`1.10` o'zgarmaydi, `12345678901234567890` yaxlitlanmaydi; `007` matn qoladi). CSV: UTF-8 (BOM bilan yoki
+BOMsiz), BOM'li UTF-16 yoki berilgan `--encoding`; ajratuvchi aniqlanadi (`,` `;` tab `|`) yoki beriladi; RFC 4180
+tirnoqlari, maydon ichidagi yangi qatorlar; sarlavha ustun nomlarini beradi (`a.b.c` → ichma-ich obyekt); bo'sh
+katak → `null`. YAML: ixtiyoriy `pyyaml` kerak (`pip install jsonreshape[import]`); bitta hujjat → JSON, `---` oqimi
+→ JSON Lines; butunlay xotiraga o'qiladi (PyYAML oqim bilan o'qiy olmaydi: 256 MiB dan katta bo'lsa ogohlantirish,
+xotira chegarasining ikki baravaridan katta bo'lsa rad etiladi); faqat xavfsiz yuklovchi. XML: oqim bilan; atributlar
+→ `"@nom"`, matn → `"#text"`, takrorlangan bola elementlar → massiv, faqat matnli element → shu matn; yozuvlar — ildiz
+elementining bolalari yoki `--record-tag` / `--record-path` bilan ko'rsatilgan elementlar; `<!ENTITY` e'lonli
+hujjatlar rad etiladi (xavfsizlik). Siqilgan (`.gz`) kirish fayllari import qilinmaydi (avval oching).
 
 Obyekt ildizli fayl uchun aniqlash qoidalari: faylning boshidagi (`head_bytes`, standart 4 MiB) qismida hali
 yopilmagan katta massiv bo'lsa — `wrapped` (shu massiv yo'li avtomatik tanlanadi va ogohlantirish chiqadi);
@@ -1181,6 +1210,33 @@ va `main()` qayta ishga tushirilganda sessiyaning tiklanishi.
     fayl, shuning uchun bitta oqim va ishchi jarayonlar baytma-bayt bir xil fayl yozadi. Hamma yerda `null`
     bo'lgan ustun — `string`. Windows `.exe` ichida `pyarrow` yo'q (u ~100 MB qo'shardi): Parquet eksporti Python
     paketining imkoniyati (`pip install "jsonreshape[parquet]"`).
+48. **Import qiymatlari**: CSV / XML matni faqat aynan JSON son ko'rinishida bo'lsa son bo'ladi (`1.10`, `-0`,
+   `1e400`; `007`, `+1`, `1,5`, ` 1` — yo'q); `true` / `false` / `null` shunday qiymat; qolgani matn (`--types
+   string` — hammasi matn). Sonlar matni codec'ning aniq turlari orqali saqlanadi.
+49. **CSV ustunlari**: sarlavha ustunlarni nomlaydi; `a.b.c` ichma-ich obyekt bo'ladi (`--no-nest` tekis kalit
+   qoldiradi), `tags.0` — `"0"` kalitli obyekt (massiv emas); bo'sh sarlavha katagi `cN`; takror nom — xato; boshqa
+   ustunning prefiksi bo'lgan ustun (`a` va `a.b`) — xato. Bo'sh katak `null` (`--empty string` — `""`). Maydonlar
+   soni boshqa qator — o'sha qatorda xato (`--skip-bad` o'tkazib yuboradi va sanaydi).
+50. **YAML**: butunlay o'qiladi (PyYAML oqimsiz); faqat `yaml.CSafeLoader` / `SafeLoader`; PyYAML'ning YAML 1.1
+   qoidalari (`yes` / `no` — mantiqiy, `1e3` — matn, `017` — sakkizlik, `0o17` — matn); JSON bo'lmagan son
+   ko'rinishlari (`0x1F`, `017`, `1_000`, `+1`, `1:30`, `.5`) qiymati bo'yicha yoziladi; `.inf` / `.nan` → `null`
+   (ogohlantirish bilan); sanalar → ISO 8601 matn; `!!binary` → base64 matn; `!!set` → qiymatlari `null` obyekt
+   (a'zolari tartiblangan); `!!omap` / `!!pairs` → `[kalit, qiymat]` massivlari; merge kalitlar yechiladi; alias'lar
+   kengaytiriladi (rekursiv alias va 2 × fayl hajmi + 1 000 000 qiymatdan ortiq kengayish rad etiladi); matn
+   bo'lmagan kalitlar JSON matniga aylanadi (`1` va `true` Python'da bitta kalit: oxirgisi qoladi); bitta hujjat →
+   JSON, bir nechtasi → JSON Lines (`.json` natija — massiv).
+51. **XML**: atributlar `"@nom"`, matn `"#text"` (element atribut yoki bola elementga ham ega bo'lsa), faqat matnli
+   element — shu matn, bo'sh element — `null`, bitta elementning bolalari ichida takrorlangan teg — massiv (shuning
+   uchun yozuvlar shakli farq qilishi mumkin: bir marta → qiymat, ikki marta → massiv); faqat bo'sh joydan iborat
+   matn tashlanadi; aralash kontent bitta bo'sh joy bilan birlashtiriladi; nomlar fazosi hujjatning prefikslari bilan
+   `prefix:nom` yoziladi (standart nomlar fazosi — faqat nom); izohlar va qayta ishlash ko'rsatmalari tashlanadi.
+   Yozuvlar: standart — ildizning bolalari, `--record-tag TEG` (to'liq yoki qisqa nom; boshqa yozuv ichida bo'lmagan)
+   yoki `--record-path a/b/c` ildizdan. Prologda `<!ENTITY` bo'lsa rad etiladi (entity kengayishi).
+52. **Import natijasi**: JSON Lines, agar natija `.json` bilan tugamasa (bitta massiv; yagona YAML hujjat o'zi
+   yoziladi) yoki `--to json` berilmasa; JSON tartibi writer'niki (`--indent 2|4|tab`, `--compact`); natija atomar
+   yoziladi, manba yoki saqlanmagan o'zgarishlari bor faylning ustiga hech qachon yozilmaydi; `import` `.gz`
+   kirish va natijani qo'llamaydi (keyin `convert` ishlating). GUI'da standart natija manba yonidagi `<nom>.jsonl`
+   (YAML uchun `<nom>.json`).
 
 ### Ma'lum cheklovlar
 
