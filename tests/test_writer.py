@@ -1157,6 +1157,7 @@ def test_cancel_during_xlsx_files_split(open_doc, out_dir: Path, monkeypatch: py
 def test_error_midway_leaves_no_temp_files(open_doc, out_dir: Path, monkeypatch: pytest.MonkeyPatch,
                                            fmt: str, name: str) -> None:
     monkeypatch.setattr(writer, "BLOCK_BYTES", 1000)
+    monkeypatch.setattr(writer, "POOL_BLOCK_BYTES", 1000)     # (XLSX / SQLite: the jobs' blocks)
     doc = open_doc(recs=jsongen.records(40, seed=191), fmt="array")
     real = writer._Ctx.advance
     calls = {"n": 0}
