@@ -50,7 +50,7 @@ def test_readmes_link_each_other_and_keep_the_same_sections() -> None:
     assert anchors.findall(en) == anchors.findall(uz) and "muallif" in anchors.findall(en)
     for text in (en, uz):
         assert "Erkin Pardayev" in text and "Claude Opus 5.5" in text and "© 2026 Erkin Pardayev" in text
-        assert "https://github.com/Erkinbek" in text
+        assert "https://github.com/Erkinbek" in text and "[@ErkinPardayev](https://t.me/ErkinPardayev)" in text
         for target in set(re.findall(r"\]\(#([a-z0-9-]+)\)", text)):
             assert target in anchors.findall(text), target
 

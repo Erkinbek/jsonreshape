@@ -1150,6 +1150,7 @@ None for now. The stage 6 choices were also made as recommended (decisions 40–
 
 * GitHub: [github.com/Erkinbek](https://github.com/Erkinbek)
 * Repository: [github.com/Erkinbek/jsonreshape](https://github.com/Erkinbek/jsonreshape)
+* Telegram: [@ErkinPardayev](https://t.me/ErkinPardayev)
 * E-mail: [erkin.pardayev@gmail.com](mailto:erkin.pardayev@gmail.com)
 
 Bug reports and suggestions: [GitHub Issues](https://github.com/Erkinbek/jsonreshape/issues).

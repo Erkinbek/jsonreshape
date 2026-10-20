@@ -21,6 +21,7 @@ dependencies = [
 [project.urls]
 Repository = "https://github.com/Erkinbek/jsonreshape"
 Author = "https://github.com/Erkinbek"
+Telegram = "https://t.me/ErkinPardayev"
 
 [project.optional-dependencies]
 gui = ["PySide6>=6.8"]

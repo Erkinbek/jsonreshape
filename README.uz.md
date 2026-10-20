@@ -1148,6 +1148,7 @@ Hozircha yo'q. 6-bosqichdagi tanlovlar ham tavsiya bo'yicha qilindi (qarorlar 40
 
 * GitHub: [github.com/Erkinbek](https://github.com/Erkinbek)
 * Repozitoriy: [github.com/Erkinbek/jsonreshape](https://github.com/Erkinbek/jsonreshape)
+* Telegram: [@ErkinPardayev](https://t.me/ErkinPardayev)
 * E-pochta: [erkin.pardayev@gmail.com](mailto:erkin.pardayev@gmail.com)
 
 Xatolar va takliflar: [GitHub Issues](https://github.com/Erkinbek/jsonreshape/issues).
