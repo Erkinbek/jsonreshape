@@ -2842,6 +2842,17 @@ the macOS bundle is unsigned and not notarized (Gatekeeper asks once). The Windo
 45-minute limit on a slow runner (the fast selection takes ~20 min locally) — raise `timeout-minutes` or add
 `pytest-xdist` then.
 
+### 16.3 Screenshots (`scripts/make_screenshots.py`)
+
+`scripts/make_screenshots.py` renders the README pictures without a display: it starts the real window with
+`gui.app.main([file], run=False)` on the offscreen platform (English UI, a private `JSONRESHAPE_HOME`), drives it
+through the same public methods the GUI tests use (`DocumentTab.show_mapping`, `MapView.run_action`,
+`MainWindow.show_compare_files` / `show_stats` / `show_import` / `show_palette`, `TreeView.expand_node`), and saves
+`QWidget.grab()` of each whole window as PNG (zlib level 9; an 8-bit median-cut fallback keeps every file under
+350 KB). On Windows the offscreen platform's FreeType font database needs `QT_QPA_FONTDIR` (set to `%WINDIR%\Fonts`)
+and the UI font is set to Segoe UI 9 pt before the window exists. The data (12 000 synthetic records, a changed copy
+for the comparison, a CSV) is written once into `%TEMP%\jsonreshape-screenshots`.
+
 ---------------------------------------------------------------------------------
 
 ## 17. Importers (stage 7): CSV / TSV, YAML and XML -> JSON / JSON Lines

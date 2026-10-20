@@ -12,6 +12,13 @@ turadi, saqlash yangi faylni atomik almashtiradi (standart bo'yicha `.bak` zaxir
 > **Holat: barcha 6 bosqich tayyor** (2026-10-19). Muallif: Erkin Pardayev · Claude Opus 5.5 yordamida yaratilgan
 > ([muallif, aloqa va mualliflik huquqi](#muallif)).
 
+| ![jsonreshape, yorug' mavzu: 12 000 yozuvli JSON massivning daraxti, #0 yozuv ochilgan (contact → address, tags), #1 yozuv tanlangan va o'ng panelda matn ko'rinishida](docs/img/main-light.png) | ![O'sha oyna qorong'i mavzuda](docs/img/main-dark.png) |
+|:--:|:--:|
+| Yorug' mavzu | Qorong'i mavzu |
+
+*Ko'ruvchi: chapda tur belgilari va bayt hajmlari bilan daraxt, o'ngda tanlangan yozuv matni — haqiqiy oyna, 1400 × 900
+(inglizcha interfeys; standart til o'zbekcha), `scripts/make_screenshots.py` bilan ekransiz chizilgan.*
+
 | # | Bosqich | Holat |
 |---|---|---|
 | 1 | **Yadro**: reader + indeks (Rust yadro va Python fallback), RecordSet, qidiruv, filtr, tartib, writer, CLI (`inspect`, `search`, `filter`, `sort`, `convert`) | ✅ tayyor |
@@ -384,6 +391,8 @@ prototipi: natija u bilan aynan bir xil (1–10 qabul testlari va 4 000 tasodifi
 JavaScript cheklovlari bilan bog'liq: sonlar aniq saqlanadi (`1.10`, `1e400`, `12345678901234567890`), kalitlar
 tartibi o'zgarmaydi, qayta bajarish (redo) bor, yozuv raqamlari 0 dan.
 
+![Tuzilma quruvchi: chapda namunaning maydonlar daraxti, children bitta massivga tekislangan (_depth = daraja raqami), o'ngda #0 yozuvning jonli ko'rinishi](docs/img/structure-builder.png)
+
 * Tuzilma ko'rinishidagi «Tuzilma quruvchi…» tugmasi yoki Ctrl+6. Chapda tuzilma daraxti (namunadan — standart
   10 000 yozuv — yoki «To'liq skanerlash» bilan barcha yozuvlardan), o'ngda jonli natija («Natija» / «Asl»,
   `‹ #N ›` yozuv tanlagich).
@@ -412,6 +421,9 @@ hech qachon manba fayl yoki boshqa tabda saqlanmagan o'zgarishlar bilan ochiq fa
   eng ko'p uchragan 20 qiymat (ulushi; ko'p qiymatli maydonlarda yozuvlar soni ham). Hisoblanayotganda natija har
   ~1 soniyada yangilanadi. Qiymatni ikki marta bosish — shu qiymat bo'yicha filtr; menyuda `null`, yo'q, tur, uzunlik
   bo'yicha filtr va «Daraxtda ko'rsatish». Doira: joriy ko'rinish yoki barcha yozuvlar; «Aniq hisoblash».
+
+  ![score maydonining statistika paneli: mavjud / null / yo'q va tur qatorlari ulush chiziqlari bilan, 11 298 ta turli qiymat, 20 oraliqli sonlar taqsimoti va eng ko'p uchragan 20 qiymat](docs/img/stats.png)
+
 * **Takroriy yozuvlar** (Asboblar → «Takroriy yozuvlar…», Tuzilma ko'rinishi): kalit maydon (`$key` — a'zo kaliti,
   `$` — butun yozuv), birinchisi yoki oxirgisi qoladi; takroriylar soni, 20 ta misol guruh (bosilsa — yozuvga
   o'tadi; guruh bo'yicha filtr); «Takroriylarni ko'rsatish» (yozuvlar to'plami sifatida), «Eksport…»,
@@ -437,6 +449,9 @@ hech qachon manba fayl yoki boshqa tabda saqlanmagan o'zgarishlar bilan ochiq fa
   qisqa satrlarda o'zgargan harflar belgilanadi; **F7 / Shift+F7** — keyingi / oldingi farq; «Faqat farqlar»,
   massivlarni moslash (indeks / avto / kalit / tartibsiz), A ⇄ B, «Matn» rejimi; farqli yozuvlarni yozuvlar to'plami
   sifatida ochish; hisobotni eksport qilish.
+
+  ![Taqqoslash oynasi: id kaliti bo'yicha 297 o'zgargan, 5 qo'shilgan va 124 o'chirilgan yozuv; tepada natijalar jadvali, pastda #47 yozuvning farqi (score, city va qo'shilgan teg ajratilgan)](docs/img/compare.png)
+
 * **«Aqlli» qiymatlar** (daraxt, jadval, to'liq qiymat oynasi): unix vaqt va ISO sanalar — Toshkent vaqti va hafta
   kuni bilan izoh; URL'lar tagiga chizilgan, **Ctrl+bosish** → «Brauzerda ochilsinmi?» → faqat tasdiqdan keyin
   ochiladi; `#rgb` / `#rrggbb` ranglar — kichik namuna; base64 rasmlar — to'liq qiymat oynasida kichik rasm.
@@ -452,6 +467,8 @@ hech qachon manba fayl yoki boshqa tabda saqlanmagan o'zgarishlar bilan ochiq fa
   import fonda, progress va "To'xtatish" bilan bajariladi; hisobotda yozuvlar soni, songa aylangan kataklar,
   true / false / null va bo'sh kataklar, o'tkazib yuborilgan qatorlar va ogohlantirishlar ko'rinadi.
 
+  ![Fayl > Import, CSV tanlangan: aniqlangan tur, qiymatlar, ajratuvchi, kodlash va bo'sh katak sozlamalari, manba yonidagi JSON Lines natija fayli](docs/img/import-dialog.png)
+
 ### Qulaylik (6-bosqich)
 
 * **Buyruqlar palitrasi (Ctrl+Shift+P)** — oyna ustida ochiladigan qidiruv oynachasi: menyulardagi barcha buyruqlar
@@ -460,6 +477,9 @@ hech qachon manba fayl yoki boshqa tabda saqlanmagan o'zgarishlar bilan ochiq fa
   (o' / oʻ / o‘) va lotin–kirill farqini hisobga olmaydi («сақлаш» ham «Saqlash»ni topadi); avval nomi shu so'z bilan
   boshlanadiganlar, keyin so'z boshidagilar, so'ng harflar ketma-ketligi. Qidiruv bo'sh bo'lsa — oxirgi ishlatilgan
   20 ta buyruq. Hozir ishlamaydigan buyruq kulrang, sababi bilan. Enter — bajarish, Esc — yopish.
+
+  ![Oyna ustidagi buyruqlar palitrasi, "export" so'rovi bilan: Export… (Ctrl+E) tanlangan va o'chiq "Export changes as JSON Patch…" sababi bilan](docs/img/palette.png)
+
 * **Klaviatura** (Sozlamalar ▸ Klaviatura): har bir buyruqning tugmasini o'zgartirish, olib tashlash, asl holiga
   qaytarish; band tugma rad etiladi va qaysi buyruqqa berilgani aytiladi. Daraxt va jadvalning o'z tugmalari (↑↓→←,
   `*`, Space, Enter, F2, Ins, Del, Ctrl+D, Alt+↑/↓, Ctrl+V, Ctrl+C …) o'zgarmaydi va ro'yxat qilib ko'rsatiladi.

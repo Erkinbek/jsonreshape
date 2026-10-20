@@ -11,6 +11,13 @@ and saving atomically replaces the file with a new one (by default with a `.bak`
 > **Status: all 6 stages are done** (2026-10-19). Author: Erkin Pardayev · built with Claude Opus 5.5
 > ([author, contact and copyright](#muallif)).
 
+| ![jsonreshape in the light theme: the tree of a 12 000-record JSON array with record #0 expanded (contact → address, tags) and record #1 selected, shown as text in the right pane](docs/img/main-light.png) | ![The same window in the dark theme](docs/img/main-dark.png) |
+|:--:|:--:|
+| Light theme | Dark theme |
+
+*The viewer: the tree with type badges and byte sizes on the left, the selected record as text on the right — the real
+window at 1400 × 900 (English UI; Uzbek is the default), rendered offscreen by `scripts/make_screenshots.py`.*
+
 | # | Stage | Status |
 |---|---|---|
 | 1 | **Core**: reader + index (Rust core and Python fallback), RecordSet, search, filter, sort, writer, CLI (`inspect`, `search`, `filter`, `sort`, `convert`) | ✅ done |
@@ -382,6 +389,8 @@ Rebuild the structure of the records with the mouse and apply the result to the 
 cases). The only differences come from JavaScript limitations: numbers are kept exactly (`1.10`, `1e400`,
 `12345678901234567890`), the key order does not change, there is redo, record numbers start at 0.
 
+![Structure builder: the field tree of the sample on the left with children flattened into one array (_depth = level number), the live preview of record #0 on the right](docs/img/structure-builder.png)
+
 * The "Structure builder…" button in the Schema view, or Ctrl+6. On the left, the structure tree (from a sample —
   10,000 records by default — or from all records with "Full scan"); on the right, the live result ("Result" /
   "Original", the `‹ #N ›` record picker).
@@ -411,6 +420,9 @@ source file or a file that is open in another tab with unsaved changes.
   frequent values (with share; for multi-valued fields also the record count). While computing, the result
   refreshes every ~1 second. Double-clicking a value filters by it; the menu has filters by `null`, missing, type
   and length, and "Show in tree". Scope: the current view or all records; "Exact count".
+
+  ![Field statistics dock for score: present / null / missing and type rows with share bars, 11,298 distinct values, the number histogram with 20 bins and the 20 most frequent values](docs/img/stats.png)
+
 * **Duplicate records** (Tools → "Duplicate records…", Schema view): key field (`$key` — the member key, `$` — the
   whole record), keep the first or the last; the number of duplicates, 20 example groups (click to go to the
   record; filter by group); "Show the duplicates" (as a record set), "Export…", "Remove the duplicates…" (a bulk
@@ -434,6 +446,9 @@ source file or a file that is open in another tab with unsaved changes.
   `Key | A | B` — added in green, removed in red, changed in yellow, moved in blue; changed characters are marked in
   short strings; **F7 / Shift+F7** — next / previous difference; "Only differences", array matching (index / auto /
   key / unordered), A ⇄ B, "Text" mode; open the differing records as a record set; export the report.
+
+  ![Compare window: 297 changed, 5 added and 124 removed records by key id; the results grid above, the diff of record #47 below (score, city and an added tag highlighted)](docs/img/compare.png)
+
 * **"Smart" values** (tree, table, full value window): unix times and ISO dates get a note with the Tashkent time
   and the weekday; URLs are underlined, **Ctrl+click** → "Open in the browser?" → opens only after you confirm;
   `#rgb` / `#rrggbb` colours get a small swatch; base64 images get a thumbnail in the full value window.
@@ -449,6 +464,8 @@ source file or a file that is open in another tab with unsaved changes.
   the import runs in the background with progress and "Stop"; the report shows the records, the converted numbers,
   literals and empty cells, skipped rows and warnings.
 
+  ![File > Import with a CSV chosen: the detected type, the values, delimiter, encoding and empty-cell options, the JSON Lines target next to the source](docs/img/import-dialog.png)
+
 ### Convenience (stage 6)
 
 * **Command palette (Ctrl+Shift+P)** — a search box that opens over the window: every menu command ("File ▸ …",
@@ -458,6 +475,9 @@ source file or a file that is open in another tab with unsaved changes.
   that start with the typed word, then matches at the start of a word, then letter sequences. With an empty search —
   the last 20 commands used. A command that cannot run right now is greyed out, with the reason. Enter runs it,
   Esc closes.
+
+  ![Command palette over the window with the query "export": Export… (Ctrl+E) selected and the disabled "Export changes as JSON Patch…" with its reason](docs/img/palette.png)
+
 * **Keyboard** (Settings ▸ Keyboard): change, remove or reset the key of any command; a key that is taken is refused,
   naming the command it belongs to. The tree's and table's own keys (↑↓→←, `*`, Space, Enter, F2, Ins, Del, Ctrl+D,
   Alt+↑/↓, Ctrl+V, Ctrl+C …) do not change and are shown as a list.

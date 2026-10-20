@@ -38,6 +38,9 @@ All notable changes to jsonreshape are recorded here. The format follows
   file (`--format`, `--record-path`, gzip detection). `-` is refused as an output, twice, when standard input is a
   terminal, for `patch --in-place`, for `split` without `-o DIR` and for `import` without `--from`
   (`jsonreshape/stdin_input.py`, `cli._stdin_inputs`, `tests/test_cli_stdin.py`).
+- Screenshots of the viewer in `docs/img/` (main window in the light and dark theme, structure builder, compare
+  window, field statistics with the histogram, import window, command palette) and `scripts/make_screenshots.py`,
+  which regenerates them offscreen from synthetic data (`bench/make_synthetic.py`).
 
 ## [0.1.0] — 2026-10-20
 
