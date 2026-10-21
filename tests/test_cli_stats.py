@@ -1,5 +1,5 @@
 """``jsonreshape stats INPUT [--field F ...] [--top N] [--exact] [--sample N] [--memory-limit SIZE] [--json]
-[--where/--jmespath/--preset] [--select SPEC]`` (docs/ARCHITECTURE.md §14.1, §14.8; AGENT_PROMPT §9, §13).
+[--histogram] [--bins N] [--where/--jmespath/--preset] [--select SPEC]`` (docs/ARCHITECTURE.md §14.1, §14.8; AGENT_PROMPT §9, §13).
 
 In-process (``cli.main``) and as subprocesses (every core backend): the text of :func:`stats.format_stats`
 (Uzbek and English) and the ``--json`` report (``FieldStats.to_dict()``, equal to calling the core directly),
@@ -7,7 +7,8 @@ exact numbers (``0.1``, ``1e400``, ``12345678901234567890``, ``-0.0``, ``1.10``)
 apostrophes, presence (null / missing), the default fields (``schema.default_columns``), the record scope
 (``--where``, ``--select``), ``$key``, ``--top`` / ``--sample`` / ``--exact`` with approximate counting forced by a
 tiny ``--memory-limit`` (and the limit's minimum / cap warnings), gzip / UTF-16 / BOM / CRLF inputs, JSON errors
-(exit 2, ``--allow-partial``), bad arguments (exit 1) and cancellation (exit 3).
+(exit 2, ``--allow-partial``), bad arguments (exit 1), cancellation (exit 3) and the histograms (``--histogram``,
+``--bins``: text blocks per field, ``--json`` entries with exact edges).
 """
 
 from __future__ import annotations
@@ -326,3 +327,59 @@ def test_stats_with_every_core_backend(src: Path) -> None:
         assert p.returncode == 0, p.stderr.decode("utf-8", "replace")
         outputs.append(fields_of(p.stdout.decode("utf-8")))
     assert all(o == outputs[0] for o in outputs)
+
+
+# ----------------------------------------------------------------------------------
+# --histogram / --bins (stage 7)
+# ----------------------------------------------------------------------------------
+@pytest.fixture
+def spread(tmp_path: Path) -> Path:
+    p = tmp_path / "spread.jsonl"
+    p.write_text("".join(json.dumps({"v": i, "s": "x" * (i % 4 + 1)}) + "\n" for i in range(100)), encoding="utf-8")
+    return p
+
+
+def test_stats_histogram_text(run, spread: Path) -> None:
+    r = run("stats", spread, "--field", "v", "--field", "s", "--top", "0", "--histogram")
+    assert r.code == 0, r.err
+    v_block, s_block = r.out.split("\n\n")
+    assert "  Sonlar gistogrammasi:\n    Taqsimot: 20 ta oraliq, 100 ta qiymat (aniq):\n        0 – 4 " in v_block
+    assert "Satr uzunliklari" not in v_block and "Sonlar gistogrammasi" not in s_block
+    assert "  Satr uzunliklari gistogrammasi (belgilar):\n    Taqsimot: 4 ta oraliq, 100 ta qiymat (aniq):" in s_block
+    assert [line.split()[:2] for line in s_block.splitlines()[-4:]] == [["1", "25"], ["2", "25"], ["3", "25"],
+                                                                       ["4", "25"]]
+    r = run("--lang", "en", "stats", spread, "--field", "v", "--top", "0", "--bins", "4")     # --bins implies it
+    assert r.code == 0, r.err
+    assert "  Histogram of the numbers:\n    Distribution: 4 bins, 100 values (exact):\n        0 – 24 " in r.out
+    assert run("stats", spread, "--field", "v", "--top", "0").out.count("gistogramma") == 0   # off by default
+
+
+def test_stats_histogram_json(run, spread: Path, src: Path) -> None:
+    r = run("stats", spread, "--field", "v", "--field", "s", "--bins", "4", "--json", "-q")
+    assert r.code == 0, r.err
+    v, s = fields_of(r.out)
+    assert v["histogram"] == {"bins": 4, "edges": [0, 25, 50, 75, 100], "counts": [25, 25, 25, 25], "exact": True,
+                              "sample_size": 100}
+    assert v["length_histogram"] is None and s["histogram"] is None
+    assert s["length_histogram"] == {"bins": 4, "edges": [1, 2, 3, 4, 5], "counts": [25, 25, 25, 25], "exact": True,
+                                     "sample_size": 100}
+    assert "histogram" not in fields_of(run("stats", spread, "--field", "v", "--json", "-q").out)[0]
+    # exact edges: 1e400 stays a JSON number (no float), the counts are exact
+    r = run("stats", src, "--field", "score", "--histogram", "--bins", "3", "--json", "-q")
+    assert r.code == 0, r.err
+    hist = codec.loads(r.out)["fields"][0]["histogram"]
+    assert '"edges": [\n          0,\n          5E+399,\n          1E+400\n        ]' in r.out
+    assert hist["counts"] == [4, 1] and hist["exact"] is True
+
+
+@pytest.mark.parametrize("value", ["0", "4097", "abc", "-1"])
+def test_stats_bins_out_of_range(run, src: Path, value: str) -> None:
+    r = run("stats", src, "--bins", value)
+    assert r.code == 1
+    assert i18n.t("cli.argerr.hist_bins", value=value, maximum=cli.HIST_BINS_MAX) in r.err
+
+
+def test_stats_histogram_constants_follow_the_core() -> None:
+    from jsonreshape import stats
+
+    assert (cli.HIST_BINS, cli.HIST_BINS_MAX) == (stats.HIST_BINS, stats.HIST_BINS_MAX)

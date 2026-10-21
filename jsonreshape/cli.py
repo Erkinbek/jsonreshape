@@ -487,6 +487,8 @@ OUTPUT_FORMATS = ("json", "jsonl", "csv", "xlsx", "sqlite", "parquet")          
 PARQUET_COMPRESSIONS = ("zstd", "snappy", "gzip", "none")                              # writer.PARQUET_COMPRESSIONS
 HIT_EXPORT_FORMATS = ("csv", "json")                                                           # search.EXPORT_FORMATS
 SORT_KEY_ORDERS = ("alpha", "codepoint")                                       # writer.ExportOptions.sort_keys
+HIST_BINS = 32                                                                     # stats.HIST_BINS
+HIST_BINS_MAX = 4096                                                               # stats.HIST_BINS_MAX
 DEFAULT_LIMIT = 50
 DEFAULT_MAX_HITS = 100000
 BROKEN_SHOWN = 5          # broken JSON Lines lines listed in warnings and in the inspect report
@@ -708,6 +710,13 @@ def _non_negative_int(text: str) -> int:
     return n
 
 
+def _hist_bins(text: str) -> int:
+    n = _int_value(text)
+    if n is None or n < 1 or n > HIST_BINS_MAX:
+        raise argparse.ArgumentTypeError(t("cli.argerr.hist_bins", value=text, maximum=HIST_BINS_MAX))
+    return n
+
+
 def _indent_value(text: str) -> int | str:
     s = text.strip().lower()
     if text == "\t" or s in ("tab", "\\t"):
@@ -891,6 +900,9 @@ def _add_tool_commands(sub: Any) -> None:
     g.add_argument("--sample", metavar="N", type=_positive_int, default=None, help=t("cli.help.stats_sample"))
     _add_memory_option(g, "cli.help.stats_memory")
     g.add_argument("--json", action="store_true", help=t("cli.help.stats_json"))
+    g.add_argument("--histogram", action="store_true", help=t("cli.help.stats_histogram"))
+    g.add_argument("--bins", metavar="N", type=_hist_bins, default=None,
+                   help=t("cli.help.stats_bins", default=HIST_BINS, maximum=HIST_BINS_MAX))
     _add_filter_options(p, required=False, select=True)
     _add_input_options(p)
     _add_global_options(p, repeated=True)
@@ -3609,9 +3621,36 @@ def _value_text(value: Any, limit: int = DIFF_VALUE_CHARS) -> str:
 # ==================================================================================
 # stats (docs/ARCHITECTURE.md §14.1)
 # ==================================================================================
+def _histogram_data(hist: Any) -> dict[str, Any] | None:
+    """``stats --histogram --json``: a :class:`jsonreshape.stats.Histogram` with exact JSON numbers as edges."""
+    from decimal import Decimal
+
+    from .stats import number_text
+
+    if hist is None:
+        return None
+    edges = [e if isinstance(e, int) else Decimal(number_text(e)) for e in hist.edges]
+    return {"bins": hist.bins, "edges": edges, "counts": [int(c) for c in hist.counts], "exact": bool(hist.exact),
+            "sample_size": int(hist.sample_size)}
+
+
+def _stats_histogram_text(fs: Any, bins: int) -> list[str]:
+    """``stats --histogram``: the field's number and string-length histograms (when it has numbers / strings)."""
+    from .stats import format_histogram
+
+    lines: list[str] = []
+    for key, hist in (("cli.stats.histogram.numbers", fs.histogram(bins)),
+                      ("cli.stats.histogram.lengths", fs.length_histogram(bins))):
+        if hist is not None:
+            lines.append("  " + t(key))
+            lines.extend("    " + line for line in format_histogram(hist).split("\n"))
+    return lines
+
+
 def _cmd_stats(ctx: _Ctx) -> int:
     """stats: per-field statistics of the records in scope (:func:`jsonreshape.stats.field_stats`);
-    without ``--field`` the default columns of a sample schema of the scope."""
+    without ``--field`` the default columns of a sample schema of the scope; ``--histogram`` (or ``--bins N``)
+    adds each field's number and string-length histograms."""
     from .schema import default_columns, infer_schema
     from .stats import field_stats, format_stats
 
@@ -3639,13 +3678,22 @@ def _cmd_stats(ctx: _Ctx) -> int:
             ctx.end_stage()
         finally:
             _close_all(sets)
+        bins = args.bins if args.bins is not None else (HIST_BINS if args.histogram else None)
         if args.json:
+            fields = [fs.to_dict() for fs in results]
+            if bins is not None:
+                for entry, fs in zip(fields, results):
+                    entry["histogram"] = _histogram_data(fs.histogram(bins))
+                    entry["length_histogram"] = _histogram_data(fs.length_histogram(bins))
             data = {"file": str(doc.source_path), "records": int(doc.record_count),
                     "scope": dict(_scope_data(ctx, flt, size), sample=args.sample),
-                    "elapsed": round(ctx.elapsed(), 6), "fields": [fs.to_dict() for fs in results]}
+                    "elapsed": round(ctx.elapsed(), 6), "fields": fields}
             ctx.console.out(_json_text(data))
-        else:
+        elif bins is None:
             ctx.console.out(format_stats(results))
+        else:
+            ctx.console.out("\n\n".join("\n".join([format_stats([fs])] + _stats_histogram_text(fs, bins))
+                                        for fs in results))
         examined = max((int(fs.scanned) for fs in results), default=0)
         ctx.info(t("cli.summary.stats", fields=_tn("cli.count.fields", len(results), count=_num(len(results))),
                    records=_records_text(examined, _num(examined)), seconds=format_duration(ctx.elapsed())))

@@ -160,7 +160,7 @@ Histograms (stage 7; docs/ARCHITECTURE.md §14.1 "as built")
   ``MG_MIN``), the length counts at most 4 096 entries; both are in ``_AccSet.total()`` but not in the
   sketch bytes that resize Misra-Gries, so every earlier result is unchanged. Live snapshots carry the
   samples too (the current dict is folded into a copy). ``to_dict()`` and the CLI output are unchanged;
-  :func:`format_histogram` renders a histogram as text (a CLI option is a follow-up).
+  :func:`format_histogram` renders a histogram as text (``jsonreshape stats --histogram``).
 
 Decisions and extensions (documented deviations of map_stats §4)
 ----------------------------------------------------------------
@@ -515,7 +515,7 @@ def bin_label(edges: Sequence[Any], i: int) -> str:
 def format_histogram(hist: Histogram, *, width: int = 30) -> str:
     """A localized plain-text block of a histogram: a title (bins, values; the sample size when the
     counts are scaled from a sample) and one line per bin with its label, count, share and a bar of
-    at most ``width`` characters (a future CLI option; the GUI draws the same data)."""
+    at most ``width`` characters (``jsonreshape stats --histogram``; the GUI draws the same data)."""
     nbins = len(hist.counts)
     total = hist.total
     key = "stats.hist.title" if hist.exact else "stats.hist.title_sampled"

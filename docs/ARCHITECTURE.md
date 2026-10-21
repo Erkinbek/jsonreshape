@@ -2500,7 +2500,12 @@ integers); counts of a sampled field are scaled to the total. Live snapshots car
 dict is folded into a copy of it). Memory: `_AccSet.total()` includes the histogram bytes (`hist_bytes()`), the
 sketch bytes that resize Misra–Gries do not — every earlier result (`to_dict()`, the CLI text, the sketch
 bounds) is unchanged; the stats tests compare against the same references as before. `format_histogram`
-renders a text block (`stats.hist.*` keys) for a future CLI option.
+renders a text block (`stats.hist.*` keys); the CLI prints it per field with `stats --histogram` / `--bins N`
+(`cli._stats_histogram_text`: "Histogram of the numbers" / "of the string lengths", only the kinds the field
+has) and `--json` adds `histogram` / `length_histogram` per field (`cli._histogram_data`: `bins`, `edges` as
+exact JSON numbers — `int` or `Decimal(number_text(e))` written raw by `codec.dumps` —, `counts`, `exact`,
+`sample_size`; `null` without numbers / strings). `cli.HIST_BINS` / `HIST_BINS_MAX` mirror the stats constants
+so that building the parser does not import `stats` (a test keeps them equal).
 
 **Memory cost per field**: at most `k × 200` accounted bytes for the numbers (65 536 × 200 = 12.5 MiB at the
 default budget, a quarter of the budget shared by the fields of a call) plus at most 4 096 × 100 = 400 KiB for

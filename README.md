@@ -172,6 +172,7 @@ jsonreshape flatten data.json flat.jsonl --children-key children
 # Statistics, duplicates, JSON Schema
 jsonreshape stats data.json --field contact.address.city
 jsonreshape stats data.json --where "active == true" --json
+jsonreshape stats data.json --field score --histogram --bins 20
 jsonreshape dupes data.json --key id --top 10 -o dupes.jsonl
 jsonreshape schema data.json data.schema.json --strict
 jsonreshape validate data.json --schema data.schema.json --export errors.csv
@@ -431,7 +432,10 @@ source file or a file that is open in another tab with unsaved changes.
   field has at most 65 536 distinct numbers; beyond that it is drawn from a uniform random sample of 65 536 values
   scaled to the total (marked "≈", the tooltip says so). The numbers stay exact: `1e400` and `12345678901234567890`
   keep their text in the bin labels and the filters. The chart follows the live result while the statistics are
-  computed. The CLI's `stats --json` output is unchanged; a `--histogram` option is a follow-up.
+  computed. In the CLI, `stats --histogram` prints the same histograms under each field (numbers and string lengths;
+  `--bins N` — at most N bins, 1–4096, default 32, implies `--histogram`); with `--json` each field gets `histogram`
+  and `length_histogram` (`bins`, exact `edges`, `counts`, `exact`, `sample_size`; `null` when the field has no
+  numbers / strings). Without the option the output is unchanged.
 
   ![Field statistics dock for score: present / null / missing and type rows with share bars, 11,298 distinct values, the number histogram with 20 bins and the 20 most frequent values](docs/img/stats.png)
 

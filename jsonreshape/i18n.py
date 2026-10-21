@@ -4577,6 +4577,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "0 yoki undan katta butun son bo'lishi kerak, berilgan: {value}",
         "en": "must be a whole number of at least 0, got: {value}",
     },
+    "cli.argerr.hist_bins": {
+        "uz": "1 dan {maximum} gacha butun son bo'lishi kerak, berilgan: {value}",
+        "en": "must be a whole number from 1 to {maximum}, got: {value}",
+    },
     "cli.argerr.indent": {
         "uz": "0 dan 16 gacha son (masalan, 2 yoki 4) yoki tab bo'lishi kerak, berilgan: {value}",
         "en": "must be a number from 0 to 16 (such as 2 or 4) or tab, got: {value}",
@@ -5904,7 +5908,22 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "natijani JSON sifatida chiqarish (aniq sonlar bilan)",
         "en": "print the result as JSON (exact numbers)",
     },
+    "cli.help.stats_histogram": {
+        "uz": "har maydonning sonlari va satr uzunliklari gistogrammasini ham chiqarish (--json bilan: histogram va "
+              "length_histogram)",
+        "en": "also print the histogram of each field's numbers and string lengths (with --json: histogram and "
+              "length_histogram)",
+    },
+    "cli.help.stats_bins": {
+        "uz": "gistogramma oraliqlari soni, eng ko'pi (1 dan {maximum} gacha, standart {default}; --histogram ni yoqadi)",
+        "en": "the number of histogram bins at most (1 to {maximum}, default {default}; implies --histogram)",
+    },
     "cli.stage.stats": {"uz": "Statistika hisoblanmoqda", "en": "Computing statistics"},
+    "cli.stats.histogram.numbers": {"uz": "Sonlar gistogrammasi:", "en": "Histogram of the numbers:"},
+    "cli.stats.histogram.lengths": {
+        "uz": "Satr uzunliklari gistogrammasi (belgilar):",
+        "en": "Histogram of the string lengths (characters):",
+    },
     "cli.stats.default_fields": {
         "uz": "--field berilmadi: tuzilmadagi {count} ta asosiy maydon olindi.",
         "en": "No --field given: the {count} main fields of the structure are used.",

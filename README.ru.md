@@ -174,6 +174,7 @@ jsonreshape flatten data.json flat.jsonl --children-key children
 # Статистика, дубликаты, JSON Schema
 jsonreshape stats data.json --field contact.address.city
 jsonreshape stats data.json --where "active == true" --json
+jsonreshape stats data.json --field score --histogram --bins 20
 jsonreshape dupes data.json --key id --top 10 -o dupes.jsonl
 jsonreshape schema data.json data.schema.json --strict
 jsonreshape validate data.json --schema data.schema.json --export errors.csv
@@ -440,8 +441,10 @@ CSV, XLSX, SQLite. Область: текущий вид (фильтр + сор�
   поле не более 65 536 различных чисел; сверх этого она строится по равномерной случайной выборке из 65 536 значений,
   масштабированной к общему количеству (помечается «≈», подсказка говорит об этом). Числа остаются точными: `1e400` и
   `12345678901234567890` сохраняют свой текст в подписях интервалов и в фильтрах. Диаграмма следует за живым
-  результатом, пока статистика считается. Вывод CLI `stats --json` не изменился; параметр `--histogram` — следующий
-  шаг.
+  результатом, пока статистика считается. В CLI `stats --histogram` печатает те же гистограммы под каждым полем (числа
+  и длины строк; `--bins N` — не больше N интервалов, 1–4096, по умолчанию 32, включает `--histogram`); с `--json` у
+  каждого поля появляются `histogram` и `length_histogram` (`bins`, точные `edges`, `counts`, `exact`, `sample_size`;
+  `null`, если в поле нет чисел / строк). Без параметра вывод не меняется.
 
   ![Панель статистики поля score: строки «есть / null / отсутствует» и типы с долями, 11 298 уникальных значений, гистограмма чисел из 20 интервалов и 20 самых частых значений](docs/img/stats.png)
 

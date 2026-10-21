@@ -173,6 +173,7 @@ jsonreshape flatten data.json tekis.jsonl --children-key children
 # Statistika, dublikatlar, JSON Schema
 jsonreshape stats data.json --field contact.address.city
 jsonreshape stats data.json --where "active == true" --json
+jsonreshape stats data.json --field score --histogram --bins 20
 jsonreshape dupes data.json --key id --top 10 -o takroriy.jsonl
 jsonreshape schema data.json data.schema.json --strict
 jsonreshape validate data.json --schema data.schema.json --export xatolar.csv
@@ -432,8 +433,11 @@ hech qachon manba fayl yoki boshqa tabda saqlanmagan o'zgarishlar bilan ochiq fa
   bosilsa qiymat bo'yicha (`city == "Toshkent"`). Maydonda 65 536 tagacha xil son bo'lsa gistogramma aniq; undan ko'p
   bo'lsa 65 536 ta qiymatdan iborat tasodifiy namuna bo'yicha chizilib, jami songa moslanadi ("≈" bilan belgilanadi,
   tooltip buni aytadi). Sonlar aniq qoladi: `1e400` va `12345678901234567890` oraliq yozuvlarida ham, filtrlarda ham
-  o'z matnini saqlaydi. Hisoblash davomida diagramma oraliq natija bilan birga yangilanadi. CLI `stats --json`
-  chiqishi o'zgarmagan; `--histogram` opsiyasi keyingi bosqichga qoldirildi.
+  o'z matnini saqlaydi. Hisoblash davomida diagramma oraliq natija bilan birga yangilanadi. CLI'da `stats --histogram`
+  har maydon ostida o'sha gistogrammalarni chiqaradi (sonlar va satr uzunliklari; `--bins N` — ko'pi bilan N ta
+  oraliq, 1–4096, standart 32, `--histogram` ni yoqadi); `--json` bilan har maydonga `histogram` va `length_histogram`
+  qo'shiladi (`bins`, aniq `edges`, `counts`, `exact`, `sample_size`; maydonda son / satr bo'lmasa `null`). Opsiyasiz
+  chiqish o'zgarmagan.
 
   ![score maydonining statistika paneli: mavjud / null / yo'q va tur qatorlari ulush chiziqlari bilan, 11 298 ta turli qiymat, 20 oraliqli sonlar taqsimoti va eng ko'p uchragan 20 qiymat](docs/img/stats.png)
 
