@@ -894,8 +894,9 @@ $env:JSONRESHAPE_BACKEND="python"; .venv\Scripts\python -m pytest -q  # sof Pyth
 .venv\Scripts\python -m pytest -q -m packaging                     # tayyor .exe ustida (avval scripts\build_exe.ps1)
 ```
 
-To'liq to'plam: **12 660 ta test** (6-bosqich oxirida, Rust yadro bilan, ~47 daqiqa; 5-bosqich oxirida 12 238 ta,
-2-bosqich oxirida 5431 ta edi); sof Python yadro bilan GUI'siz qismi — 9 208 ta test (~20 daqiqa). `-m packaging`
+To'liq to'plam: **12 910 ta test** (7-bosqich oxirida, Rust yadro bilan, ~52 daqiqa; 6-bosqich oxirida 12 660 ta,
+5-bosqich oxirida 12 238 ta, 2-bosqich oxirida 5431 ta edi; ustiga qurilgan `.exe` uchun 14 ta `-m packaging` testi);
+sof Python yadro bilan GUI'siz qismi — 9 394 ta test (~24 daqiqa). `-m packaging`
 testlari `dist\jsonreshape` bo'lmasa o'tkazib yuboriladi. GUI testlari ekransiz
 (`QT_QPA_PLATFORM=offscreen`) ishlaydi. Qulash va xotira testlari alohida jarayonlarda bajariladi (qulash
 pytest'ni to'xtatmaydi, test xato bo'ladi).
