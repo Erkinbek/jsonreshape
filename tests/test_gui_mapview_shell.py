@@ -189,7 +189,7 @@ def test_mapping_mode_widgets_and_switching_it_off(qtbot, opened, builder, tmp_p
     assert dlg.indent_combo.currentData() is None                     # "Ixcham" preselects the compact indent
     model = dlg.format_combo.model()
     enabled = {dlg.format_combo.itemData(i): model.item(i).isEnabled() for i in range(dlg.format_combo.count())}
-    assert enabled == {"json": True, "jsonl": True, "csv": False, "xlsx": False, "sqlite": False}
+    assert enabled == {"json": True, "jsonl": True, "csv": False, "xlsx": False, "sqlite": False, "parquet": False}
     assert model.item(2).toolTip() == "Tuzilma bo'yicha eksport faqat JSON yoki JSON Lines bo'ladi."
     assert not dlg.scope_buttons["node"].isEnabled()
     assert not dlg.json_sort_combo.isEnabled() and not dlg.as_keyed_check.isEnabled()
