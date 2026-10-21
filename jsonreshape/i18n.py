@@ -1,4 +1,4 @@
-"""The single dictionary of user-facing texts (Uzbek Latin primary, English fallback).
+"""The single dictionary of user-facing texts (Uzbek Latin primary, English fallback, Russian).
 
 Usage: ``t("error.cancelled")`` or ``t("json.error.at", line=2, column=5)``.
 
@@ -8,7 +8,10 @@ Rules:
   them with the section name;
 * every key has both ``uz`` and ``en`` texts (a test enforces this);
 * parameters use ``str.format`` syntax; a missing parameter leaves the placeholder visible
-  instead of raising.
+  instead of raising;
+* the Russian texts live in :mod:`jsonreshape.i18n_ru` (``MESSAGES_RU``, one string per key,
+  loaded on first use); a key without a Russian text falls back to English, so a new key may
+  land before its translation (``tests/test_i18n_ru.py`` reports the coverage).
 """
 
 from __future__ import annotations
@@ -17,7 +20,7 @@ import os
 import string
 import threading
 
-SUPPORTED_LANGUAGES = ("uz", "en")
+SUPPORTED_LANGUAGES = ("uz", "en", "ru")
 DEFAULT_LANGUAGE = "uz"
 
 MESSAGES: dict[str, dict[str, str]] = {
@@ -288,7 +291,10 @@ MESSAGES: dict[str, dict[str, str]] = {
     "settings.expected.int_min": {"uz": "{min} yoki undan katta butun son", "en": "a whole number of at least {min}"},
     "settings.expected.int_range": {"uz": "{min} dan {max} gacha butun son", "en": "a whole number from {min} to {max}"},
     "settings.expected.path": {"uz": "papka yo'li yoki bo'sh qiymat", "en": "a folder path or nothing"},
-    "settings.expected.language": {"uz": "uz (o'zbekcha) yoki en (inglizcha)", "en": "uz (Uzbek) or en (English)"},
+    "settings.expected.language": {
+        "uz": "uz (o'zbekcha), en (inglizcha) yoki ru (ruscha)",
+        "en": "uz (Uzbek), en (English) or ru (Russian)",
+    },
     "settings.expected.indent": {
         "uz": "bo'sh (ixcham), 0 dan 16 gacha son yoki tab",
         "en": "nothing (compact), a number from 0 to 16, or tab",
@@ -4645,8 +4651,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "show the versions (jsonreshape, core, Python) and exit",
     },
     "cli.help.lang": {
-        "uz": "til: uz (o'zbekcha, standart) yoki en (inglizcha)",
-        "en": "language: uz (Uzbek, default) or en (English)",
+        "uz": "til: uz (o'zbekcha, standart), en (inglizcha) yoki ru (ruscha)",
+        "en": "language: uz (Uzbek, default), en (English) or ru (Russian)",
     },
     "cli.help.backend": {
         "uz": "yadro: auto (Rust bo'lsa Rust), rust yoki python (sekin etalon)",
@@ -12370,7 +12376,7 @@ _formatter = string.Formatter()
 
 
 def set_language(lang: str) -> None:
-    """Switch the UI language (``uz`` or ``en``)."""
+    """Switch the UI language (``uz``, ``en`` or ``ru``)."""
     global _language
     lang = (lang or DEFAULT_LANGUAGE).strip().lower()
     if lang not in SUPPORTED_LANGUAGES:
@@ -12387,11 +12393,36 @@ def has(key: str) -> bool:
     return key in MESSAGES
 
 
+#: Languages that write numbers as ``1 234 567,5`` (space-grouped thousands, decimal comma).
+SPACE_GROUPED_LANGUAGES = frozenset({"uz", "ru"})
+
+
+def space_grouped() -> bool:
+    """True when the current language groups thousands with a space and uses a decimal comma
+    (``uz``, ``ru``); English keeps ``1,234,567.5``."""
+    return _language in SPACE_GROUPED_LANGUAGES
+
+
+_russian: dict[str, str] | None = None
+
+
+def _russian_texts() -> dict[str, str]:
+    """``i18n_ru.MESSAGES_RU``, imported on first use (the Uzbek / English UI never loads it)."""
+    global _russian
+    if _russian is None:
+        from .i18n_ru import MESSAGES_RU
+
+        _russian = MESSAGES_RU
+    return _russian
+
+
 def t(key: str, /, **params: object) -> str:
     """Translate ``key`` into the current language and format it with ``params``."""
     entry = MESSAGES.get(key)
     if entry is None:
         text = key
+    elif _language == "ru":
+        text = _russian_texts().get(key) or entry.get("en") or key
     else:
         text = entry.get(_language) or entry.get("en") or key
     if not params:

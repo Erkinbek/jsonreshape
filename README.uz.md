@@ -210,7 +210,7 @@ yoki literalsiz yozing: `to_number('100')`.
 Umumiy kirish parametrlari: `--record-path data` (ichida katta massiv bor obyekt uchun; `data[0]`,
 `/data/0`, `data.0` ham ishlaydi), `--format auto|array|jsonl|brace_list|wrapped|keyed|single|stream`,
 `--allow-partial` (JSON xatosi bo'lsa, xatogacha bo'lgan yozuvlar bilan ishlash), `--no-cache`.
-Global: `--lang uz|en`, `--backend auto|rust|python`, `-q`, `-v`/`-vv`, `--version`.
+Global: `--lang uz|en|ru`, `--backend auto|rust|python`, `-q`, `-v`/`-vv`, `--version`.
 
 **Standart kirish:** INPUT o'rnida `-` standart kirishni o'qiydi — bitta INPUT oladigan har bir buyruqda, `merge` /
 `diff` kirishlaridan bittasi sifatida ham; natijalar doim fayl (`-` natija sifatida rad etiladi). Ma'lumot avval
@@ -235,7 +235,8 @@ Chiqish kodlari:
 | `4` | ichki xato (qisqa xabar va log faylining yo'li) |
 | `5` | ma'lumot mos emas: `validate` xato topdi yoki `diff --exit-code` farq topdi |
 
-Har bir buyruqning to'liq parametrlari: `jsonreshape BUYRUQ --help` (o'zbekcha; `--lang en` — inglizcha).
+Har bir buyruqning to'liq parametrlari: `jsonreshape BUYRUQ --help` (o'zbekcha; `--lang en` — inglizcha, `--lang ru` —
+ruscha).
 PowerShell va bash'da `$key` ni bitta tirnoqda yozing: `'$key'`.
 
 Asl fayl **o'z-o'zidan hech qachon o'zgartirilmaydi**: barcha natijalar alohida faylga vaqtinchalik nom bilan
@@ -514,9 +515,9 @@ hech qachon manba fayl yoki boshqa tabda saqlanmagan o'zgarishlar bilan ochiq fa
 
 ### Sozlamalar va loglar
 
-**Asboblar → Sozlamalar**: namuna hajmi, kesh papkasi va hajm chegarasi, xotira chegarasi, tartiblash xotirasi,
-katta tugun chegaralari, eksport standartlari, til, mavzu (tizimga ergashish / yorug' / qorong'i), monospace
-shrift va o'lchami. Loglar: **Asboblar → Loglar papkasi**; har xato oynasida «Logni ochish».
+**Asboblar → Sozlamalar**: namuna hajmi, kesh papkasi va hajm chegarasi, xotira chegarasi, tartiblash xotirasi, katta
+tugun chegaralari, eksport standartlari, til (o'zbekcha / inglizcha / ruscha), mavzu (tizimga ergashish / yorug' /
+qorong'i), monospace shrift va o'lchami. Loglar: **Asboblar → Loglar papkasi**; har xato oynasida «Logni ochish».
 
 ### Klaviatura
 
@@ -800,8 +801,8 @@ ikki baravari joy egallaydi.
   bo'lgan yozuvlar ishlatilishi mumkin (`--allow-partial`). Kesilgan fayl oxirgi to'liq yozuvgacha ochiladi.
   JSON Lines faylda format noto'g'ri aniqlangani sezilsa, `--format jsonl` taklif qilinadi.
 * JSONL'da buzuq qatorlar o'tkazib yuboriladi va ro'yxati (qator raqami, sabab) chiqadi.
-* Xabarlar oddiy tilda: nima bo'ldi va qanday tuzatish kerak (o'zbekcha, `--lang en` — inglizcha); OS
-  xatolari (fayl band, faqat o'qish uchun, disk to'lgan, yo'l topilmadi) ham tarjima qilingan.
+* Xabarlar oddiy tilda: nima bo'ldi va qanday tuzatish kerak (o'zbekcha, `--lang en` — inglizcha, `--lang ru` —
+  ruscha); OS xatolari (fayl band, faqat o'qish uchun, disk to'lgan, yo'l topilmadi) ham tarjima qilingan.
 * Loglar: `%LOCALAPPDATA%\jsonreshape\logs\jsonreshape.log` (5 MB × 3 aylanma); ichki xatoda CLI log faylining
   yo'lini ko'rsatadi; log faylini ochib bo'lmasa, dastur ishlashda davom etadi.
 * JSON xatosi bor faylni **ta'mirlash** mumkin (GUI: xato panelidagi «Ta'mirlash…», CLI: `jsonreshape repair`):
@@ -862,6 +863,7 @@ jsonreshape/
   smartvalues.py      vaqt, sana, URL, rang, base64 rasmlarni aniqlash (Toshkent vaqti UTC+05:00)
   cli.py              buyruq qatori
   i18n.py             barcha UI matnlari (o'zbekcha asosiy, inglizcha zaxira) — bitta lug'at fayli
+  i18n_ru.py          ruscha UI matnlari (har kalitga bitta satr; yo'g'i inglizchaga qaytadi)
   gui/                PySide6: virtual grid (100 mln+ qator), daraxt/jadval/matn/xom/tuzilma ko'rinishlari,
                       sessiya (filtr -> tartib -> ko'rinish), fon vazifalari, panellar; tahrir boshqaruvchisi
                       (editing.py), tahrir oynalari (editors.py), ommaviy amallar (bulkdialog.py), tuzilma
@@ -1292,6 +1294,12 @@ va `main()` qayta ishga tushirilganda sessiyaning tiklanishi.
     quvur fayl bilan bir xil ~90 MB cho'qqiga chiqadi). Vaqtinchalik fayl doim o'chiriladi; uning uchun qurilgan indeks
     ishlatilgandan keyin o'chirilgan har qanday faylniki kabi LRU tozalashgacha keshda qoladi. Natijalar fayl bo'lib
     qoladi: `-` natija sifatida rad etiladi, xabarlarda vaqtinchalik fayl nomi ko'rsatiladi (aslida o'qilgan kirish).
+54. **Ruscha interfeys alohida modulda**: `i18n.py` ikki tilli asosiy manba bo'lib qoladi (`uz` asosiy, `en`
+    zaxira; har kalitda ikkalasi ham bor, testlar tekshiradi), ruscha matnlar `jsonreshape/i18n_ru.py` da (har kalitga
+    bitta satr, faqat til `ru` bo'lganda yuklanadi). Ruscha matni yo'q kalit inglizchaga qaytadi, shuning uchun yangi
+    imkoniyat tarjimasidan oldin qo'shilishi mumkin; `tests/test_i18n_ru.py` har ruscha matnning o'rinbosarlari va
+    qator ko'chishlarini inglizcha bilan solishtiradi va to'liq qamrovni talab qiladi. Ruscha sonlar o'zbekcha kabi
+    yoziladi (`1 234 567,5`, `i18n.space_grouped()`); o'zbek alifbosi tartibi va lotin–kirill qidiruvi o'zgarmaydi.
 
 ### Ma'lum cheklovlar
 

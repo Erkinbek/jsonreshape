@@ -7,7 +7,7 @@ explicitly (never silently). The user-facing requirements are in `AGENT_PROMPT.m
 
 Language conventions: code, comments, docstrings and this document are English.
 Every user-facing text (CLI output, error messages, GUI) goes through
-`jsonreshape.i18n.t()` — Uzbek (Latin) primary, English fallback.
+`jsonreshape.i18n.t()` — Uzbek (Latin) primary, English fallback, Russian (`i18n_ru.py`).
 
 ---------------------------------------------------------------------------------
 
@@ -36,7 +36,7 @@ Every user-facing text (CLI output, error messages, GUI) goes through
 * Environment variables:
   * `JSONRESHAPE_HOME` — overrides the app data dir (tests set it to a temp dir).
   * `JSONRESHAPE_BACKEND` — `rust` | `python` | `auto` (default auto).
-  * `JSONRESHAPE_LANG` — `uz` | `en`.
+  * `JSONRESHAPE_LANG` — `uz` | `en` | `ru`.
 * Tests: `tests/test_*.py`, pytest. Markers: `slow` (> ~5 s), `bench` (big-file
   benchmark, excluded by default), `gui` (pytest-qt). Default run: `pytest -m "not bench"`.
   Tests never write outside `tmp_path` / `JSONRESHAPE_HOME` (autouse fixture in conftest).
@@ -410,6 +410,10 @@ core). Formatting styles: dotted `a.b[0]["x y"]`; jsonpath `$.a.b[0]['x y']`; po
 
 * `i18n.py`: `MESSAGES: dict[str, dict[str, str]]`, `t(key, /, **params)`,
   `set_language()`, `get_language()`, `has(key)`. Missing language → `en` → key itself.
+  `SUPPORTED_LANGUAGES = ("uz", "en", "ru")`; `MESSAGES` keeps exactly `uz` + `en` per key, the Russian texts are
+  `i18n_ru.MESSAGES_RU: dict[str, str]` (imported by `t()` on first use with `ru`; a key missing there → `en`).
+  `space_grouped()` — True for `uz` / `ru` (numbers `1 234 567,5`), False for `en` (`1,234,567.5`); every count /
+  decimal formatter asks it instead of comparing the language code.
 * `errors.py`: `JsonReshapeError(key, **params)` (`.message`, `.hint`, `str()` localized);
   subclasses `Cancelled`, `UserInputError`, `QuerySyntaxError(pos=…)`, `PathSyntaxError`,
   `JsonSyntaxError(code, offset, line, column, expected, context_before, context_after,

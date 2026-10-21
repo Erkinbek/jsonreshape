@@ -131,7 +131,7 @@ from typing import Any, Callable, Iterable, Iterator, Sequence
 
 from . import codec
 from .errors import UserInputError
-from .i18n import get_language, has, t
+from .i18n import has, space_grouped, t
 from .tasks import CancelToken, Progress, check, format_bytes
 
 try:  # the C encoder behind json.dumps(..., ensure_ascii=False)
@@ -1848,7 +1848,7 @@ def type_chips(node: MapNode) -> list[tuple[str, str, str]]:
 
 def _group_digits(n: int) -> str:
     text = f"{int(n):,}"
-    return text.replace(",", " ") if get_language() == "uz" else text
+    return text.replace(",", " ") if space_grouped() else text
 
 
 def node_meta(tree: MappingTree, node: MapNode, *, record_count: int | None = None) -> list[tuple[str, str]]:

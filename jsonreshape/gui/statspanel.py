@@ -44,7 +44,9 @@ AGENT_PROMPT §9 "Maydon statistikasi", §5 "Daraxtda ko'rsatish ... statistika 
   range (:func:`range_filter` / :func:`length_range_filter`, see "Filters"), clicking a top-value bar applies the
   value's ``==`` filter. Live snapshots refresh the chart with the rest of the result (~1 s); the area hides when
   the field offers no chart (no values). Colours are theme roles only: bars ``accent``, the hovered column ``hover``,
-  texts ``fg`` / ``muted``, the baseline ``line``, the background ``panel``.
+  texts ``fg`` / ``muted``, the baseline ``line``, the background ``panel``. The area (:class:`_ChartBox`) asks the
+  splitter for the height its wrapped title and info line need at its current width, so a narrow dock or a long
+  title never squeezes the canvas under them.
 * **Click -> filter** (double click / Enter on a row, or its context menu): see "Filters" below.
 * **Daraxtda ko'rsatish** (context menu of a top value, min and max): the first record holding the
   value (``ValueCount.first`` / ``NumberStats.min_first`` / ``max_first``) is selected with
@@ -133,12 +135,13 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import weakref
 from dataclasses import dataclass, field as dc_field
 from typing import Any, Callable, Iterator, Sequence
 
 import shiboken6
-from PySide6.QtCore import QEvent, QModelIndex, QObject, QPoint, QRect, QStringListModel, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QModelIndex, QObject, QPoint, QRect, QSize, QStringListModel, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QContextMenuEvent, QHelpEvent, QKeySequence, QPainter, QPalette
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -170,7 +173,7 @@ from jsonreshape.gui import fields, theme
 from jsonreshape.gui.searchpanel import keep_for
 from jsonreshape.gui.session import NodeRef
 from jsonreshape.gui.widgets import format_count, mono_font, set_clipboard_text
-from jsonreshape.i18n import get_language, t
+from jsonreshape.i18n import space_grouped, t
 from jsonreshape.paths import MISSING, PathPattern, Wild, format_path, parse_pattern
 from jsonreshape.query import Condition, render_path
 from jsonreshape.schema import field_paths
@@ -224,12 +227,21 @@ def _count(n: int) -> str:
     return format_count(int(n))
 
 
+_GROUP_SPACE = re.compile(r"(?<=\d) (?=\d{3}(?!\d))")
+
+
+def _keep_numbers(text: str) -> str:
+    """``text`` with the spaces that group digits (``12 000`` in Uzbek / Russian) made no-break, so a wrapped
+    chart title never splits a number."""
+    return _GROUP_SPACE.sub("\N{NO-BREAK SPACE}", text)
+
+
 def _decimal(value: float, digits: int = 1) -> str:
     """``12.5`` (English) / ``12,5`` (Uzbek), trailing zeros removed."""
     text = f"{value:.{digits}f}"
     if "." in text:
         text = text.rstrip("0").rstrip(".")
-    return text.replace(".", ",") if get_language() == "uz" else text
+    return text.replace(".", ",") if space_grouped() else text
 
 
 def _share_text(part: int, whole: int) -> str:
@@ -825,7 +837,7 @@ def chart_data(fs: FieldStats, kind: str, rows: Sequence[_TopRow] | None = None,
         else:
             title = t("gui.statspanel.chart.title.lens_grouped", bins=len(bars), count=_count(n), width=width)
             tips.append(t("gui.statspanel.chart.tip.grouped", width=width))
-    return _ChartData(kind, bars, title, "\n".join(tips), True)
+    return _ChartData(kind, bars, _keep_numbers(title), "\n".join(tips), True)
 
 
 # ======================================================================================
@@ -912,6 +924,25 @@ class _TypesBar(QWidget):
                 x += max(0, w)
         finally:
             painter.end()
+
+
+class _ChartBox(QWidget):
+    """The chart area (title + kind combo, canvas, info line) as a pane of the panel's vertical splitter. QSplitter
+    keeps a pane at its minimum size hint but ignores height-for-width, so a title or info line wrapped onto more
+    lines than the hint assumed (a narrow dock, a long translation) overlapped the canvas: the minimum height here
+    is the layout's height for the current width."""
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802 - Qt name
+        hint = super().minimumSizeHint()
+        layout = self.layout()
+        if layout is None or not layout.hasHeightForWidth() or self.width() <= 0:
+            return hint
+        return QSize(hint.width(), max(hint.height(), layout.totalHeightForWidth(self.width())))
+
+    def resizeEvent(self, event: Any) -> None:  # noqa: N802 - Qt name
+        super().resizeEvent(event)
+        if event.size().width() != event.oldSize().width():
+            self.updateGeometry()
 
 
 class _Chart(QWidget):
@@ -1357,7 +1388,7 @@ class StatsPanel(QWidget):
         self.summary.customContextMenuRequested.connect(self._on_summary_menu)
         split.addWidget(self.summary)
         # the chart area (module docstring, "Diagramma"): title + kind combo, the canvas, an info line
-        self.chart_box = QWidget(split)
+        self.chart_box = _ChartBox(split)
         self.chart_box.setObjectName("stats_chart_box")
         chart_layout = QVBoxLayout(self.chart_box)
         chart_layout.setContentsMargins(0, 4, 0, 0)

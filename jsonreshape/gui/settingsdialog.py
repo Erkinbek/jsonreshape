@@ -103,7 +103,7 @@ _EDITS_FOLDER_DEFAULT = "%LOCALAPPDATA%\\jsonreshape\\edits"
 _UNITS = (("TB", 1 << 40), ("GB", 1 << 30), ("MB", 1 << 20), ("KB", 1 << 10))
 _INDENTS: tuple[tuple[str, Any], ...] = (("2", 2), ("4", 4), ("tab", "\t"), ("compact", None))
 _DELIMITERS: tuple[tuple[str, str], ...] = ((",", ","), (";", ";"), ("Tab", "\t"), ("|", "|"))
-_LANGUAGES = (("uz", "O'zbekcha"), ("en", "English"))
+_LANGUAGES = (("uz", "O'zbekcha"), ("en", "English"), ("ru", "Русский"))
 
 
 def size_text(n: int) -> str:

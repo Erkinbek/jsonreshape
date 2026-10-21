@@ -47,6 +47,10 @@ All notable changes to jsonreshape are recorded here. The format follows
   filters the view by the range or the value. `FieldStats.histogram(bins)` / `length_histogram(bins)` and
   `stats.format_histogram` in the Python API; `--json` output unchanged (a CLI `--histogram` option is a
   follow-up).
+- Russian interface: `--lang ru`, `JSONRESHAPE_LANG=ru` or Tools → Settings → Language → «Русский»; the texts
+  are in `jsonreshape/i18n_ru.py` (every key translated; a missing text falls back to English), numbers are
+  written `1 234 567,5` as in Uzbek (`i18n.space_grouped()`), `tests/test_i18n_ru.py` checks the coverage and
+  the placeholders.
 
 ## [0.1.0] — 2026-10-20
 

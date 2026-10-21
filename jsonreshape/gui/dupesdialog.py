@@ -89,7 +89,7 @@ from jsonreshape.gui.searchpanel import keep_for, snapshot_recordset
 from jsonreshape.gui.session import NodeRef
 from jsonreshape.gui.statspanel import MenuReason, StatsFilter, apply_filter
 from jsonreshape.gui.widgets import format_count, mono_font, set_clipboard_text, task_node
-from jsonreshape.i18n import get_language, t
+from jsonreshape.i18n import space_grouped, t
 from jsonreshape.paths import MISSING
 from jsonreshape.query import Condition
 from jsonreshape.recordset import RecordSet
@@ -133,7 +133,7 @@ def _tn(key: str, n: int, **params: Any) -> str:
 
 def _seconds(value: float) -> str:
     text = f"{value:.1f}".rstrip("0").rstrip(".")
-    return text.replace(".", ",") if get_language() == "uz" else text
+    return text.replace(".", ",") if space_grouped() else text
 
 
 def _elide(text: str, limit: int = MENU_EXPR_CHARS) -> str:

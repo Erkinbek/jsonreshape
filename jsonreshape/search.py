@@ -173,7 +173,7 @@ from . import codec, core
 from .appdirs import app_home
 from .errors import EditError, JsonDecodeError, TooLargeError, UserInputError
 from .fileio import atomic_write, long_path, make_dirs, open_shared, os_error, read_limited, read_range
-from .i18n import get_language, t
+from .i18n import space_grouped, t
 from .paths import PathPattern, Wild, canonical_index, format_path, parse_pattern
 from .reader import split_member
 from .settings import get_settings
@@ -401,9 +401,9 @@ class SearchResult:
 
 
 def _count_text(n: int) -> str:
-    """A count with grouped digits: ``12 345`` (Uzbek), ``12,345`` (English)."""
+    """A count with grouped digits: ``12 345`` (Uzbek, Russian), ``12,345`` (English)."""
     text = f"{int(n):,}"
-    return text.replace(",", " ") if get_language() == "uz" else text
+    return text.replace(",", " ") if space_grouped() else text
 
 
 # ----------------------------------------------------------------------------------

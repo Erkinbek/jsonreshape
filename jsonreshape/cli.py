@@ -455,7 +455,7 @@ from .errors import (
     TooLargeError,
     UserInputError,
 )
-from .i18n import SUPPORTED_LANGUAGES, get_language, has, set_language, t
+from .i18n import SUPPORTED_LANGUAGES, has, set_language, space_grouped, t
 from .tasks import CancelToken, Progress, ProgressInfo, format_bytes, format_duration, parse_size
 
 log = logging.getLogger(__name__)
@@ -1338,9 +1338,9 @@ def _terminal_columns() -> int:
 
 
 def _num(n: int) -> str:
-    """Grouped digits: ``12 345`` (Uzbek), ``12,345`` (English)."""
+    """Grouped digits: ``12 345`` (Uzbek, Russian), ``12,345`` (English)."""
     text = f"{int(n):,}"
-    return text.replace(",", " ") if get_language() == "uz" else text
+    return text.replace(",", " ") if space_grouped() else text
 
 
 def _mem_text(n: int) -> str:

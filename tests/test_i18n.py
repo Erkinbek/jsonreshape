@@ -301,7 +301,7 @@ def test_set_and_get_language() -> None:
     assert has("error.generic") and not has("no.such.key")
 
 
-@pytest.mark.parametrize("env_value, expected", [("en", "en"), ("UZ", "uz"), ("fr", "uz"), ("", "uz")])
+@pytest.mark.parametrize("env_value, expected", [("en", "en"), ("UZ", "uz"), ("ru", "ru"), ("fr", "uz"), ("", "uz")])
 def test_language_from_environment(env_value: str, expected: str) -> None:
     env = dict(os.environ, JSONRESHAPE_LANG=env_value, JSONRESHAPE_BACKEND="python")
     out = subprocess.run(

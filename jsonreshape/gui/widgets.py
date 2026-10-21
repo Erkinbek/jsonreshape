@@ -101,7 +101,7 @@ from PySide6.QtWidgets import (
 from jsonreshape import codec, smartvalues
 from jsonreshape.errors import Cancelled, JsonReshapeError, JsonSyntaxError, TooLargeError, UserInputError
 from jsonreshape.gui import copyfmt, theme
-from jsonreshape.i18n import get_language, t
+from jsonreshape.i18n import space_grouped, t
 from jsonreshape.overlay import is_edit_offset
 from jsonreshape.tasks import CancelToken, check, format_bytes
 
@@ -186,9 +186,9 @@ def set_clipboard_text(text: str) -> str:
 
 
 def format_count(n: int) -> str:
-    """A count with grouped digits: ``12 345`` (Uzbek), ``12,345`` (English)."""
+    """A count with grouped digits: ``12 345`` (Uzbek, Russian), ``12,345`` (English)."""
     text = f"{int(n):,}"
-    return text.replace(",", " ") if get_language() == "uz" else text
+    return text.replace(",", " ") if space_grouped() else text
 
 
 def format_size(n: float) -> str:

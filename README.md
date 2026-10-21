@@ -209,7 +209,7 @@ or write it without a literal: `to_number('100')`.
 Common input options: `--record-path data` (for an object that contains a large array; `data[0]`,
 `/data/0`, `data.0` also work), `--format auto|array|jsonl|brace_list|wrapped|keyed|single|stream`,
 `--allow-partial` (on a JSON error, work with the records before the error), `--no-cache`.
-Global: `--lang uz|en`, `--backend auto|rust|python`, `-q`, `-v`/`-vv`, `--version`.
+Global: `--lang uz|en|ru`, `--backend auto|rust|python`, `-q`, `-v`/`-vv`, `--version`.
 
 **Standard input:** `-` in place of INPUT reads standard input — in every command with one INPUT, and as one of the
 inputs of `merge` / `diff`; outputs are always files (`-` as an output is refused). The data is first copied in 1 MiB
@@ -234,7 +234,8 @@ Exit codes:
 | `4` | internal error (a short message and the path of the log file) |
 | `5` | data mismatch: `validate` found errors or `diff --exit-code` found differences |
 
-Full options of each command: `jsonreshape COMMAND --help` (in Uzbek; `--lang en` for English).
+Full options of each command: `jsonreshape COMMAND --help` (in Uzbek; `--lang en` for English, `--lang ru` for
+Russian).
 In PowerShell and bash, write `$key` in single quotes: `'$key'`.
 
 The original file is **never changed on its own**: all results are written to a separate file under a temporary name
@@ -512,7 +513,8 @@ source file or a file that is open in another tab with unsaved changes.
 ### Settings and logs
 
 **Tools → Settings**: sample size, cache folder and size limit, memory limit, memory for sorting, large node
-thresholds, export defaults, language, theme (follow the system / light / dark), monospace font and its size.
+thresholds, export defaults, language (Uzbek / English / Russian), theme (follow the system / light / dark), monospace
+font and its size.
 Logs: **Tools → Open the logs folder**; every error dialog has "Open log".
 
 ### Keyboard
@@ -796,8 +798,8 @@ while it is being checked.
   the records before the error can be used (`--allow-partial`). A truncated file opens up to the last complete
   record. If a JSON Lines file appears to have been detected with the wrong format, `--format jsonl` is suggested.
 * In JSONL, broken lines are skipped and listed (line number, reason).
-* Messages are in plain language: what happened and how to fix it (Uzbek; `--lang en` — English); OS
-  errors (file in use, read-only, disk full, path not found) are translated too.
+* Messages are in plain language: what happened and how to fix it (Uzbek; `--lang en` — English, `--lang ru` —
+  Russian); OS errors (file in use, read-only, disk full, path not found) are translated too.
 * Logs: `%LOCALAPPDATA%\jsonreshape\logs\jsonreshape.log` (5 MB × 3, rotating); on an internal error the CLI
   shows the log file's path; if the log file cannot be opened, the program keeps working.
 * A file with a JSON error can be **repaired** (GUI: **Repair…** on the error panel, CLI: `jsonreshape repair`):
@@ -858,6 +860,7 @@ jsonreshape/
   smartvalues.py      detection of times, dates, URLs, colours, base64 images (Tashkent time UTC+05:00)
   cli.py              command line
   i18n.py             all UI texts (Uzbek primary, English fallback) — a single dictionary file
+  i18n_ru.py          Russian UI texts (one string per key; a missing one falls back to English)
   gui/                PySide6: virtual grid (100 M+ rows), tree/table/text/raw/Schema views,
                       session (filter -> sort -> view), background tasks, panels; edit controller
                       (editing.py), edit dialogs (editors.py), bulk operations (bulkdialog.py), structure
@@ -1290,6 +1293,12 @@ session restore when `main()` is started again.
     file run). The temporary file is always removed; the index built for it stays in the cache until the LRU eviction,
     like that of any file deleted after use. Outputs stay files: `-` as an output is refused, and messages name the
     temporary file (the input that was actually read).
+54. **Russian UI in its own module**: `i18n.py` stays the two-language source of truth (`uz` primary, `en`
+    fallback; every key has both, tests enforce it), the Russian texts live in `jsonreshape/i18n_ru.py` (one string
+    per key, imported only when the language is `ru`). A key without a Russian text falls back to English, so a new
+    feature can land before its translation; `tests/test_i18n_ru.py` checks the placeholders and line breaks of
+    every Russian text against the English one and requires full coverage. Russian numbers are written like Uzbek
+    ones (`1 234 567,5`, `i18n.space_grouped()`); the Uzbek collation and the Latin–Cyrillic search stay as they are.
 
 ### Known limitations
 

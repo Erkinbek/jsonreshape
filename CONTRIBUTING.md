@@ -53,12 +53,16 @@ Without Rust the pure-Python core is used (`JSONRESHAPE_BACKEND=python`): everyt
 * One logical change per pull request; describe what changed and why, and name the tests you added.
 * Run the relevant tests and `tests/test_static.py` (static rules: no `eval`, no direct ijson use outside the
   protected modules, no hard-coded colours outside `theme.py`).
-* Update `README.md` **and** `README.uz.md` when behaviour or options change (both pages share the same sections;
+* Update `README.md`, `README.uz.md` **and** `README.ru.md` when behaviour or options change (the pages share the same sections;
   `tests/test_docs.py` checks them), and `docs/ARCHITECTURE.md` when the design changes.
 * Add a line to `CHANGELOG.md` under "Unreleased".
 
 ## Translations
 
-The UI texts are in `jsonreshape/i18n.py` (`uz` primary, `en` fallback). A new language is a new key in every
-entry plus its code in `SUPPORTED_LANGUAGES`; missing entries fall back to English, so a translation can land
-incrementally. The README exists in English and Uzbek (`README.uz.md`).
+The UI texts are in `jsonreshape/i18n.py` (`uz` primary, `en` fallback; every key needs both). Russian lives in
+`jsonreshape/i18n_ru.py` (`MESSAGES_RU`, one string per key): a new key needs a Russian text there too —
+`tests/test_i18n_ru.py` checks the coverage and that placeholders (`{name}`) and line breaks match the English text.
+Another language follows the Russian pattern: a module `i18n_<code>.py`, its code in `SUPPORTED_LANGUAGES`, a lookup
+in `i18n.t()` (missing texts fall back to English), an entry in the Settings language list
+(`gui/settingsdialog._LANGUAGES`) and a test like `tests/test_i18n_ru.py`. The README exists in English, Uzbek
+(`README.uz.md`) and Russian (`README.ru.md`).

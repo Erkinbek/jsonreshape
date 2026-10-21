@@ -215,7 +215,7 @@ from . import codec, core
 from .appdirs import work_dir
 from .dupes import HashRuns, canonical_bytes, canonical_token, key_hash
 from .errors import Cancelled, EditError, JsonReshapeError, UserInputError
-from .i18n import get_language, t
+from .i18n import space_grouped, t
 from .paths import MISSING, PathPattern, Wild, parse_pattern
 from .query import render_path
 from .reader import split_member as _split_member
@@ -3439,12 +3439,12 @@ def _pct_text(value: float, digits: int = 1) -> str:
     text = f"{value:.{digits}f}"
     if "." in text:
         text = text.rstrip("0").rstrip(".")
-    return text.replace(".", ",") if get_language() == "uz" else text
+    return text.replace(".", ",") if space_grouped() else text
 
 
 def _count_text(n: int) -> str:
     text = f"{int(n):,}"
-    return text.replace(",", " ") if get_language() == "uz" else text
+    return text.replace(",", " ") if space_grouped() else text
 
 
 def _share(part: int, whole: int) -> str:

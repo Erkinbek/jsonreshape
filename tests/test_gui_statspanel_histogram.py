@@ -260,8 +260,9 @@ def test_sampled_histogram_is_marked(qtbot, opened, panel, tmp_path: Path) -> No
     assert not h.exact and h.sample_size == stats.HIST_MIN
     total, sample = statspanel._count(3000), statspanel._count(stats.HIST_MIN)
     assert p.chart_title.text().startswith("≈")
-    assert p.chart_title.text() == t("gui.statspanel.chart.title.hist_sampled", bins=str(h.bins), count=total,
-                                     sample=sample)
+    assert p.chart_title.text() == statspanel._keep_numbers(t("gui.statspanel.chart.title.hist_sampled",
+                                                              bins=str(h.bins), count=total, sample=sample))
+    assert "3\N{NO-BREAK SPACE}000" in p.chart_title.text()      # a wrapped title never splits a number
     assert t("gui.statspanel.chart.tip.sampled", sample=sample, count=total) in p.chart_title.toolTip()
     bars = p.chart_bars()
     assert all(b.approx and b.count_text.startswith("≈") for b in bars) and abs(sum(b.count for b in bars) - 3000) <= len(bars)
@@ -362,3 +363,24 @@ def test_uzbek_texts(qtbot, opened, panel, records_path: Path, lang_uz) -> None:
     assert combo.toolTip().startswith("Nimani chizish") and p.chart.accessibleName() == "Diagramma"
     compute(qtbot, p, "note")
     assert combo.itemText(0) == "Satr uzunliklari" and p.chart_bars()[1].label == "1 belgi"
+
+
+def test_narrow_panel_keeps_the_wrapped_title_off_the_canvas(qtbot, opened, panel, records_path: Path,
+                                                             lang_uz) -> None:
+    """QSplitter ignores height-for-width: in a narrow dock the wrapped title / info line made the chart area taller
+    than the pane and the canvas ran under the info line (seen with the Russian texts); the area's minimum height
+    now follows its width."""
+    s = opened(records_path)
+    p = panel()
+    p.set_session(s)
+    p.resize(230, 560)
+    p.show()
+    qtbot.waitExposed(p)
+    compute(qtbot, p, "id")
+    qtbot.waitUntil(lambda: p.chart_visible())
+    QApplication.processEvents()
+    title, chart, info = p.chart_title.geometry(), p.chart.geometry(), p.chart_info.geometry()
+    assert title.height() > p.chart_title.fontMetrics().height() * 1.5          # the title did wrap
+    assert chart.top() >= title.bottom() and info.top() >= chart.bottom()
+    assert chart.height() >= statspanel.CHART_MIN_HEIGHT
+    assert p.chart_box.minimumSizeHint().height() <= p.chart_box.height()

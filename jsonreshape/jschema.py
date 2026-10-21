@@ -186,7 +186,7 @@ from .codec import JsonFloat, JsonInt
 from .dupes import canonical_bytes
 from .schema import _BeyondDecimal
 from .errors import EditError, TooLargeError, UserInputError
-from .i18n import get_language, has, t
+from .i18n import has, space_grouped, t
 from .paths import Wild, format_path
 from .recordset import RecordSet, RecordSetBuilder
 from .tasks import CancelToken, Progress, check, format_bytes
@@ -2454,7 +2454,7 @@ def _type_text(name: str) -> str:
 def _count_text(n: Any) -> str:
     if isinstance(n, int) and not isinstance(n, bool):
         text = f"{n:,}"
-        return text.replace(",", " ") if get_language() == "uz" else text
+        return text.replace(",", " ") if space_grouped() else text
     return str(n)
 
 

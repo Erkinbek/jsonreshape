@@ -163,7 +163,7 @@ from .codec import JsonFloat, JsonInt
 from .core import MODE_CONTAINER
 from .errors import EditError, JsonReshapeError, UserInputError
 from .fileio import open_shared, read_range
-from .i18n import get_language, t
+from .i18n import space_grouped, t
 from .paths import Wild, canonical_index, format_path, parse_pattern
 from .reader import BLOCK_BYTES, Block, Document, split_member
 from .tasks import CancelToken, Progress, check
@@ -1388,7 +1388,7 @@ def default_columns(schema: Schema | None, *, limit: int = DEFAULT_COLUMN_LIMIT,
 # ----------------------------------------------------------------------------------
 def _group(n: int) -> str:
     text = f"{int(n):,}"
-    return text.replace(",", " ") if get_language() == "uz" else text
+    return text.replace(",", " ") if space_grouped() else text
 
 
 def _pct(x: float) -> str:

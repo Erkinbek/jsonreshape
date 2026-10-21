@@ -206,7 +206,7 @@ from . import codec, core
 from .appdirs import recordsets_dir, tmp_dir, work_dir
 from .errors import Cancelled, EditError, JsonReshapeError, UserInputError
 from .fileio import long_path, open_shared, os_error, read_range
-from .i18n import get_language, has, t
+from .i18n import has, space_grouped, t
 from .paths import MISSING, PathPattern
 from .query import Filter, FilterEvalError, compile_filter
 from .reader import Block, split_member
@@ -1138,9 +1138,9 @@ class SortReport:
 
 
 def _count_text(n: int) -> str:
-    """A count with grouped digits: ``12 345`` (Uzbek), ``12,345`` (English)."""
+    """A count with grouped digits: ``12 345`` (Uzbek, Russian), ``12,345`` (English)."""
     text = f"{int(n):,}"
-    return text.replace(",", " ") if get_language() == "uz" else text
+    return text.replace(",", " ") if space_grouped() else text
 
 
 _COUNT_PARAMS = ("count", "total", "found")          # shown with grouped digits
