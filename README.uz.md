@@ -849,6 +849,8 @@ jsonreshape/
   search.py           to'liq fayl bo'yicha qidiruv (bayt prefiltr + tasdiqlash), eksport, tarix
   schema.py           tuzilma: turlar taqsimoti, mavjudlik foizi, misollar
   writer.py           oqimli yozuvchilar: JSON, JSONL, CSV, XLSX, SQLite; bir nechta kirish, tugun eksporti
+  writer_xlsx.py      o'z oqimli XLSX yozuvchisi: varaq XML'i ishchi jarayonlarda siqiladi, zip64
+  writer_sqlite.py    SQLite eksporti: qatorlar ishchi jarayonlarda bo'linadi, INSERT … SELECT bilan birlashtiriladi
   overlay.py          tahrir holati (o'zgarmas): piece table, kontent qatlamlari, virtual manzillar, ChangeSet
   editstore.py        diskdagi tahrir qatlami: SQLite (WAL) qadamlar, segment fayllar, qulf, tiklash
   editops.py          bayt darajasidagi tahrirlar va formatlash (sof funksiyalar)
@@ -1052,8 +1054,10 @@ qator — `edit_latest.md` da.
 | Dasturning umumiy xotirasi (barcha tahrir amallari) | < 500 MB | 422 MB (JSON Patch importi, 6.5 mln amal) | ✅ |
 
 **Jadval eksportlari** (`export_latest.md`): CSV avtomatik ustunlar bilan — tahrirsiz 117 MB/s, tahrirlar bilan
-84–102 MB/s ✅; **XLSX** (9 ta ustun) 12.0 MB/s (hamma yozuv o'zgarganda 7.3 MB/s) va **SQLite** 16.4 MB/s (8.9 MB/s),
-RAM 138–159 MB — tezlik maqsadidan past ❌ (sabab va variantlar pastda).
+84–102 MB/s ✅; **XLSX** (9 ta ustun) 116 MB/s (hamma yozuv o'zgarganda ham) va **SQLite** 79.1 MB/s (78.6 MB/s),
+4 ta ishchi jarayon bilan RAM 250–282 MB ✅ (7-bosqich: o'z XLSX yozuvchimiz va ishchi jarayonlardagi SQLite
+eksporti; oldin: 7.8–12.0 va 10.6–16.4 MB/s). XLSX fayli xlsxwriter'nikidan ikki baravar kichik (2,1 GB uchun
+399 MB o'rniga 217 MB).
 
 ### GUI
 
@@ -1103,15 +1107,13 @@ va `main()` qayta ishga tushirilganda sessiyaning tiklanishi.
 
 ### Maqsadga yetilmagan joylar va variantlar
 
-* **XLSX eksporti** 12.0 MB/s (hamma yozuv o'zgarganda 7.3 MB/s) va **SQLite eksporti** 16.4 MB/s (8.9 MB/s) — maqsad
-  ≥ 50 MB/s; xotira maqsad ichida (138–159 MB). Sabab: XLSX kataklarini `xlsxwriter` bitta oqimda XML'ga yozadi
-  (cProfile bo'yicha vaqtning ~80 %; qiymatlarni tayyorlash allaqachon ishchi jarayonlarda), SQLite'ga yozuvlar ikki
-  o'tishda Python'da jadvallarga bo'linib, bitta oqimda kiritiladi. Variantlar: 1) o'z XLSX yozuvchimiz — varaq
-  XML'i ishchi jarayonlarda, zip alohida oqimda (qaror 39); 2) SQLite uchun map'larni topish va qatorlarni
-  tayyorlashni ishchi jarayonlarga o'tkazish; hozircha katta jadvallar uchun CSV (100–250 MB/s).
 * **Mapping bitta jarayonda** (`--workers 1`): `apply` 47.5 MB/s, `flatten` 46.0 MB/s — maqsadga yaqin, lekin
   past. Standart rejimda 64 MB dan katta fayl parallel qayta ishlanadi (yuqoridagi jadval). Variant: mapping
   qoidalarini Rust yadroda bajarish.
+* 7-bosqichda yopildi: XLSX eksporti (7.8–12 → 116 MB/s: o'z yozuvchimiz, varaq XML'i ishchi jarayonlarda quriladi
+  va siqiladi) va SQLite eksporti (10.6–16.4 → 79 MB/s: bitta optimistik o'tish, yozuvlar ishchi jarayonlarda
+  jadvallarga bo'linadi va bazaga `INSERT … SELECT` bilan ko'chiriladi). Endi chegarasi: XLSX — ishchilar (bitta
+  ishchi ~40 MB/s); SQLite — ota jarayonda qatorlarni ko'chirish (~2,2 mln qator/s) va `_parent` indekslarini qurish.
 * 6-bosqichda yopilganlar: CSV avtomatik ustunlar bilan (26 → 105 MB/s), tahrirli CSV eksporti (28–41 → 186–231
   MB/s), mapping bilan eksportning xotirasi (avtomatik 4 ta ishchi jarayon bilan 321–355 MB → 3 ta bilan
   258–299 MB; mapping faylini o'qishdagi 134 MB'lik sakrash olib tashlandi).
@@ -1227,8 +1229,20 @@ va `main()` qayta ishga tushirilganda sessiyaning tiklanishi.
     beri aniq, yozgi vaqt yo'q; `tzdata` qo'shilmadi; eski sanalar uchun izohda aytiladi); URL'lar faqat «Brauzerda
     ochilsinmi?» tasdig'idan keyin ochiladi — dasturning o'zi tarmoqqa hech narsa yubormaydi; `#rgb` / `#rrggbb`
     ranglar namunasi; base64 rasmlar (PNG/JPEG/GIF/WebP) to'liq qiymat oynasida kichik rasm sifatida.
-39. **XLSX** eksporti `xlsxwriter` bilan qoldi (~11 MB/s; qiymatlar parallel jarayonlarda tayyorlanadi, kataklarni
-    `xlsxwriter` bitta oqimda yozadi); tezroq o'z yozuvchimiz — keyinroq ixtiyoriy.
+39. **XLSX** jsonreshape'ning o'z oqimli yozuvchisi bilan yoziladi (7-bosqich; oldin `xlsxwriter`, ~11 MB/s: u har
+    katakni Python'da bitta oqimda yozib, oxirida zip qurardi): ishchi jarayonlar qatorlarni varaq XML'iga
+    aylantiradi (inline satrlar, qator va kataklarda manzil atributlari yo'q — blok oldingi qatorlar sonini bilishi
+    shart emas) va bayt chegarasida tugaydigan bo'laklarga siqadi; ota jarayon bo'laklarni tartib bilan zip'ga
+    qo'shadi va CRC-32'larni birlashtiradi — 116 MB/s, fayl ikki baravar kichik, sekin yakuniy bosqich yo'q. Har
+    katak xlsxwriter faylidagi qiymat va turini saqlaydi (sonlar `%.16G`, 15 raqam qoidasi, mantiqiy qiymatlar,
+    32 767 UTF-16 birlikda kesilgan matnlar, `_xHHHH_`); bitta ataylab farq: `<r>…</r>` ko'rinishidagi matn — matn
+    (xlsxwriter uni xom XML qilib yozardi va Excel faylni ochmasdi). 4 GB dan katta arxivga zip64 yozuvlari
+    qo'shiladi; 4 GB dan katta bitta varaq rad etiladi (fayllarga bo'ling yoki varaqdagi qatorlarni kamaytiring).
+    **SQLite** (7-bosqich): bitta optimistik o'tish — ishchilar yozuvlarni xotiradagi bazalarda jadvallarga bo'ladi
+    va har yo'ldagi kalitlarni sanaydi; hech bir yo'l map bo'la olmasa (≤ 100 kalit) natija aynan ikki o'tishlisi
+    bilan bir xil, aks holda eksport eski usulda (avval skaner) qayta bajariladi — ota jarayon serialize qilingan
+    bloklarni `INSERT … SELECT` bilan birlashtiradi (79 MB/s). Ikkalasi ham 1–6-bosqich eksportlari bilan qiymatma-
+    qiymat bir xil (testlar solishtiradi).
 
 **6-bosqich — silliqlash**
 
@@ -1323,8 +1337,10 @@ va `main()` qayta ishga tushirilganda sessiyaning tiklanishi.
   tartibi hisobga olinadi — faqat massiv tartibi farq qiladigan yozuvlar uchun `--key` kerak.
 * Ta'mirlash xatolar zich fayllarda sekinroq (har tuzatish aniq joyi va bekor qilish ma'lumoti bilan yoziladi):
   1 % buzuq yozuv ~185 MB/s, 10 % ~47 MB/s, JSON5 uslubi ~35 MB/s, hamma satrlar bitta tirnoqda ~2 MB/s.
-* XLSX (~11 MB/s) va SQLite (~15–17 MB/s) eksporti 50 MB/s dan sekin: XLSX kataklarini `xlsxwriter` bitta oqimda
-  yozadi, SQLite'ga yozuvlar bitta oqimda kiritiladi (variantlar 14-bo'limda). CSV, JSON va JSONL maqsaddan tez.
+* Katta fayllarda XLSX va SQLite eksporti 4 ta ishchi jarayondan foydalanadi (CSV kabi avtomatik): 2,1 GB faylda
+  xotira cho'qqisi 250–282 MB. XML'i 4 GB dan oshadigan bitta XLSX varag'i (juda keng qatorlar) rad etiladi —
+  natijani fayllarga bo'ling yoki varaqdagi qatorlarni kamaytiring. Map'ga o'xshash obyektlar yoki bitta yo'lda
+  100 dan ortiq kalit bo'lsa, SQLite eksporti eski ikki o'tishni bajaradi (skaner, so'ng qatorlar).
 * Sessiya va workspace daraxtdagi faqat-ko'rinish tartiblarini, panel o'lchamlarini va tab yo'nalishini saqlamaydi.
 * GUI tilini almashtirish to'liq kuchga dastur qayta ishga tushirilgandan keyin kiradi (ochiq oynalardagi
   ba'zi matnlar eski tilda qoladi; sozlamalar oynasi buni aytadi).

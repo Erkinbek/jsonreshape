@@ -50,17 +50,20 @@ Common behaviour
   bytes of record data read for all records or a ``range`` (exact), and for any other
   selection an estimate of the selection's bytes advanced in proportion to the records
   done -- ``done`` never exceeds ``total``. An export that scans the records first (CSV/XLSX
-  with automatic columns, SQLite) counts both passes: the total is twice the estimate, the
-  scan reports ``writer.progress.columns``, the writing pass ``writer.progress.export``.
+  with automatic columns) counts both passes: the total is twice the estimate, the
+  scan reports ``writer.progress.columns``, the writing pass ``writer.progress.export``
+  (SQLite makes one pass; when a map may exist the total grows by the scan and a second
+  writing pass -- :mod:`jsonreshape.writer_sqlite`).
   ``cancel`` is checked for every block and every 1024 records.
 * Records are read with :meth:`Document.iter_blocks` (8 MiB blocks): memory stays bounded
   by one block plus one parsed record, whatever the file size; CSV/XLSX rows and SQLite
   rows are handed on in batches of at most ``Settings.memory_limit_bytes // 512`` cells
   (and 8192 rows), whatever the number of columns.
-* Applications stage XLSX row data in ``xlsx-<pid>-<hex>`` folders under
+* Versions before stage 7 staged XLSX row data in ``xlsx-<pid>-<hex>`` folders under
   :func:`jsonreshape.appdirs.work_dir` (``<cache_dir>/tmp`` when a cache folder is
-  configured); every export first removes such folders of processes that no longer run
-  (and pre-0.2 ``xlsx-xxxxxxxx`` folders older than a day).
+  configured); every export still removes such folders of processes that no longer run
+  (and pre-0.2 ``xlsx-xxxxxxxx`` folders older than a day). The XLSX writer of stage 7
+  (:mod:`jsonreshape.writer_xlsx`) stages nothing.
 * A document with a JSON error exports the records before the error (warning
   ``writer.warn.partial``); broken JSON Lines lines are skipped (``writer.warn.broken_lines``).
   Whether a partial export is acceptable is the caller's decision (the CLI requires
@@ -232,16 +235,20 @@ CSV and XLSX
   decoded in memory and records with more than :data:`POOL_SAFE_BRACKETS` opening brackets
   (whose decoding depends on the stack of the process) are handled there exactly as without
   workers, so the file is byte for byte the one-thread file (``csv`` writes every row on its
-  own). XLSX: at most :data:`XLSX_POOL_WORKERS` workers prepare the typed cells the same way
-  and the calling thread writes them with xlsxwriter in their order (xlsxwriter is the bound;
-  the workbook is the same). A job stops once its text exceeds :data:`POOL_JOB_TEXT` characters
-  (XLSX: :data:`POOL_JOB_CELLS` cells; rows mode can multiply a record); the rest of its block
-  is the next job. A job a worker cannot do is done in the calling thread (its error, if any,
-  is raised as without workers); ``BrokenProcessPool`` -- the workers cannot run -- moves the
-  rest of the export to the calling thread. ``cancel`` is checked every :data:`POOL_WAIT`
-  seconds while a result is awaited; the workers are stopped on any error. A ``.csv.gz``
-  output is byte for byte the same too (:class:`_Sink` feeds zlib fixed pieces of the plain
-  stream). :attr:`ExportReport.workers`: the worker processes used (1 = the calling thread).
+  own). XLSX (stage 7, :mod:`jsonreshape.writer_xlsx`): the same workers build the typed cells,
+  turn them into worksheet XML and deflate it; a job returns one deflated piece and the calling
+  thread appends the pieces to the sheet in their order -- with ``workers=1`` the same jobs run
+  in the calling thread over the same blocks (:class:`_NoPool`), so the workbook is byte for
+  byte the same whatever the number of workers (Parquet: typed rows, converted here). A job
+  stops once its text exceeds :data:`POOL_JOB_TEXT` characters (XLSX / Parquet:
+  :data:`POOL_JOB_CELLS` cells; rows mode can multiply a record); the rest of its block is the
+  next job. A job a worker cannot do is done in the calling thread (its error, if any, is raised
+  as without workers); ``BrokenProcessPool`` -- the workers cannot run -- moves the rest of the
+  export to the calling thread. ``cancel`` is checked every :data:`POOL_WAIT` seconds while a
+  result is awaited; the workers are stopped on any error. A ``.csv.gz`` output is byte for
+  byte the same too (:class:`_Sink` feeds zlib fixed pieces of the plain stream). SQLite uses
+  the same rule for its workers (:mod:`jsonreshape.writer_sqlite`).
+  :attr:`ExportReport.workers`: the worker processes used (1 = the calling thread).
 * The column scan of automatic CSV/XLSX columns (and :func:`discover_columns` /
   :func:`plan_columns` of every record) runs in worker processes too, by the same rule
   (``discover_columns(..., workers=None)``): every job scans its block with its own
@@ -250,24 +257,25 @@ CSV and XLSX
   scan -- unless an object path may become a map, the scan would track more than
   ``SCAN_MAX_PATHS`` paths, or rows mode infers the expanded array: then the scan is done
   (again) in the calling thread (its progress resumes where the workers' stopped).
-* XLSX: ``xlsxwriter`` in ``constant_memory`` mode (rows streamed to disk) with
-  ``strings_to_numbers``/``strings_to_formulas``/``strings_to_urls`` disabled; a bold,
-  frozen header row on every sheet. Numbers are real numbers when they have at most 15
-  significant digits and a decimal exponent within +-307 (Excel's precision and range;
-  ``1.10`` is the number 1.1); others (``12345678901234567890``, ``1e400``,
-  ``3.141592653589793``) are written as their exact text (``writer.warn.xlsx_number_text``).
-  Booleans are Excel booleans. Texts longer than 32767 UTF-16 units are truncated
-  (``writer.warn.xlsx_truncated``). When the rows (header included) exceed
+* XLSX: this program's own streaming writer of the package (:mod:`jsonreshape.writer_xlsx`,
+  stage 7; it replaced ``xlsxwriter``): inline strings, no shared-strings table, no theme;
+  strings never become numbers, formulas or links; a bold, frozen header row on every sheet.
+  Numbers are real numbers when they have at most 15 significant digits and a decimal
+  exponent within +-307 (Excel's precision and range; ``1.10`` is the number 1.1); others
+  (``12345678901234567890``, ``1e400``, ``3.141592653589793``) are written as their exact
+  text (``writer.warn.xlsx_number_text``). Booleans are Excel booleans. Texts longer than
+  32767 UTF-16 units are truncated (``writer.warn.xlsx_truncated``); control characters are
+  written as Excel's ``_xHHHH_`` escapes. When the rows (header included) exceed
   ``xlsx_max_rows`` they continue on new sheets ``Sheet1``, ``Sheet2``, ... (``xlsx_split=
   "sheets"``) or in new files (``"files"``): a result that needs more than one file is
   written as ``<stem>_1.xlsx``, ``<stem>_2.xlsx``, ... (a single file keeps the requested
-  name). Every sheet/file starts with the header row. More than 16384 columns is an error.
+  name). Every sheet/file starts with the header row. More than 16384 columns is an error;
+  a sheet whose zip member would need zip64 (4 GiB or more) is ``writer.error.xlsx_too_large``
+  (the archive itself may be larger: its central directory is zip64 then).
 * XLSX workbooks are written through a file object opened by the writer (long paths work;
-  the handle is always closed, so the temporary file is removed after any error); it
-  checks ``cancel`` for every piece the zip writer produces, so finishing the workbook (the
-  zip assembly, the slowest part of a large export) can be cancelled too, and reports it
-  as progress (``writer.progress.finish``, bytes written, total unknown). ``cancel`` is
-  checked again before the result is committed.
+  the handle is always closed, so the temporary file is removed after any error) that checks
+  ``cancel`` for every write; the sheets are deflated as the rows arrive, so there is no slow
+  final step. ``cancel`` is checked again before the result is committed.
 * XLSX ``files`` split: the parts are staged next to the target and committed all or
   nothing -- existing targets are renamed aside first; when one cannot be replaced (open in
   Excel) nothing is changed (``writer.error.xlsx_part_locked``). Older ``<stem>_<k>.xlsx``
@@ -319,9 +327,11 @@ value as bound -- numbers stay numbers, so SQL comparisons and ORDER BY work:
   double keeps, integers beyond 64 bits), counted in ``writer.warn.sqlite_number_text``;
 * TEXT for strings, 0/1 for booleans, NULL for null.
 
-The export makes two passes: a first one finds the maps (the rule of "CSV and XLSX",
-applied to the objects at every path -- array elements included, ``orders[*].attrs``):
-the rare keys of a map are stored together as one compact JSON object in the column
+Maps are found by the rule of "CSV and XLSX", applied to the objects at every path -- array
+elements included, ``orders[*].attrs`` (stage 7: the records are split in worker processes in
+one optimistic pass that counts the keys; only when a path may be a map is the export redone
+the stage 1-6 way, a scan first -- :mod:`jsonreshape.writer_sqlite`, value for value the same
+database): the rare keys of a map are stored together as one compact JSON object in the column
 ``<path>.*`` of the row (``*`` in ``records``), or, when no key of the map is kept, the
 whole object is one JSON text in the column ``<path>`` (``value`` for a record); arrays
 under pooled keys are inside that text, so map-like data never creates a table per key
@@ -386,10 +396,8 @@ import math
 import operator
 import os
 import re
-import secrets
 import shutil
 import sqlite3
-import tempfile
 import time
 import zlib
 from array import array
@@ -541,8 +549,7 @@ POOL_JOB_TEXT = 8 * MiB           # ... a job stops once its CSV text has this m
 POOL_JOB_CELLS = 1 << 20          # ... or its XLSX rows this many cells
 POOL_JOB_ROWS = 1024              # ... rows built at a time by a job (its memory: a few MB per worker) ...
 POOL_PIECE_CHARS = 256 * KiB      # ... and CSV text encoded once this many characters are buffered
-XLSX_POOL_WORKERS = 2             # ... XLSX: at most this many prepare the cells (xlsxwriter is the bound)
-POOL_WAIT = 0.05                  # ... seconds between cancellation checks while a result is awaited
+POOL_WAIT = 0.05                 # ... seconds between cancellation checks while a result is awaited
 POOL_SAFE_BRACKETS = 4096         # ... records with more "[" / "{" bytes are decoded by the calling thread
 POOL_MAX_PROCESSES = 61           # ... at most (ProcessPoolExecutor's limit on Windows)
 
@@ -1969,18 +1976,6 @@ class _Ctx:
     def next_pass(self) -> None:
         self.meter.next_pass()
 
-    def finishing(self) -> Callable[[int], None] | None:
-        """The final, slow step of writing a file (XLSX zip assembly): progress in bytes
-        written, total unknown. Returns the callback for the bytes written so far."""
-        p = self.progress
-        if p is None:
-            return None
-        p.set_message(t("writer.progress.finish", name=self.out.name))
-        p.set_total(None)
-        p.update(0)
-        p.restart_clock()
-        return p.update
-
     def batch_rows(self, width: int) -> int:
         """Rows per batch for rows of ``width`` cells (cell budget, at most ROW_BATCH)."""
         return max(1, min(ROW_BATCH, self.cell_budget // max(1, width)))
@@ -2150,10 +2145,8 @@ def plan_columns(doc: Document, opts: ExportOptions, source: Any = None, *, prog
 
 
 def _scan_passes(opts: ExportOptions) -> int:
-    """2 when CSV/XLSX columns (or the expanded array) must be found by a scan first, and
-    for SQLite (its map detection)."""
-    if opts.fmt == "sqlite":
-        return 2
+    """2 when CSV/XLSX columns (or the expanded array) must be found by a scan first (SQLite: one
+    pass -- :mod:`jsonreshape.writer_sqlite` adds the map-detection pass only when a map may exist)."""
     if opts.fmt not in TABLE_FORMATS:
         return 1
     if opts.columns is None:
@@ -2184,9 +2177,9 @@ def export(doc: Document, out_path: StrPath, opts: ExportOptions, source: Any = 
     ``gzip``: compress the JSON / JSON Lines / CSV output (default: when ``out_path`` ends with
     ``.gz``). ``column_plan``: CSV/XLSX columns found by :func:`plan_columns` for a selection this
     ``source`` is a part of (no column scan; the plan's own warnings are not repeated).
-    ``workers``: worker processes for the CSV rows and the CSV/XLSX column scan (``None``: automatic;
-    ``1``: the calling thread only; the file is the same either way -- module docstring, "CSV and
-    XLSX"). The other formats ignore it."""
+    ``workers``: worker processes for the CSV / XLSX / Parquet rows, the CSV/XLSX column scan and the
+    SQLite rows (``None``: automatic; ``1``: the calling thread only; the result is the same either way --
+    module docstring, "CSV and XLSX"; :mod:`jsonreshape.writer_sqlite`). JSON / JSON Lines ignore it."""
     if not isinstance(opts, ExportOptions):
         raise TypeError("opts must be an ExportOptions instance")
     if workers is not None and (isinstance(workers, bool) or not isinstance(workers, int) or workers < 1):
@@ -4366,10 +4359,12 @@ class _RowsJob:
     :func:`_export_xlsx` (and the calling thread with a block a worker could not do), with the per-record code
     of :func:`_iter_row_batches` (decode, :class:`_RowBuilder` with the export's cells). CSV: the rows as the
     text of the :mod:`csv` writer, encoded as :func:`_flush_text` does (``utf-8``, ``backslashreplace``); XLSX:
-    the rows themselves (typed cells of :class:`_XlsxCells`; the calling thread writes them with xlsxwriter).
+    the typed cells of :class:`_XlsxCells` turned into worksheet XML and deflated -- one piece per job,
+    ``(deflated, crc32, raw length, rows, truncated texts)`` of :mod:`jsonreshape.writer_xlsx` (the calling
+    thread appends it to the sheet); Parquet: the rows themselves (typed cells).
 
-    :meth:`run` returns ``("ok", pieces, rows, found, stop, as_text)``: ``pieces`` -- CSV text (``bytes``) or
-    lists of XLSX rows, and the numbers ``k`` of the block's records the calling thread does itself (in order:
+    :meth:`run` returns ``("ok", pieces, rows, found, stop, as_text)``: ``pieces`` -- CSV text (``bytes``), XLSX
+    pieces or lists of Parquet rows, and the numbers ``k`` of the block's records the calling thread does itself (in order:
     records that cannot be decoded in memory or whose rows fail to build, and records :func:`_too_deep_maybe`);
     ``rows`` -- rows in the pieces; ``found`` -- the positions of ``pending`` (explicit columns not found so
     far) that found a value; ``stop`` -- the first record not done (the end of the block, or where the pieces
@@ -4381,14 +4376,18 @@ class _RowsJob:
     def __init__(self, fmt: str, columns: list[_Column], explode: tuple | None, sep: str, delimiter: str,
                  track: bool, member: bool, cell_budget: int) -> None:
         self.csv = fmt == "csv"
+        self.xml: Any = None                 # XLSX: the rows -> worksheet XML encoder (writer_xlsx._RowXml)
         if self.csv:
             self.cells: Any = _TextCells(sep)
         elif fmt == "parquet":
-            from .writer_parquet import _ParquetCells   # (the rows are typed cells, the XLSX way)
+            from .writer_parquet import _ParquetCells   # (the rows are typed cells)
 
             self.cells = _ParquetCells(sep)
         else:
+            from .writer_xlsx import _RowXml
+
             self.cells = _XlsxCells(sep)
+            self.xml = _RowXml()
         self.builder = _RowBuilder(columns, self.cells, explode, sep, track=track)
         self.probes = dict(self.builder.unfound)
         self.member = member
@@ -4421,14 +4420,22 @@ class _RowsJob:
         pieces: list[Any] = []
         out: list[list[Any]] = []
         nrows = 0
-        size = 0                       # characters (CSV) / cells (XLSX) of the pieces so far
+        size = 0                       # characters (CSV) / cells (XLSX, Parquet) of the pieces so far
+        xml = self.xml
+        xml_parts: list[bytes] = []    # XLSX: the XML of the rows since the last cut ...
+        xml_rows = 0                   # ... and their number
+        xml_truncated = xml.truncated if xml is not None else 0
 
         def piece() -> None:
-            nonlocal out, nrows, size
+            nonlocal out, nrows, size, xml_rows
             if out:
                 nrows += len(out)
                 if csv_rows:
                     _write_rows(writer, out)
+                elif xml is not None:
+                    xml_parts.append(xml.rows(out))
+                    xml_rows += len(out)
+                    size += len(out) * width
                 else:
                     pieces.append(out)
                     size += len(out) * width
@@ -4440,11 +4447,23 @@ class _RowsJob:
                 buf.seek(0)
                 buf.truncate(0)
 
+        def cut() -> None:
+            """XLSX: the XML so far -> one deflated piece (before a record left to the caller, at the end)."""
+            nonlocal xml_rows, xml_truncated
+            if xml_parts:
+                from .writer_xlsx import _piece
+
+                pieces.append(_piece(b"".join(xml_parts), xml_rows, xml.truncated - xml_truncated))
+                xml_truncated = xml.truncated
+                xml_parts.clear()
+                xml_rows = 0
+
         k = start
         while k < n:
             raw = data[sp[2 * k]:sp[2 * k + 1]]
             if deep(raw):
                 piece()
+                cut()
                 pieces.append(k)
             else:
                 try:
@@ -4455,6 +4474,7 @@ class _RowsJob:
                         out.extend(rows_of(value, key, indices[k]))
                 except _DECODE_ERRORS:
                     piece()
+                    cut()
                     pieces.append(k)
             k += 1
             if len(out) >= limit:
@@ -4471,6 +4491,7 @@ class _RowsJob:
                     if size >= cap:
                         break
         piece()
+        cut()
         found = [pos for pos in pending if pos in probes and pos not in builder.unfound]
         return ("ok", pieces, nrows, found, k, getattr(cells, "numbers_as_text", 0) - as_text)
 
@@ -4514,30 +4535,32 @@ class _CsvOut:
         _flush_text(self.buf, self.sink)
 
 
-class _XlsxOut:
-    """Where :class:`_RowsPool` puts the rows of an XLSX export: the workbook (xlsxwriter in the calling thread,
-    the rows in their order -- the workbook is the same as without workers)."""
+class _NoPool:
+    """:class:`_Pool` without processes (``workers == 1``): every job is "a job a worker could not do", so
+    :class:`_RowsPool` runs it in the calling thread -- over the same blocks, with the same cuts, as the
+    workers would (XLSX: the same deflated pieces, so the workbook is byte for byte the same)."""
 
-    def __init__(self, book: _XlsxBook) -> None:
-        self.book = book
+    workers = 1
+    broken = False
 
-    def piece(self, rows: list[list[Any]]) -> None:
-        self.book.write_rows(rows)
+    def submit(self, fn: Callable[..., tuple], *args: Any) -> Any:
+        return None
 
-    def rows(self, rows: list[list[Any]]) -> None:
-        self.book.write_rows(rows)
+    def result(self, fut: Any) -> tuple | None:
+        return None
 
-    def flush(self) -> None:
+    def close(self, futures: Iterable[Any] = ()) -> None:
         pass
 
 
 class _RowsPool:
-    """The rows of a CSV / XLSX export built by worker processes (module docstring, "CSV and XLSX"): the calling
-    thread reads the blocks (:data:`POOL_BLOCK_BYTES`), keeps at most ``2 * workers`` jobs in flight, puts the
-    results in block order into ``out`` (:class:`_CsvOut` / :class:`_XlsxOut`) and does itself what
-    :class:`_RowsJob` leaves to it -- huge records and the records a job names -- with the code of the
-    one-thread export. A job a worker could not do, and every job once the workers broke
-    (``BrokenProcessPool``), is done in the calling thread."""
+    """The rows of a CSV / XLSX / Parquet export built by worker processes (module docstring, "CSV and XLSX"):
+    the calling thread reads the blocks (:data:`POOL_BLOCK_BYTES`), keeps at most ``2 * workers`` jobs in
+    flight, puts the results in block order into ``out`` (:class:`_CsvOut` / ``writer_xlsx._XlsxOut`` /
+    ``writer_parquet._Collector``) and does itself what :class:`_RowsJob` leaves to it -- huge records and the
+    records a job names -- with the code of the one-thread export. A job a worker could not do, and every job
+    once the workers broke (``BrokenProcessPool``), is done in the calling thread; ``workers == 1`` (XLSX) runs
+    every job there (:class:`_NoPool`)."""
 
     def __init__(self, ctx: _Ctx, builder: _RowBuilder, out: Any, workers: int) -> None:
         self.ctx = ctx
@@ -4551,14 +4574,19 @@ class _RowsPool:
         self.split = ctx.doc.split_member
         self.spec = (opts.fmt, list(ctx.columns), ctx.explode, opts.join_sep, opts.csv_delimiter, self.explicit,
                      ctx.member, ctx.cell_budget)
-        self.pool: _Pool | None = None
+        self.pool: Any = None                    # _Pool, or _NoPool when workers == 1
         self.local: _RowsJob | None = None
         self.waiting: deque = deque()
 
     def run(self) -> None:
         ctx = self.ctx
-        pool = self.pool = _Pool(self.workers, _rows_pool_init, (self.spec, _codec_fast()), ctx.cancel,
-                                 f"{FORMAT_NAMES[ctx.opts.fmt]} export")
+        pool: Any
+        if self.workers > 1:
+            pool = _Pool(self.workers, _rows_pool_init, (self.spec, _codec_fast()), ctx.cancel,
+                         f"{FORMAT_NAMES[ctx.opts.fmt]} export")
+        else:
+            pool = _NoPool()
+        self.pool = pool
         blocks = ctx.doc.iter_blocks(ctx.src, block_bytes=POOL_BLOCK_BYTES, cancel=ctx.cancel)
         try:
             for blk in blocks:
@@ -4982,30 +5010,6 @@ def _purge_staging(settings: Settings) -> int:
     return removed
 
 
-def _staging_dir(settings: Settings) -> str:
-    """A new ``xlsx-<pid>-<hex>`` folder under ``work_dir(cache_dir)`` (long-path form)."""
-    try:
-        root = work_dir(settings.cache_dir)
-    except OSError:
-        if not settings.cache_dir:
-            raise
-        root = Path(settings.cache_dir) / "tmp"
-        try:
-            os.makedirs(long_path(root), exist_ok=True)
-        except OSError as exc:
-            raise os_error(exc, root) from exc
-    for _ in range(100):
-        p = root / f"xlsx-{os.getpid()}-{secrets.token_hex(4)}"
-        try:
-            os.mkdir(long_path(p))
-            return long_path(p)
-        except FileExistsError:
-            continue
-        except OSError as exc:
-            raise os_error(exc, p) from exc
-    raise os_error(FileExistsError(str(root)), root)  # pragma: no cover
-
-
 def _remove_quiet(p: StrPath) -> None:
     try:
         os.remove(long_path(p))
@@ -5036,351 +5040,12 @@ def _commit_parts(staged: list[Path], names: list[Path]) -> None:
     commit_files(staged, names, move=lambda s, d: _replace_retry(s, d), error=_part_error)
 
 
-class _XlsxSink:
-    """The file object xlsxwriter writes a workbook (zip) to: ``cancel`` is checked for
-    every piece, the bytes written are reported, and after an error (or once the file is
-    closed) every further call only moves a virtual position -- a ZipFile kept alive by
-    the error's traceback can then finish its ``close()``/``__del__`` without touching the
-    file and without failing ("Exception ignored in ZipFile.__del__")."""
-
-    def __init__(self, f: Any, cancel: CancelToken | None) -> None:
-        self._f = f
-        self._cancel = cancel
-        self.on_write: Callable[[int], None] | None = None
-        self.dead = False
-        self.written = 0
-        self._pos = 0           # the position of the (fresh, empty) file, mirrored
-        self._end = 0
-
-    def write(self, data: Any) -> int:
-        n = len(data)
-        if not self.dead:
-            try:
-                check(self._cancel)
-                self._f.write(data)
-            except BaseException:
-                self.dead = True
-                raise
-            self.written += n
-            if self.on_write is not None:
-                self.on_write(self.written)
-        self._pos += n
-        if self._pos > self._end:
-            self._end = self._pos
-        return n
-
-    def tell(self) -> int:
-        return self._pos
-
-    def seek(self, pos: int, whence: int = 0) -> int:
-        if not self.dead:
-            try:
-                self._f.seek(pos, whence)
-            except BaseException:
-                self.dead = True
-                raise
-        if whence == 1:
-            pos += self._pos
-        elif whence == 2:
-            pos += self._end
-        self._pos = pos
-        return pos
-
-    def flush(self) -> None:
-        if not self.dead:
-            try:
-                self._f.flush()
-            except BaseException:
-                self.dead = True
-                raise
-
-    def seekable(self) -> bool:
-        return True
-
-    def writable(self) -> bool:
-        return True
-
-
-class _XlsxBook:
-    """Rows -> one or more ``constant_memory`` workbooks: new sheets (``sheets``) or new
-    files (``files``, staged in the target directory) when ``xlsx_max_rows`` is reached."""
-
-    def __init__(self, ctx: _Ctx, header: list[str], first_path: Path | None) -> None:
-        import xlsxwriter  # deferred: only needed for XLSX exports
-
-        self._xlsxwriter = xlsxwriter
-        self.ctx = ctx
-        self.header = header
-        self.max_rows = ctx.opts.xlsx_max_rows
-        self.files_mode = first_path is None
-        self.first_path = first_path
-        self.check_surrogates = ctx.check_surrogates
-        self.tmpdir = _staging_dir(ctx.doc.settings)
-        self.staged: list[Path] = []
-        self.wb: Any = None
-        self.ws: Any = None
-        self.bold: Any = None
-        self.fh: Any = None
-        self.sink: _XlsxSink | None = None
-        self.row = 0
-        self.sheets = 0
-        self.truncated = 0
-
-    # -- workbooks and sheets -----------------------------------------------------------
-    def _stage(self) -> Path:
-        out = self.ctx.out
-        fd, name = tempfile.mkstemp(prefix=f".{out.name[:48]}.", suffix=".part", dir=long_path(out.parent))
-        os.close(fd)
-        path = Path(name)
-        self.staged.append(path)
-        return path
-
-    def open(self) -> None:
-        path = self._stage() if self.files_mode else self.first_path
-        assert path is not None
-        try:
-            self.fh = open(long_path(path), "wb", buffering=WRITE_BUFFER)  # noqa: SIM115
-        except OSError as exc:
-            raise os_error(exc, self.ctx.out) from exc
-        self.sink = _XlsxSink(self.fh, self.ctx.cancel)
-        self.wb = self._xlsxwriter.Workbook(self.sink, {
-            "constant_memory": True,
-            "strings_to_numbers": False,
-            "strings_to_formulas": False,
-            "strings_to_urls": False,
-            "tmpdir": self.tmpdir,
-        })
-        self.bold = self.wb.add_format({"bold": True})
-        self._new_sheet()
-
-    def _new_sheet(self) -> None:
-        ws = self.wb.add_worksheet()
-        ws.freeze_panes(1, 0)
-        for c, text in enumerate(self.header):
-            ws.write_string(0, c, self._clean(text), self.bold)
-        self.ws = ws
-        self.row = 1
-        self.sheets += 1
-
-    def close_workbook(self, final: bool = False) -> None:
-        """Assemble the workbook (the zip) into its file; ``final``: the last one of the
-        export (progress of this slow step: bytes written)."""
-        wb, self.wb = self.wb, None
-        if wb is None:
-            return
-        ctx = self.ctx
-        exc_mod = self._xlsxwriter.exceptions
-        try:
-            check(ctx.cancel)
-            if final:
-                assert self.sink is not None
-                self.sink.on_write = ctx.finishing()
-            else:
-                ctx.message("writer.progress.finish")
-            wb.close()
-        except exc_mod.FileSizeError:
-            self._close_handles(wb)
-            self._close_file()
-            raise ExportError("writer.error.xlsx_too_large", path=str(ctx.out)) from None
-        except exc_mod.FileCreateError as exc:
-            self._close_handles(wb)
-            self._close_file()
-            cause = exc.args[0] if exc.args else None
-            if isinstance(cause, OSError):
-                raise os_error(cause, ctx.out) from exc
-            raise ExportError("error.export", detail=str(exc)) from exc
-        except BaseException:
-            self._close_handles(wb)
-            self._close_file()
-            raise
-        self._finish_file()
-        if not final:
-            ctx.message("writer.progress.export")
-
-    def _finish_file(self) -> None:
-        """Flush and close the file of a completed workbook (errors are reported)."""
-        sink, fh = self.sink, self.fh
-        self.sink = self.fh = None
-        if sink is not None:
-            sink.dead = True
-        if fh is None:  # pragma: no cover
-            return
-        try:
-            fh.flush()
-            os.fsync(fh.fileno())
-            fh.close()
-        except OSError as exc:
-            try:
-                fh.close()
-            except OSError:
-                pass
-            raise os_error(exc, self.ctx.out) from exc
-
-    def _close_file(self) -> None:
-        """Close the file of an unfinished workbook (quietly)."""
-        sink, fh = self.sink, self.fh
-        self.sink = self.fh = None
-        if sink is not None:
-            sink.dead = True
-        if fh is not None:
-            try:
-                fh.close()
-            except OSError:
-                log.debug("closing an aborted XLSX file failed", exc_info=True)
-
-    @staticmethod
-    def _close_handles(wb: Any) -> None:
-        """Close the row-data temp files of an unfinished ``constant_memory`` workbook (so
-        its temp directory can be removed on Windows)."""
-        for ws in wb.worksheets():
-            fh = getattr(ws, "row_data_fh", None)
-            if fh is not None:
-                try:
-                    fh.close()
-                except Exception:  # pragma: no cover - best effort
-                    pass
-
-    # -- rows ----------------------------------------------------------------------------
-    def _clean(self, s: str) -> str:
-        if self.check_surrogates and not s.isascii() and _SURROGATE_RE.search(s):
-            s = _escape_surrogates(s)
-        if len(s) > _XLSX_SAFE_CHARS:
-            data = s.encode("utf-16-le", "surrogatepass")
-            if len(data) > 2 * XLSX_MAX_STRING:
-                data = data[:2 * XLSX_MAX_STRING]
-                if 0xD8 <= data[-1] <= 0xDB:  # do not split a surrogate pair
-                    data = data[:-2]
-                s = data.decode("utf-16-le", "surrogatepass")
-                self.truncated += 1
-        return s
-
-    def write_rows(self, rows: list[list[Any]]) -> None:
-        clean_all = self.check_surrogates
-        for row in rows:
-            if self.row >= self.max_rows:
-                if self.files_mode:
-                    self.close_workbook()
-                    self.open()
-                else:
-                    self._new_sheet()
-            ws = self.ws
-            r = self.row
-            for c, v in enumerate(row):
-                if v is None:
-                    continue
-                tv = type(v)
-                if tv is str:
-                    if not v:
-                        continue
-                    if clean_all or len(v) > _XLSX_SAFE_CHARS:
-                        v = self._clean(v)
-                    ws.write_string(r, c, v)
-                elif tv is bool:
-                    ws.write_boolean(r, c, v)
-                else:
-                    ws.write_number(r, c, v)
-            self.row = r + 1
-
-    # -- finishing -------------------------------------------------------------------------
-    def commit_files(self) -> list[Path]:
-        """``files`` mode: move the staged parts to their final names (all or nothing)."""
-        ctx = self.ctx
-        out = ctx.out
-        n = len(self.staged)
-        if n == 1:
-            names = [out]
-        else:
-            names = [out.with_name(f"{out.stem}_{k}{out.suffix}") for k in range(1, n + 1)]
-        for final in names:
-            _check_target(ctx.doc, final)
-        stale = []
-        k = n + 1 if n > 1 else 1
-        while True:
-            p = out.with_name(f"{out.stem}_{k}{out.suffix}")
-            if not os.path.lexists(long_path(p)):
-                break
-            stale.append(p)
-            k += 1
-        ctx.commit_check(names)          # (the part names: a part with unsaved edits is never replaced)
-        _commit_parts(self.staged, names)
-        self.staged = []
-        if stale:
-            ctx.warn("writer.warn.xlsx_stale_parts", add=len(stale),
-                     names=", ".join(p.name for p in stale[:5]) + (", …" if len(stale) > 5 else ""))
-        return names
-
-    def abort(self) -> None:
-        if self.wb is not None:
-            self._close_handles(self.wb)
-            self.wb = None
-        self._close_file()
-        for p in self.staged:
-            _remove_quiet(p)
-        self.staged = []
-
-    def cleanup(self) -> None:
-        shutil.rmtree(self.tmpdir, ignore_errors=True)
-
-
-def _xlsx_rows(ctx: _Ctx, builder: _RowBuilder, book: _XlsxBook) -> None:
-    """The rows of an XLSX export into ``book``: when the export may use worker processes, at most
-    :data:`XLSX_POOL_WORKERS` of them prepare the cells (:class:`_RowsPool`; xlsxwriter in this thread is the
-    bound, more would only cost memory), else this thread does. The rows reach xlsxwriter in the same order
-    either way."""
-    workers = _pool_workers(ctx)
-    if workers > 1:
-        _RowsPool(ctx, builder, _XlsxOut(book), min(workers, XLSX_POOL_WORKERS)).run()
-        return
-    for batch in _iter_row_batches(ctx, builder):
-        book.write_rows(batch)
-        ctx.rows += len(batch)
-
-
 def _export_xlsx(ctx: _Ctx, out: Path) -> list[Path]:
-    opts = ctx.opts
-    if len(ctx.columns) > XLSX_MAX_COLUMNS:
-        raise UserInputError("writer.error.too_many_columns", max=XLSX_MAX_COLUMNS, count=len(ctx.columns))
-    cells = _XlsxCells(opts.join_sep)
-    builder = _builder(ctx, cells)
-    header = [c.text for c in ctx.columns]
-    files: list[Path]
-    if opts.xlsx_split == "sheets":
-        with atomic_path(out) as tmp:
-            book = _XlsxBook(ctx, header, tmp)
-            try:
-                book.open()
-                _xlsx_rows(ctx, builder, book)
-                book.close_workbook(final=True)
-                ctx.commit_check()
-            except BaseException:
-                book.abort()
-                raise
-            finally:
-                book.cleanup()
-        files = [out]
-        if book.sheets > 1:
-            ctx.warn("writer.warn.xlsx_sheets", add=book.sheets)
-    else:
-        book = _XlsxBook(ctx, header, None)
-        try:
-            book.open()
-            _xlsx_rows(ctx, builder, book)
-            book.close_workbook(final=True)
-            parts = len(book.staged)
-            files = book.commit_files()
-        except BaseException:
-            book.abort()
-            raise
-        finally:
-            book.cleanup()
-        if parts > 1:
-            ctx.warn("writer.warn.xlsx_files", add=parts)
-    if cells.numbers_as_text:
-        ctx.warn("writer.warn.xlsx_number_text", add=cells.numbers_as_text)
-    if book.truncated:
-        ctx.warn("writer.warn.xlsx_truncated", add=book.truncated, max=XLSX_MAX_STRING)
-    _warn_unfound(ctx, builder)
-    return files
+    """XLSX (stage 7): :func:`jsonreshape.writer_xlsx.export_xlsx` -- the package written by this program's own
+    streaming writer, the worksheet XML deflated in the worker processes (imported here: it imports this module)."""
+    from .writer_xlsx import export_xlsx
+
+    return export_xlsx(ctx, out)
 
 
 # ----------------------------------------------------------------------------------
@@ -5446,8 +5111,8 @@ def _exact_double(v: JsonFloat) -> float | None:
 
 
 class _SqlTable:
-    __slots__ = ("name", "schema", "child", "depth", "prefix", "cols", "names", "width", "pending", "next_id", "sql",
-                 "extra_pos", "extra_name", "extra_rows", "parent", "rows")
+    __slots__ = ("name", "schema", "child", "depth", "prefix", "cols", "names", "colnames", "width", "pending",
+                 "next_id", "sql", "extra_pos", "extra_name", "extra_rows", "parent", "rows")
 
     def __init__(self, name: str, schema: tuple | None, fixed: list[str], parent: str | None = None) -> None:
         self.name = name
@@ -5457,6 +5122,7 @@ class _SqlTable:
         self.prefix = schema + (Wild.ANY_INDEX,) if schema is not None else ()   # ... and their path
         self.cols: dict[tuple, int] = {}        # leaf path inside a row -> column position
         self.names = {n.translate(_ASCII_LOWER) for n in fixed}
+        self.colnames = list(fixed)             # column names by position (the fixed ones, then the leaves)
         self.width = len(fixed)
         self.pending: list[list[Any]] = []
         self.next_id = 1
@@ -5591,10 +5257,11 @@ class _SqliteWriter:
         self.ordered = ordered                  # an "_ord" column: the selection's order
         self.check_surrogates = ctx.check_surrogates
         limit = SQLITE_MAX_COLUMNS
-        try:
-            limit = min(limit, conn.getlimit(sqlite3.SQLITE_LIMIT_COLUMN) - 2)
-        except (AttributeError, sqlite3.Error):  # pragma: no cover - Python < 3.11
-            pass
+        if conn is not None:                    # (None: writer_sqlite's engine without a database)
+            try:
+                limit = min(limit, conn.getlimit(sqlite3.SQLITE_LIMIT_COLUMN) - 2)
+            except (AttributeError, sqlite3.Error):  # pragma: no cover - Python < 3.11
+                pass
         self.max_columns = max(8, limit)
         self.cell_budget = ctx.cell_budget
         self.plans = plans or {}
@@ -5621,7 +5288,8 @@ class _SqliteWriter:
             fixed = ["_id"] + (["_ord"] if self.ordered else []) + ([KEY_COLUMN] if self.member else [])
             defs = ", ".join(['"_id" INTEGER PRIMARY KEY'] + [f"{_q(c)}" + (" INTEGER" if c == "_ord" else "")
                                                              for c in fixed[1:]])
-        self.conn.execute(f"CREATE TABLE {_q(name)} ({defs})")
+        if self.conn is not None:
+            self.conn.execute(f"CREATE TABLE {_q(name)} ({defs})")
         table = _SqlTable(name, schema, fixed, parent.name if parent is not None else None)
         self.order.append(table)
         return table
@@ -5645,11 +5313,20 @@ class _SqliteWriter:
         return self._alter(table, _unique_name(table.names, _sql_name(text)))
 
     def _alter(self, table: _SqlTable, name: str) -> int:
-        self.conn.execute(f"ALTER TABLE {_q(table.name)} ADD COLUMN {_q(name)}")
+        if self.conn is not None:
+            self.conn.execute(f"ALTER TABLE {_q(table.name)} ADD COLUMN {_q(name)}")
         pos = table.width
         table.width += 1
+        table.colnames.append(name)
         table.sql = None
         return pos
+
+    def _overflow(self, table: _SqlTable, rel: tuple, v: Any, extras: dict | None) -> dict | None:
+        """A value for which the (full) ``table`` has no column: into ``extras`` (the ``_extra`` JSON of the row)."""
+        if extras is None:
+            extras = {}
+        extras[format_path(rel) if rel else VALUE_NAME] = v
+        return extras
 
     def _value(self, v: Any) -> Any:
         """The SQLite value of a scalar (module docstring: numbers stay numbers)."""
@@ -5683,10 +5360,7 @@ class _SqliteWriter:
         pos = table.cols.get(rel)
         if pos is None:
             if table.width >= self.max_columns - 1:     # the last column is kept for _extra
-                if extras is None:
-                    extras = {}
-                extras[format_path(rel) if rel else VALUE_NAME] = v
-                return extras
+                return self._overflow(table, rel, v, extras)
             pos = table.cols[rel] = self._add_column(table, format_path(rel) if rel else VALUE_NAME)
         n = len(row)
         if pos >= n:
@@ -5796,20 +5470,26 @@ class _SqliteWriter:
     def add(self, index: int, key: str | None, value: Any, order: int = 0) -> None:
         if key is not None and self.check_surrogates and _SURROGATE_RE.search(key):
             key = _escape_surrogates(key)
+        records = self.records
         row: list[Any] = [index]
         if self.ordered:
             row.append(order)
         if self.member:
             row.append(key)
+        if records.width > len(row):            # (every known column at once: _fill then assigns in place)
+            row.extend([None] * (records.width - len(row)))
         pending: deque = deque()
-        extras = self._fill(self.records, row, value, index, pending)
-        self._finish_row(self.records, row, extras)
+        extras = self._fill(records, row, value, index, pending)
+        self._finish_row(records, row, extras)
         while pending:
             child, items, parent_id = pending.popleft()
+            pad = [None] * (child.width - 3) if child.width > 3 else None
             for k, item in enumerate(items):
                 cid = child.next_id
                 child.next_id += 1
                 crow: list[Any] = [cid, parent_id, k]
+                if pad is not None:
+                    crow.extend(pad)
                 ti = type(item)
                 if ti is dict:
                     extras = self._fill(child, crow, item, cid, pending)
@@ -5939,6 +5619,41 @@ def _wrapper_json(ctx: _Ctx) -> tuple[str, str] | None:
 
 
 def _export_sqlite(ctx: _Ctx, out: Path) -> list[Path]:
+    """SQLite (stage 7): :func:`jsonreshape.writer_sqlite.export_sqlite` -- the rows split in worker processes,
+    one optimistic pass (imported here: it imports this module); :func:`_export_sqlite_onethread` where the
+    sqlite3 module cannot ``serialize`` databases."""
+    from .writer_sqlite import export_sqlite
+
+    return export_sqlite(ctx, out)
+
+
+def _sqlite_warnings(ctx: _Ctx, writer: _SqliteWriter, plans: dict[tuple, _MapPlan], duplicates: int) -> None:
+    """The warnings and the report fields of a finished SQLite export (both exporters)."""
+    if duplicates:
+        ctx.warn("writer.warn.duplicates", add=duplicates)
+    if plans:
+        ctx.warn("writer.warn.map_columns", add=len(plans), limit=MAP_MIN_KEYS, max=MAP_KEEP_MAX,
+                 paths=_names_text([_pool_text(pl) for pl in plans.values()]))
+    if writer.numbers_as_text:
+        ctx.warn("writer.warn.sqlite_number_text", add=writer.numbers_as_text)
+    extra = [tb for tb in writer.order if tb.extra_rows]
+    if extra:
+        ctx.warn("writer.warn.sqlite_extra", add=sum(tb.extra_rows for tb in extra), max=writer.max_columns,
+                 tables=_names_text([tb.name for tb in extra]),
+                 column=", ".join(f'"{n}"' for n in dict.fromkeys(tb.extra_name for tb in extra)))
+    if writer.json_arrays:
+        ctx.warn("writer.warn.sqlite_tables", add=writer.json_arrays, max=SQLITE_MAX_TABLES,
+                 paths=_names_text(list(writer.json_array_paths)))
+    if writer.deep_values:
+        ctx.warn("writer.warn.sqlite_deep", add=writer.deep_values, limit=MAX_DEPTH)
+    ctx.rows = writer.rows
+    ctx.tables = [tb.name for tb in writer.order]
+
+
+def _export_sqlite_onethread(ctx: _Ctx, out: Path) -> list[Path]:
+    """The SQLite export of stages 1-6: two passes (the map scan, then every record split and inserted by this
+    thread). Used where ``sqlite3.Connection.serialize`` is missing, and by the tests as the reference the
+    pooled export must equal."""
     doc = ctx.doc
     # a selection may repeat a record: a bitmap of the records written (1 bit each)
     seen = bytearray((doc.record_count + 7) >> 3) if ctx.src is not None else None
@@ -5949,6 +5664,9 @@ def _export_sqlite(ctx: _Ctx, out: Path) -> list[Path]:
     wrapper = _wrapper_json(ctx) if doc.kind == "wrapped" and ctx.opts.keep_wrapper else None
     if doc.kind == "wrapped" and ctx.opts.keep_wrapper and wrapper is None:
         ctx.wrapper_not_written()
+    meter = ctx.meter
+    if meter.progress is not None:               # (export() planned one pass: this exporter makes two)
+        meter.progress.set_total(meter.base + 2 * meter.unit)
     plans = _sqlite_scan(ctx).plans()
     with atomic_path(out) as tmp:
         conn = sqlite3.connect(long_path(tmp), isolation_level=None)
@@ -5995,25 +5713,7 @@ def _export_sqlite(ctx: _Ctx, out: Path) -> list[Path]:
         finally:
             conn.close()
         ctx.commit_check()
-    if duplicates:
-        ctx.warn("writer.warn.duplicates", add=duplicates)
-    if plans:
-        ctx.warn("writer.warn.map_columns", add=len(plans), limit=MAP_MIN_KEYS, max=MAP_KEEP_MAX,
-                 paths=_names_text([_pool_text(pl) for pl in plans.values()]))
-    if writer.numbers_as_text:
-        ctx.warn("writer.warn.sqlite_number_text", add=writer.numbers_as_text)
-    extra = [tb for tb in writer.order if tb.extra_rows]
-    if extra:
-        ctx.warn("writer.warn.sqlite_extra", add=sum(tb.extra_rows for tb in extra), max=writer.max_columns,
-                 tables=_names_text([tb.name for tb in extra]),
-                 column=", ".join(f'"{n}"' for n in dict.fromkeys(tb.extra_name for tb in extra)))
-    if writer.json_arrays:
-        ctx.warn("writer.warn.sqlite_tables", add=writer.json_arrays, max=SQLITE_MAX_TABLES,
-                 paths=_names_text(list(writer.json_array_paths)))
-    if writer.deep_values:
-        ctx.warn("writer.warn.sqlite_deep", add=writer.deep_values, limit=MAX_DEPTH)
-    ctx.rows = writer.rows
-    ctx.tables = [tb.name for tb in writer.order]
+    _sqlite_warnings(ctx, writer, plans, duplicates)
     return [out]
 
 

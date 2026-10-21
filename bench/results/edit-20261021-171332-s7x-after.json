@@ -1,0 +1,360 @@
+{
+ "started": 1792584812.9133227,
+ "args": {
+  "child": "False",
+  "op": "",
+  "scen": "base",
+  "home": "base",
+  "keep": "",
+  "patch": "",
+  "data": "E:\\Projects\\jr-xlsx\\bench\\data\\syn_2g.json",
+  "work": "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\5eaae90b-75c3-4590-be01-44f8969d1edc\\scratchpad\\xlsx_work",
+  "pkg": "",
+  "repeat": "2",
+  "max_repeat_seconds": "150.0",
+  "only": "export_csv:base,export_xlsx:base,export_sqlite:base",
+  "label": "s7x-after",
+  "results_dir": "E:\\Projects\\jr-xlsx\\bench\\results",
+  "quiet_load": "35.0",
+  "quiet_timeout": "60.0",
+  "keep_work": "False",
+  "report": "",
+  "baseline": "",
+  "lang": "uz",
+  "md": "",
+  "workers": "0",
+  "note": "[]",
+  "export_report": "False"
+ },
+ "machine": {
+  "python": "3.14.3",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "cpus": 24,
+  "ram_gb": 205.6,
+  "processor": "Intel64 Family 6 Model 198 Stepping 2, GenuineIntel"
+ },
+ "runs": [
+  {
+   "op": "export_csv",
+   "scen": "base",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 55.9,
+     "private_peak_mb": 43.7,
+     "workers": 0,
+     "seconds": 0.009,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 0,
+     "count": 6513235,
+     "layers": 1,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 51.5,
+     "private_peak_mb": 38.8,
+     "workers": 0,
+     "seconds": 0.004,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2147483913,
+     "records": 6513235,
+     "rows": 6513235,
+     "written": 659119646,
+     "columns": 9,
+     "files": 1,
+     "warnings": [],
+     "workers_used": 4,
+     "phase": "op",
+     "rss_peak_mb": 260.6,
+     "private_peak_mb": 209.1,
+     "workers": 4,
+     "seconds": 10.011,
+     "fsync_s": 0.669
+    }
+   },
+   "effective_bytes": 2147483913,
+   "process_peak_wset_mb": 72.2,
+   "process_peak_pagefile_mb": 59.9,
+   "backend": "rust",
+   "wall": 10.72,
+   "load_before": 8.7,
+   "load_mean": 23.5,
+   "load_max": 30.7,
+   "repeat": 1
+  },
+  {
+   "op": "export_csv",
+   "scen": "base",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 55.9,
+     "private_peak_mb": 44.2,
+     "workers": 0,
+     "seconds": 0.009,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 0,
+     "count": 6513235,
+     "layers": 1,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 52.3,
+     "private_peak_mb": 39.7,
+     "workers": 0,
+     "seconds": 0.004,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2147483913,
+     "records": 6513235,
+     "rows": 6513235,
+     "written": 659119646,
+     "columns": 9,
+     "files": 1,
+     "warnings": [],
+     "workers_used": 4,
+     "phase": "op",
+     "rss_peak_mb": 255.3,
+     "private_peak_mb": 203.9,
+     "workers": 4,
+     "seconds": 10.411,
+     "fsync_s": 1.113
+    }
+   },
+   "effective_bytes": 2147483913,
+   "process_peak_wset_mb": 73.3,
+   "process_peak_pagefile_mb": 60.7,
+   "backend": "rust",
+   "wall": 11.06,
+   "load_before": 6.0,
+   "load_mean": 22.7,
+   "load_max": 28.0,
+   "repeat": 2
+  },
+  {
+   "op": "export_xlsx",
+   "scen": "base",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 54.4,
+     "private_peak_mb": 44.3,
+     "workers": 0,
+     "seconds": 0.01,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 0,
+     "count": 6513235,
+     "layers": 1,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 51.5,
+     "private_peak_mb": 38.8,
+     "workers": 0,
+     "seconds": 0.004,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2147483913,
+     "records": 6513235,
+     "rows": 6513235,
+     "written": 216599954,
+     "columns": 9,
+     "files": 1,
+     "warnings": [
+      "writer.warn.xlsx_sheets"
+     ],
+     "workers_used": 4,
+     "phase": "op",
+     "rss_peak_mb": 248.4,
+     "private_peak_mb": 201.7,
+     "workers": 4,
+     "seconds": 19.424,
+     "fsync_s": 0.324
+    }
+   },
+   "effective_bytes": 2147483913,
+   "process_peak_wset_mb": 71.5,
+   "process_peak_pagefile_mb": 59.8,
+   "backend": "rust",
+   "wall": 20.03,
+   "load_before": 9.9,
+   "load_mean": 32.3,
+   "load_max": 57.9,
+   "repeat": 1
+  },
+  {
+   "op": "export_xlsx",
+   "scen": "base",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 51.6,
+     "private_peak_mb": 39.1,
+     "workers": 0,
+     "seconds": 0.01,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 0,
+     "count": 6513235,
+     "layers": 1,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 52.1,
+     "private_peak_mb": 39.7,
+     "workers": 0,
+     "seconds": 0.004,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2147483913,
+     "records": 6513235,
+     "rows": 6513235,
+     "written": 216599955,
+     "columns": 9,
+     "files": 1,
+     "warnings": [
+      "writer.warn.xlsx_sheets"
+     ],
+     "workers_used": 4,
+     "phase": "op",
+     "rss_peak_mb": 249.9,
+     "private_peak_mb": 204.3,
+     "workers": 4,
+     "seconds": 18.473,
+     "fsync_s": 0.169
+    }
+   },
+   "effective_bytes": 2147483913,
+   "process_peak_wset_mb": 72.0,
+   "process_peak_pagefile_mb": 60.9,
+   "backend": "rust",
+   "wall": 19.1,
+   "load_before": 7.9,
+   "load_mean": 27.1,
+   "load_max": 34.8,
+   "repeat": 2
+  },
+  {
+   "op": "export_sqlite",
+   "scen": "base",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 56.2,
+     "private_peak_mb": 43.9,
+     "workers": 0,
+     "seconds": 0.009,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 0,
+     "count": 6513235,
+     "layers": 1,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 51.7,
+     "private_peak_mb": 39.3,
+     "workers": 0,
+     "seconds": 0.004,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2147483913,
+     "records": 6513235,
+     "rows": 31913465,
+     "written": 1553694720,
+     "columns": 0,
+     "files": 1,
+     "warnings": [],
+     "workers_used": 4,
+     "phase": "op",
+     "rss_peak_mb": 269.5,
+     "private_peak_mb": 212.9,
+     "workers": 4,
+     "seconds": 28.946,
+     "fsync_s": 0.0
+    }
+   },
+   "effective_bytes": 2147483913,
+   "process_peak_wset_mb": 192.9,
+   "process_peak_pagefile_mb": 212.4,
+   "backend": "rust",
+   "wall": 30.07,
+   "load_before": 8.4,
+   "load_mean": 29.2,
+   "load_max": 46.2,
+   "repeat": 1
+  },
+  {
+   "op": "export_sqlite",
+   "scen": "base",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 51.6,
+     "private_peak_mb": 40.6,
+     "workers": 0,
+     "seconds": 0.01,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 0,
+     "count": 6513235,
+     "layers": 1,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 51.7,
+     "private_peak_mb": 39.1,
+     "workers": 0,
+     "seconds": 0.004,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2147483913,
+     "records": 6513235,
+     "rows": 31913465,
+     "written": 1553694720,
+     "columns": 0,
+     "files": 1,
+     "warnings": [],
+     "workers_used": 4,
+     "phase": "op",
+     "rss_peak_mb": 267.8,
+     "private_peak_mb": 212.4,
+     "workers": 4,
+     "seconds": 27.161,
+     "fsync_s": 0.0
+    }
+   },
+   "effective_bytes": 2147483913,
+   "process_peak_wset_mb": 192.7,
+   "process_peak_pagefile_mb": 212.5,
+   "backend": "rust",
+   "wall": 27.92,
+   "load_before": 4.9,
+   "load_mean": 25.5,
+   "load_max": 37.7,
+   "repeat": 2
+  }
+ ]
+}

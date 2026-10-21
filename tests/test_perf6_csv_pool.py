@@ -10,8 +10,9 @@ EXACTLY the one-thread results -- the same bytes (also gzip-compressed), the sam
   brackets), huge records, exact numbers, lone surrogates, Unicode, explicit columns never found.
 * :class:`writer._ScanMerge` against the one-thread :class:`writer._ColumnScan` on random value sequences cut into
   random runs (exact whenever it says so; it says so for ordinary data and refuses maps / too many paths).
-* XLSX: the cells prepared by workers give the same workbooks (every zip member but the creation time; sheets and
-  ``files`` parts; numbers kept as text, truncated texts, lone surrogates).
+* XLSX: the sheet XML deflated by workers gives the same workbooks as one thread (every zip member but the creation
+  time; sheets and ``files`` parts; numbers kept as text, truncated texts, lone surrogates) -- stage 7,
+  ``writer_xlsx`` (``tests/test_writer_xlsx_fast.py`` has the rest).
 * Real spawned worker processes: every kind, edited documents, cancellation (no output, no temporary file, the
   workers gone), progress, the fallback when the workers cannot run, the in-flight bound, the automatic number
   of workers, the column scan.
@@ -572,13 +573,12 @@ def same_xlsx(doc: Document, opts: ExportOptions, tmp_path: Path, workers: int =
 
 
 def test_xlsx_rows_and_columns_with_the_pool(tmp_path, docs, fake_pool, monkeypatch) -> None:
-    pytest.importorskip("xlsxwriter")
     doc = open_raw(tmp_path, docs, mixed_array(13, 50), "m.json")
     monkeypatch.setattr(writer, "POOL_BLOCK_BYTES", 700)
     r1, r2 = same_xlsx(doc, ExportOptions("xlsx"), tmp_path)
-    assert r2.workers == 3 and r1.workers == 1                    # (the scan: 3 workers; the rows: at most 2)
+    assert r2.workers == 3 and r1.workers == 1
     r1, r2 = same_xlsx(doc, ExportOptions("xlsx", columns=SCALARS + SPECIAL), tmp_path)
-    assert r2.workers == writer.XLSX_POOL_WORKERS == 2
+    assert r2.workers == 3                                        # (stage 7: every worker builds sheet XML)
     assert "writer.warn.xlsx_number_text" in r1.warning_keys          # 1e400, 12345678901234567890 as text
     monkeypatch.setattr(writer, "POOL_JOB_CELLS", 40)               # jobs cut every few rows
     monkeypatch.setattr(writer, "ROW_BATCH", 3)
@@ -601,7 +601,6 @@ def test_xlsx_rows_and_columns_with_the_pool(tmp_path, docs, fake_pool, monkeypa
 
 
 def test_xlsx_long_texts_and_surrogates_with_the_pool(tmp_path, docs, fake_pool, monkeypatch) -> None:
-    pytest.importorskip("xlsxwriter")
     recs = [{"id": i, "s": ("Ўз" * 20000) if i % 7 == 0 else f"q{i}", "e": "x\ud800y" if i % 5 == 0 else "ok"}
             for i in range(60)]
     data = codec.dumps(recs)
@@ -782,8 +781,7 @@ def test_real_workers_column_scan(tmp_path, docs, monkeypatch) -> None:
 
 
 def test_real_workers_xlsx(tmp_path, docs, backend, monkeypatch) -> None:
-    pytest.importorskip("xlsxwriter")
     doc = open_raw(tmp_path, docs, mixed_array(17, 80), "m.json")
     monkeypatch.setattr(writer, "POOL_BLOCK_BYTES", 2000)
     _, r2 = same_xlsx(doc, ExportOptions("xlsx", columns=SCALARS + SPECIAL, xlsx_max_rows=40), tmp_path, workers=4)
-    assert r2.workers == 2
+    assert r2.workers == 4

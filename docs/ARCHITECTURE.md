@@ -726,13 +726,14 @@ def export(doc, out_path, opts, source=None, *, progress=None, cancel=None) -> E
   plain column at the exploded path is filled only for records whose value there is not an
   array. Huge records: cells built incrementally from the ijson stream with a size cap
   (truncated cells are named in a warning; rows are never dropped).
-* XLSX: numbers typed when they have ≤ 15 significant digits within the double range, else
-  exact text + warning; strings over 32,767 characters truncated + warning; split into
-  sheets/files over `xlsx_max_rows`; cancellation checked before the zip is assembled.
-* SQLite: two passes (map detection, then rows); numbers stored as INTEGER (64-bit) / REAL
-  (when the double holds the same decimal value) / TEXT (otherwise, with a warning);
-  ≤ 1500 columns per table plus an overflow JSON column (`_extra`, renamed when taken);
-  map-like objects pooled as JSON text; ≤ 200 child tables (overflow as JSON text).
+* XLSX: numbers typed when they have ≤ 15 significant digits within the double range, else exact text + warning;
+  strings over 32,767 UTF-16 units truncated + warning; split into sheets/files over `xlsx_max_rows`; written by
+  the own streaming writer (`writer_xlsx.py`, sheet XML deflated in worker processes; cancellation checked for
+  every block, job result and write).
+* SQLite: one optimistic pass in worker processes (`writer_sqlite.py`; two passes — map detection, then rows —
+  only when a path may be a map); numbers stored as INTEGER (64-bit) / REAL (when the double holds the same decimal
+  value) / TEXT (otherwise, with a warning); ≤ 1500 columns per table plus an overflow JSON column (`_extra`,
+  renamed when taken); map-like objects pooled as JSON text; ≤ 200 child tables (overflow as JSON text).
 * Every export calls `doc.ensure_unchanged()` right before the atomic commit.
 
 **Parquet (stage 7, as built; `writer_parquet.py` is authoritative).** `fmt="parquet"` is the third table format
@@ -758,6 +759,41 @@ accumulated and a row group is written every `G` rows, `G` = ~64 MiB estimated f
 1 048 576), each group `combine_chunks()`-ed into one contiguous chunk (Arrow's page splitting depends on the
 chunks it is given) — hence byte-identical files for `workers=1` and `workers=N`; only > 512 MiB of pending batches
 cuts a group early (memory bound; data unchanged). Lone surrogates become the text `\ud800` (as CSV/XLSX).
+
+**XLSX and SQLite (stage 7, as built; `writer_xlsx.py` and `writer_sqlite.py` are authoritative).** *XLSX*:
+`writer._export_xlsx` calls `writer_xlsx.export_xlsx`, jsonreshape's own streaming SpreadsheetML writer (it replaced
+`xlsxwriter`). Rows come from `_RowsPool` exactly as for CSV (the CSV worker rule; `workers=1` runs the same jobs in
+the calling thread through `_NoPool`): a `_RowsJob` with `fmt="xlsx"` builds the typed cells of `_XlsxCells`, turns
+them into `<row>` XML (`_RowXml`: inline strings, no `r` attributes, blanks inside a row as `<c/>`, xlsxwriter's
+escaping — `_xHHHH_`, `_x005F_`, `U+FFFE/FFFF`, entities, `xml:space="preserve"` — and its `%.16G` numbers) and
+deflates it as one raw deflate piece ended with `Z_SYNC_FLUSH`, returning `(bytes, crc32, raw length, rows,
+truncated texts)`. The calling thread (`_XlsxBook`) appends pieces to the current sheet member of `_ZipWriter`
+(own zip writer: local header patched with the CRC — `crc32_combine` — and sizes when the sheet ends; a final empty
+deflate block closes the stream), cuts a piece that straddles `xlsx_max_rows` (inflate, cut at the `<row>`,
+deflate both parts), opens new sheets or staged `files` parts, and writes the small parts (workbook, rels, styles
+with a bold style 1 for the header, docProps, content types) at the end; the central directory gets zip64 records
+when an offset or the entry count needs them; a member reaching `MEMBER_LIMIT` (4 GiB) raises
+`writer.error.xlsx_too_large`. The workbook is byte-identical for any number of workers (but `docProps/core.xml`);
+the cells equal the xlsxwriter workbook's (`tests/test_writer_xlsx_fast.py` keeps the old exporter as the
+reference; Excel itself opened the files in the check), except that a text like `<r>…</r>` is a text. No staging
+folder; stale `xlsx-<pid>-<hex>` folders of older versions are still purged. *SQLite*: `writer._export_sqlite`
+calls `writer_sqlite.export_sqlite`: one optimistic pass whose jobs (`_SqliteJob`, worker processes by the CSV rule)
+decode a block, split it with the `_SqliteWriter` row engine — `_LocalRows`, whose object walk `_walk` does exactly
+what `_SqliteWriter._fill` does (pre-order, same depth rules, map plans) while counting the keys per path — into
+local tables of an in-memory database (created at their first batch of rows: an `ALTER TABLE` reparses the whole
+schema), and return the serialized image plus a manifest (array path, parent, leaf paths, rows per local table).
+The calling thread (`_SqliteTarget`) merges the key counts (`_MapGuard`: any path with more than `MAP_MIN_KEYS`
+keys → the attempt is dropped and redone as in stages 1–6, `_sqlite_scan` then a rows pass with its plans, the
+progress total growing by two passes), creates missing tables/columns through the one-thread registry (or redoes
+the segment's records with `_SqliteWriter.add` when the table / column caps are reached), loads the image into the
+attached `w` — with a new schema cookie per image, because SQLite keeps the parsed schema of an attached database
+across `deserialize` when the cookies match — and copies each table with one `INSERT INTO main.t (…) SELECT c0 +
+offset, c1 + parent offset, … FROM w.tN`. Records with many brackets, blocks needing more columns or child tables
+than allowed, failed jobs and broken pools fall back to the one-thread code in place. Database: page size 32 KiB,
+journal off, 16 MiB cache while appending, 64 MiB for the `_parent` indexes at the end (the workers have exited).
+The result is value for value the database of `writer._export_sqlite_onethread` (kept: the tests' reference and the
+fallback without `Connection.serialize`; `tests/test_writer_sqlite_pool.py`). Measured on `bench/data/syn_2g.json`
+(2.1 GB, 4 workers): XLSX 116 MB/s (RSS 250 MB), SQLite 79 MB/s (RSS 270 MB), CSV unchanged (`bench/results/export_latest.md`).
 Measured on `bench/data/syn_2g.json` (2.1 GB, 6.5 M records): see "Measured speed" below.
 
 ## 9. Filter language
@@ -2468,7 +2504,7 @@ Where this section is short, the design written there decides.
   amended: `QDesktopServices.openUrl` on `http(s)` only after an explicit user confirmation); `#rgb`/`#rrggbb` show a
   colour swatch; base64 images (PNG/JPEG/GIF/WebP magic) show a thumbnail in the full-value window [I].
 * XLSX export keeps `xlsxwriter` (measured 7–10 MB/s; documented in README §14); a faster own sheet writer is an
-  optional stage-6 item.
+  optional stage-6 item (superseded in stage 7: own writer `writer_xlsx.py`, see §8).
 
 ### 14.1 `stats.py` — per-field statistics
 
@@ -2681,6 +2717,7 @@ go through the existing expression-text path (`set_quick_filter`) like the type 
   done in the calling thread; BrokenProcessPool → the calling thread; the scan merge is exact unless map-like paths,
   more than `SCAN_MAX_PATHS` paths or inferred rows mode (then the one-thread scan); XLSX value preparation in ≤ 2
   workers with xlsxwriter in the parent; gzip outputs feed zlib 1 MiB pieces (pooled `.csv.gz` byte-identical).
+  (Superseded in stage 7: XLSX has its own worker-pool writer and SQLite a worker-pool export — §8.)
 * **CLI**: every output refuses an input (any spelling / hard link) and a file with unsaved edits before any work;
   `split --remove-stale`; `diff -o` checked up front; `validate` exit 5 when records could not be checked (`--json`
   `ok` = the exit verdict).

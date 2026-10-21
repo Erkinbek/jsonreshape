@@ -1,0 +1,406 @@
+{
+ "started": 1792584950.8933983,
+ "args": {
+  "child": "False",
+  "op": "",
+  "scen": "base",
+  "home": "base",
+  "keep": "",
+  "patch": "",
+  "data": "E:\\Projects\\jr-xlsx\\bench\\data\\syn_2g.json",
+  "work": "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\5eaae90b-75c3-4590-be01-44f8969d1edc\\scratchpad\\xlsx_work",
+  "pkg": "",
+  "repeat": "2",
+  "max_repeat_seconds": "150.0",
+  "only": "export_csv:all,export_xlsx:all,export_sqlite:all",
+  "label": "s7x-after-all",
+  "results_dir": "E:\\Projects\\jr-xlsx\\bench\\results",
+  "quiet_load": "35.0",
+  "quiet_timeout": "60.0",
+  "keep_work": "False",
+  "report": "",
+  "baseline": "",
+  "lang": "uz",
+  "md": "",
+  "workers": "0",
+  "note": "[]",
+  "export_report": "False"
+ },
+ "machine": {
+  "python": "3.14.3",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "cpus": 24,
+  "ram_gb": 205.6,
+  "processor": "Intel64 Family 6 Model 198 Stepping 2, GenuineIntel"
+ },
+ "runs": [
+  {
+   "op": "make",
+   "scen": "all",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": false,
+     "phase": "open",
+     "rss_peak_mb": 55.4,
+     "private_peak_mb": 43.0,
+     "workers": 0,
+     "seconds": 3.3,
+     "fsync_s": 0.147
+    },
+    "bulk_preview": {
+     "scanned": 6513235,
+     "records_changed": 6513235,
+     "bytes_new": 2232155965,
+     "bytes": 2147483913,
+     "phase": "bulk_preview",
+     "rss_peak_mb": 342.2,
+     "private_peak_mb": 288.6,
+     "workers": 4,
+     "seconds": 17.457,
+     "fsync_s": 3.99
+    },
+    "bulk_apply": {
+     "phase": "bulk_apply",
+     "rss_peak_mb": 53.1,
+     "private_peak_mb": 39.5,
+     "workers": 0,
+     "seconds": 0.121,
+     "fsync_s": 0.0
+    }
+   },
+   "effective_bytes": 2232155965,
+   "layer_mb": 2388.5,
+   "process_peak_wset_mb": 221.7,
+   "process_peak_pagefile_mb": 210.1,
+   "backend": "rust",
+   "wall": 22.32,
+   "load_before": 7.8,
+   "load_mean": 17.7,
+   "load_max": 28.7,
+   "repeat": 1
+  },
+  {
+   "op": "export_csv",
+   "scen": "all",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 55.3,
+     "private_peak_mb": 43.4,
+     "workers": 0,
+     "seconds": 0.009,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 1,
+     "count": 6513235,
+     "layers": 3,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 56.9,
+     "private_peak_mb": 43.7,
+     "workers": 0,
+     "seconds": 0.41,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2232155965,
+     "records": 6513235,
+     "rows": 6513235,
+     "written": 659119646,
+     "columns": 9,
+     "files": 1,
+     "warnings": [],
+     "workers_used": 4,
+     "phase": "op",
+     "rss_peak_mb": 266.8,
+     "private_peak_mb": 208.6,
+     "workers": 4,
+     "seconds": 12.393,
+     "fsync_s": 1.06
+    }
+   },
+   "effective_bytes": 2232155965,
+   "process_peak_wset_mb": 87.5,
+   "process_peak_pagefile_mb": 68.0,
+   "backend": "rust",
+   "wall": 14.2,
+   "load_before": 5.6,
+   "load_mean": 19.4,
+   "load_max": 26.1,
+   "repeat": 1
+  },
+  {
+   "op": "export_csv",
+   "scen": "all",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 55.2,
+     "private_peak_mb": 43.2,
+     "workers": 0,
+     "seconds": 0.009,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 1,
+     "count": 6513235,
+     "layers": 3,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 57.2,
+     "private_peak_mb": 44.2,
+     "workers": 0,
+     "seconds": 0.409,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2232155965,
+     "records": 6513235,
+     "rows": 6513235,
+     "written": 659119646,
+     "columns": 9,
+     "files": 1,
+     "warnings": [],
+     "workers_used": 4,
+     "phase": "op",
+     "rss_peak_mb": 270.2,
+     "private_peak_mb": 212.1,
+     "workers": 4,
+     "seconds": 12.125,
+     "fsync_s": 0.962
+    }
+   },
+   "effective_bytes": 2232155965,
+   "process_peak_wset_mb": 87.2,
+   "process_peak_pagefile_mb": 68.2,
+   "backend": "rust",
+   "wall": 13.92,
+   "load_before": 4.4,
+   "load_mean": 20.6,
+   "load_max": 25.2,
+   "repeat": 2
+  },
+  {
+   "op": "export_xlsx",
+   "scen": "all",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 55.7,
+     "private_peak_mb": 43.2,
+     "workers": 0,
+     "seconds": 0.009,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 1,
+     "count": 6513235,
+     "layers": 3,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 57.6,
+     "private_peak_mb": 44.7,
+     "workers": 0,
+     "seconds": 0.411,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2232155965,
+     "records": 6513235,
+     "rows": 6513235,
+     "written": 216647460,
+     "columns": 9,
+     "files": 1,
+     "warnings": [
+      "writer.warn.xlsx_sheets"
+     ],
+     "workers_used": 4,
+     "phase": "op",
+     "rss_peak_mb": 265.0,
+     "private_peak_mb": 207.8,
+     "workers": 4,
+     "seconds": 19.299,
+     "fsync_s": 0.209
+    }
+   },
+   "effective_bytes": 2232155965,
+   "process_peak_wset_mb": 87.0,
+   "process_peak_pagefile_mb": 66.8,
+   "backend": "rust",
+   "wall": 21.05,
+   "load_before": 4.2,
+   "load_mean": 22.5,
+   "load_max": 26.3,
+   "repeat": 1
+  },
+  {
+   "op": "export_xlsx",
+   "scen": "all",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 55.3,
+     "private_peak_mb": 43.3,
+     "workers": 0,
+     "seconds": 0.009,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 1,
+     "count": 6513235,
+     "layers": 3,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 57.5,
+     "private_peak_mb": 45.0,
+     "workers": 0,
+     "seconds": 0.412,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2232155965,
+     "records": 6513235,
+     "rows": 6513235,
+     "written": 216647459,
+     "columns": 9,
+     "files": 1,
+     "warnings": [
+      "writer.warn.xlsx_sheets"
+     ],
+     "workers_used": 4,
+     "phase": "op",
+     "rss_peak_mb": 262.6,
+     "private_peak_mb": 206.5,
+     "workers": 4,
+     "seconds": 19.401,
+     "fsync_s": 0.014
+    }
+   },
+   "effective_bytes": 2232155965,
+   "process_peak_wset_mb": 86.8,
+   "process_peak_pagefile_mb": 67.2,
+   "backend": "rust",
+   "wall": 21.13,
+   "load_before": 4.8,
+   "load_mean": 21.3,
+   "load_max": 25.7,
+   "repeat": 2
+  },
+  {
+   "op": "export_sqlite",
+   "scen": "all",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 55.4,
+     "private_peak_mb": 42.8,
+     "workers": 0,
+     "seconds": 0.009,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 1,
+     "count": 6513235,
+     "layers": 3,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 56.6,
+     "private_peak_mb": 43.4,
+     "workers": 0,
+     "seconds": 0.419,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2232155965,
+     "records": 6513235,
+     "rows": 31913465,
+     "written": 1573322752,
+     "columns": 0,
+     "files": 1,
+     "warnings": [],
+     "workers_used": 4,
+     "phase": "op",
+     "rss_peak_mb": 281.5,
+     "private_peak_mb": 216.5,
+     "workers": 4,
+     "seconds": 28.416,
+     "fsync_s": 0.0
+    }
+   },
+   "effective_bytes": 2232155965,
+   "process_peak_wset_mb": 202.8,
+   "process_peak_pagefile_mb": 215.8,
+   "backend": "rust",
+   "wall": 30.29,
+   "load_before": 4.5,
+   "load_mean": 21.6,
+   "load_max": 30.9,
+   "repeat": 1
+  },
+  {
+   "op": "export_sqlite",
+   "scen": "all",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 55.5,
+     "private_peak_mb": 42.9,
+     "workers": 0,
+     "seconds": 0.009,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 1,
+     "count": 6513235,
+     "layers": 3,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 57.6,
+     "private_peak_mb": 44.9,
+     "workers": 0,
+     "seconds": 0.416,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2232155965,
+     "records": 6513235,
+     "rows": 31913465,
+     "written": 1573322752,
+     "columns": 0,
+     "files": 1,
+     "warnings": [],
+     "workers_used": 4,
+     "phase": "op",
+     "rss_peak_mb": 281.6,
+     "private_peak_mb": 217.7,
+     "workers": 4,
+     "seconds": 29.074,
+     "fsync_s": 0.0
+    }
+   },
+   "effective_bytes": 2232155965,
+   "process_peak_wset_mb": 203.0,
+   "process_peak_pagefile_mb": 215.8,
+   "backend": "rust",
+   "wall": 31.29,
+   "load_before": 6.7,
+   "load_mean": 20.6,
+   "load_max": 27.1,
+   "repeat": 2
+  }
+ ]
+}

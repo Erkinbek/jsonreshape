@@ -52,6 +52,25 @@ All notable changes to jsonreshape are recorded here. The format follows
   written `1 234 567,5` as in Uzbek (`i18n.space_grouped()`), `tests/test_i18n_ru.py` checks the coverage and
   the placeholders.
 
+### Changed
+- **XLSX export ~15× faster** (7.8–12 → 116 MB/s on a 2.1 GB file, 4 worker processes, peak memory 250–265 MB):
+  jsonreshape's own streaming XLSX writer (`jsonreshape/writer_xlsx.py`) replaces `xlsxwriter` — worker processes
+  build the worksheet XML (inline strings, no position attributes) and deflate it in pieces, the parent appends
+  them to the zip in order and combines the CRC-32s; no staging folder, no slow "finishing" step, files half the
+  size. Every cell has the value and type of the xlsxwriter workbook; the workbook is byte-identical whatever the
+  number of workers. Archives over 4 GB get zip64 records (xlsxwriter refused them); only a single sheet over 4 GB
+  is refused (`writer.error.xlsx_too_large`, raised as soon as it is reached).
+- **SQLite export ~7× faster** (10.6–16.4 → 79 MB/s, peak memory 270–282 MB): `jsonreshape/writer_sqlite.py` —
+  one optimistic pass instead of two (the workers count the keys per path; data where a path may be a map is
+  redone the old way), the records split into tables in worker processes (in-memory databases, serialized) and
+  merged by the parent with `INSERT … SELECT`. The database is value for value the one of the one-thread exporter
+  (kept as `writer._export_sqlite_onethread`, the reference of the tests and the fallback without
+  `sqlite3.Connection.serialize`). `export(..., workers=)` now applies to XLSX and SQLite too.
+
+### Fixed
+- XLSX: a text that starts with `<r>` and ends with `</r>` was written by xlsxwriter as raw rich-text XML, producing a
+  workbook Excel refused to open; it is now written as the text it is.
+
 ## [0.1.0] — 2026-10-20
 
 The first complete version: the six development stages (README §12 "Architecture", `docs/ARCHITECTURE.md`).

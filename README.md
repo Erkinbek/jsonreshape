@@ -846,6 +846,8 @@ jsonreshape/
   search.py           full-file search (byte prefilter + confirmation), export, history
   schema.py           structure: type distribution, presence percentage, examples
   writer.py           streaming writers: JSON, JSONL, CSV, XLSX, SQLite; multiple inputs, node export
+  writer_xlsx.py      own streaming XLSX writer: sheet XML deflated in worker processes, zip64
+  writer_sqlite.py    SQLite export: rows split in worker processes, merged with INSERT … SELECT
   overlay.py          edit state (immutable): piece table, content layers, virtual addresses, ChangeSet
   editstore.py        edit layer on disk: SQLite (WAL) steps, segment files, lock, recovery
   editops.py          byte-level edits and formatting (pure functions)
@@ -1052,8 +1054,9 @@ row are in `edit_latest.md`.
 | Total memory of the program (all edit operations) | < 500 MB | 422 MB (JSON Patch import, 6.5 M operations) | ✅ |
 
 **Table exports** (`export_latest.md`): CSV with automatic columns — 117 MB/s without edits, 84–102 MB/s with edits ✅;
-**XLSX** (9 columns) 12.0 MB/s (7.3 MB/s with every record changed) and **SQLite** 16.4 MB/s (8.9 MB/s),
-RAM 138–159 MB — below the speed target ❌ (cause and options below).
+**XLSX** (9 columns) 116 MB/s, also with every record changed, and **SQLite** 79.1 MB/s (78.6 MB/s), RAM 250–282 MB
+with 4 worker processes ✅ (stage 7: our own XLSX writer and the pooled SQLite export; before: 7.8–12.0 and
+10.6–16.4 MB/s). The XLSX file is half the size of the xlsxwriter one (217 MB instead of 399 MB for 2.1 GB).
 
 ### GUI
 
@@ -1102,15 +1105,13 @@ session restore when `main()` is started again.
 
 ### Targets not met and options
 
-* **XLSX export** 12.0 MB/s (7.3 MB/s with every record changed) and **SQLite export** 16.4 MB/s (8.9 MB/s) — the
-  target is ≥ 50 MB/s; memory is within the target (138–159 MB). Cause: `xlsxwriter` writes the XLSX cells to XML in a
-  single thread (~80 % of the time according to cProfile; preparing the values already runs in worker processes); for
-  SQLite, the records are split into tables in Python in two passes and inserted in a single thread. Options: 1) our
-  own XLSX writer — the sheet XML in worker processes, the zip in a separate thread (decision 39); 2) for SQLite, move
-  finding the maps and preparing the rows into worker processes; for now, use CSV for large tables (100–250 MB/s).
 * **Mapping in a single process** (`--workers 1`): `apply` 47.5 MB/s, `flatten` 46.0 MB/s — close to the target, but
   below it. In the default mode a file larger than 64 MB is processed in parallel (the table above). Option: run the
   mapping rules in the Rust core.
+* Closed in stage 7: XLSX export (7.8–12 → 116 MB/s: our own writer, the sheet XML built and deflated in worker
+  processes) and SQLite export (10.6–16.4 → 79 MB/s: one optimistic pass, the rows split into tables in worker
+  processes and copied into the database with `INSERT … SELECT`). What bounds them now: XLSX — the workers (one
+  worker ~40 MB/s); SQLite — the parent copying the rows (~2.2 million rows/s) and building the `_parent` indexes.
 * Closed in stage 6: CSV with automatic columns (26 → 105 MB/s), CSV export with edits (28–41 → 186–231 MB/s), the
   memory of export with a mapping (321–355 MB with 4 automatic worker processes → 258–299 MB with 3; the 134 MB jump
   when reading the mapping file was removed).
@@ -1228,8 +1229,19 @@ session restore when `main()` is started again.
     1992, no daylight saving time; `tzdata` was not added; the tooltip says so for older dates); URLs are opened only
     after the "Open in the browser?" confirmation — the program itself sends nothing to the network; `#rgb` /
     `#rrggbb` color swatches; base64 images (PNG/JPEG/GIF/WebP) as a thumbnail in the full-value window.
-39. **XLSX** export stays with `xlsxwriter` (~11 MB/s; the values are prepared in parallel processes, and
-    `xlsxwriter` writes the cells in a single thread); a faster writer of our own is optional, later.
+39. **XLSX** is written by jsonreshape's own streaming writer (stage 7; `xlsxwriter` before, ~11 MB/s: it wrote
+    every cell in Python in one thread and zipped at the end): worker processes turn the rows into worksheet XML
+    (inline strings, rows and cells without position attributes, so a block needs no knowledge of the rows before
+    it) and deflate it in pieces that end on a byte boundary; the parent appends the pieces to the zip in order and
+    combines their CRC-32s — 116 MB/s, half the file size, no slow final step. Every cell keeps the value and type
+    the xlsxwriter workbook had (numbers `%.16G`, the 15-digit rule, booleans, texts cut at 32 767 UTF-16 units,
+    `_xHHHH_` escapes); one deliberate difference: a text like `<r>…</r>` is a text (xlsxwriter wrote it as raw XML
+    and Excel refused the file). Archives over 4 GB get zip64 records; a single sheet over 4 GB is refused (split
+    into files or lower the rows per sheet). **SQLite** (stage 7): one optimistic pass — the workers split the
+    records into tables in in-memory databases and count the keys per path; when no path can be a map (≤ 100 keys)
+    the result is exactly the two-pass one, otherwise the export is redone the old way (scan first) — the parent
+    merges the serialized blocks with `INSERT … SELECT` (79 MB/s). Both are value-for-value identical to the
+    stage 1–6 exports (tests compare them).
 
 **Stage 6 — polish**
 
@@ -1322,9 +1334,10 @@ session restore when `main()` is started again.
   taken into account — records that differ only in array order need `--key`.
 * Repair is slower on files with many errors (each fix is recorded with its exact location and undo information):
   1 % broken records ~185 MB/s, 10 % ~47 MB/s, JSON5 style ~35 MB/s, all strings in single quotes ~2 MB/s.
-* XLSX (~11 MB/s) and SQLite (~15–17 MB/s) export are slower than 50 MB/s: `xlsxwriter` writes the XLSX cells in a
-  single thread, and records are inserted into SQLite in a single thread (options in section 14). CSV, JSON and
-  JSONL are faster than the target.
+* XLSX and SQLite exports use 4 worker processes on large files (automatic, as CSV): peak memory 250–282 MB on a
+  2.1 GB file. A single XLSX sheet whose XML would exceed 4 GB (very wide rows) is refused — split the result into
+  files or lower the rows per sheet. Data with map-like objects or more than 100 keys at one path makes the SQLite
+  export do the old two passes (scan, then rows).
 * The session and the workspace do not save view-only sorts in the tree, panel sizes or the tab orientation.
 * Switching the GUI language takes full effect after the program is restarted (some texts in open windows stay in
   the old language; the settings window says so).

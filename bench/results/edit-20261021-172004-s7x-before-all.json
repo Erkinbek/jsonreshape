@@ -1,0 +1,252 @@
+{
+ "started": 1792585204.226609,
+ "args": {
+  "child": "False",
+  "op": "",
+  "scen": "base",
+  "home": "base",
+  "keep": "",
+  "patch": "",
+  "data": "E:\\Projects\\jr-xlsx\\bench\\data\\syn_2g.json",
+  "work": "C:\\Users\\user34\\AppData\\Local\\Temp\\claude\\e--Projects-json-flatting\\5eaae90b-75c3-4590-be01-44f8969d1edc\\scratchpad\\xlsx_work",
+  "pkg": "C:/Users/user34/AppData/Local/Temp/claude/E--Projects-json-flatting/5eaae90b-75c3-4590-be01-44f8969d1edc/scratchpad/base_pkg",
+  "repeat": "2",
+  "max_repeat_seconds": "150.0",
+  "only": "export_csv:all,export_xlsx:all,export_sqlite:all",
+  "label": "s7x-before-all",
+  "results_dir": "E:\\Projects\\jr-xlsx\\bench\\results",
+  "quiet_load": "35.0",
+  "quiet_timeout": "60.0",
+  "keep_work": "False",
+  "report": "",
+  "baseline": "",
+  "lang": "uz",
+  "md": "",
+  "workers": "0",
+  "note": "[]",
+  "export_report": "False"
+ },
+ "machine": {
+  "python": "3.14.3",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "cpus": 24,
+  "ram_gb": 205.6,
+  "processor": "Intel64 Family 6 Model 198 Stepping 2, GenuineIntel"
+ },
+ "runs": [
+  {
+   "op": "export_csv",
+   "scen": "all",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 55.4,
+     "private_peak_mb": 44.3,
+     "workers": 0,
+     "seconds": 0.009,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 1,
+     "count": 6513235,
+     "layers": 3,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 57.5,
+     "private_peak_mb": 45.1,
+     "workers": 0,
+     "seconds": 0.422,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2232155965,
+     "records": 6513235,
+     "rows": 6513235,
+     "written": 659119646,
+     "columns": 9,
+     "files": 1,
+     "warnings": [],
+     "workers_used": 4,
+     "phase": "op",
+     "rss_peak_mb": 265.0,
+     "private_peak_mb": 206.4,
+     "workers": 4,
+     "seconds": 11.648,
+     "fsync_s": 0.799
+    }
+   },
+   "effective_bytes": 2232155965,
+   "process_peak_wset_mb": 86.2,
+   "process_peak_pagefile_mb": 66.9,
+   "backend": "rust",
+   "wall": 13.48,
+   "load_before": 9.4,
+   "load_mean": 22.3,
+   "load_max": 28.3,
+   "repeat": 1
+  },
+  {
+   "op": "export_csv",
+   "scen": "all",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 54.4,
+     "private_peak_mb": 44.1,
+     "workers": 0,
+     "seconds": 0.009,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 1,
+     "count": 6513235,
+     "layers": 3,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 57.4,
+     "private_peak_mb": 44.4,
+     "workers": 0,
+     "seconds": 0.434,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2232155965,
+     "records": 6513235,
+     "rows": 6513235,
+     "written": 659119646,
+     "columns": 9,
+     "files": 1,
+     "warnings": [],
+     "workers_used": 4,
+     "phase": "op",
+     "rss_peak_mb": 271.1,
+     "private_peak_mb": 212.5,
+     "workers": 4,
+     "seconds": 14.332,
+     "fsync_s": 3.306
+    }
+   },
+   "effective_bytes": 2232155965,
+   "process_peak_wset_mb": 87.2,
+   "process_peak_pagefile_mb": 67.9,
+   "backend": "rust",
+   "wall": 16.14,
+   "load_before": 7.2,
+   "load_mean": 19.2,
+   "load_max": 29.4,
+   "repeat": 2
+  },
+  {
+   "op": "export_xlsx",
+   "scen": "all",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 55.9,
+     "private_peak_mb": 43.3,
+     "workers": 0,
+     "seconds": 0.009,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 1,
+     "count": 6513235,
+     "layers": 3,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 57.0,
+     "private_peak_mb": 44.2,
+     "workers": 0,
+     "seconds": 0.411,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2232155965,
+     "records": 6513235,
+     "rows": 6513235,
+     "written": 398916359,
+     "columns": 9,
+     "files": 1,
+     "warnings": [
+      "writer.warn.xlsx_sheets"
+     ],
+     "workers_used": 2,
+     "phase": "op",
+     "rss_peak_mb": 173.3,
+     "private_peak_mb": 133.1,
+     "workers": 2,
+     "seconds": 280.721,
+     "fsync_s": 1.817
+    }
+   },
+   "effective_bytes": 2232155965,
+   "process_peak_wset_mb": 90.3,
+   "process_peak_pagefile_mb": 71.6,
+   "backend": "rust",
+   "wall": 282.53,
+   "load_before": 6.3,
+   "load_mean": 10.3,
+   "load_max": 19.0,
+   "repeat": 1
+  },
+  {
+   "op": "export_sqlite",
+   "scen": "all",
+   "phases": {
+    "open": {
+     "records": 6513235,
+     "from_cache": true,
+     "phase": "open",
+     "rss_peak_mb": 51.8,
+     "private_peak_mb": 44.2,
+     "workers": 0,
+     "seconds": 0.01,
+     "fsync_s": 0.0
+    },
+    "restore": {
+     "head": 1,
+     "count": 6513235,
+     "layers": 3,
+     "pieces": 1,
+     "phase": "restore",
+     "rss_peak_mb": 57.6,
+     "private_peak_mb": 44.9,
+     "workers": 0,
+     "seconds": 0.409,
+     "fsync_s": 0.0
+    },
+    "op": {
+     "bytes": 2232155965,
+     "records": 6513235,
+     "rows": 31913465,
+     "written": 1588109312,
+     "columns": 0,
+     "files": 1,
+     "warnings": [],
+     "workers_used": 1,
+     "phase": "op",
+     "rss_peak_mb": 149.5,
+     "private_peak_mb": 148.6,
+     "workers": 0,
+     "seconds": 191.587,
+     "fsync_s": 0.0
+    }
+   },
+   "effective_bytes": 2232155965,
+   "process_peak_wset_mb": 150.4,
+   "process_peak_pagefile_mb": 148.7,
+   "backend": "rust",
+   "wall": 193.42,
+   "load_before": 5.2,
+   "load_mean": 11.5,
+   "load_max": 19.7,
+   "repeat": 1
+  }
+ ]
+}

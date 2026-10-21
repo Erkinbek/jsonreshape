@@ -38,7 +38,7 @@ from typing import Any
 import pytest
 
 import jsongen
-from jsonreshape import codec, i18n, writer
+from jsonreshape import codec, i18n, writer, writer_xlsx
 from jsonreshape.codec import JsonFloat
 from jsonreshape.errors import Cancelled, ExportError, FileChangedError, JsonReshapeError
 from jsonreshape.fileio import long_path
@@ -419,21 +419,24 @@ def _xlsx_doc(open_doc) -> Document:
                     fmt="array")
 
 
-def test_xlsx_finalization_reports_progress_and_can_be_cancelled(open_doc, out_dir: Path,
-                                                                 no_unraisable: list) -> None:
+def test_xlsx_finalization_reports_progress_and_can_be_cancelled(open_doc, out_dir: Path, no_unraisable: list,
+                                                                 monkeypatch: pytest.MonkeyPatch) -> None:
+    # stage 7: the sheets are deflated as the rows arrive (writer_xlsx), so there is no slow final step any
+    # more: progress is the rows' bytes, monotone and complete, and a cancel while rows are written holds
+    monkeypatch.setattr(writer, "POOL_BLOCK_BYTES", 20000)
     doc = _xlsx_doc(open_doc)
-    finish_msg = t("writer.progress.finish", name="o.xlsx")
+    export_msg = t("writer.progress.export", name="o.xlsx")
     infos: list[Any] = []
     export(doc, out_dir / "o.xlsx", ExportOptions("xlsx"), progress=Progress(callback=infos.append, min_interval=0))
-    zipping = [i for i in infos if i.message == finish_msg and i.total is None]
-    assert zipping and max(i.done for i in zipping) > 0          # bytes of the zip written, total unknown
+    dones = [i.done for i in infos if i.message == export_msg and i.total]
+    assert len(dones) > 3 and dones == sorted(dones)
     assert infos[-1].finished and infos[-1].done == infos[-1].total
     old = (out_dir / "o.xlsx").read_bytes()
     token = CancelToken()
 
     def cb(info: Any) -> None:
-        if info.message == finish_msg and info.done > 0:
-            token.cancel()                      # cancel while the zip is being written
+        if info.message == export_msg and info.total and 0 < info.done < info.total:
+            token.cancel()                      # cancel while the sheet is being written
 
     with pytest.raises(Cancelled) as ei:
         export(doc, out_dir / "o.xlsx", ExportOptions("xlsx"), progress=Progress(callback=cb, min_interval=0),
@@ -449,13 +452,13 @@ def test_xlsx_cancel_after_finalization_is_not_committed(open_doc, out_dir: Path
                                                          split: str) -> None:
     doc = _xlsx_doc(open_doc)
     token = CancelToken()
-    real = writer._XlsxBook._finish_file
+    real = writer_xlsx._XlsxBook._finish_file
 
     def finish(self: Any) -> None:
         real(self)
         token.cancel()                          # Ctrl+C just as the zip is complete
 
-    monkeypatch.setattr(writer._XlsxBook, "_finish_file", finish)
+    monkeypatch.setattr(writer_xlsx._XlsxBook, "_finish_file", finish)
     (out_dir / "o.xlsx").write_bytes(b"OLD")
     with pytest.raises(Cancelled):
         export(doc, out_dir / "o.xlsx", ExportOptions("xlsx", columns=["i", "s"], xlsx_split=split), cancel=token)
@@ -490,12 +493,12 @@ def test_xlsx_failure_during_finalization_leaves_nothing(open_doc, out_dir: Path
                                                          no_unraisable: list, exc: BaseException,
                                                          expect: str | None) -> None:
     doc = _xlsx_doc(open_doc)
-    real_init = writer._XlsxSink.__init__
+    real_init = writer_xlsx._XlsxSink.__init__
 
     def init(self: Any, f: Any, cancel: Any) -> None:
         real_init(self, _FailingFile(f, 3000, exc), cancel)
 
-    monkeypatch.setattr(writer._XlsxSink, "__init__", init)
+    monkeypatch.setattr(writer_xlsx._XlsxSink, "__init__", init)
     (out_dir / "o.xlsx").write_bytes(b"OLD")
     with pytest.raises(BaseException) as ei:
         export(doc, out_dir / "o.xlsx", ExportOptions("xlsx"))
@@ -544,24 +547,17 @@ def test_xlsx_to_a_long_output_path(open_doc, tmp_path: Path, monkeypatch: pytes
 # ----------------------------------------------------------------------------------
 # robustness F9: XLSX staging folders
 # ----------------------------------------------------------------------------------
-def test_xlsx_staging_folder_name_and_place(open_doc, out_dir: Path, tmp_path: Path,
-                                            monkeypatch: pytest.MonkeyPatch) -> None:
-    seen: list[str] = []
-    real = writer._staging_dir
-
-    def spy(settings: Settings) -> str:
-        p = real(settings)
-        seen.append(p)
-        return p
-
-    monkeypatch.setattr(writer, "_staging_dir", spy)
+def test_xlsx_export_stages_nothing(open_doc, out_dir: Path, tmp_path: Path) -> None:
+    # stage 7: the own XLSX writer streams the sheets into the zip; no xlsx-<pid>-<hex> staging folder is made
+    # (the purge of folders left by earlier versions stays: the test below)
     cache = tmp_path / "cache"
-    doc = open_doc(recs=[{"a": 1}], fmt="array", settings=Settings(cache_dir=str(cache)))
-    export(doc, out_dir / "o.xlsx", ExportOptions("xlsx"))
-    assert len(seen) == 1
-    p = Path(seen[0])
-    assert p.parent == cache / "tmp" and re.fullmatch(rf"xlsx-{os.getpid()}-[0-9a-f]+", p.name)
-    assert not p.exists()                     # removed after the export
+    doc = open_doc(recs=[{"a": i, "s": "x" * 100} for i in range(500)], fmt="array",
+                   settings=Settings(cache_dir=str(cache)))
+    export(doc, out_dir / "o.xlsx", ExportOptions("xlsx", xlsx_split="files", xlsx_max_rows=100))
+    assert sorted(p.name for p in out_dir.iterdir()) == [f"o_{k}.xlsx" for k in range(1, 7)]   # 99 rows + header
+    for root in (cache / "tmp", Path(os.environ["JSONRESHAPE_HOME"]) / "tmp"):
+        assert not root.exists() or not [p for p in root.iterdir() if p.name.startswith("xlsx-")]
+    assert staging_dirs() == []
 
 
 def _dead_pid() -> int:
