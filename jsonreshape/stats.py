@@ -291,6 +291,10 @@ HIST_ENTRY_COST = 200        # accounted bytes of one kept number (the value and
 HIST_SHARE = 4               # the histogram samples of a call may use the budget / this
 HIST_BINS = 32               # bins of FieldStats.histogram by default
 HIST_BINS_MAX = 4096         # bins asked for at most
+HIST_INT_MAX_DIGITS = 6000   # integer histogram edges are built only up to this many digits; an integral range
+                             # larger than that (e.g. a field holding 1e999999) uses real-number edges instead,
+                             # because exact integer edges would need that many digits of Decimal precision (minutes)
+                             # and consecutive integers are indistinguishable at that scale
 LEN_COUNTS = 4096            # distinct string lengths counted exactly; beyond: grouped by a doubling width
 ELLIPSIS = "\N{HORIZONTAL ELLIPSIS}"
 
@@ -445,6 +449,14 @@ def _dec_digits(value: Any) -> int:
     return _digits(int(value))
 
 
+def _edge_digits(x: Any) -> int:
+    """Decimal digits of the integer part of ``x`` -- from a ``Decimal``'s exponent, so a huge value
+    (``1E+999999``) is never expanded to a full-length ``int`` just to measure it."""
+    if isinstance(x, Decimal):
+        return x.adjusted() + 1 if x and x.is_finite() else 1
+    return _digits(int(x))
+
+
 def nice_edges(lo: Any, hi: Any, bins: int = HIST_BINS, integral: bool = False) -> list:
     """The "nice" bin edges covering ``lo..hi`` (exact ``int`` / ``Decimal`` values; module docstring,
     "Histograms"): the smallest step ``1, 2, 2.5, 5 x 10^k`` that gives at most ``bins`` bins when the
@@ -452,11 +464,19 @@ def nice_edges(lo: Any, hi: Any, bins: int = HIST_BINS, integral: bool = False) 
     step is an integer (at least 1), the edges are ``int`` and the last edge is the first multiple of
     the step beyond ``hi`` (half-open bins for every integer). ``lo == hi``: ``[lo, hi]`` (one bin); one bin
     asked for over a range with 0 inside it: the exact extremes (no aligned step gives one bin there).
+    An ``integral`` range wider than :data:`HIST_INT_MAX_DIGITS` digits (e.g. a field holding ``1e999999``) is
+    treated as non-integral instead: exact integer edges would be numbers with that many digits and need that much
+    Decimal precision, and integers are indistinguishable at that scale.
     ``ValueError`` for ``bins`` outside ``1..HIST_BINS_MAX``."""
     if isinstance(bins, bool) or not isinstance(bins, int) or bins < 1 or bins > HIST_BINS_MAX:
         raise ValueError(f"bins must be 1..{HIST_BINS_MAX}, got {bins!r}")
     if isinstance(lo, Decimal) and not lo.is_finite() or isinstance(hi, Decimal) and not hi.is_finite():
         raise ValueError("histogram edges need finite extremes")
+    if integral and (_edge_digits(lo) > HIST_INT_MAX_DIGITS or _edge_digits(hi) > HIST_INT_MAX_DIGITS):
+        # astronomically large (e.g. a field holding 1e999999): exact integer edges would be numbers with that
+        # many digits and need that much Decimal precision (minutes); consecutive integers are indistinguishable
+        # at that scale, so build compact real-number edges (scientific values) instead
+        integral = False
     if integral:
         lo, hi = int(lo), int(hi)
     else:
