@@ -1279,6 +1279,10 @@ session restore when `main()` is started again.
    dropped. Records: the children of the root by default, `--record-tag TAG` (qualified or local name; not inside
    another record) or `--record-path a/b/c` from the root. A prolog with `<!ENTITY` is refused (entity expansion).
 52. **Import output**: JSON Lines unless the target ends in `.json` (one array; a single YAML document is written
+   bare) or `--to json`; the JSON layout is the writer's (`--indent 2|4|tab`, `--compact`); the result is written
+   atomically, never over the source or a file with unsaved edits; `.gz` inputs and outputs are not supported by
+   `import` (use `convert` afterwards). The GUI default target is `<stem>.jsonl` beside the source (`<stem>.json`
+   for YAML).
 53. **Standard input is spooled, not streamed**: `-` copies the pipe to a temporary file in the work folder before
     the command starts, because every reader needs a seekable file (the index stores byte ranges; gzip / UTF-16 inputs
     are converted to a cached copy). The price is the disk space and the time of one copy; the gain is that every
@@ -1286,10 +1290,6 @@ session restore when `main()` is started again.
     file run). The temporary file is always removed; the index built for it stays in the cache until the LRU eviction,
     like that of any file deleted after use. Outputs stay files: `-` as an output is refused, and messages name the
     temporary file (the input that was actually read).
-   bare) or `--to json`; the JSON layout is the writer's (`--indent 2|4|tab`, `--compact`); the result is written
-   atomically, never over the source or a file with unsaved edits; `.gz` inputs and outputs are not supported by
-   `import` (use `convert` afterwards). The GUI default target is `<stem>.jsonl` beside the source (`<stem>.json`
-   for YAML).
 
 ### Known limitations
 

@@ -1281,6 +1281,10 @@ va `main()` qayta ishga tushirilganda sessiyaning tiklanishi.
    Yozuvlar: standart — ildizning bolalari, `--record-tag TEG` (to'liq yoki qisqa nom; boshqa yozuv ichida bo'lmagan)
    yoki `--record-path a/b/c` ildizdan. Prologda `<!ENTITY` bo'lsa rad etiladi (entity kengayishi).
 52. **Import natijasi**: JSON Lines, agar natija `.json` bilan tugamasa (bitta massiv; yagona YAML hujjat o'zi
+   yoziladi) yoki `--to json` berilmasa; JSON tartibi writer'niki (`--indent 2|4|tab`, `--compact`); natija atomar
+   yoziladi, manba yoki saqlanmagan o'zgarishlari bor faylning ustiga hech qachon yozilmaydi; `import` `.gz`
+   kirish va natijani qo'llamaydi (keyin `convert` ishlating). GUI'da standart natija manba yonidagi `<nom>.jsonl`
+   (YAML uchun `<nom>.json`).
 53. **Standart kirish oqim bilan emas, nusxa orqali o'qiladi**: `-` buyruq boshlanishidan oldin quvurni ish
     papkasidagi vaqtinchalik faylga nusxalaydi, chunki har bir o'quvchiga qidirib o'qiladigan fayl kerak (indeks bayt
     oraliqlarini saqlaydi; gzip / UTF-16 kirishlar keshdagi nusxaga aylantiriladi). Narxi — bitta nusxaning disk joyi va
@@ -1288,10 +1292,6 @@ va `main()` qayta ishga tushirilganda sessiyaning tiklanishi.
     quvur fayl bilan bir xil ~90 MB cho'qqiga chiqadi). Vaqtinchalik fayl doim o'chiriladi; uning uchun qurilgan indeks
     ishlatilgandan keyin o'chirilgan har qanday faylniki kabi LRU tozalashgacha keshda qoladi. Natijalar fayl bo'lib
     qoladi: `-` natija sifatida rad etiladi, xabarlarda vaqtinchalik fayl nomi ko'rsatiladi (aslida o'qilgan kirish).
-   yoziladi) yoki `--to json` berilmasa; JSON tartibi writer'niki (`--indent 2|4|tab`, `--compact`); natija atomar
-   yoziladi, manba yoki saqlanmagan o'zgarishlari bor faylning ustiga hech qachon yozilmaydi; `import` `.gz`
-   kirish va natijani qo'llamaydi (keyin `convert` ishlating). GUI'da standart natija manba yonidagi `<nom>.jsonl`
-   (YAML uchun `<nom>.json`).
 
 ### Ma'lum cheklovlar
 
