@@ -52,7 +52,11 @@ def test_every_russian_key_exists_and_matches_the_english_placeholders() -> None
 
 
 def test_russian_coverage_is_complete() -> None:
-    missing = sorted(k for k in MESSAGES if k not in MESSAGES_RU and k not in ALLOW_MISSING_RU)
+    # bench.* keys belong to the benchmark tooling, not the shipped app: bench/run_bench.py registers them into
+    # MESSAGES on import (uz / en, English fallback), so they are present only when a bench module has been
+    # imported and need no Russian text.
+    missing = sorted(k for k in MESSAGES
+                     if k not in MESSAGES_RU and k not in ALLOW_MISSING_RU and not k.startswith("bench."))
     assert not missing, f"{len(missing)} keys without a Russian text, e.g. {missing[:10]}"
     stale = sorted(ALLOW_MISSING_RU & set(MESSAGES_RU))
     assert not stale, f"translated now, remove from ALLOW_MISSING_RU: {stale}"
