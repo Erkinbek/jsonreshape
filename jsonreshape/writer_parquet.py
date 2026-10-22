@@ -1,9 +1,20 @@
-r"""Parquet export (docs/ARCHITECTURE.md §8; stage 7): the ``parquet`` format of
-:func:`jsonreshape.writer.export` (``.parquet``), written with the optional ``pyarrow``
-package -- ``pip install "jsonreshape[parquet]"``. The program imports and works without
-it; a Parquet export then raises ``writer.error.parquet_missing`` (naming the pip command)
-before any work. :mod:`jsonreshape.writer` registers this module in its ``_EXPORTERS`` and
-builds the rows; the texts live in the ``writer`` section of :mod:`jsonreshape.i18n`.
+r"""Parquet and Arrow IPC / Feather export (docs/ARCHITECTURE.md §8; stage 7): the ``parquet``
+format of :func:`jsonreshape.writer.export` (``.parquet``) and the ``feather`` / ``arrow`` formats
+(``.feather`` / ``.arrow`` -- one format under two names: the Arrow IPC file format, which Feather v2
+is), written with the optional ``pyarrow`` package -- ``pip install "jsonreshape[parquet]"``. The
+program imports and works without it; such an export then raises ``writer.error.parquet_missing`` /
+``writer.error.feather_missing`` (naming the pip command) before any work. :mod:`jsonreshape.writer`
+registers this module in its ``_EXPORTERS`` and builds the rows; the texts live in the ``writer``
+section of :mod:`jsonreshape.i18n`.
+
+Both formats share everything below -- the columns, the cell types, the type decision with its
+two-pass restart, the row groups and the worker processes -- through :func:`_export_columnar`; only
+the write backend differs (:class:`_ParquetBackend`: ``ParquetWriter`` row groups; :class:`_ArrowBackend`:
+``pyarrow.ipc.new_file``, one record batch per row group) and so do the message keys
+(``writer.*.parquet*`` / ``writer.*.feather*``). Feather compression is
+``ExportOptions.feather_compression``: ``zstd`` (default), ``lz4`` or ``none`` (CLI
+``--feather-compression``); ``.feather.gz`` / ``.arrow.gz`` are refused like Parquet (the IPC buffers
+compress themselves).
 
 Columns
 =======
@@ -134,10 +145,12 @@ from .writer import (
     _warn_unfound,
 )
 
-__all__ = ["PARQUET_COMPRESSIONS", "ROW_GROUP_BYTES", "ROW_GROUP_MAX_ROWS", "TYPE_ROWS", "export_parquet",
-           "pyarrow_available", "require_pyarrow"]
+__all__ = ["FEATHER_COMPRESSIONS", "PARQUET_COMPRESSIONS", "ROW_GROUP_BYTES", "ROW_GROUP_MAX_ROWS", "TYPE_ROWS",
+           "export_feather", "export_parquet", "pyarrow_available", "pyarrow_ipc_available", "require_pyarrow",
+           "require_pyarrow_ipc"]
 
 PARQUET_COMPRESSIONS = ("zstd", "snappy", "gzip", "none")
+FEATHER_COMPRESSIONS = ("zstd", "lz4", "none")   # Arrow IPC buffer compression (ExportOptions.feather_compression)
 TYPE_ROWS = 65536                     # rows kept to decide the column types (fewer for wide tables) ...
 TYPE_CELL_FACTOR = 2                  # ... at most this many times the cell budget (memory_limit_bytes // 512) ...
 TYPE_MIN_ROWS = 1024                  # ... but at least this many
@@ -180,6 +193,60 @@ def require_pyarrow() -> tuple[Any, Any]:
     except ImportError as exc:
         raise ExportError("writer.error.parquet_missing", detail=str(exc)) from None
     return pa, pq
+
+
+def pyarrow_ipc_available() -> bool:
+    """Whether ``pyarrow`` (with its IPC module, for Arrow / Feather) can be imported."""
+    try:
+        import pyarrow.ipc  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def require_pyarrow_ipc() -> Any:
+    """``pyarrow`` (its ``ipc`` module loaded), or ``ExportError`` ``writer.error.feather_missing``."""
+    try:
+        import pyarrow as pa
+        import pyarrow.ipc  # noqa: F401
+    except ImportError as exc:
+        raise ExportError("writer.error.feather_missing", detail=str(exc)) from None
+    return pa
+
+
+# ----------------------------------------------------------------------------------
+# write backends: Parquet row groups / Arrow IPC record batches
+# ----------------------------------------------------------------------------------
+class _ParquetBackend:
+    """``pyarrow.parquet.ParquetWriter``; a row group per :meth:`write_group`."""
+
+    def __init__(self, pq: Any, compression: str) -> None:
+        self._pq = pq
+        self._compression = compression
+
+    def open(self, sink: Any, schema: Any) -> Any:
+        return self._pq.ParquetWriter(sink, schema, compression=self._compression)
+
+    @staticmethod
+    def write_group(writer: Any, part: Any, g: int) -> None:
+        writer.write_table(part, row_group_size=g)
+
+
+class _ArrowBackend:
+    """The Arrow IPC file format (``pyarrow.ipc.new_file``; ``.arrow``, and Feather v2 is the same
+    file): one record batch per row group -- ``part`` is one contiguous chunk, so the batch boundaries
+    depend on the data alone and the one-thread and worker files are byte for byte the same."""
+
+    def __init__(self, pa: Any, options: Any) -> None:
+        self._pa = pa
+        self._options = options
+
+    def open(self, sink: Any, schema: Any) -> Any:
+        return self._pa.ipc.new_file(sink, schema, options=self._options)
+
+    @staticmethod
+    def write_group(writer: Any, part: Any, g: int) -> None:
+        writer.write_table(part)
 
 
 # ----------------------------------------------------------------------------------
@@ -405,11 +472,11 @@ class _Collector:
     ``"single"`` -- keep the first ``type_rows`` rows, decide the schema, write; ``"fixed"`` -- write
     with the ``kinds`` given (the second pass). :meth:`finish` writes the rest and closes the writer."""
 
-    def __init__(self, ctx: _Ctx, pa: Any, pq: Any, names: list[str], cells: _ParquetCells, mode: str,
+    def __init__(self, ctx: _Ctx, pa: Any, backend: Any, names: list[str], cells: _ParquetCells, mode: str,
                  type_rows: int, f: Any = None, kinds: list[str] | None = None, group_rows: int | None = None) -> None:
         self.ctx = ctx
         self.pa = pa
-        self.pq = pq
+        self.backend = backend
         self.names = names
         self.width = len(names)
         self.text_one = cells.text_one
@@ -508,8 +575,7 @@ class _Collector:
         pa = self.pa
         arrow = {"string": pa.string(), "int64": pa.int64(), "double": pa.float64(), "bool": pa.bool_()}
         self.schema = pa.schema([(name, arrow[kind]) for name, kind in zip(self.names, self.kinds)])
-        self.writer = self.pq.ParquetWriter(_CancelFile(self.f, self.ctx.cancel), self.schema,
-                                            compression=self.ctx.opts.parquet_compression)
+        self.writer = self.backend.open(_CancelFile(self.f, self.ctx.cancel), self.schema)
 
     def _array(self, vals: Any, kinds: set[type], kind: str) -> Any:
         pa = self.pa
@@ -574,7 +640,7 @@ class _Collector:
         self.pending_rows = rest.num_rows
         self.pending_bytes = sum(b.nbytes for b in self.pending)
         del table, rest
-        self.writer.write_table(part, row_group_size=g)
+        self.backend.write_group(self.writer, part, g)
 
     def finish(self) -> None:
         """Decide (when fewer rows than the buffer arrived), write the rest, close the writer."""
@@ -632,8 +698,9 @@ class _State:
         ctx._warnings = {k: dict(v) for k, v in self.warnings.items()}
 
 
-def _write(ctx: _Ctx, out: Path, pa: Any, pq: Any, names: list[str], cells: _ParquetCells, builder: _RowBuilder,
-           type_rows: int, kinds: list[str] | None, group_rows: int | None) -> list[str]:
+def _write(ctx: _Ctx, out: Path, pa: Any, backend: Any, names: list[str], cells: _ParquetCells,
+           builder: _RowBuilder, type_rows: int, kinds: list[str] | None, group_rows: int | None,
+           fmt: _Fmt) -> list[str]:
     """One writing pass (``kinds`` given: the fixed schema of the two-pass mode); returns the columns of
     numbers written as text. Raises :class:`_Restart`."""
     with atomic_path(out) as tmp:
@@ -644,17 +711,17 @@ def _write(ctx: _Ctx, out: Path, pa: Any, pq: Any, names: list[str], cells: _Par
         coll: _Collector | None = None
         try:
             try:
-                coll = _Collector(ctx, pa, pq, names, cells, "fixed" if kinds is not None else "single", type_rows,
-                                  f, kinds, group_rows)
+                coll = _Collector(ctx, pa, backend, names, cells, "fixed" if kinds is not None else "single",
+                                  type_rows, f, kinds, group_rows)
                 _feed(ctx, builder, coll)
                 coll.finish()
             except BaseException as exc:
                 if coll is not None:
                     coll.abort()
                 if isinstance(exc, pa.ArrowException):
-                    raise ExportError("writer.error.parquet", detail=str(exc)) from exc
+                    raise ExportError(fmt.error_key, detail=str(exc)) from exc
                 if isinstance(exc, _Restart) and kinds is not None:
-                    raise ExportError("writer.error.parquet_type", column=exc.column, index=exc.index) from None
+                    raise ExportError(fmt.type_key, column=exc.column, index=exc.index) from None
                 raise
             f.flush()
             os.fsync(f.fileno())
@@ -665,9 +732,54 @@ def _write(ctx: _Ctx, out: Path, pa: Any, pq: Any, names: list[str], cells: _Par
     return coll.numbers_as_text
 
 
-def export_parquet(ctx: _Ctx, out: Path) -> list[Path]:
-    """Write the rows of ``ctx`` (columns prepared by the writer) as ``out`` (module docstring)."""
+class _Fmt:
+    """What differs between the Parquet and the Arrow IPC / Feather export: how the write backend is
+    built (the optional pyarrow pieces and the compression) and the i18n keys that name the format."""
+
+    def __init__(self, make_backend: Callable[[_Ctx], tuple[Any, Any]], *, error_key: str, type_key: str,
+                 restarted_key: str, number_text_key: str, progress_types_key: str) -> None:
+        self.make_backend = make_backend
+        self.error_key = error_key
+        self.type_key = type_key
+        self.restarted_key = restarted_key
+        self.number_text_key = number_text_key
+        self.progress_types_key = progress_types_key
+
+
+def _parquet_backend(ctx: _Ctx) -> tuple[Any, Any]:
     pa, pq = require_pyarrow()
+    return pa, _ParquetBackend(pq, ctx.opts.parquet_compression)
+
+
+def _feather_backend(ctx: _Ctx) -> tuple[Any, Any]:
+    pa = require_pyarrow_ipc()
+    codec = ctx.opts.feather_compression
+    options = pa.ipc.IpcWriteOptions(compression=None if codec == "none" else codec)
+    return pa, _ArrowBackend(pa, options)
+
+
+_PARQUET = _Fmt(_parquet_backend, error_key="writer.error.parquet", type_key="writer.error.parquet_type",
+                restarted_key="writer.warn.parquet_restarted", number_text_key="writer.warn.parquet_number_text",
+                progress_types_key="writer.progress.parquet_types")
+_FEATHER = _Fmt(_feather_backend, error_key="writer.error.feather", type_key="writer.error.feather_type",
+                restarted_key="writer.warn.feather_restarted", number_text_key="writer.warn.feather_number_text",
+                progress_types_key="writer.progress.feather_types")
+
+
+def export_parquet(ctx: _Ctx, out: Path) -> list[Path]:
+    """Write the rows of ``ctx`` (columns prepared by the writer) as the Parquet file ``out``."""
+    return _export_columnar(ctx, out, _PARQUET)
+
+
+def export_feather(ctx: _Ctx, out: Path) -> list[Path]:
+    """Write the rows of ``ctx`` (columns prepared by the writer) as the Arrow IPC / Feather file ``out``."""
+    return _export_columnar(ctx, out, _FEATHER)
+
+
+def _export_columnar(ctx: _Ctx, out: Path, fmt: _Fmt) -> list[Path]:
+    """The one-schema columnar export of ``ctx`` to ``out`` (module docstring); ``fmt``: the backend and
+    the message keys."""
+    pa, backend = fmt.make_backend(ctx)
     columns = list(ctx.columns)
     names = [_escape_surrogates(c.text) if _SURROGATE_RE.search(c.text) else c.text for c in columns]
     explicit = ctx.opts.columns is not None
@@ -680,7 +792,7 @@ def export_parquet(ctx: _Ctx, out: Path) -> list[Path]:
         before = _State(ctx)
         builder = _RowBuilder(hidden, cells, ctx.explode, sep, track=explicit)
         try:
-            as_text = _write(ctx, out, pa, pq, names, cells, builder, type_rows, None, None)
+            as_text = _write(ctx, out, pa, backend, names, cells, builder, type_rows, None, None, fmt)
         except _Restart as restart:
             # the attempt is dropped (counters, warnings, temporary file); two passes follow
             before.restore(ctx)
@@ -688,21 +800,21 @@ def export_parquet(ctx: _Ctx, out: Path) -> list[Path]:
             meter.next_pass()
             if meter.progress is not None:
                 meter.progress.set_total(meter.base + 2 * meter.unit)
-            ctx.message("writer.progress.parquet_types")
+            ctx.message(fmt.progress_types_key)
             builder = _RowBuilder(hidden, cells, ctx.explode, sep, track=explicit)
-            types = _Collector(ctx, pa, pq, names, cells, "types", type_rows)
+            types = _Collector(ctx, pa, backend, names, cells, "types", type_rows)
             _feed(ctx, builder, types)
             kinds, group_rows = types.decide_all()
             before.restore(ctx)
-            ctx.warn("writer.warn.parquet_restarted", column=restart.column, index=restart.index, rows=type_rows)
+            ctx.warn(fmt.restarted_key, column=restart.column, index=restart.index, rows=type_rows)
             ctx.next_pass()
             ctx.message("writer.progress.export")
             builder = _RowBuilder(hidden, cells, ctx.explode, sep, track=explicit)
-            _write(ctx, out, pa, pq, names, cells, builder, type_rows, kinds, group_rows)
+            _write(ctx, out, pa, backend, names, cells, builder, type_rows, kinds, group_rows, fmt)
             as_text = types.numbers_as_text
     finally:
         ctx.columns = columns
     if as_text:
-        ctx.warn("writer.warn.parquet_number_text", add=len(as_text), columns=_names_text(as_text), names=as_text)
+        ctx.warn(fmt.number_text_key, add=len(as_text), columns=_names_text(as_text), names=as_text)
     _warn_unfound(ctx, builder)
     return [out]

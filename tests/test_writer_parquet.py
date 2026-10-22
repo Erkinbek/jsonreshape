@@ -134,7 +134,7 @@ def small_types(monkeypatch: pytest.MonkeyPatch):
 # ----------------------------------------------------------------------------------
 def test_format_is_registered() -> None:
     assert "parquet" in writer.FORMATS and writer.FORMAT_NAMES["parquet"] == "Parquet"
-    assert writer.TABLE_FORMATS == ("csv", "xlsx", "parquet") and "parquet" not in writer.GZIP_FORMATS
+    assert writer.TABLE_FORMATS == ("csv", "xlsx", "parquet", "feather", "arrow") and "parquet" not in writer.GZIP_FORMATS
     assert format_for_path("x.parquet") == "parquet" and format_for_path("X.PARQUET") == "parquet"
     assert format_for_path("x.parquet.gz") is None
     assert writer.PARQUET_COMPRESSIONS == wp.PARQUET_COMPRESSIONS == ("zstd", "snappy", "gzip", "none")
@@ -656,9 +656,9 @@ def test_cli_option_compatibility(run, src: Path, tmp_path: Path) -> None:
                           "--lang", "en")
     assert code == 0 and "--parquet-compression: not used by the csv format, ignored." in err
     code, _out, err = run("convert", src, tmp_path / "o.parquet.gz", "--lang", "en")
-    assert code == 1 and "--to json, jsonl, csv, xlsx, sqlite or parquet" in err      # (no format from that name)
+    assert code == 1 and "--to json, jsonl, csv, xlsx, sqlite, parquet, feather or arrow" in err   # (no format from that name)
     code, _out, err = run("convert", src, tmp_path / "o.parquet.gz", "--to", "parquet", "--lang", "en")
-    assert code == 1 and "A Parquet file cannot be gzip-compressed" in err and not (tmp_path / "o.parquet.gz").exists()
+    assert code == 1 and "Parquet files cannot be gzip-compressed" in err and not (tmp_path / "o.parquet.gz").exists()
     code, _out, err = run("convert", src, tmp_path / "o.json", "--to", "parquet", "--as-keyed", "--lang", "en")
     assert code == 1
     help_code, out, _err = run("convert", "--help", "--lang", "en")

@@ -306,6 +306,12 @@ CSV; the optional ``pyarrow`` package (``writer.error.parquet_missing`` names
 ``pip install "jsonreshape[parquet]"``). The whole description is the docstring of
 :mod:`jsonreshape.writer_parquet`, which :func:`export` calls through ``_EXPORTERS``.
 
+``fmt="feather"`` / ``fmt="arrow"`` (``.feather`` / ``.arrow``) is the same table, columns and types
+written in the Arrow IPC file format (Feather v2 is that file; the two names give byte-identical
+files) -- the Parquet engine with another write backend, one record batch per row group;
+``feather_compression`` (``zstd`` default, ``lz4``, ``none``); ``writer.error.feather_missing`` when
+``pyarrow`` is absent (:mod:`jsonreshape.writer_parquet`).
+
 SQLite
 ======
 Table ``records``: ``_id`` (INTEGER PRIMARY KEY = the record number), ``$key`` for member
@@ -483,12 +489,14 @@ __all__ = [
 KiB = 1 << 10
 MiB = 1 << 20
 
-FORMATS = ("json", "jsonl", "csv", "xlsx", "sqlite", "parquet")
+FORMATS = ("json", "jsonl", "csv", "xlsx", "sqlite", "parquet", "feather", "arrow")
 GZIP_FORMATS = ("json", "jsonl", "csv")   # formats written gzip-compressed to a ".gz" name
-TABLE_FORMATS = ("csv", "xlsx", "parquet")   # the formats with columns (``columns``, ``array_mode``, ``explode``)
+#: the formats with columns (``columns``, ``array_mode``, ``explode``)
+TABLE_FORMATS = ("csv", "xlsx", "parquet", "feather", "arrow")
 FORMAT_NAMES = {"json": "JSON", "jsonl": "JSON Lines", "csv": "CSV", "xlsx": "Excel (XLSX)", "sqlite": "SQLite",
-                "parquet": "Parquet"}
+                "parquet": "Parquet", "feather": "Feather", "arrow": "Arrow IPC"}
 PARQUET_COMPRESSIONS = ("zstd", "snappy", "gzip", "none")   # ExportOptions.parquet_compression (writer_parquet)
+FEATHER_COMPRESSIONS = ("zstd", "lz4", "none")              # ExportOptions.feather_compression (writer_parquet)
 GZIP_LEVEL = 6                    # zlib level of ".gz" outputs (one member, header mtime 0)
 GZIP_FEED = 1 << 20               # ... fed to zlib in pieces of exactly this many bytes (_Sink)
 ARRAY_MODES = ("join", "rows")
@@ -565,6 +573,8 @@ _EXT_FORMATS = {
     ".sqlite3": "sqlite",
     ".db": "sqlite",
     ".parquet": "parquet",
+    ".feather": "feather",
+    ".arrow": "arrow",
 }
 _INT64_MIN = -(2**63)
 _INT64_MAX = 2**63 - 1
@@ -743,18 +753,20 @@ def _norm_max_rows(value: Any) -> int:
 class ExportOptions:
     """What :func:`export` writes (docs/ARCHITECTURE.md §8).
 
-    * ``fmt``: ``json``, ``jsonl``, ``csv``, ``xlsx``, ``sqlite`` or ``parquet`` (case-insensitive);
+    * ``fmt``: ``json``, ``jsonl``, ``csv``, ``xlsx``, ``sqlite``, ``parquet``, ``feather`` or ``arrow``
+      (case-insensitive; ``feather`` and ``arrow`` write the same Arrow IPC file);
     * ``indent`` (JSON): ``None`` (compact), an int 0..16 (2, 4, ...) or ``"\\t"`` (``"tab"``
       is accepted); ``sort_keys`` (JSON/JSONL): ``False``, ``"alpha"`` (``True`` means the
       same: alphabetical, Uzbek collation, natural, case-insensitive) or ``"codepoint"``
       (code point order) -- the keys of every object of every record;
       ``keep_wrapper`` (JSON, wrapped documents): keep the bytes around the record container;
-    * ``columns`` (CSV/XLSX/Parquet): column paths (``None`` = automatic, see :func:`discover_columns`);
+    * ``columns`` (CSV/XLSX/Parquet/Feather): column paths (``None`` = automatic, see :func:`discover_columns`);
       ``array_mode``: ``join`` or ``rows``; ``explode``: the array expanded into rows (a
       concrete path; implies ``rows``); ``join_sep``: separator of joined array elements;
     * ``csv_delimiter`` / ``csv_bom``; ``xlsx_max_rows`` (2..1048576, header row included)
       and ``xlsx_split`` (``sheets`` or ``files``); ``parquet_compression`` (``zstd`` -- the
-      default --, ``snappy``, ``gzip`` or ``none``);
+      default --, ``snappy``, ``gzip`` or ``none``); ``feather_compression`` (Feather / Arrow IPC:
+      ``zstd`` -- the default --, ``lz4`` or ``none``);
     * ``as_keyed`` (JSON only): write ONE object whose members are the members of the
       records -- every record must be a one-member object ``{"key": value}`` (the JSON Lines
       form of a keyed document), see "Keyed object from one-member records" in the module
@@ -780,6 +792,7 @@ class ExportOptions:
     xlsx_split: str = "sheets"
     as_keyed: bool = False
     parquet_compression: str = "zstd"
+    feather_compression: str = "zstd"
 
     def __post_init__(self) -> None:
         self.validate()
@@ -802,6 +815,8 @@ class ExportOptions:
         self.xlsx_split = _choice("xlsx_split", self.xlsx_split, XLSX_SPLITS, "writer.expected.split")
         self.parquet_compression = _choice("parquet_compression", self.parquet_compression, PARQUET_COMPRESSIONS,
                                            "writer.expected.parquet_compression")
+        self.feather_compression = _choice("feather_compression", self.feather_compression, FEATHER_COMPRESSIONS,
+                                           "writer.expected.feather_compression")
         self.as_keyed = _check_bool("as_keyed", self.as_keyed)
         if self.as_keyed and self.fmt != "json":
             raise _invalid("as_keyed", self.as_keyed, "writer.expected.as_keyed", fmt=self.fmt)
@@ -825,7 +840,8 @@ class ExportOptions:
 
 def format_for_path(path: StrPath) -> str | None:
     """Export format implied by the extension of ``path`` (``.json``, ``.jsonl``/``.ndjson``,
-    ``.csv``, ``.xlsx``, ``.sqlite``/``.sqlite3``/``.db``, ``.parquet``; ``.json.gz``, ``.jsonl.gz``,
+    ``.csv``, ``.xlsx``, ``.sqlite``/``.sqlite3``/``.db``, ``.parquet``, ``.feather``, ``.arrow``;
+    ``.json.gz``, ``.jsonl.gz``,
     ``.csv.gz``, ... are the compressed JSON / JSON Lines / CSV outputs), or ``None``."""
     base, ext = os.path.splitext(os.fspath(path))
     ext = ext.lower()
@@ -1942,7 +1958,8 @@ class _Ctx:
             self.warn("writer.warn.partial", add=0)   # count: records exported (see finish())
         if doc.kind == "jsonl" and doc.broken_count:
             self.warn("writer.warn.broken_lines", add=doc.broken_count)
-        if doc.kind == "wrapped" and self.opts.keep_wrapper and self.opts.fmt in ("jsonl", "csv", "xlsx", "parquet"):
+        if doc.kind == "wrapped" and self.opts.keep_wrapper \
+                and self.opts.fmt in ("jsonl", "csv", "xlsx", "parquet", "feather", "arrow"):
             self.wrapper_not_written()
 
     def wrapper_not_written(self) -> None:
@@ -2177,7 +2194,7 @@ def export(doc: Document, out_path: StrPath, opts: ExportOptions, source: Any = 
     ``gzip``: compress the JSON / JSON Lines / CSV output (default: when ``out_path`` ends with
     ``.gz``). ``column_plan``: CSV/XLSX columns found by :func:`plan_columns` for a selection this
     ``source`` is a part of (no column scan; the plan's own warnings are not repeated).
-    ``workers``: worker processes for the CSV / XLSX / Parquet rows, the CSV/XLSX column scan and the
+    ``workers``: worker processes for the CSV / XLSX / Parquet / Feather rows, the CSV/XLSX column scan and the
     SQLite rows (``None``: automatic; ``1``: the calling thread only; the result is the same either way --
     module docstring, "CSV and XLSX"; :mod:`jsonreshape.writer_sqlite`). JSON / JSON Lines ignore it."""
     if not isinstance(opts, ExportOptions):
@@ -2194,6 +2211,10 @@ def export(doc: Document, out_path: StrPath, opts: ExportOptions, source: Any = 
         from .writer_parquet import require_pyarrow
 
         require_pyarrow()
+    elif opts.fmt in ("feather", "arrow"):
+        from .writer_parquet import require_pyarrow_ipc
+
+        require_pyarrow_ipc()
     refuse_edited_targets([out])         # (the XLSX "files" parts are checked once they are named)
     _purge_staging(doc.settings)
     _ensure_index(doc, progress, cancel)
@@ -4379,7 +4400,7 @@ class _RowsJob:
         self.xml: Any = None                 # XLSX: the rows -> worksheet XML encoder (writer_xlsx._RowXml)
         if self.csv:
             self.cells: Any = _TextCells(sep)
-        elif fmt == "parquet":
+        elif fmt in ("parquet", "feather", "arrow"):
             from .writer_parquet import _ParquetCells   # (the rows are typed cells)
 
             self.cells = _ParquetCells(sep)
@@ -5724,6 +5745,13 @@ def _export_parquet(ctx: _Ctx, out: Path) -> list[Path]:
     return export_parquet(ctx, out)
 
 
+def _export_feather(ctx: _Ctx, out: Path) -> list[Path]:
+    """Arrow IPC / Feather: :func:`jsonreshape.writer_parquet.export_feather` (imported here: pyarrow is optional)."""
+    from .writer_parquet import export_feather
+
+    return export_feather(ctx, out)
+
+
 _EXPORTERS: dict[str, Callable[[_Ctx, Path], list[Path]]] = {
     "json": _export_json,
     "jsonl": _export_jsonl,
@@ -5731,4 +5759,6 @@ _EXPORTERS: dict[str, Callable[[_Ctx, Path], list[Path]]] = {
     "xlsx": _export_xlsx,
     "sqlite": _export_sqlite,
     "parquet": _export_parquet,
+    "feather": _export_feather,
+    "arrow": _export_feather,
 }

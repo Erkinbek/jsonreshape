@@ -2240,8 +2240,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "Invalid export option: {name} = {value}. Expected: {expected}.",
     },
     "writer.expected.fmt": {
-        "uz": "json, jsonl, csv, xlsx, sqlite yoki parquet",
-        "en": "json, jsonl, csv, xlsx, sqlite or parquet",
+        "uz": "json, jsonl, csv, xlsx, sqlite, parquet, feather yoki arrow",
+        "en": "json, jsonl, csv, xlsx, sqlite, parquet, feather or arrow",
     },
     "writer.expected.indent": {
         "uz": "bo'sh (ixcham), 0 dan 16 gacha son yoki tab",
@@ -2569,13 +2569,16 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "writer.error.gzip_format": {
         "uz": "{fmt} faylini gzip bilan siqib bo'lmaydi: {path}",
-        "en": "A {fmt} file cannot be gzip-compressed: {path}",
+        "en": "{fmt} files cannot be gzip-compressed: {path}",
     },
     "writer.error.gzip_format.hint": {
         "uz": "Fayl nomi oxiridagi .gz ni olib tashlang: gzip faqat JSON, JSON Lines va CSV fayllar uchun.",
         "en": "Remove the .gz at the end of the file name: gzip is available for JSON, JSON Lines and CSV files only.",
     },
-    "writer.expected.table_fmt": {"uz": "csv, xlsx yoki parquet", "en": "csv, xlsx or parquet"},
+    "writer.expected.table_fmt": {
+        "uz": "csv, xlsx, parquet, feather yoki arrow",
+        "en": "csv, xlsx, parquet, feather or arrow",
+    },
     "writer.expected.as_keyed_many": {
         "uz": "false — bir nechta fayl birlashtirilganda kalitli obyekt tiklanmaydi",
         "en": "false — a keyed object is not rebuilt when several files are merged",
@@ -2689,6 +2692,46 @@ MESSAGES: dict[str, dict[str, str]] = {
               "than a double holds, 1e400): it was written as text: {columns}",
     },
     "writer.progress.parquet_types": {"uz": "Ustun turlari aniqlanmoqda: {name}", "en": "Deciding the column types: {name}"},
+    # Arrow IPC / Feather (writer_parquet.py: the Parquet engine with the Arrow IPC backend)
+    "writer.error.feather_missing": {
+        "uz": "Feather / Arrow IPC eksporti uchun pyarrow paketi kerak: pip install \"jsonreshape[parquet]\" ({detail})",
+        "en": "The Feather / Arrow IPC export needs the pyarrow package: pip install \"jsonreshape[parquet]\" ({detail})",
+    },
+    "writer.error.feather_missing.hint": {
+        "uz": "Paketni o'rnating: pip install \"jsonreshape[parquet]\" — dasturning qolgan qismi usiz ham ishlaydi.",
+        "en": "Install the package: pip install \"jsonreshape[parquet]\" — the rest of the program works without it.",
+    },
+    "writer.error.feather": {
+        "uz": "Feather / Arrow IPC faylini yozib bo'lmadi: {detail}",
+        "en": "The Feather / Arrow IPC file could not be written: {detail}",
+    },
+    "writer.error.feather_type": {
+        "uz": "{column} ustuni: #{index} yozuvdagi qiymat turi barcha qatorlardan aniqlangan ustun turiga mos "
+              "kelmaydi (eksport davomida asl fayl o'zgarganmi?).",
+        "en": "Column {column}: the value at record #{index} does not fit the column type decided from all rows "
+              "(did the source change during the export?).",
+    },
+    "writer.expected.feather_compression": {"uz": "zstd, lz4 yoki none", "en": "zstd, lz4 or none"},
+    "writer.warn.feather_restarted": {
+        "uz": "{column} ustuni: #{index} yozuvdagi qiymat turi ustun turlari aniqlangan dastlabki {rows} qatordan "
+              "farq qiladi; eksport ikki o'tishda qayta bajarildi (turlar barcha qatorlardan aniqlandi).",
+        "en": "Column {column}: record #{index} holds a value of another type than the first {rows} rows, from which "
+              "the column types had been fixed; the export was done again in two passes (the types decided from "
+              "every row).",
+    },
+    "writer.warn.feather_number_text": {
+        "uz": "{count} ta ustunda int64 yoki double aniq saqlay olmaydigan sonlar bor (64 bitdan katta butun sonlar, "
+              "double sig'dirmaydigan raqamlar, 1e400): ular matn sifatida yozildi: {columns}",
+        "en": "{count} columns hold numbers no int64 or double keeps exactly (integers beyond 64 bits, more digits "
+              "than a double holds, 1e400): they were written as text: {columns}",
+    },
+    "writer.warn.feather_number_text.one": {
+        "uz": "{count} ta ustunda int64 yoki double aniq saqlay olmaydigan sonlar bor (64 bitdan katta butun sonlar, "
+              "double sig'dirmaydigan raqamlar, 1e400): u matn sifatida yozildi: {columns}",
+        "en": "{count} column holds numbers no int64 or double keeps exactly (integers beyond 64 bits, more digits "
+              "than a double holds, 1e400): it was written as text: {columns}",
+    },
+    "writer.progress.feather_types": {"uz": "Ustun turlari aniqlanmoqda: {name}", "en": "Deciding the column types: {name}"},
     # ---- filetools ----
     # split / merge / extract / --select (filetools.py, docs/ARCHITECTURE.md §14.4)
     "filetools.error.option": {
@@ -4849,6 +4892,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Parquet siqish usuli: zstd (standart), snappy, gzip yoki none",
         "en": "Parquet compression: zstd (default), snappy, gzip or none",
     },
+    "cli.help.feather_compression": {
+        "uz": "Feather / Arrow IPC siqish usuli: zstd (standart), lz4 yoki none",
+        "en": "Feather / Arrow IPC compression: zstd (default), lz4 or none",
+    },
     # import (CSV / YAML / XML -> JSON / JSON Lines; importers.py, docs/ARCHITECTURE.md §17)
     "cli.cmd.import.help": {
         "uz": "CSV, YAML yoki XML faylni JSON / JSON Lines'ga aylantirish",
@@ -5524,10 +5571,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "en": "The output format cannot be told from the file name: {path}",
     },
     "cli.error.output_format.hint": {
-        "uz": "--to json, jsonl, csv, xlsx, sqlite yoki parquet qo'shing yoki .json, .jsonl, .csv, .xlsx, .sqlite, "
-              ".parquet kengaytmasini ishlating.",
-        "en": "Add --to json, jsonl, csv, xlsx, sqlite or parquet, or use a .json, .jsonl, .csv, .xlsx, .sqlite or "
-              ".parquet name.",
+        "uz": "--to json, jsonl, csv, xlsx, sqlite, parquet, feather yoki arrow qo'shing yoki .json, .jsonl, .csv, "
+              ".xlsx, .sqlite, .parquet, .feather, .arrow kengaytmasini ishlating.",
+        "en": "Add --to json, jsonl, csv, xlsx, sqlite, parquet, feather or arrow, or use a .json, .jsonl, .csv, "
+              ".xlsx, .sqlite, .parquet, .feather or .arrow name.",
     },
     "cli.error.backend": {
         "uz": "Tanlangan yadroni ({backend}) yuklab bo'lmadi: {detail}",

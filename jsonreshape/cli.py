@@ -50,11 +50,12 @@
         --no-cache
     standard input: INPUT may be "-" (one of the INPUTs of merge / diff too): it is spooled to a
         temporary file first (see "Standard input" under "Decisions"); outputs are always files
-    output options: --to json|jsonl|csv|xlsx|sqlite|parquet (default: from the OUTPUT extension, see
-        writer.format_for_path), --jsonl (= --to jsonl), --compact, --indent 2|4|tab,
+    output options: --to json|jsonl|csv|xlsx|sqlite|parquet|feather|arrow (default: from the OUTPUT
+        extension, see writer.format_for_path), --jsonl (= --to jsonl), --compact, --indent 2|4|tab,
         --sort-keys [alpha|codepoint], --no-wrapper, --as-keyed, --columns a,b.c,
         --array-mode join|rows, --explode PATH, --sep ";", --delimiter "," (also "tab"), --no-bom,
-        --xlsx-split sheets|files, --parquet-compression zstd|snappy|gzip|none
+        --xlsx-split sheets|files, --parquet-compression zstd|snappy|gzip|none,
+        --feather-compression zstd|lz4|none
     record scope: [--where EXPR | --jmespath EXPR | --preset NAME] [--save-preset NAME] [--select SPEC]
 
 The global options may also be given after the command (``jsonreshape inspect a.json --lang en``).
@@ -483,8 +484,9 @@ EXIT_DIFFERENT = 5        # the data does not match: validate issues, diff --exi
 PROG = "jsonreshape"
 BACKENDS = ("auto", "rust", "python")
 INPUT_FORMATS = ("auto", "array", "jsonl", "brace_list", "wrapped", "keyed", "single", "stream")  # reader.KINDS
-OUTPUT_FORMATS = ("json", "jsonl", "csv", "xlsx", "sqlite", "parquet")                            # writer.FORMATS
+OUTPUT_FORMATS = ("json", "jsonl", "csv", "xlsx", "sqlite", "parquet", "feather", "arrow")        # writer.FORMATS
 PARQUET_COMPRESSIONS = ("zstd", "snappy", "gzip", "none")                              # writer.PARQUET_COMPRESSIONS
+FEATHER_COMPRESSIONS = ("zstd", "lz4", "none")                                         # writer.FEATHER_COMPRESSIONS
 HIT_EXPORT_FORMATS = ("csv", "json")                                                           # search.EXPORT_FORMATS
 SORT_KEY_ORDERS = ("alpha", "codepoint")                                       # writer.ExportOptions.sort_keys
 HIST_BINS = 32                                                                     # stats.HIST_BINS
@@ -807,6 +809,8 @@ def _add_output_options(parser: argparse.ArgumentParser) -> None:
     g.add_argument("--xlsx-split", choices=("sheets", "files"), default=None, help=t("cli.help.xlsx_split"))
     g.add_argument("--parquet-compression", choices=PARQUET_COMPRESSIONS, default=None,
                    help=t("cli.help.parquet_compression"))
+    g.add_argument("--feather-compression", choices=FEATHER_COMPRESSIONS, default=None,
+                   help=t("cli.help.feather_compression"))
 
 
 def _add_filter_options(parser: argparse.ArgumentParser, *, required: bool, select: bool = False) -> None:
@@ -2560,14 +2564,15 @@ _FORMAT_OPTIONS: dict[str, tuple[str, ...]] = {
     "--sort-keys": ("json", "jsonl"),
     "--no-wrapper": OUTPUT_FORMATS,
     "--as-keyed": ("json",),
-    "--columns": ("csv", "xlsx", "parquet"),
-    "--array-mode": ("csv", "xlsx", "parquet"),
-    "--explode": ("csv", "xlsx", "parquet"),
-    "--sep": ("csv", "xlsx", "parquet"),
+    "--columns": ("csv", "xlsx", "parquet", "feather", "arrow"),
+    "--array-mode": ("csv", "xlsx", "parquet", "feather", "arrow"),
+    "--explode": ("csv", "xlsx", "parquet", "feather", "arrow"),
+    "--sep": ("csv", "xlsx", "parquet", "feather", "arrow"),
     "--delimiter": ("csv",),
     "--no-bom": ("csv",),
     "--xlsx-split": ("xlsx",),
     "--parquet-compression": ("parquet",),
+    "--feather-compression": ("feather", "arrow"),
 }
 
 
@@ -2645,6 +2650,7 @@ def _given_output_options(args: argparse.Namespace) -> list[str]:
         "--no-bom": bool(value("no_bom")),
         "--xlsx-split": value("xlsx_split") is not None,
         "--parquet-compression": value("parquet_compression") is not None,
+        "--feather-compression": value("feather_compression") is not None,
     }
     return [name for name, on in given.items() if on]
 
@@ -2691,6 +2697,8 @@ def _export_options(ctx: _Ctx, fmt: str) -> Any:
         overrides["xlsx_split"] = args.xlsx_split
     if value("parquet_compression") is not None:
         overrides["parquet_compression"] = args.parquet_compression
+    if value("feather_compression") is not None:
+        overrides["feather_compression"] = args.feather_compression
     try:
         return ExportOptions.from_settings(fmt, ctx.settings, **overrides)
     except UserInputError as exc:
@@ -2997,7 +3005,7 @@ def _export_summary(ctx: _Ctx, report: Any, total: int, fmt: str, output: str) -
     summary = _tn("cli.summary.export", total, selected=_num(report.records), total=_num(total), output=shown,
                   size=format_bytes(report.bytes_written), seconds=format_duration(ctx.elapsed()))
     extra = []
-    if fmt in ("csv", "xlsx", "sqlite", "parquet") and report.rows != report.records:
+    if fmt in ("csv", "xlsx", "sqlite", "parquet", "feather", "arrow") and report.rows != report.records:
         extra.append(_tn("cli.summary.rows", report.rows, rows=_num(report.rows)))
     if len(report.files) > 1:
         extra.append(_tn("cli.summary.files", len(report.files), count=_num(len(report.files))))
