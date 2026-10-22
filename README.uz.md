@@ -2,6 +2,8 @@
 
 [English](README.md) | **O'zbekcha** | [Русский](README.ru.md)
 
+[![CI](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml/badge.svg)](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE) ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg) ![Platforms: Windows, Linux, macOS](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg) ![Tests: 22,304 passing](https://img.shields.io/badge/tests-22%2C304%20passing-brightgreen.svg)
+
 Katta JSON fayllar (100 MB dan bir necha GB gacha) bilan ishlash uchun desktop dastur va CLI:
 ko'rish, qidirish, filtrlash, tartiblash, konvertatsiya, tahrirlash, tuzilmani qayta qurish, statistika,
 dublikatlar, JSON Schema, bo'lish/birlashtirish, ta'mirlash va taqqoslash.
@@ -9,7 +11,7 @@ dublikatlar, JSON Schema, bo'lish/birlashtirish, ta'mirlash va taqqoslash.
 keyin faqat kerakli bo'laklar o'qiladi. **Asl fayl hech qachon o'zgartirilmaydi**: tahrirlar alohida qatlamda
 turadi, saqlash yangi faylni atomik almashtiradi (standart bo'yicha `.bak` zaxira nusxasi bilan).
 
-> **Holat: barcha 6 bosqich tayyor** (2026-10-19). Muallif: Erkin Pardayev · Claude Opus 5.5 yordamida yaratilgan
+> **Holat: tayyor** — 6 asosiy bosqich (2026-10-19) va tarqatish hamda kengaytmalar bosqichi (7-bosqich, 2026-10-21). Muallif: Erkin Pardayev · Claude Opus 5.5 yordamida yaratilgan
 > ([muallif, aloqa va mualliflik huquqi](#muallif)).
 
 | ![jsonreshape, yorug' mavzu: 12 000 yozuvli JSON massivning daraxti, #0 yozuv ochilgan (contact → address, tags), #1 yozuv tanlangan va o'ng panelda matn ko'rinishida](docs/img/main-light.png) | ![O'sha oyna qorong'i mavzuda](docs/img/main-dark.png) |
@@ -27,6 +29,7 @@ turadi, saqlash yangi faylni atomik almashtiradi (standart bo'yicha `.bak` zaxir
 | 4 | **Tuzilma quruvchi**: mapping engine (`json-tuzilma.html` bilan aynan bir xil natija), GUI (sudrab tashlash, jonli ko'rinish), mapping fayllari, CLI `apply`, `flatten` | ✅ tayyor |
 | 5 | **Asboblar**: maydon statistikasi, dublikatlar, JSON Schema (yaratish va tekshirish), bo'lish / birlashtirish / ajratib olish, ta'mirlash, taqqoslash (diff), "aqlli" qiymatlar; CLI `stats`, `dupes`, `schema`, `validate`, `split`, `merge`, `extract`, `repair`, `diff` | ✅ tayyor |
 | 6 | **Silliqlash**: buyruqlar palitrasi, tugmalarni sozlash, sessiyani tiklash, workspace fayllari, mavzular, Windows «Open with», PyInstaller `.exe`; og'ir eksportlar uchun ishchi jarayonlar; yakuniy benchmark | ✅ tayyor |
+| 7 | **Tarqatish va kengaytmalar**: Apache-2.0, CI / reliz quvuri (exe o'rnatuvchi, wheel'lar), Parquet eksporti, CSV/YAML/XML import, Python API, ruscha interfeys, statistika gistogrammalari, stdin, tez XLSX/SQLite eksporti (≥ 50 MB/s) | ✅ tayyor |
 
 ---
 

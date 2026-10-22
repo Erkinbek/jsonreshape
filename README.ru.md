@@ -2,6 +2,8 @@
 
 [English](README.md) | [O'zbekcha](README.uz.md) | **Русский**
 
+[![CI](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml/badge.svg)](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE) ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg) ![Platforms: Windows, Linux, macOS](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg) ![Tests: 22,304 passing](https://img.shields.io/badge/tests-22%2C304%20passing-brightgreen.svg)
+
 Настольное приложение и CLI для огромных файлов JSON (от 100 MB до нескольких GB): просмотр, поиск, фильтрация,
 сортировка, преобразование, редактирование, перестройка структуры, статистика, дубликаты, JSON Schema,
 разделение / объединение, исправление и сравнение.
@@ -9,7 +11,7 @@
 затем читаются только нужные части. **Исходный файл никогда не изменяется**: правки живут в отдельном слое, а
 сохранение атомарно заменяет файл новым (по умолчанию с резервной копией `.bak`).
 
-> **Статус: все 6 этапов завершены** (2026-10-19). Автор: Erkin Pardayev · создано с помощью Claude Opus 5.5
+> **Статус: готово** — 6 основных этапов (2026-10-19) и этап распространения и расширений (этап 7, 2026-10-21). Автор: Erkin Pardayev · создано с помощью Claude Opus 5.5
 > ([автор, контакты и авторские права](#muallif)).
 
 | ![jsonreshape, светлая тема: дерево JSON-массива из 12 000 записей, запись #0 раскрыта (contact → address, tags), запись #1 выбрана и показана текстом в правой панели](docs/img/main-light.png) | ![То же окно в тёмной теме](docs/img/main-dark.png) |
@@ -27,6 +29,7 @@
 | 4 | **Конструктор структуры**: движок маппинга (результаты идентичны `json-tuzilma.html`), GUI (перетаскивание, живой предпросмотр), файлы маппинга, CLI `apply`, `flatten` | ✅ готово |
 | 5 | **Инструменты**: статистика полей, дубликаты, JSON Schema (создание и проверка), разделение / объединение / извлечение, исправление, сравнение (diff), «умные» значения; CLI `stats`, `dupes`, `schema`, `validate`, `split`, `merge`, `extract`, `repair`, `diff` | ✅ готово |
 | 6 | **Полировка**: палитра команд, настройка сочетаний клавиш, восстановление сессии, файлы рабочего пространства, темы, «Открыть с помощью» в Windows, `.exe` через PyInstaller; рабочие процессы для тяжёлых экспортов; итоговый бенчмарк | ✅ готово |
+| 7 | **Распространение и расширения**: Apache-2.0, конвейер CI / релизов (установщик exe, wheel-пакеты), экспорт Parquet, импорт CSV/YAML/XML, Python API, русский интерфейс, гистограммы статистики, stdin, быстрый экспорт XLSX/SQLite (≥ 50 MB/s) | ✅ готово |
 
 ---
 

@@ -2,13 +2,15 @@
 
 **English** | [O'zbekcha](README.uz.md) | [Русский](README.ru.md)
 
+[![CI](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml/badge.svg)](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE) ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg) ![Platforms: Windows, Linux, macOS](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg) ![Tests: 22,304 passing](https://img.shields.io/badge/tests-22%2C304%20passing-brightgreen.svg)
+
 A desktop application and CLI for huge JSON files (from 100 MB to several GB): viewing, search, filtering, sorting,
 conversion, editing, restructuring, statistics, duplicates, JSON Schema, split/merge, repair and comparison.
 **A file is never loaded into memory as a whole**: it is indexed once (the byte boundaries of every record), then
 only the pieces that are needed are read. **The original file is never modified**: edits live in a separate layer,
 and saving atomically replaces the file with a new one (by default with a `.bak` backup copy).
 
-> **Status: all 6 stages are done** (2026-10-19). Author: Erkin Pardayev · built with Claude Opus 5.5
+> **Status: done** — the 6 core stages (2026-10-19) plus a distribution & extensions round (stage 7, 2026-10-21). Author: Erkin Pardayev · built with Claude Opus 5.5
 > ([author, contact and copyright](#muallif)).
 
 | ![jsonreshape in the light theme: the tree of a 12 000-record JSON array with record #0 expanded (contact → address, tags) and record #1 selected, shown as text in the right pane](docs/img/main-light.png) | ![The same window in the dark theme](docs/img/main-dark.png) |
@@ -26,6 +28,7 @@ window at 1400 × 900 (English UI; Uzbek is the default), rendered offscreen by 
 | 4 | **Structure builder**: mapping engine (results identical to `json-tuzilma.html`), GUI (drag and drop, live preview), mapping files, CLI `apply`, `flatten` | ✅ done |
 | 5 | **Tools**: field statistics, duplicates, JSON Schema (generate and validate), split / merge / extract, repair, compare (diff), "smart" values; CLI `stats`, `dupes`, `schema`, `validate`, `split`, `merge`, `extract`, `repair`, `diff` | ✅ done |
 | 6 | **Polish**: command palette, shortcut settings, session restore, workspace files, themes, Windows "Open with", PyInstaller `.exe`; worker processes for heavy exports; the final benchmark | ✅ done |
+| 7 | **Distribution & extensions**: Apache-2.0, CI / release pipeline (exe installer, wheels), Parquet export, CSV/YAML/XML import, Python API, Russian UI, stats histograms, stdin, fast XLSX/SQLite export (≥ 50 MB/s) | ✅ done |
 
 ---
 
