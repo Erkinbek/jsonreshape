@@ -13,3 +13,7 @@ dist/
 bench/data/
 bench/results/*.tmp
 .claude/
+
+# MkDocs documentation site
+/site/
+.cache/

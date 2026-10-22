@@ -1,0 +1,6 @@
+# Documentation site (MkDocs Material). Build locally with:
+#   pip install -r requirements-docs.txt
+#   mkdocs serve        # preview at http://127.0.0.1:8000
+#   mkdocs build        # output in ./site
+mkdocs-material>=9.5,<10
+mkdocs-static-i18n>=1.2,<2

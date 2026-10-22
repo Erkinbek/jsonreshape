@@ -1,0 +1,93 @@
+site_name: jsonreshape
+site_url: https://erkinbek.github.io/jsonreshape/
+site_description: >-
+  Open, search, edit and reshape huge JSON and JSON Lines files (GB-scale) without loading
+  them into memory — convert to CSV, Excel, SQLite and Parquet, compare, repair and more.
+site_author: Erkin Pardayev
+repo_url: https://github.com/Erkinbek/jsonreshape
+repo_name: Erkinbek/jsonreshape
+edit_uri: ""
+copyright: Copyright &copy; 2026 Erkin Pardayev &middot; Apache-2.0
+
+docs_dir: docs
+
+theme:
+  name: material
+  custom_dir: overrides
+  language: en
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+
+plugins:
+  - search
+  - i18n:
+      docs_structure: suffix
+      fallback_to_default: true
+      reconfigure_material: true
+      reconfigure_search: true
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+        - locale: uz
+          name: "Oʻzbekcha"
+          build: true
+        - locale: ru
+          name: "Русский"
+          build: true
+
+exclude_docs: |
+  ARCHITECTURE.md
+
+nav:
+  - Home: index.md
+  - Installation: install.md
+  - Guides:
+      - Open a large JSON file: guides/open-large-json-file.md
+      - Convert JSON to CSV, Excel, SQLite, Parquet: guides/convert-json-to-csv-excel.md
+      - Compare two JSON files: guides/compare-json-files.md
+      - Repair broken JSON: guides/repair-broken-json.md
+      - Flatten nested JSON: guides/flatten-nested-json.md
+      - Split and merge JSON files: guides/split-and-merge-json.md
+  - CLI reference: cli.md
+  - Python API: API.md
