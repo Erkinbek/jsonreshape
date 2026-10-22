@@ -49,6 +49,10 @@ All notable changes to jsonreshape are recorded here. The format follows
 - Screenshots of the viewer in `docs/img/` (main window in the light and dark theme, structure builder, compare
   window, field statistics with the histogram, import window, command palette) and `scripts/make_screenshots.py`,
   which regenerates them offscreen from synthetic data (`bench/make_synthetic.py`).
+- A demo GIF at the top of the README (`docs/img/demo.gif`, 33 s, 0.8 MB): a 2.1 GB file with 6.5 million records
+  opened, browsed, searched, filtered and exported, with a real-time clock under the window (the filter is played 8×
+  faster and says so); `scripts/make_demo_gif.py` records it offscreen and assembles it with `ffmpeg` (`--mp4` for a
+  video copy).
 - Field statistics: a chart area in the statistics dock — a histogram of the numbers (32 nice bins, exact up
   to 65 536 distinct numbers, else a reservoir sample scaled to the total and marked "≈"), the distribution of
   the string lengths, and the top 20 values as bars; hovering shows range, count and share, clicking a bar

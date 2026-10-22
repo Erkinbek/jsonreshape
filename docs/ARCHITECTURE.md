@@ -2952,6 +2952,20 @@ through the same public methods the GUI tests use (`DocumentTab.show_mapping`, `
 and the UI font is set to Segoe UI 9 pt before the window exists. The data (12 000 synthetic records, a changed copy
 for the comparison, a CSV) is written once into `%TEMP%\jsonreshape-screenshots`.
 
+### 16.4 Demo GIF (`scripts/make_demo_gif.py`)
+
+`scripts/make_demo_gif.py` records `docs/img/demo.gif` the same way (it imports `make_screenshots` for the offscreen
+environment and its wait helpers) on `bench/data/syn_2g.json` (2.1 GB, 6.5 M records; generated when missing). Five
+scenes — open, browse, search ("Toshkent", byte mode), filter (`score > 990 and contact.address.city == "Samarqand"`),
+CSV export of the filtered view — each frame `QWidget.grab()` of the main window (an open dialog drawn centred over
+it) plus a caption strip with a clock. The clock and the frame durations are real time: during a running task a
+frame is grabbed every 90 ms and stays on screen until the next one; only the filter (~25 s, it parses every record)
+is played 8× faster, which the strip says under the clock. A fresh `JSONRESHAPE_HOME` per run means no cached index,
+so the opening shows the real first-time indexing. The PNG frames go through `ffmpeg` (concat demuxer with
+per-frame durations; one `palettegen` palette, `paletteuse=dither=none:diff_mode=rectangle`): ~125 frames, ~33 s,
+~0.8 MB. `--mp4` writes an H.264 copy for posts. The export lands next to the data file under a relative name (no
+user folder on screen) and is deleted afterwards.
+
 ---------------------------------------------------------------------------------
 
 ## 17. Importers (stage 7): CSV / TSV, YAML and XML -> JSON / JSON Lines
