@@ -72,9 +72,31 @@ plugins:
         - locale: uz
           name: "Oʻzbekcha"
           build: true
+          nav_translations:
+            "Home": "Bosh sahifa"
+            "Installation": "O'rnatish"
+            "Guides": "Qo'llanmalar"
+            "Open a large JSON file": "Katta JSON faylni ochish"
+            "Convert JSON to CSV, Excel, SQLite, Parquet": "JSON'ni CSV, Excel, SQLite, Parquet ga konvertatsiya"
+            "Compare two JSON files": "Ikki JSON faylni taqqoslash"
+            "Repair broken JSON": "Buzuq JSON'ni ta'mirlash"
+            "Flatten nested JSON": "Ichma-ich JSON'ni tekislash"
+            "Split and merge JSON files": "JSON fayllarni bo'lish va birlashtirish"
+            "CLI reference": "CLI ma'lumotnomasi"
         - locale: ru
           name: "Русский"
           build: true
+          nav_translations:
+            "Home": "Главная"
+            "Installation": "Установка"
+            "Guides": "Руководства"
+            "Open a large JSON file": "Открыть большой файл JSON"
+            "Convert JSON to CSV, Excel, SQLite, Parquet": "Преобразование JSON в CSV, Excel, SQLite, Parquet"
+            "Compare two JSON files": "Сравнение двух файлов JSON"
+            "Repair broken JSON": "Исправление повреждённого JSON"
+            "Flatten nested JSON": "Развёртывание вложенного JSON"
+            "Split and merge JSON files": "Разделение и объединение файлов JSON"
+            "CLI reference": "Справочник CLI"
 
 exclude_docs: |
   ARCHITECTURE.md
