@@ -12,7 +12,10 @@ description: jsonreshape открывает, ищет, редактирует и
 [Установить](install.md){ .md-button .md-button--primary }
 [Смотреть на GitHub](https://github.com/Erkinbek/jsonreshape){ .md-button }
 
-![Просмотрщик jsonreshape с деревом большого массива JSON](img/main-light.png){ loading=lazy }
+![jsonreshape открывает файл JSON 2,1 GB с 6,5 млн записей, ищет по всем записям, фильтрует и экспортирует результат в CSV](img/demo.gif){ loading=lazy }
+
+*Файл 2,1 GB с 6,5 млн записей. Часы под окном показывают реальное время; только фильтр ускорен в 8 раз, и это
+написано в строке под окном.*
 
 ## Чем он отличается
 

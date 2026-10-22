@@ -12,7 +12,10 @@ several gigabytes.
 [Install](install.md){ .md-button .md-button--primary }
 [View on GitHub](https://github.com/Erkinbek/jsonreshape){ .md-button }
 
-![The jsonreshape viewer showing the tree of a large JSON array](img/main-light.png){ loading=lazy }
+![jsonreshape opens a 2.1 GB JSON file with 6.5 million records, searches every record, filters it and exports the result to CSV](img/demo.gif){ loading=lazy }
+
+*A 2.1 GB file with 6.5 million records. The clock under the window is real time; only the filter is played 8×
+faster, and the strip says so.*
 
 ## Why it is different
 

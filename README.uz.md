@@ -11,6 +11,12 @@ dublikatlar, JSON Schema, bo'lish/birlashtirish, ta'mirlash va taqqoslash.
 keyin faqat kerakli bo'laklar o'qiladi. **Asl fayl hech qachon o'zgartirilmaydi**: tahrirlar alohida qatlamda
 turadi, saqlash yangi faylni atomik almashtiradi (standart bo'yicha `.bak` zaxira nusxasi bilan).
 
+![Demo: jsonreshape 6.5 million yozuvli 2.1 GB JSON faylni ochadi, barcha yozuvlar bo'ylab qidiradi, ifoda bilan filtrlaydi va natijani CSV'ga eksport qiladi](docs/img/demo.gif)
+
+*6.5 million yozuvli 2.1 GB fayl: ochish, ko'rish, barcha yozuvlar bo'ylab qidiruv, filtr va CSV eksporti. Oyna
+ostidagi soat — haqiqiy vaqt (faqat filtr 8 baravar tezlashtirib ko'rsatilgan, pastki qatorda shu yozilgan);
+`scripts/make_demo_gif.py` bilan ekransiz yozib olingan.*
+
 > **Holat: tayyor** — 6 asosiy bosqich (2026-10-19) va tarqatish hamda kengaytmalar bosqichi (7-bosqich, 2026-10-21). Muallif: Erkin Pardayev · Claude Opus 5.5 yordamida yaratilgan
 > ([muallif, aloqa va mualliflik huquqi](#muallif)).
 

@@ -12,7 +12,10 @@ kodli **desktop dastur va buyruqlar qatori vositasi**.
 [O'rnatish](install.md){ .md-button .md-button--primary }
 [GitHub'da ko'rish](https://github.com/Erkinbek/jsonreshape){ .md-button }
 
-![Katta JSON massiv daraxtini ko'rsatayotgan jsonreshape ko'ruvchisi](img/main-light.png){ loading=lazy }
+![jsonreshape 6.5 million yozuvli 2.1 GB JSON faylni ochadi, barcha yozuvlar bo'ylab qidiradi, filtrlaydi va natijani CSV'ga eksport qiladi](img/demo.gif){ loading=lazy }
+
+*6.5 million yozuvli 2.1 GB fayl. Oyna ostidagi soat — haqiqiy vaqt; faqat filtr 8 baravar tezlashtirib
+ko'rsatilgan, pastki qatorda shu yozilgan.*
 
 ## Nimasi bilan farqlanadi
 

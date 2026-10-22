@@ -10,6 +10,12 @@ conversion, editing, restructuring, statistics, duplicates, JSON Schema, split/m
 only the pieces that are needed are read. **The original file is never modified**: edits live in a separate layer,
 and saving atomically replaces the file with a new one (by default with a `.bak` backup copy).
 
+![Demo: jsonreshape opens a 2.1 GB JSON file with 6.5 million records, searches every record, filters it with an expression and exports the result to CSV](docs/img/demo.gif)
+
+*A 2.1 GB file with 6.5 million records: opening, browsing, a search over every record, a filter and a CSV export.
+The clock under the window is real time (only the filter is played 8× faster, and the strip says so); recorded
+offscreen by `scripts/make_demo_gif.py`.*
+
 > **Status: done** — the 6 core stages (2026-10-19) plus a distribution & extensions round (stage 7, 2026-10-21). Author: Erkin Pardayev · built with Claude Opus 5.5
 > ([author, contact and copyright](#muallif)).
 
