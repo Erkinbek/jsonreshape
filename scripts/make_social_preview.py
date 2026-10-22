@@ -119,7 +119,7 @@ def main() -> int:
         ("      \u00b7      ", sep, QFont.Normal),
         ("10M", amber, QFont.Bold), (" records sorted in 77 s", grey, QFont.Normal),
         ("      \u00b7      ", sep, QFont.Normal),
-        ("export up to ", grey, QFont.Normal), ("250 MB/s", amber, QFont.Bold),
+        ("export up to ", grey, QFont.Normal), ("220 MB/s", amber, QFont.Bold),
     ]
     x = 80
     for text, color, weight in segments:
