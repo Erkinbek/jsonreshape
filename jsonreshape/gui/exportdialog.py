@@ -124,14 +124,17 @@ log = logging.getLogger(__name__)
 __all__ = ["ExportDialog", "ExportJob", "ExportOutcome", "ExportReportDialog", "ExportRunner", "FORMATS",
            "MappingSource", "export_node", "export_runner", "mapping_report"]
 
-FORMATS = ("json", "jsonl", "csv", "xlsx", "sqlite", "parquet")
+#: ``feather`` and ``arrow`` are one Arrow IPC file under two names (as ``--to``); both are listed because
+#: ``writer.format_for_path`` returns either for a typed ``.feather`` / ``.arrow`` name
+FORMATS = ("json", "jsonl", "csv", "xlsx", "sqlite", "parquet", "feather", "arrow")
 NODE_FORMATS = ("json", "jsonl")                 # any node: writer.export_node
-TABLE_NODE_FORMATS = ("csv", "xlsx", "sqlite", "parquet")   # an array / object node re-opened as a record container
+#: an array / object node re-opened as a record container
+TABLE_NODE_FORMATS = ("csv", "xlsx", "sqlite", "parquet", "feather", "arrow")
 MAPPING_FORMATS = ("json", "jsonl")
 MAPPING_SUFFIX = "_yangi"          # the prototype's default output name: <name>_yangi.json
 SCOPES = ("view", "all", "selected", "node", "records")
 EXTENSIONS = {"json": ".json", "jsonl": ".jsonl", "csv": ".csv", "xlsx": ".xlsx", "sqlite": ".sqlite",
-              "parquet": ".parquet"}
+              "parquet": ".parquet", "feather": ".feather", "arrow": ".arrow"}
 STATE_KEY = "export_last"
 DIR_KEY = "last_export_dir"
 
@@ -1082,7 +1085,7 @@ class ExportDialog(QDialog):
         elif fmt == "jsonl":
             if not node:
                 kw["sort_keys"] = self.jsonl_sort_combo.currentData()
-        elif fmt in ("csv", "xlsx", "parquet"):
+        elif fmt in ("csv", "xlsx", "parquet", "feather", "arrow"):
             if self.auto_columns_check.isChecked():
                 kw["columns"] = None
             else:
@@ -1105,7 +1108,7 @@ class ExportDialog(QDialog):
     # -------------------------------------------------------------------------------- reactions
     @staticmethod
     def _page_index(fmt: str) -> int:
-        return {"json": 0, "jsonl": 1, "csv": 2, "xlsx": 2, "parquet": 2, "sqlite": 3}[fmt]
+        return {"json": 0, "jsonl": 1, "csv": 2, "xlsx": 2, "parquet": 2, "feather": 2, "arrow": 2, "sqlite": 3}[fmt]
 
     def _on_path_changed(self, text: str) -> None:
         if self._syncing:

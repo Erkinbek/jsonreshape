@@ -27,13 +27,13 @@ pq = pytest.importorskip("pyarrow.parquet")
 
 
 def test_dialog_lists_parquet_and_writes_the_file(qtbot, app, opened, dialog, tmp_path: Path) -> None:
-    assert exportdialog_mod.FORMATS[-1] == "parquet" and exportdialog_mod.EXTENSIONS["parquet"] == ".parquet"
+    assert "parquet" in exportdialog_mod.FORMATS and exportdialog_mod.EXTENSIONS["parquet"] == ".parquet"
     assert "parquet" in exportdialog_mod.TABLE_NODE_FORMATS and "parquet" not in exportdialog_mod.NODE_FORMATS
     s = opened(write_array(tmp_path / "people.json"))
     dlg = dialog(s, scope="all")
     combo = dlg.format_combo
     index = exportdialog_mod.FORMATS.index("parquet")
-    assert combo.count() == len(exportdialog_mod.FORMATS) == 6
+    assert combo.count() == len(exportdialog_mod.FORMATS) == 8
     assert combo.itemText(index) == t("gui.export.format.parquet") and combo.itemData(index) == "parquet"
     out = tmp_path / "out.parquet"
     dlg.set_output_path(out)

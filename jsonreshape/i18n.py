@@ -9722,12 +9722,16 @@ MESSAGES: dict[str, dict[str, str]] = {
     "gui.export.format.csv": {"uz": "CSV (jadval)", "en": "CSV (table)"},
     "gui.export.format.xlsx": {"uz": "Excel (XLSX)", "en": "Excel (XLSX)"},
     "gui.export.format.parquet": {"uz": "Parquet (ustunli jadval)", "en": "Parquet (columnar table)"},
+    "gui.export.format.feather": {"uz": "Feather (Arrow IPC, ustunli jadval)", "en": "Feather (Arrow IPC, columnar table)"},
+    "gui.export.format.arrow": {"uz": "Arrow IPC (ustunli jadval)", "en": "Arrow IPC (columnar table)"},
     "gui.export.format.sqlite": {"uz": "SQLite ma'lumotlar bazasi", "en": "SQLite database"},
     "gui.export.filter.json": {"uz": "JSON (*.json)", "en": "JSON (*.json)"},
     "gui.export.filter.jsonl": {"uz": "JSON Lines (*.jsonl *.ndjson)", "en": "JSON Lines (*.jsonl *.ndjson)"},
     "gui.export.filter.csv": {"uz": "CSV (*.csv)", "en": "CSV (*.csv)"},
     "gui.export.filter.xlsx": {"uz": "Excel (*.xlsx)", "en": "Excel (*.xlsx)"},
     "gui.export.filter.parquet": {"uz": "Parquet (*.parquet)", "en": "Parquet (*.parquet)"},
+    "gui.export.filter.feather": {"uz": "Feather (*.feather)", "en": "Feather (*.feather)"},
+    "gui.export.filter.arrow": {"uz": "Arrow IPC (*.arrow)", "en": "Arrow IPC (*.arrow)"},
     "gui.export.filter.sqlite": {"uz": "SQLite (*.sqlite *.sqlite3 *.db)", "en": "SQLite (*.sqlite *.sqlite3 *.db)"},
     "gui.export.scope.title": {"uz": "Nimani eksport qilamiz", "en": "What to export"},
     "gui.export.scope.view": {
@@ -9835,6 +9839,18 @@ MESSAGES: dict[str, dict[str, str]] = {
         "uz": "Parquet faylida tashqi o'rama uchun joy yo'q: belgilansa hisobotda bu haqda eslatma chiqadi; "
               "belgilanmasa faqat yozuvlar so'ralgan hisoblanadi.",
         "en": "A Parquet file has no place for the wrapper: when checked, the report notes that it was not written; "
+              "unchecked means only the records are wanted.",
+    },
+    "gui.export.keep_wrapper.tip.feather": {
+        "uz": "Feather faylida tashqi o'rama uchun joy yo'q: belgilansa hisobotda bu haqda eslatma chiqadi; "
+              "belgilanmasa faqat yozuvlar so'ralgan hisoblanadi.",
+        "en": "A Feather file has no place for the wrapper: when checked, the report notes that it was not written; "
+              "unchecked means only the records are wanted.",
+    },
+    "gui.export.keep_wrapper.tip.arrow": {
+        "uz": "Arrow IPC faylida tashqi o'rama uchun joy yo'q: belgilansa hisobotda bu haqda eslatma chiqadi; "
+              "belgilanmasa faqat yozuvlar so'ralgan hisoblanadi.",
+        "en": "An Arrow IPC file has no place for the wrapper: when checked, the report notes that it was not written; "
               "unchecked means only the records are wanted.",
     },
     "gui.export.keep_wrapper.node": {
