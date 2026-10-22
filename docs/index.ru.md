@@ -32,7 +32,7 @@ description: jsonreshape открывает, ищет, редактирует и
 | Задача | Руководство |
 |---|---|
 | Открыть и просматривать файл JSON / JSON Lines размером 2–5 GB | [Открыть большой файл JSON](guides/open-large-json-file.md) |
-| Преобразовать в CSV, Excel, SQLite или Parquet | [Преобразование JSON](guides/convert-json-to-csv-excel.md) |
+| Преобразовать в CSV, Excel, SQLite, Parquet или Feather | [Преобразование JSON](guides/convert-json-to-csv-excel.md) |
 | Сравнить два файла JSON | [Сравнение файлов JSON](guides/compare-json-files.md) |
 | Исправить недопустимый / повреждённый файл JSON | [Исправление повреждённого JSON](guides/repair-broken-json.md) |
 | Развернуть вложенный JSON в таблицу | [Развёртывание вложенного JSON](guides/flatten-nested-json.md) |

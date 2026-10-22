@@ -28,7 +28,7 @@ window at 1400 × 900 (English UI; Uzbek is the default), rendered offscreen by 
 | 4 | **Structure builder**: mapping engine (results identical to `json-tuzilma.html`), GUI (drag and drop, live preview), mapping files, CLI `apply`, `flatten` | ✅ done |
 | 5 | **Tools**: field statistics, duplicates, JSON Schema (generate and validate), split / merge / extract, repair, compare (diff), "smart" values; CLI `stats`, `dupes`, `schema`, `validate`, `split`, `merge`, `extract`, `repair`, `diff` | ✅ done |
 | 6 | **Polish**: command palette, shortcut settings, session restore, workspace files, themes, Windows "Open with", PyInstaller `.exe`; worker processes for heavy exports; the final benchmark | ✅ done |
-| 7 | **Distribution & extensions**: Apache-2.0, CI / release pipeline (exe installer, wheels), Parquet export, CSV/YAML/XML import, Python API, Russian UI, stats histograms, stdin, fast XLSX/SQLite export (≥ 50 MB/s) | ✅ done |
+| 7 | **Distribution & extensions**: Apache-2.0, CI / release pipeline (exe installer, wheels), Parquet and Feather / Arrow IPC export, CSV/YAML/XML import, Python API, Russian UI, stats histograms, stdin, fast XLSX/SQLite export (≥ 50 MB/s) | ✅ done |
 
 ---
 
@@ -71,8 +71,8 @@ results (checked by tests), only slower. To force it: `JSONRESHAPE_BACKEND=pytho
 (or `--backend python` in the CLI).
 
 For the graphical interface: `.venv\Scripts\python -m pip install -e ".[gui]"` (PySide6).
-Parquet export needs the optional `pyarrow` package: `pip install "jsonreshape[parquet]"` (the program works
-without it; a Parquet export then says how to install it).
+Parquet and Feather / Arrow IPC export need the optional `pyarrow` package: `pip install "jsonreshape[parquet]"`
+(the program works without it; such an export then says how to install it).
 
 Running: `jsonreshape ...` (CLI) or `python -m jsonreshape ...`; GUI — `jsonreshape-gui [file ...]`
 or `python -m jsonreshape.gui` ([section 3](#gui)).
@@ -157,6 +157,9 @@ jsonreshape convert keyed.jsonl keyed.json --as-keyed
 jsonreshape convert data.json table.csv --columns "id,name,contact.address.city"
 jsonreshape convert data.json table.xlsx --array-mode rows --explode orders
 jsonreshape convert data.json db.sqlite
+# Parquet and Feather / Arrow IPC (.feather or .arrow); the optional pyarrow: pip install "jsonreshape[parquet]"
+jsonreshape convert data.json data.parquet
+jsonreshape convert data.json data.feather --feather-compression lz4
 jsonreshape convert data.json pretty.json --indent 4 --sort-keys --where "active == true" --sort-by -score
 # only selected records (numbered from 0: 0:100 = 0..99) or a single node
 jsonreshape convert data.json selection.csv --select "0:100,500"
@@ -580,11 +583,13 @@ Encoding: UTF-8 (with or without BOM), UTF-16 LE/BE (with or without BOM), `.jso
 gzip files are first converted to a UTF-8 copy (streamed, with bounded memory) and cached; the first records are
 not visible until the copy is ready (~0.5 s for 200 MB of data). UTF-32 is rejected (with a clear message).
 
-**Output formats** (`convert`, `filter`, `sort`, the export dialog): JSON, JSON Lines, CSV, XLSX, SQLite and
-**Parquet** (`.parquet`; needs `pip install "jsonreshape[parquet]"`). The three table formats — CSV, XLSX,
-Parquet — share one column model (`--columns`, automatic columns, `a.b.c`, `--array-mode`, `--explode`), so the
-same export gives the same header and rows in each of them. `.parquet.gz` is refused like `.xlsx.gz`: Parquet
-compresses its own pages (`--parquet-compression zstd|snappy|gzip|none`, default `zstd`).
+**Output formats** (`convert`, `filter`, `sort`, the export dialog): JSON, JSON Lines, CSV, XLSX, SQLite,
+**Parquet** (`.parquet`) and **Feather / Arrow IPC** (`.feather` or `.arrow`); the last two need
+`pip install "jsonreshape[parquet]"`. The four table formats — CSV, XLSX, Parquet, Feather — share one column
+model (`--columns`, automatic columns, `a.b.c`, `--array-mode`, `--explode`), so the same export gives the same
+header and rows in each of them. `.parquet.gz` and `.feather.gz` are refused like `.xlsx.gz`: Parquet and Arrow
+IPC compress their own data (`--parquet-compression zstd|snappy|gzip|none`, `--feather-compression zstd|lz4|none`;
+`zstd` by default).
 
 **Import of other formats** (`jsonreshape import`, File → "Import (CSV, YAML, XML)…"; `README` §2): CSV / TSV, YAML
 and XML files become JSON Lines (one record per line) or one JSON array / value. Numbers keep their text exactly
@@ -747,6 +752,13 @@ while it is being checked.
   1 048 576 rows); compression `--parquet-compression zstd` (default) | `snappy` | `gzip` | `none`; the rows are
   built in worker processes exactly as for CSV (the file is byte for byte the same with one thread). In the
   export dialog Parquet is a third table format (the columns page), also for an array / object node.
+* **Feather / Arrow IPC** (`out.feather` or `out.arrow`, `--to feather` / `--to arrow`; the same optional
+  `pyarrow`): the Parquet table — the same columns, typed columns and type rules, the same two-pass restart —
+  written in the Arrow IPC file format, which Feather v2 is, so pandas (`read_feather`), Polars (`read_ipc`) and
+  pyarrow open it directly. The two names write byte-identical files. One record batch per Parquet row group;
+  compression `--feather-compression zstd` (default) | `lz4` | `none`; worker processes as for Parquet (byte for
+  byte the same file with one thread). In the export dialog both names are table formats (the columns page), also
+  for an array / object node.
 * **SQLite**: a separate table for each array, with parent–child links (`_id`, `_parent`, `_idx`); if a table has
   more than 1,500 columns, the remaining fields are written to the `_extra` (JSON text) column; "dictionary"
   objects are stored as JSON text; up to 200 child tables (the rest as JSON text).
@@ -1010,6 +1022,7 @@ memory (≤ 17 MB when restoring an edit layer).
 | Export JSON → JSONL / JSON (indent 2), 2.1 GB, without mapping or edits | ≥ 50 MB/s, RAM < 300 MB | 180 / 214 MB/s, peak 89 / 71 MB | ✅ |
 | Export CSV: automatic columns / 9 scalar columns (4 worker processes) | ≥ 50 MB/s, RAM < 300 MB | 105 / 224 MB/s, RAM 226 / 222 MB (private 175 / 167 MB) | ✅ |
 | Export JSON → Parquet, automatic columns (zstd, 4 workers) | — | 83.6 MB/s (25.7 s; output 220.7 MB, 20 row groups) | — |
+| Export JSON → Feather / Arrow IPC, automatic columns (zstd / lz4, 4 workers) | — | 97.4 / 98.8 MB/s (22.0 / 21.7 s; output 338.7 / 550.5 MB, 20 record batches; Parquet in the same run: 81.9 MB/s) | — |
 | Total memory of the program (the largest of all operations except sorting, with worker processes) | < 500 MB | 299 MB (`flatten`, with 3 worker processes; private 246 MB) | ✅ |
 
 Additionally: filter (extract) 207 MB/s; filter + writing the result (2.1 GB, from opening to the end) 16.9 s; schema
@@ -1319,6 +1332,14 @@ session restore when `main()` is started again.
     feature can land before its translation; `tests/test_i18n_ru.py` checks the placeholders and line breaks of
     every Russian text against the English one and requires full coverage. Russian numbers are written like Uzbek
     ones (`1 234 567,5`, `i18n.space_grouped()`); the Uzbek collation and the Latin–Cyrillic search stay as they are.
+55. **Feather / Arrow IPC is the Parquet engine, not a second exporter**: `writer_parquet.py` has one columnar
+    engine with a pluggable write backend (`ParquetWriter` row groups, or `pyarrow.ipc.new_file` with one record
+    batch per row group), so the columns, the type rules of decision 47, the two-pass restart and the worker
+    processes are shared and the two formats can never drift apart (tests compare the two tables value for value).
+    `feather` and `arrow` are two names of one file (the Arrow IPC file format; Feather v2 is that file): both are
+    accepted (`--to`, the extension, the export dialog) because people search for either. Compression `zstd` by
+    default, `lz4` or `none` (Arrow IPC has no snappy / gzip). Like Parquet, it needs `pyarrow` and is not in the
+    Windows `.exe`.
 
 ### Known limitations
 

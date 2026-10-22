@@ -30,7 +30,7 @@ kodli **desktop dastur va buyruqlar qatori vositasi**.
 | Vazifa | Qo'llanma |
 |---|---|
 | 2–5 GB JSON / JSON Lines faylni ochish va ko'rish | [Katta JSON faylni ochish](guides/open-large-json-file.md) |
-| CSV, Excel, SQLite yoki Parquet ga konvertatsiya | [JSON'ni konvertatsiya qilish](guides/convert-json-to-csv-excel.md) |
+| CSV, Excel, SQLite, Parquet yoki Feather ga konvertatsiya | [JSON'ni konvertatsiya qilish](guides/convert-json-to-csv-excel.md) |
 | Ikki JSON faylni taqqoslash | [JSON fayllarni taqqoslash](guides/compare-json-files.md) |
 | Yaroqsiz / buzuq JSON faylni ta'mirlash | [Buzuq JSON'ni ta'mirlash](guides/repair-broken-json.md) |
 | Ichma-ich JSON'ni jadvalga tekislash | [Ichma-ich JSON'ni tekislash](guides/flatten-nested-json.md) |

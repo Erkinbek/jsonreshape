@@ -39,9 +39,11 @@ jsonreshape convert data.json table.csv --columns "id,name,contact.address.city"
 jsonreshape convert data.json table.xlsx --array-mode rows --explode orders
 jsonreshape convert data.json db.sqlite                  # one table
 jsonreshape convert data.json data.parquet               # needs jsonreshape[parquet]
+jsonreshape convert data.json data.feather               # or .arrow (Arrow IPC); same extra
+jsonreshape convert data.json data.arrow --feather-compression lz4
 ```
 
-См. [Преобразование JSON в CSV, Excel, SQLite, Parquet](guides/convert-json-to-csv-excel.md).
+См. [Преобразование JSON в CSV, Excel, SQLite, Parquet, Feather](guides/convert-json-to-csv-excel.md).
 
 ## Перестройка
 

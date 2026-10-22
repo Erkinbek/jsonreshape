@@ -77,7 +77,7 @@ plugins:
             "Installation": "O'rnatish"
             "Guides": "Qo'llanmalar"
             "Open a large JSON file": "Katta JSON faylni ochish"
-            "Convert JSON to CSV, Excel, SQLite, Parquet": "JSON'ni CSV, Excel, SQLite, Parquet ga konvertatsiya"
+            "Convert JSON to CSV, Excel, SQLite, Parquet, Feather": "JSON'ni CSV, Excel, SQLite, Parquet, Feather ga konvertatsiya"
             "Compare two JSON files": "Ikki JSON faylni taqqoslash"
             "Repair broken JSON": "Buzuq JSON'ni ta'mirlash"
             "Flatten nested JSON": "Ichma-ich JSON'ni tekislash"
@@ -91,7 +91,7 @@ plugins:
             "Installation": "Установка"
             "Guides": "Руководства"
             "Open a large JSON file": "Открыть большой файл JSON"
-            "Convert JSON to CSV, Excel, SQLite, Parquet": "Преобразование JSON в CSV, Excel, SQLite, Parquet"
+            "Convert JSON to CSV, Excel, SQLite, Parquet, Feather": "Преобразование JSON в CSV, Excel, SQLite, Parquet, Feather"
             "Compare two JSON files": "Сравнение двух файлов JSON"
             "Repair broken JSON": "Исправление повреждённого JSON"
             "Flatten nested JSON": "Развёртывание вложенного JSON"
@@ -106,7 +106,7 @@ nav:
   - Installation: install.md
   - Guides:
       - Open a large JSON file: guides/open-large-json-file.md
-      - Convert JSON to CSV, Excel, SQLite, Parquet: guides/convert-json-to-csv-excel.md
+      - Convert JSON to CSV, Excel, SQLite, Parquet, Feather: guides/convert-json-to-csv-excel.md
       - Compare two JSON files: guides/compare-json-files.md
       - Repair broken JSON: guides/repair-broken-json.md
       - Flatten nested JSON: guides/flatten-nested-json.md

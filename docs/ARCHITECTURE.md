@@ -80,7 +80,8 @@ jsonreshape/
   search.py               full-file search runner (byte prefilter + parse confirmation)
   schema.py               structure inference (types, presence, examples) from a sample
   writer.py               streaming writers: JSON, JSONL, CSV, XLSX, SQLite
-  writer_parquet.py       Parquet export: typed columns, type decision + two-pass restart, row groups (§8; optional pyarrow)
+  writer_parquet.py       Parquet and Feather / Arrow IPC export: one columnar engine (typed columns, type decision +
+                          two-pass restart, row groups) with two write backends (§8; optional pyarrow)
   overlay.py              edit state: piece table, content layers, virtual address space, Remap/ChangeSet (§12.1)
   editstore.py            edit layer on disk: SQLite steps + units.dat, recovery, locks (§12.2)
   editops.py              byte-level node edits, style detection, formatting, type conversion (§12.4)
@@ -685,13 +686,14 @@ mode that makes `tsirk`/`sirk` ~ `цирк`, `militsiya`/`milisiya` ~ `мили�
 
 ```python
 class ExportOptions:  # dataclass
-    fmt: str                 # json|jsonl|csv|xlsx|sqlite|parquet
+    fmt: str                 # json|jsonl|csv|xlsx|sqlite|parquet|feather|arrow
     indent: int|str|None=2; sort_keys: bool|str=False   # True == "alpha" (uz collation) | "codepoint"
     keep_wrapper=True
     columns: list[str]|None=None; array_mode="join"|"rows"; explode: str|None=None
     join_sep=";"; csv_delimiter=","; csv_bom=True
     xlsx_max_rows=1048576; xlsx_split="sheets"|"files"
     parquet_compression="zstd"|"snappy"|"gzip"|"none"   # stage 7, writer_parquet.py
+    feather_compression="zstd"|"lz4"|"none"             # Feather / Arrow IPC (same module)
     as_keyed: bool = False   # JSON only (else UserInputError writer.invalid_option): one keyed object from {"k": v} records
 def discover_columns(doc, source=None, *, sample=None, array_mode="join", explode=None,
                      progress=None, cancel=None) -> list[str]   # sample=None: every record
@@ -737,7 +739,7 @@ def export(doc, out_path, opts, source=None, *, progress=None, cancel=None) -> E
 * Every export calls `doc.ensure_unchanged()` right before the atomic commit.
 
 **Parquet (stage 7, as built; `writer_parquet.py` is authoritative).** `fmt="parquet"` is the third table format
-(`writer.TABLE_FORMATS = ("csv", "xlsx", "parquet")`): `_prepare_columns`, the column scan, `plan_columns`, the
+(`writer.TABLE_FORMATS = ("csv", "xlsx", "parquet", "feather", "arrow")`): `_prepare_columns`, the column scan, `plan_columns`, the
 wrapper notice and the option/format tables of the CLI and the export dialog treat it exactly as CSV/XLSX, so the
 three formats of one export share header and rows. `_EXPORTERS["parquet"]` imports the module lazily (pyarrow is
 an optional extra `parquet = ["pyarrow>=17"]`; `export()` checks it before any work: `writer.error.parquet_missing`
@@ -759,6 +761,19 @@ accumulated and a row group is written every `G` rows, `G` = ~64 MiB estimated f
 1 048 576), each group `combine_chunks()`-ed into one contiguous chunk (Arrow's page splitting depends on the
 chunks it is given) — hence byte-identical files for `workers=1` and `workers=N`; only > 512 MiB of pending batches
 cuts a group early (memory bound; data unchanged). Lone surrogates become the text `\ud800` (as CSV/XLSX).
+
+**Feather / Arrow IPC (as built).** `fmt="feather"` and `fmt="arrow"` (`.feather` / `.arrow`) are one format under
+two names -- the Arrow IPC file format, which Feather v2 is -- and both map to `_EXPORTERS` → `export_feather`. It is
+the Parquet engine above, not a copy: `_Collector` takes a write backend instead of `pyarrow.parquet`
+(`_ParquetBackend.open` = `ParquetWriter(..., compression=parquet_compression)`, `write_group` =
+`write_table(part, row_group_size=G)`; `_ArrowBackend.open` = `pyarrow.ipc.new_file(sink, schema,
+IpcWriteOptions(compression=zstd|lz4|None))`, `write_group` = `write_table(part)` -- one record batch per row group,
+so the batch boundaries are the data-determined row groups and `workers=1` / `workers=N` stay byte-identical), and
+`_export_columnar(ctx, out, fmt)` takes a small `_Fmt` descriptor with the backend factory and the message keys
+(`writer.*.parquet*` / `writer.*.feather*`). The Parquet bytes did not change with the refactor. `export()` checks
+`require_pyarrow_ipc()` before any work (`writer.error.feather_missing`, the same `jsonreshape[parquet]` extra);
+`.feather.gz` / `.arrow.gz` are refused (`writer.error.gzip_format`). The export dialog lists both names, because
+`writer.format_for_path` returns either for a typed name and the dialog looks the format up in its own list.
 
 **XLSX and SQLite (stage 7, as built; `writer_xlsx.py` and `writer_sqlite.py` are authoritative).** *XLSX*:
 `writer._export_xlsx` calls `writer_xlsx.export_xlsx`, jsonreshape's own streaming SpreadsheetML writer (it replaced

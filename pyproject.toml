@@ -52,7 +52,7 @@ Issues = "https://github.com/Erkinbek/jsonreshape/issues"
 gui = ["PySide6>=6.8", "pyyaml>=6"]
 # YAML import (jsonreshape import x.yaml): CSV and XML need nothing extra
 import = ["pyyaml>=6"]
-# Parquet export (jsonreshape convert in.json out.parquet; writer_parquet.py)
+# Parquet and Feather / Arrow IPC export (jsonreshape convert in.json out.parquet | out.feather; writer_parquet.py)
 parquet = ["pyarrow>=17"]
 dev = [
     "pytest>=8",

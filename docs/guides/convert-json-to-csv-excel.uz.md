@@ -1,12 +1,12 @@
 ---
-title: JSON'ni CSV, Excel, SQLite va Parquet ga konvertatsiya qilish
-description: Katta JSON yoki JSON Lines fayllarni CSV, Excel (XLSX), SQLite yoki Parquet ga konvertatsiya qiling — oqim bilan, GB miqyosida, 100–250 MB/s, faylni xotiraga yuklamasdan.
+title: JSON'ni CSV, Excel, SQLite, Parquet va Feather ga konvertatsiya qilish
+description: Katta JSON yoki JSON Lines fayllarni CSV, Excel (XLSX), SQLite, Parquet yoki Feather / Arrow IPC ga konvertatsiya qiling — oqim bilan, GB miqyosida, 100–220 MB/s, faylni xotiraga yuklamasdan.
 ---
 
-# Katta JSON / JSON Lines'ni CSV, Excel, SQLite yoki Parquet ga konvertatsiya qilish
+# Katta JSON / JSON Lines'ni CSV, Excel, SQLite, Parquet yoki Feather ga konvertatsiya qilish
 
 jsonreshape JSON, JSON Lines va jadval formatlari orasida **oqim bilan** konvertatsiya qiladi,
-shuning uchun fayl hajmi RAM'ingiz bilan cheklanmaydi. Eksportlar taxminan **100–250 MB/s** tezlikda ishlaydi.
+shuning uchun fayl hajmi RAM'ingiz bilan cheklanmaydi. Eksportlar taxminan **100–220 MB/s** tezlikda ishlaydi.
 
 ## JSON ↔ JSON Lines
 
@@ -50,6 +50,17 @@ jsonreshape convert data.json data.parquet
 ```
 
 Parquet — ma'lumotlar muhandisligida (pandas, DuckDB, Spark) keng qo'llaniladigan ustunli format.
+
+## → Feather / Arrow IPC
+
+```bash
+jsonreshape convert data.json data.feather          # or data.arrow: the same file
+jsonreshape convert data.json data.arrow --feather-compression lz4
+```
+
+Feather (Arrow IPC fayl formati) to'g'ridan-to'g'ri pandas (`pd.read_feather`) va Polars
+(`pl.read_ipc`) ga yuklanadi. Undagi ustunlar va ustun turlari Parquet eksportidagi bilan bir xil;
+siqish `zstd` (standart), `lz4` yoki `none`. U ham `pip install "jsonreshape[parquet]"` ni talab qiladi.
 
 ## Desktop dasturda
 

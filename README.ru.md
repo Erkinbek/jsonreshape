@@ -29,7 +29,7 @@
 | 4 | **Конструктор структуры**: движок маппинга (результаты идентичны `json-tuzilma.html`), GUI (перетаскивание, живой предпросмотр), файлы маппинга, CLI `apply`, `flatten` | ✅ готово |
 | 5 | **Инструменты**: статистика полей, дубликаты, JSON Schema (создание и проверка), разделение / объединение / извлечение, исправление, сравнение (diff), «умные» значения; CLI `stats`, `dupes`, `schema`, `validate`, `split`, `merge`, `extract`, `repair`, `diff` | ✅ готово |
 | 6 | **Полировка**: палитра команд, настройка сочетаний клавиш, восстановление сессии, файлы рабочего пространства, темы, «Открыть с помощью» в Windows, `.exe` через PyInstaller; рабочие процессы для тяжёлых экспортов; итоговый бенчмарк | ✅ готово |
-| 7 | **Распространение и расширения**: Apache-2.0, конвейер CI / релизов (установщик exe, wheel-пакеты), экспорт Parquet, импорт CSV/YAML/XML, Python API, русский интерфейс, гистограммы статистики, stdin, быстрый экспорт XLSX/SQLite (≥ 50 MB/s) | ✅ готово |
+| 7 | **Распространение и расширения**: Apache-2.0, конвейер CI / релизов (установщик exe, wheel-пакеты), экспорт Parquet и Feather / Arrow IPC, импорт CSV/YAML/XML, Python API, русский интерфейс, гистограммы статистики, stdin, быстрый экспорт XLSX/SQLite (≥ 50 MB/s) | ✅ готово |
 
 ---
 
@@ -72,8 +72,9 @@ py -3.14 -m venv .venv
 (или `--backend python` в CLI).
 
 Для графического интерфейса: `.venv\Scripts\python -m pip install -e ".[gui]"` (PySide6).
-Для экспорта в Parquet нужен необязательный пакет `pyarrow`: `pip install "jsonreshape[parquet]"` (программа
-работает и без него; экспорт в Parquet тогда подсказывает, как его установить).
+Для экспорта в Parquet и Feather / Arrow IPC нужен необязательный пакет `pyarrow`:
+`pip install "jsonreshape[parquet]"` (программа работает и без него; такой экспорт тогда подсказывает, как его
+установить).
 
 Запуск: `jsonreshape ...` (CLI) или `python -m jsonreshape ...`; GUI — `jsonreshape-gui [file ...]`
 или `python -m jsonreshape.gui` ([раздел 3](#gui)).
@@ -159,6 +160,9 @@ jsonreshape convert keyed.jsonl keyed.json --as-keyed
 jsonreshape convert data.json table.csv --columns "id,name,contact.address.city"
 jsonreshape convert data.json table.xlsx --array-mode rows --explode orders
 jsonreshape convert data.json db.sqlite
+# Parquet и Feather / Arrow IPC (.feather или .arrow); необязательный pyarrow: pip install "jsonreshape[parquet]"
+jsonreshape convert data.json data.parquet
+jsonreshape convert data.json data.feather --feather-compression lz4
 jsonreshape convert data.json pretty.json --indent 4 --sort-keys --where "active == true" --sort-by -score
 # только выбранные записи (нумерация с 0: 0:100 = 0..99) или один узел
 jsonreshape convert data.json selection.csv --select "0:100,500"
@@ -595,12 +599,13 @@ CSV, XLSX, SQLite. Область: текущий вид (фильтр + сор�
 сначала преобразуются в копию UTF-8 (потоково, с ограниченной памятью) и кешируются; первые записи не видны, пока
 копия не готова (~0,5 s на 200 MB данных). UTF-32 отклоняется (с понятным сообщением).
 
-**Форматы вывода** (`convert`, `filter`, `sort`, диалог экспорта): JSON, JSON Lines, CSV, XLSX, SQLite и
-**Parquet** (`.parquet`; нужен `pip install "jsonreshape[parquet]"`). Три табличных формата — CSV, XLSX,
-Parquet — используют одну модель столбцов (`--columns`, автоматические столбцы, `a.b.c`, `--array-mode`,
-`--explode`), поэтому один и тот же экспорт даёт одинаковый заголовок и строки в каждом из них. `.parquet.gz`
-отклоняется, как и `.xlsx.gz`: Parquet сам сжимает свои страницы (`--parquet-compression zstd|snappy|gzip|none`,
-по умолчанию `zstd`).
+**Форматы вывода** (`convert`, `filter`, `sort`, диалог экспорта): JSON, JSON Lines, CSV, XLSX, SQLite,
+**Parquet** (`.parquet`) и **Feather / Arrow IPC** (`.feather` или `.arrow`); для двух последних нужен
+`pip install "jsonreshape[parquet]"`. Четыре табличных формата — CSV, XLSX, Parquet, Feather — используют одну
+модель столбцов (`--columns`, автоматические столбцы, `a.b.c`, `--array-mode`, `--explode`), поэтому один и тот же
+экспорт даёт одинаковый заголовок и строки в каждом из них. `.parquet.gz` и `.feather.gz` отклоняются, как и
+`.xlsx.gz`: Parquet и Arrow IPC сами сжимают свои данные (`--parquet-compression zstd|snappy|gzip|none`,
+`--feather-compression zstd|lz4|none`; по умолчанию `zstd`).
 
 **Импорт других форматов** (`jsonreshape import`, Файл → «Импорт (CSV, YAML, XML)…»; `README` §2): файлы CSV / TSV,
 YAML и XML становятся JSON Lines (одна запись на строку) или одним массивом / значением JSON. Числа сохраняют свой
@@ -763,6 +768,13 @@ ijson: контейнеры не собираются целиком, а для 
   `--parquet-compression zstd` (по умолчанию) | `snappy` | `gzip` | `none`; строки формируются в рабочих процессах
   точно так же, как для CSV (файл байт в байт тот же, что и в один поток). В диалоге экспорта Parquet — третий
   табличный формат (страница столбцов), также для узла-массива / объекта.
+* **Feather / Arrow IPC** (`out.feather` или `out.arrow`, `--to feather` / `--to arrow`; тот же необязательный
+  `pyarrow`): та же таблица, что и в Parquet, — те же столбцы, типизированные столбцы и правила типов, тот же
+  перезапуск в два прохода, — записанная в файловом формате Arrow IPC (Feather v2 — это именно он), поэтому pandas
+  (`read_feather`), Polars (`read_ipc`) и pyarrow открывают её напрямую. Оба имени записывают побайтово одинаковые
+  файлы. Один record batch на каждую группу строк Parquet; сжатие `--feather-compression zstd` (по умолчанию) |
+  `lz4` | `none`; рабочие процессы — как для Parquet (файл байт в байт тот же, что и в один поток). В диалоге
+  экспорта оба имени — табличные форматы (страница столбцов), также для узла-массива / объекта.
 * **SQLite**: отдельная таблица для каждого массива со связями родитель–потомок (`_id`, `_parent`, `_idx`); если в
   таблице больше 1 500 столбцов, остальные поля записываются в столбец `_extra` (текст JSON); объекты-«словари»
   хранятся как текст JSON; до 200 дочерних таблиц (остальные — как текст JSON).
@@ -1027,6 +1039,7 @@ Python 3.14, ядро на Rust. Каждая операция выполняе�
 | Экспорт JSON → JSONL / JSON (отступ 2), 2,1 GB, без маппинга и правок | ≥ 50 MB/s, RAM < 300 MB | 180 / 214 MB/s, пик 89 / 71 MB | ✅ |
 | Экспорт CSV: автоматические столбцы / 9 скалярных столбцов (4 рабочих процесса) | ≥ 50 MB/s, RAM < 300 MB | 105 / 224 MB/s, RAM 226 / 222 MB (приватная 175 / 167 MB) | ✅ |
 | Экспорт JSON → Parquet, автоматические столбцы (zstd, 4 рабочих процесса) | — | 83,6 MB/s (25,7 s; вывод 220,7 MB, 20 групп строк) | — |
+| Экспорт JSON → Feather / Arrow IPC, автоматические столбцы (zstd / lz4, 4 рабочих процесса) | — | 97,4 / 98,8 MB/s (22,0 / 21,7 s; вывод 338,7 / 550,5 MB, 20 record batch; Parquet в том же прогоне: 81,9 MB/s) | — |
 | Общая память программы (наибольшая из всех операций, кроме сортировки, с рабочими процессами) | < 500 MB | 299 MB (`flatten`, с 3 рабочими процессами; приватная 246 MB) | ✅ |
 
 Дополнительно: фильтр (extract) 207 MB/s; фильтр + запись результата (2,1 GB, от открытия до конца) 16,9 s; выборка
@@ -1350,6 +1363,13 @@ offscreen; «отзывчивость интерфейса» — самый дл
     подстановки и переносы строк каждого русского текста с английским и требует полного покрытия. Числа по-русски
     пишутся как по-узбекски (`1 234 567,5`, `i18n.space_grouped()`); узбекский порядок сортировки и поиск без
     различия латиницы и кириллицы не меняются.
+55. **Feather / Arrow IPC — это движок Parquet, а не второй экспортёр**: в `writer_parquet.py` один колоночный
+    движок со сменным модулем записи (группы строк `ParquetWriter` или `pyarrow.ipc.new_file` с одним record batch
+    на группу строк), поэтому столбцы, правила типов из решения 47, перезапуск в два прохода и рабочие процессы
+    общие, и два формата никогда не разойдутся (тесты сравнивают две таблицы значение за значением). `feather` и
+    `arrow` — два имени одного файла (файловый формат Arrow IPC; Feather v2 — это он): принимаются оба (`--to`,
+    расширение, диалог экспорта), потому что люди ищут оба. Сжатие по умолчанию `zstd`, либо `lz4`, `none` (в Arrow
+    IPC нет snappy / gzip). Как и Parquet, требует `pyarrow` и не входит в Windows `.exe`.
 
 ### Известные ограничения
 

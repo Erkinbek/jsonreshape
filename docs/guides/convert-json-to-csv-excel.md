@@ -1,12 +1,12 @@
 ---
-title: Convert JSON to CSV, Excel, SQLite and Parquet
-description: Convert large JSON or JSON Lines files to CSV, Excel (XLSX), SQLite or Parquet — streaming, GB-scale, 100–250 MB/s, without loading the file into memory.
+title: Convert JSON to CSV, Excel, SQLite, Parquet and Feather
+description: Convert large JSON or JSON Lines files to CSV, Excel (XLSX), SQLite, Parquet or Feather / Arrow IPC — streaming, GB-scale, 100–220 MB/s, without loading the file into memory.
 ---
 
-# Convert large JSON / JSON Lines to CSV, Excel, SQLite or Parquet
+# Convert large JSON / JSON Lines to CSV, Excel, SQLite, Parquet or Feather
 
 jsonreshape converts between JSON, JSON Lines and tabular formats by **streaming**, so the
-file size is not limited by your RAM. Exports run at roughly **100–250 MB/s**.
+file size is not limited by your RAM. Exports run at roughly **100–220 MB/s**.
 
 ## JSON ↔ JSON Lines
 
@@ -50,6 +50,17 @@ jsonreshape convert data.json data.parquet
 ```
 
 Parquet is the columnar format used across data engineering (pandas, DuckDB, Spark).
+
+## → Feather / Arrow IPC
+
+```bash
+jsonreshape convert data.json data.feather          # or data.arrow: the same file
+jsonreshape convert data.json data.arrow --feather-compression lz4
+```
+
+Feather (the Arrow IPC file format) loads straight into pandas (`pd.read_feather`) and Polars
+(`pl.read_ipc`). It has the same columns and column types as the Parquet export; compression is
+`zstd` (default), `lz4` or `none`. It needs the same `pip install "jsonreshape[parquet]"`.
 
 ## In the desktop app
 

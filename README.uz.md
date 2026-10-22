@@ -29,7 +29,7 @@ turadi, saqlash yangi faylni atomik almashtiradi (standart bo'yicha `.bak` zaxir
 | 4 | **Tuzilma quruvchi**: mapping engine (`json-tuzilma.html` bilan aynan bir xil natija), GUI (sudrab tashlash, jonli ko'rinish), mapping fayllari, CLI `apply`, `flatten` | ✅ tayyor |
 | 5 | **Asboblar**: maydon statistikasi, dublikatlar, JSON Schema (yaratish va tekshirish), bo'lish / birlashtirish / ajratib olish, ta'mirlash, taqqoslash (diff), "aqlli" qiymatlar; CLI `stats`, `dupes`, `schema`, `validate`, `split`, `merge`, `extract`, `repair`, `diff` | ✅ tayyor |
 | 6 | **Silliqlash**: buyruqlar palitrasi, tugmalarni sozlash, sessiyani tiklash, workspace fayllari, mavzular, Windows «Open with», PyInstaller `.exe`; og'ir eksportlar uchun ishchi jarayonlar; yakuniy benchmark | ✅ tayyor |
-| 7 | **Tarqatish va kengaytmalar**: Apache-2.0, CI / reliz quvuri (exe o'rnatuvchi, wheel'lar), Parquet eksporti, CSV/YAML/XML import, Python API, ruscha interfeys, statistika gistogrammalari, stdin, tez XLSX/SQLite eksporti (≥ 50 MB/s) | ✅ tayyor |
+| 7 | **Tarqatish va kengaytmalar**: Apache-2.0, CI / reliz quvuri (exe o'rnatuvchi, wheel'lar), Parquet va Feather / Arrow IPC eksporti, CSV/YAML/XML import, Python API, ruscha interfeys, statistika gistogrammalari, stdin, tez XLSX/SQLite eksporti (≥ 50 MB/s) | ✅ tayyor |
 
 ---
 
@@ -72,8 +72,8 @@ Rust bo'lmasa ham dastur ishlaydi: yadroning sof Python nusxasi (fallback) bor, 
 (yoki CLI'da `--backend python`).
 
 Grafik interfeys uchun: `.venv\Scripts\python -m pip install -e ".[gui]"` (PySide6).
-Parquet eksporti ixtiyoriy `pyarrow` paketini talab qiladi: `pip install "jsonreshape[parquet]"` (dastur usiz
-ham ishlaydi; Parquet eksporti o'rnatish buyrug'ini aytadi).
+Parquet va Feather / Arrow IPC eksporti ixtiyoriy `pyarrow` paketini talab qiladi:
+`pip install "jsonreshape[parquet]"` (dastur usiz ham ishlaydi; bunday eksport o'rnatish buyrug'ini aytadi).
 
 Ishga tushirish: `jsonreshape ...` (CLI) yoki `python -m jsonreshape ...`; GUI — `jsonreshape-gui [fayl ...]`
 yoki `python -m jsonreshape.gui` ([3-bo'lim](#gui)).
@@ -158,6 +158,9 @@ jsonreshape convert keyed.jsonl keyed.json --as-keyed
 jsonreshape convert data.json jadval.csv --columns "id,name,contact.address.city"
 jsonreshape convert data.json jadval.xlsx --array-mode rows --explode orders
 jsonreshape convert data.json baza.sqlite
+# Parquet va Feather / Arrow IPC (.feather yoki .arrow); ixtiyoriy pyarrow: pip install "jsonreshape[parquet]"
+jsonreshape convert data.json data.parquet
+jsonreshape convert data.json data.feather --feather-compression lz4
 jsonreshape convert data.json chiroyli.json --indent 4 --sort-keys --where "active == true" --sort-by -score
 # faqat tanlangan yozuvlar (raqamlar 0 dan: 0:100 = 0..99) yoki bitta tugun
 jsonreshape convert data.json tanlov.csv --select "0:100,500"
@@ -583,11 +586,13 @@ gzip). UTF-16 va gzip fayllar oldin UTF-8 nusxaga o'giriladi (oqim bilan, xotira
 nusxa tayyor bo'lgunicha birinchi yozuvlar ko'rinmaydi (200 MB'lik ma'lumot ~0.5 s). UTF-32 rad etiladi
 (tushunarli xabar bilan).
 
-**Natija formatlari** (`convert`, `filter`, `sort`, eksport oynasi): JSON, JSON Lines, CSV, XLSX, SQLite va
-**Parquet** (`.parquet`; `pip install "jsonreshape[parquet]"` kerak). Uchta jadval formati — CSV, XLSX, Parquet —
-bitta ustun modelini ishlatadi (`--columns`, avtomatik ustunlar, `a.b.c`, `--array-mode`, `--explode`), shuning
-uchun bir xil eksport har birida bir xil sarlavha va qatorlar beradi. `.parquet.gz` `.xlsx.gz` kabi rad etiladi:
-Parquet o'z sahifalarini o'zi siqadi (`--parquet-compression zstd|snappy|gzip|none`, standart `zstd`).
+**Natija formatlari** (`convert`, `filter`, `sort`, eksport oynasi): JSON, JSON Lines, CSV, XLSX, SQLite,
+**Parquet** (`.parquet`) va **Feather / Arrow IPC** (`.feather` yoki `.arrow`); oxirgi ikkisi uchun
+`pip install "jsonreshape[parquet]"` kerak. To'rtta jadval formati — CSV, XLSX, Parquet, Feather — bitta ustun
+modelini ishlatadi (`--columns`, avtomatik ustunlar, `a.b.c`, `--array-mode`, `--explode`), shuning uchun bir xil
+eksport har birida bir xil sarlavha va qatorlar beradi. `.parquet.gz` va `.feather.gz` `.xlsx.gz` kabi rad
+etiladi: Parquet va Arrow IPC o'z ma'lumotlarini o'zi siqadi (`--parquet-compression zstd|snappy|gzip|none`,
+`--feather-compression zstd|lz4|none`; standart `zstd`).
 
 **Boshqa formatlardan import** (`jsonreshape import`, Fayl → "Import (CSV, YAML, XML)…"; 2-bo'lim): CSV / TSV, YAML
 va XML fayllar JSON Lines (har qatorda bir yozuv) yoki bitta JSON massiv / qiymat bo'ladi. Sonlarning matni aynan
@@ -750,6 +755,13 @@ ikki baravari joy egallaydi.
   bilan 1 048 576 qator); siqish `--parquet-compression zstd` (standart) | `snappy` | `gzip` | `none`; qatorlar
   CSV'dagidek ishchi jarayonlarda quriladi (fayl bitta oqimdagi bilan baytma-bayt bir xil). Eksport oynasida
   Parquet uchinchi jadval formati (ustunlar sahifasi), massiv / obyekt tuguni uchun ham.
+* **Feather / Arrow IPC** (`out.feather` yoki `out.arrow`, `--to feather` / `--to arrow`; o'sha ixtiyoriy
+  `pyarrow`): Parquet jadvalining o'zi — o'sha ustunlar, turlangan ustunlar va tur qoidalari, o'sha ikki o'tishli
+  qayta bajarish — Arrow IPC fayl formatida yoziladi (Feather v2 aynan shu fayl), shuning uchun pandas
+  (`read_feather`), Polars (`read_ipc`) va pyarrow uni to'g'ridan-to'g'ri ochadi. Ikki nom baytma-bayt bir xil fayl
+  yozadi. Har Parquet row group'iga bitta record batch; siqish `--feather-compression zstd` (standart) | `lz4` |
+  `none`; ishchi jarayonlar Parquet'dagidek (fayl bitta oqimdagi bilan baytma-bayt bir xil). Eksport oynasida
+  ikkala nom ham jadval formati (ustunlar sahifasi), massiv / obyekt tuguni uchun ham.
 * **SQLite**: har massiv uchun alohida jadval, ota-bola bog'lanishi bilan (`_id`, `_parent`, `_idx`);
   jadvalda 1500 dan ortiq ustun bo'lsa, qolgan maydonlar `_extra` (JSON matn) ustuniga yoziladi; "lug'at"
   obyektlar JSON matn sifatida saqlanadi, bola jadvallar soni 200 tagacha (qolgani JSON matn).
@@ -1012,6 +1024,7 @@ kamaytirishi mumkin (tahrir qatlamini tiklashda ≤ 17 MB).
 | Eksport JSON → JSONL / JSON (indent 2), 2.1 GB, mapping va tahrirlarsiz | ≥ 50 MB/s, RAM < 300 MB | 180 / 214 MB/s, peak 89 / 71 MB | ✅ |
 | Eksport CSV: avtomatik ustunlar / 9 ta skalyar ustun (4 ta ishchi jarayon) | ≥ 50 MB/s, RAM < 300 MB | 105 / 224 MB/s, RAM 226 / 222 MB (private 175 / 167 MB) | ✅ |
 | Eksport JSON → Parquet, avtomatik ustunlar (zstd, 4 ta ishchi jarayon) | — | 83.6 MB/s (25.7 s; chiqish 220.7 MB, 20 row group) | — |
+| Eksport JSON → Feather / Arrow IPC, avtomatik ustunlar (zstd / lz4, 4 ta ishchi jarayon) | — | 97.4 / 98.8 MB/s (22.0 / 21.7 s; chiqish 338.7 / 550.5 MB, 20 record batch; o'sha prognda Parquet: 81.9 MB/s) | — |
 | Dasturning umumiy xotirasi (tartiblashdan boshqa barcha amallarning eng kattasi, ishchi jarayonlari bilan) | < 500 MB | 299 MB (`flatten`, 3 ta ishchi jarayon bilan; private 246 MB) | ✅ |
 
 Qo'shimcha: filtr (extract) 207 MB/s; filtr + natijani yozish (2.1 GB, ochishdan oxirigacha) 16.9 s; tuzilma namunasi
@@ -1322,6 +1335,14 @@ va `main()` qayta ishga tushirilganda sessiyaning tiklanishi.
     imkoniyat tarjimasidan oldin qo'shilishi mumkin; `tests/test_i18n_ru.py` har ruscha matnning o'rinbosarlari va
     qator ko'chishlarini inglizcha bilan solishtiradi va to'liq qamrovni talab qiladi. Ruscha sonlar o'zbekcha kabi
     yoziladi (`1 234 567,5`, `i18n.space_grouped()`); o'zbek alifbosi tartibi va lotin–kirill qidiruvi o'zgarmaydi.
+55. **Feather / Arrow IPC — Parquet dvigatelining o'zi, ikkinchi eksportchi emas**: `writer_parquet.py` da bitta
+    ustunli dvigatel va almashtiriladigan yozish backend'i bor (`ParquetWriter` row group'lari yoki har row group'ga
+    bitta record batch bilan `pyarrow.ipc.new_file`), shuning uchun ustunlar, 47-qarordagi tur qoidalari, ikki
+    o'tishli qayta bajarish va ishchi jarayonlar umumiy — ikki format hech qachon bir-biridan ajralib ketmaydi
+    (testlar ikki jadvalni qiymatma-qiymat solishtiradi). `feather` va `arrow` — bitta faylning ikki nomi (Arrow IPC
+    fayl formati; Feather v2 aynan shu fayl): ikkalasi ham qabul qilinadi (`--to`, kengaytma, eksport oynasi), chunki
+    odamlar ikkalasini ham qidiradi. Siqish standart `zstd`, yoki `lz4`, `none` (Arrow IPC'da snappy / gzip yo'q).
+    Parquet kabi `pyarrow` talab qiladi va Windows `.exe` ichida yo'q.
 
 ### Ma'lum cheklovlar
 

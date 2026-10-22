@@ -1,13 +1,13 @@
 ---
-title: Преобразование JSON в CSV, Excel, SQLite и Parquet
-description: Преобразуйте большие файлы JSON или JSON Lines в CSV, Excel (XLSX), SQLite или Parquet — потоком, в масштабе GB, 100–250 MB/s, не загружая файл в память.
+title: Преобразование JSON в CSV, Excel, SQLite, Parquet и Feather
+description: Преобразуйте большие файлы JSON или JSON Lines в CSV, Excel (XLSX), SQLite, Parquet или Feather / Arrow IPC — потоком, в масштабе GB, 100–220 MB/s, не загружая файл в память.
 ---
 
-# Преобразование больших файлов JSON / JSON Lines в CSV, Excel, SQLite или Parquet
+# Преобразование больших файлов JSON / JSON Lines в CSV, Excel, SQLite, Parquet или Feather
 
 jsonreshape преобразует между JSON, JSON Lines и табличными форматами **потоком**, поэтому размер
 файла не ограничен вашей оперативной памятью. Экспорт выполняется примерно со скоростью
-**100–250 MB/s**.
+**100–220 MB/s**.
 
 ## JSON ↔ JSON Lines
 
@@ -51,6 +51,17 @@ jsonreshape convert data.json data.parquet
 ```
 
 Parquet — это столбцовый формат, используемый в инженерии данных (pandas, DuckDB, Spark).
+
+## → Feather / Arrow IPC
+
+```bash
+jsonreshape convert data.json data.feather          # or data.arrow: the same file
+jsonreshape convert data.json data.arrow --feather-compression lz4
+```
+
+Feather (файловый формат Arrow IPC) загружается напрямую в pandas (`pd.read_feather`) и Polars
+(`pl.read_ipc`). Столбцы и их типы — те же, что и в экспорте Parquet; сжатие — `zstd` (по
+умолчанию), `lz4` или `none`. Нужен тот же `pip install "jsonreshape[parquet]"`.
 
 ## В настольном приложении
 

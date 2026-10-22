@@ -30,7 +30,7 @@ several gigabytes.
 | Task | Guide |
 |---|---|
 | Open and browse a 2–5 GB JSON / JSON Lines file | [Open a large JSON file](guides/open-large-json-file.md) |
-| Convert to CSV, Excel, SQLite or Parquet | [Convert JSON](guides/convert-json-to-csv-excel.md) |
+| Convert to CSV, Excel, SQLite, Parquet or Feather | [Convert JSON](guides/convert-json-to-csv-excel.md) |
 | Compare two JSON files | [Compare JSON files](guides/compare-json-files.md) |
 | Repair an invalid / broken JSON file | [Repair broken JSON](guides/repair-broken-json.md) |
 | Flatten nested JSON into a table | [Flatten nested JSON](guides/flatten-nested-json.md) |
