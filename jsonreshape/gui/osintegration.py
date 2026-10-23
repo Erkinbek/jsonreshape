@@ -50,7 +50,7 @@ import os
 import sys
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Protocol
 
 from PySide6.QtCore import Qt, Signal
@@ -371,7 +371,8 @@ def _launch(frozen: bool | None, executable: str | os.PathLike[str] | None,
     frozen = bool(getattr(sys, "frozen", False)) if frozen is None else bool(frozen)
     exe = Path(os.fspath(executable if executable is not None else (sys.executable or "")))
     if frozen:
-        if exe.name.casefold() != APP_EXE_NAME:
+        # the name as Windows reads it (the platform may be given for a test on another system)
+        if PureWindowsPath(exe).name.casefold() != APP_EXE_NAME:
             return None, t("gui.os.unavailable.exe", name=APP_EXE_NAME)
         return f"{_quote(str(exe))} \"%1\"", None
     pythonw = exe.with_name("pythonw.exe") if exe.name.casefold() in ("python.exe", "pythonw.exe") else None
