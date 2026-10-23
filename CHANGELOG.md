@@ -5,7 +5,34 @@ All notable changes to jsonreshape are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-10-23
+
+The first complete version and the first public release: the six development stages (README §12
+"Architecture", `docs/ARCHITECTURE.md`) and stage 7, distribution and extensions. "Changed" and "Fixed"
+compare with the state at the end of stage 6 (2026-10-19).
+
 ### Added
+- **Core and CLI** (stage 1): reader with a byte-range index of every record (Rust core, pure-Python fallback with
+  identical results), RecordSet, full-text search (Latin ↔ Cyrillic, apostrophe variants), filter language and
+  JMESPath, stable external sort with Uzbek collation, streaming writers (JSON, JSON Lines, CSV, XLSX, SQLite),
+  CLI `inspect`, `search`, `filter`, `sort`, `convert`.
+- **Viewer GUI** (stage 2, PySide6): tree, table, text, raw bytes and Schema views in two linked panes, navigation
+  and bookmarks, search and filter panes, sorting, export dialog, background tasks, status bar; files of several GB
+  open in well under a second.
+- **Editing** (stage 3): node edits (value, key, type, insert, delete, duplicate, move, drag and drop), bulk
+  operations with an exact preview, JSON Patch (RFC 6902) export / import, undo / redo, an edit layer on disk with
+  continuous autosave and crash recovery, atomic saving with a `.bak` copy, CLI `patch`.
+- **Structure builder** (stage 4): mapping engine identical to the `json-tuzilma.html` reference, drag-and-drop
+  designer with a live preview, mapping files, streaming apply in worker processes, CLI `apply` and `flatten`.
+- **Tools** (stage 5): field statistics (exact or sketched), duplicates, JSON Schema generation and validation
+  (draft 2020-12), split / merge / extract, repair of broken JSON with a full report, compare (diff) by key,
+  position or alignment, "smart" values (dates, URLs, colours, images); CLI `stats`, `dupes`, `schema`, `validate`,
+  `split`, `merge`, `extract`, `repair`, `diff`.
+- **Polish** (stage 6): command palette (Ctrl+Shift+P), shortcut settings, session restore, `.jrworkspace` files,
+  themes with a dark-mode audit, Windows "Open with", PyInstaller `.exe` (`scripts/build_exe.ps1`), worker
+  processes for CSV / XLSX exports and layer checksums, the final benchmark (README §14).
+- Documentation in English (`README.md`), Uzbek (`README.uz.md`) and Russian (`README.ru.md`); the UI is Uzbek
+  by default, English and Russian on request (`--lang`, `JSONRESHAPE_LANG`, Tools → Settings).
 - Apache License 2.0 (`LICENSE`, `NOTICE`, `THIRD-PARTY-NOTICES.md`), `CONTRIBUTING.md`, `SECURITY.md`, issue and
   pull request templates.
 - Python API: `docs/API.md` documents the public, stable library interface with one runnable example per area
@@ -63,6 +90,9 @@ All notable changes to jsonreshape are recorded here. The format follows
   are in `jsonreshape/i18n_ru.py` (every key translated; a missing text falls back to English), numbers are
   written `1 234 567,5` as in Uzbek (`i18n.space_grouped()`), `tests/test_i18n_ru.py` checks the coverage and
   the placeholders.
+- Documentation site (MkDocs Material) in English, Uzbek and Russian — <https://erkinbek.github.io/jsonreshape/>:
+  installation, the command line, the Python API and task guides (open a huge JSON file, JSON → CSV / Excel,
+  compare, repair, flatten, split and merge); `mkdocs.yml`, `.github/workflows/docs.yml` (GitHub Pages).
 
 ### Changed
 - **XLSX export ~15× faster** (7.8–12 → 116 MB/s on a 2.1 GB file, 4 worker processes, peak memory 250–265 MB):
@@ -83,37 +113,13 @@ All notable changes to jsonreshape are recorded here. The format follows
 - XLSX: a text that starts with `<r>` and ends with `</r>` was written by xlsxwriter as raw rich-text XML, producing a
   workbook Excel refused to open; it is now written as the text it is.
 
-## [0.1.0] — 2026-10-20
-
-The first complete version: the six development stages (README §12 "Architecture", `docs/ARCHITECTURE.md`).
-
-### Added
-- **Core and CLI** (stage 1): reader with a byte-range index of every record (Rust core, pure-Python fallback with
-  identical results), RecordSet, full-text search (Latin ↔ Cyrillic, apostrophe variants), filter language and
-  JMESPath, stable external sort with Uzbek collation, streaming writers (JSON, JSON Lines, CSV, XLSX, SQLite),
-  CLI `inspect`, `search`, `filter`, `sort`, `convert`.
-- **Viewer GUI** (stage 2, PySide6): tree, table, text, raw bytes and Schema views in two linked panes, navigation
-  and bookmarks, search and filter panes, sorting, export dialog, background tasks, status bar; files of several GB
-  open in well under a second.
-- **Editing** (stage 3): node edits (value, key, type, insert, delete, duplicate, move, drag and drop), bulk
-  operations with an exact preview, JSON Patch (RFC 6902) export / import, undo / redo, an edit layer on disk with
-  continuous autosave and crash recovery, atomic saving with a `.bak` copy, CLI `patch`.
-- **Structure builder** (stage 4): mapping engine identical to the `json-tuzilma.html` reference, drag-and-drop
-  designer with a live preview, mapping files, streaming apply in worker processes, CLI `apply` and `flatten`.
-- **Tools** (stage 5): field statistics (exact or sketched), duplicates, JSON Schema generation and validation
-  (draft 2020-12), split / merge / extract, repair of broken JSON with a full report, compare (diff) by key,
-  position or alignment, "smart" values (dates, URLs, colours, images); CLI `stats`, `dupes`, `schema`, `validate`,
-  `split`, `merge`, `extract`, `repair`, `diff`.
-- **Polish** (stage 6): command palette (Ctrl+Shift+P), shortcut settings, session restore, `.jrworkspace` files,
-  themes with a dark-mode audit, Windows "Open with", PyInstaller `.exe` (`scripts/build_exe.ps1`), worker
-  processes for CSV / XLSX exports and layer checksums, the final benchmark (README §14).
-- Documentation in English (`README.md`) and Uzbek (`README.uz.md`); the UI is Uzbek with English fallback
-  (`JSONRESHAPE_LANG=en`).
-
 ### Known limitations
-- XLSX (~12 MB/s) and SQLite (~16 MB/s) exports are below the 50 MB/s target; CSV, JSON and JSON Lines are above it.
 - A mapping applied in a single process runs at ~47 MB/s; the default uses worker processes (≥ 97 MB/s).
 - Records larger than 50 MB are read-only.
+- A search with "Latin ↔ Cyrillic" parses every record (~25 MB/s, about 85 s on a 2.1 GB file); a plain search scans
+  the bytes (~600 MB/s).
+- The Windows executables and the installer are not code-signed (SmartScreen warns on the first start); the macOS
+  bundle is neither signed nor notarized (allow it once in System Settings → Privacy & Security).
 
 [Unreleased]: https://github.com/Erkinbek/jsonreshape/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/Erkinbek/jsonreshape/releases/tag/v0.1.0

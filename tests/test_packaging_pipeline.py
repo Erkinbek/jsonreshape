@@ -421,8 +421,7 @@ def test_changelog_section() -> None:
     body, found = release_assets.changelog_section(real, "0.1.0")
     assert found and "The first complete version" in body and "releases/tag/v0.1.0" not in body
     assert "## [" not in body
-    unreleased, found = release_assets.changelog_section(real, "999.0")
-    assert not found and unreleased
+    assert release_assets.changelog_section(real, "999.0")[1] is False      # (right after a release: no Unreleased text)
 
 
 def test_release_notes(tmp_path: Path) -> None:
