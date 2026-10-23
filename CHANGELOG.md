@@ -112,10 +112,18 @@ compare with the state at the end of stage 6 (2026-10-19).
 ### Fixed
 - XLSX: a text that starts with `<r>` and ends with `</r>` was written by xlsxwriter as raw rich-text XML, producing a
   workbook Excel refused to open; it is now written as the text it is.
+- Linux: the command line's memory warning measured `ru_maxrss`, which keeps the resident size of the process it
+  was started from (a CLI run by a large program reported that program's size); it now reads `VmHWM` of
+  `/proc/self/status`, the high-water mark of the program itself.
+- The test suite runs on Linux and with Python 3.12 too (the first CI run found Windows-only assumptions: case-
+  insensitive file names, Windows paths and sharing violations); CI and the release builds use Python 3.14.
 
 ### Known limitations
 - A mapping applied in a single process runs at ~47 MB/s; the default uses worker processes (≥ 97 MB/s).
 - Records larger than 50 MB are read-only.
+- With Python 3.12 on Windows (a `pip` install), data nested more than about 1,000 levels deep can stop the
+  structure builder and the XML import with a recursion error: Python 3.12 has a fixed C recursion limit there.
+  The release builds use Python 3.14.
 - A search with "Latin ↔ Cyrillic" parses every record (~25 MB/s, about 85 s on a 2.1 GB file); a plain search scans
   the bytes (~600 MB/s).
 - The Windows executables and the installer are not code-signed (SmartScreen warns on the first start); the macOS
