@@ -479,17 +479,13 @@ def test_texts_in_english(csv_file: Path, tmp_path: Path, lang_en) -> None:
 # ----------------------------------------------------------------------------------------
 _MEMORY_SCRIPT = textwrap.dedent(r'''
     import json, os, sys, time
-    import psutil
     from jsonreshape.importers import import_file
     src, dst = sys.argv[1], sys.argv[2]
     t0 = time.perf_counter()
     rep = import_file(src, dst)
     dt = time.perf_counter() - t0
-    mem = psutil.Process().memory_info()
-    peak = getattr(mem, "peak_wset", None)
-    if peak is None:   # POSIX: ru_maxrss (KiB on Linux)
-        import resource
-        peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
+    from jsonreshape.cli import _peak_memory   # peak working set / VmHWM: this process only (not the forking parent)
+    peak = _peak_memory()
     print(json.dumps({"bytes": os.path.getsize(src), "seconds": dt, "peak": peak, "records": rep.records,
                       "out": os.path.getsize(dst)}))
 ''')

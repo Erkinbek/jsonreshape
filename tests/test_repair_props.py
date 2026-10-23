@@ -376,17 +376,13 @@ _BIG_RECORD = (b'{"id":%d,"name":"Toshkent \xd1\x82\xd0\xb5\xd1\x81\xd1\x82 %d",
 #: the repair in a fresh process: its own peak memory (the data file is written by the test beforehand)
 _BIG_SCRIPT = textwrap.dedent(r'''
     import json, os, sys, time
-    import psutil
     from jsonreshape import repair
     src, dst = sys.argv[1], sys.argv[2]
     t0 = time.perf_counter()
     rep = repair.repair_file(src, dst)
     dt = time.perf_counter() - t0
-    mem = psutil.Process().memory_info()
-    peak = getattr(mem, "peak_wset", None)
-    if peak is None:   # POSIX: ru_maxrss (KiB on Linux)
-        import resource
-        peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
+    from jsonreshape.cli import _peak_memory   # peak working set / VmHWM: this process only (not the forking parent)
+    peak = _peak_memory()
     print(json.dumps({"bytes": os.path.getsize(src), "seconds": dt, "peak": peak, "records": rep.records,
                       "counts": rep.counts, "out": os.path.getsize(dst)}))
 ''')

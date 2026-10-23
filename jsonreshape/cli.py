@@ -4731,7 +4731,8 @@ def _check_environment() -> None:
 
 def _peak_memory() -> int | None:
     """Peak memory of this process so far, in bytes: the peak working set on Windows
-    (psutil), the maximum resident set size elsewhere; ``None`` when it cannot be told."""
+    (psutil), the high-water mark of the resident set on Linux (``VmHWM``), the maximum
+    resident set size elsewhere; ``None`` when it cannot be told."""
     try:
         import psutil
 
@@ -4740,6 +4741,9 @@ def _peak_memory() -> int | None:
             return int(peak)
     except Exception:  # psutil missing or failing: the next source
         log.debug("psutil could not tell the peak memory", exc_info=True)
+    hwm = _linux_peak_rss()
+    if hwm is not None:
+        return hwm
     try:
         import resource  # POSIX
     except ImportError:  # pragma: no cover - Windows without psutil
@@ -4749,6 +4753,22 @@ def _peak_memory() -> int | None:
     except (OSError, ValueError, AttributeError):  # pragma: no cover
         return None
     return maxrss if sys.platform == "darwin" else maxrss * 1024  # pragma: no cover - KiB on Linux
+
+
+def _linux_peak_rss() -> int | None:
+    """``VmHWM`` of ``/proc/self/status`` in bytes (Linux), else ``None``. Unlike ``ru_maxrss`` it
+    belongs to this program image only: ``ru_maxrss`` keeps the resident size of the parent the
+    process was forked from (a CLI started by a large program would report that program's size)."""
+    if not sys.platform.startswith("linux"):
+        return None
+    try:
+        with open("/proc/self/status", "rb") as f:
+            for line in f:
+                if line.startswith(b"VmHWM:"):
+                    return int(line.split()[1]) * 1024              # "VmHWM:    123456 kB"
+    except (OSError, ValueError, IndexError):
+        log.debug("/proc/self/status could not tell the peak memory", exc_info=True)
+    return None
 
 
 def _memory_warning(console: _Console, args: argparse.Namespace, peak_before: int | None) -> None:
