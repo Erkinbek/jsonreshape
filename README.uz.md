@@ -2,7 +2,7 @@
 
 [English](README.md) | **O'zbekcha** | [Русский](README.ru.md)
 
-[![CI](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml/badge.svg)](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE) ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg) ![Platforms: Windows, Linux, macOS](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg) ![Tests: 12,953 passing](https://img.shields.io/badge/tests-12%2C953%20passing-brightgreen.svg)
+[![CI](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml/badge.svg)](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE) ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg) ![Platforms: Windows, Linux, macOS](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg) ![Tests: 12,954 passing](https://img.shields.io/badge/tests-12%2C954%20passing-brightgreen.svg)
 
 Katta JSON fayllar (100 MB dan bir necha GB gacha) bilan ishlash uchun desktop dastur va CLI:
 ko'rish, qidirish, filtrlash, tartiblash, konvertatsiya, tahrirlash, tuzilmani qayta qurish, statistika,
@@ -96,7 +96,7 @@ Har bir versiyaning fayllari [Releases](https://github.com/Erkinbek/jsonreshape/
 | `*.whl`, `jsonreshape-<versiya>.tar.gz` | Python paketi (3.11+): `pip install <fayl>`; oyna uchun `pip install "jsonreshape[gui]"`. |
 | `SHA256SUMS.txt` | Yuklamani tekshirish: `sha256sum -c SHA256SUMS.txt --ignore-missing` (Linux / macOS) yoki `Get-FileHash <fayl>` (PowerShell). |
 
-**PyPI** (birinchi nashrdan keyin): `pip install jsonreshape` — har bir platforma uchun (Windows x64, Linux x86_64,
+**PyPI** (v0.1.1 dan boshlab): `pip install jsonreshape` — har bir platforma uchun (Windows x64, Linux x86_64,
 macOS universal) Rust yadroli bitta wheel, Python ≥ 3.11 ning istalgan versiyasi bilan ishlaydi; boshqa joyda sdist
 Rust yadrosini o'zi quradi (Rust bo'lmasa — sof Python yadro). **winget** (winget-pkgs so'rovi qabul qilingach):
 `winget install Erkinbek.jsonreshape`.
@@ -915,7 +915,7 @@ $env:JSONRESHAPE_BACKEND="python"; .venv\Scripts\python -m pytest -q  # sof Pyth
 .venv\Scripts\python -m pytest -q -m packaging                     # tayyor .exe ustida (avval scripts\build_exe.ps1)
 ```
 
-To'liq to'plam: **12 953 ta test** (Feather / Arrow IPC eksporti bilan, Rust yadro bilan, ~61 daqiqa; 7-bosqich
+To'liq to'plam: **12 954 ta test** (Feather / Arrow IPC eksporti bilan, Rust yadro bilan, ~61 daqiqa; 7-bosqich
 oxirida 12 910 ta, 6-bosqich oxirida 12 660 ta, 5-bosqich oxirida 12 238 ta, 2-bosqich oxirida 5431 ta edi; ustiga
 qurilgan `.exe` uchun 14 ta `-m packaging` testi); sof Python yadro bilan GUI'siz qismi — 7-bosqich oxirida 9 394 ta
 test (~24 daqiqa). `-m packaging`

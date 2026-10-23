@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "jsonreshape"
-version = "0.1.0"
+version = "0.1.1"
 description = "Viewer, editor and reshaper for huge JSON files (katta JSON fayllar uchun ko'ruvchi, muharrir va tuzilma quruvchi)"
 readme = "README.md"
 requires-python = ">=3.11"

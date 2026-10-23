@@ -2,7 +2,7 @@
 
 **English** | [O'zbekcha](https://github.com/Erkinbek/jsonreshape/blob/main/README.uz.md) | [Русский](https://github.com/Erkinbek/jsonreshape/blob/main/README.ru.md)
 
-[![CI](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml/badge.svg)](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/Erkinbek/jsonreshape/blob/main/LICENSE) ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg) ![Platforms: Windows, Linux, macOS](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg) ![Tests: 12,953 passing](https://img.shields.io/badge/tests-12%2C953%20passing-brightgreen.svg)
+[![CI](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml/badge.svg)](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/Erkinbek/jsonreshape/blob/main/LICENSE) ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg) ![Platforms: Windows, Linux, macOS](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg) ![Tests: 12,954 passing](https://img.shields.io/badge/tests-12%2C954%20passing-brightgreen.svg)
 
 A desktop application and CLI for huge JSON files (from 100 MB to several GB): viewing, search, filtering, sorting,
 conversion, editing, restructuring, statistics, duplicates, JSON Schema, split/merge, repair and comparison.
@@ -95,7 +95,7 @@ Every version has its files on the [Releases](https://github.com/Erkinbek/jsonre
 | `*.whl`, `jsonreshape-<version>.tar.gz` | The Python package (3.11+): `pip install <file>`; `pip install "jsonreshape[gui]"` adds the window. |
 | `SHA256SUMS.txt` | Verify a download: `sha256sum -c SHA256SUMS.txt --ignore-missing` (Linux / macOS) or `Get-FileHash <file>` (PowerShell). |
 
-**PyPI** (after the first publish): `pip install jsonreshape` — one wheel with the Rust core per platform (Windows x64,
+**PyPI** (from v0.1.1): `pip install jsonreshape` — one wheel with the Rust core per platform (Windows x64,
 Linux x86_64, macOS universal) that works with every Python ≥ 3.11; elsewhere the sdist builds the Rust core itself
 (without Rust the pure-Python core is used). **winget** (once the winget-pkgs pull request is merged):
 `winget install Erkinbek.jsonreshape`.
@@ -912,7 +912,7 @@ $env:JSONRESHAPE_BACKEND="python"; .venv\Scripts\python -m pytest -q  # with the
 .venv\Scripts\python -m pytest -q -m packaging                     # on the built .exe (run scripts\build_exe.ps1 first)
 ```
 
-Full suite: **12,953 tests** (with the Feather / Arrow IPC export, with the Rust core, ~61 minutes; it was 12,910 at
+Full suite: **12,954 tests** (with the Feather / Arrow IPC export, with the Rust core, ~61 minutes; it was 12,910 at
 the end of stage 7, 12,660 at the end of stage 6, 12,238 at the end of stage 5 and 5,431 at the end of stage 2; plus
 14 `-m packaging` tests on the built `.exe`); the non-GUI part with the pure Python core — 9,394 tests at the end of
 stage 7 (~24 minutes).

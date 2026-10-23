@@ -5,6 +5,10 @@ All notable changes to jsonreshape are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-10-23
+
+The first release on PyPI (`pip install jsonreshape`); the program is the same as in 0.1.0.
+
 ### Changed
 - README.md is also the PyPI page: its links and images are absolute GitHub URLs (relative ones break on PyPI),
   and the package metadata names the documentation site (Homepage, Documentation).
@@ -143,5 +147,6 @@ compare with the state at the end of stage 6 (2026-10-19).
 - The Windows executables and the installer are not code-signed (SmartScreen warns on the first start); the macOS
   bundle is neither signed nor notarized (allow it once in System Settings → Privacy & Security).
 
-[Unreleased]: https://github.com/Erkinbek/jsonreshape/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Erkinbek/jsonreshape/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/Erkinbek/jsonreshape/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Erkinbek/jsonreshape/releases/tag/v0.1.0

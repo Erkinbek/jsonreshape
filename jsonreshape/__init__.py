@@ -11,7 +11,7 @@ with an underscore is private.
 
 from __future__ import annotations
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 # public name -> (defining module, name there); documented in docs/API.md "Stability"
 _LAZY: dict[str, tuple[str, str]] = {

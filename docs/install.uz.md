@@ -20,9 +20,9 @@ pip install "jsonreshape[import]"   # add YAML import (pyyaml)
 Keyin `jsonreshape --help` (CLI) yoki `jsonreshape-gui` (desktop oyna) ni ishga tushiring.
 
 !!! note
-    **v0.1.0** chiqdi: Windows o'rnatuvchisi va portativ `.zip`, Linux va macOS yuklamalari hamda
-    wheel'lar [GitHub Releases] sahifasida. PyPI va winget keyingi relizda — shu paytgacha
-    o'sha sahifadagi wheel'ni `pip install` qiling.
+    Har bir versiyaning Windows o'rnatuvchisi va portativ `.zip`, Linux va macOS yuklamalari hamda
+    wheel'lari [GitHub Releases] sahifasida; PyPI'da jsonreshape **v0.1.1** dan boshlab bor.
+    winget paketi hozircha yo'q.
 
 ## Tayyor yuklamalar (Windows, Linux, macOS)
 

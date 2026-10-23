@@ -2,7 +2,7 @@
 
 [English](README.md) | [O'zbekcha](README.uz.md) | **Русский**
 
-[![CI](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml/badge.svg)](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE) ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg) ![Platforms: Windows, Linux, macOS](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg) ![Tests: 12,953 passing](https://img.shields.io/badge/tests-12%2C953%20passing-brightgreen.svg)
+[![CI](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml/badge.svg)](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE) ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg) ![Platforms: Windows, Linux, macOS](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg) ![Tests: 12,954 passing](https://img.shields.io/badge/tests-12%2C954%20passing-brightgreen.svg)
 
 Настольное приложение и CLI для огромных файлов JSON (от 100 MB до нескольких GB): просмотр, поиск, фильтрация,
 сортировка, преобразование, редактирование, перестройка структуры, статистика, дубликаты, JSON Schema,
@@ -97,7 +97,7 @@ py -3.14 -m venv .venv
 | `*.whl`, `jsonreshape-<version>.tar.gz` | Пакет Python (3.11+): `pip install <file>`; `pip install "jsonreshape[gui]"` добавляет окно. |
 | `SHA256SUMS.txt` | Проверка загруженного файла: `sha256sum -c SHA256SUMS.txt --ignore-missing` (Linux / macOS) или `Get-FileHash <file>` (PowerShell). |
 
-**PyPI** (после первой публикации): `pip install jsonreshape` — один wheel с ядром на Rust для каждой платформы
+**PyPI** (начиная с v0.1.1): `pip install jsonreshape` — один wheel с ядром на Rust для каждой платформы
 (Windows x64, Linux x86_64, macOS universal), работающий с любым Python ≥ 3.11; на остальных платформах sdist
 собирает ядро на Rust сам (без Rust используется чистое Python-ядро). **winget** (после слияния pull request в
 winget-pkgs): `winget install Erkinbek.jsonreshape`.
@@ -930,7 +930,7 @@ $env:JSONRESHAPE_BACKEND="python"; .venv\Scripts\python -m pytest -q  # с за�
 .venv\Scripts\python -m pytest -q -m packaging                     # на собранном .exe (сначала запустите scripts\build_exe.ps1)
 ```
 
-Полный набор: **12 953 теста** (с экспортом Feather / Arrow IPC, с ядром на Rust, ~61 минута; на конец этапа 7
+Полный набор: **12 954 теста** (с экспортом Feather / Arrow IPC, с ядром на Rust, ~61 минута; на конец этапа 7
 было 12 910, этапа 6 — 12 660, этапа 5 — 12 238, а на конец этапа 2 — 5 431; плюс 14 тестов `-m packaging` на
 собранном `.exe`); часть без GUI с чистым Python-ядром — 9 394 теста на конец этапа 7 (~24 минуты). Тесты `-m packaging`
 пропускаются, когда `dist\jsonreshape` не существует. Тесты GUI выполняются headless (`QT_QPA_PLATFORM=offscreen`).

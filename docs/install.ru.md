@@ -20,9 +20,9 @@ pip install "jsonreshape[import]"   # add YAML import (pyyaml)
 Затем выполните `jsonreshape --help` (CLI) или `jsonreshape-gui` (настольное окно).
 
 !!! note
-    **v0.1.0** вышла: установщик и портативный `.zip` для Windows, сборки для Linux и macOS и
-    пакеты wheel лежат на странице [GitHub Releases]. PyPI и winget — в одном из следующих
-    релизов; до тех пор устанавливайте wheel с этой страницы через `pip install`.
+    Установщик и портативный `.zip` для Windows, сборки для Linux и macOS и пакеты wheel
+    каждой версии лежат на странице [GitHub Releases]; на PyPI jsonreshape есть начиная с
+    **v0.1.1**. Пакета winget пока нет.
 
 ## Готовые сборки (Windows, Linux, macOS)
 
