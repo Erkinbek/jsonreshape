@@ -439,8 +439,9 @@ def test_release_notes(tmp_path: Path) -> None:
         digest = hashlib.sha256((tmp_path / name).read_bytes()).hexdigest()
         assert f"| `{name}` | " in notes and digest in notes
     assert "| `SHA256SUMS.txt` |" not in notes and "`sha256sum -c SHA256SUMS.txt" in notes
-    assert "pip install jsonreshape" in notes and "after the first publish" in notes
-    assert "winget install Erkinbek.jsonreshape" in notes and "https://github.com/o/r/tree/v0.2.0" in notes
+    assert "`pip install jsonreshape` from PyPI" in notes and "after the first publish" not in notes
+    # winget: the manifests are an artifact of the release run; the notes do not promise a package
+    assert "winget" not in notes and "https://github.com/o/r/tree/v0.2.0" in notes
     assert notes.index("**Windows installer**") < notes.index("**Windows, portable**") < notes.index("**Linux")
     # a version the changelog does not know yet: the Unreleased text with a TODO; no assets: no table
     notes = release_assets.release_notes("0.3.0", SAMPLE_CHANGELOG)

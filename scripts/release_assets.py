@@ -20,7 +20,7 @@ runs it on a plain Python 3.11+ without the package installed) and needs only th
         the release notes skeleton (Markdown, to stdout without --out): the CHANGELOG.md section of the version
         (``## [0.1.0] ...`` up to the next ``## `` heading, link definitions dropped; the "[Unreleased]" section and a
         warning when the version has none), how to install each asset found in the folder (installer, portable zip
-        / tar.gz, wheels and sdist, winget), the asset table with sizes and SHA-256, the checksum file. The author
+        / tar.gz, wheels and sdist), the asset table with sizes and SHA-256, the checksum file. The author
         edits the draft release before publishing it.
 """
 
@@ -57,7 +57,7 @@ _INSTALL_ROWS: tuple[tuple[re.Pattern[str], str], ...] = (
      "**macOS (Apple silicon), portable** -- `tar xzf` and run `jsonreshape/jsonreshape-gui` or "
      "`jsonreshape/jsonreshape` (an unsigned build: allow it once in System Settings > Privacy & Security)."),
     (re.compile(r"\.whl$|^jsonreshape-[\w.]+\.tar\.gz$"),
-     "**Python 3.11+** -- `pip install <file>` (`pip install jsonreshape` from PyPI after the first publish); "
+     "**Python 3.11+** -- `pip install jsonreshape` from PyPI, or `pip install <file>`; "
      "`pip install \"jsonreshape[gui]\"` adds the window (PySide6). One wheel per platform works with every "
      "Python >= 3.11 (abi3); the sdist builds the Rust core locally."),
 )
@@ -196,8 +196,6 @@ def release_notes(version: str, changelog_text: str, assets: list[Path] | None =
         if matching:
             used.update(matching)
             out.append(f"- {how}  \n  " + ", ".join(f"`{n}`" for n in matching))
-    out.append("- **winget** -- `winget install Erkinbek.jsonreshape` (once the winget-pkgs pull request of this "
-               "version is merged).")
     out += ["", f"Verify a download against `{SUMS_NAME}`: `sha256sum -c {SUMS_NAME} --ignore-missing` "
                 "(Linux / macOS) or `Get-FileHash <file> -Algorithm SHA256` (PowerShell).", ""]
     if files:
