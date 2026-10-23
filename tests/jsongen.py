@@ -17,14 +17,13 @@ import random
 from pathlib import Path
 from typing import Any
 
-from jsonreshape.codec import JsonFloat, JsonInt, number_text
+from jsonreshape.codec import DECODE_MAX_DEPTH, JsonFloat, JsonInt, number_text
 from jsonreshape.core.constants import DEFAULT_MAX_DEPTH
 
-# A record nested this deep is "too deep to decode in memory" on every platform the tests run on. codec.loads ends
-# in the json module, whose limit depends on the interpreter: Python 3.12 counts levels (~10 000 on Linux, 3 000 on
-# Windows), Python 3.14 measures the C stack (~17 000 levels on Windows, ~52 000 with Linux's 8 MB stack). The
-# scanner accepts up to core.DEFAULT_MAX_DEPTH (100 000) levels.
-TOO_DEEP = 90_000
+# A record nested this deep is "too deep to decode in memory" everywhere: codec.loads refuses more than
+# DECODE_MAX_DEPTH (10 000) levels whatever the json module could decode; the scanner accepts up to
+# core.DEFAULT_MAX_DEPTH (100 000).
+TOO_DEEP = 2 * DECODE_MAX_DEPTH
 assert TOO_DEEP < DEFAULT_MAX_DEPTH
 
 EDGE_STRINGS = [

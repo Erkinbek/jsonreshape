@@ -427,6 +427,28 @@ def test_deep_nesting_never_crashes() -> None:
     assert dumps(deep) == b"[" * 5001 + b"]" * 5001
 
 
+def test_nesting_beyond_the_decode_limit_is_refused_everywhere() -> None:
+    """The same records are "too deep to decode in memory" on every platform, whatever its json module could
+    decode (Python 3.14 with an unlimited Linux stack decodes millions of levels)."""
+    limit = codec.DECODE_MAX_DEPTH
+    for opener, closer in (("[", "]"), ('{"k":', "}")):
+        for depth in (limit + 1, 3 * limit):
+            text = opener * depth + "1" + closer * depth
+            for data in (text, text.encode("utf-8")):
+                with pytest.raises(JsonDecodeError):
+                    loads(data)
+                with pytest.raises(JsonDecodeError):
+                    codec.loads_precise(data)
+    # the limit is the nesting, not the number of brackets: wide records and a deep one inside a big record
+    wide = "[" + ",".join(["[{}]"] * (2 * limit)) + "]"
+    assert loads(wide) == [[{}]] * (2 * limit)
+    inner = "[" * 900 + "7" + "]" * 900
+    v = loads('{"pad": "' + "[" * (3 * limit) + '", "deep": ' + inner + ', "n": 1.10}')
+    assert v["pad"] == "[" * (3 * limit) and str(v["n"]) == "1.10"
+    assert codec._deeper_than(v, 901) is False and codec._deeper_than(v, 900) is True     # the record is level 1
+    assert codec._deeper_than(1, 0) is False and codec._deeper_than([], 1) is False and codec._deeper_than([[]], 1)
+
+
 def test_encoder_misc() -> None:
     assert dumps(JsonFloat("1.10")) == b"1.10"
     assert dumps(JsonInt("-0")) == b"-0"

@@ -28,7 +28,7 @@ from jsonreshape.mapping import MapNode, MappingTree
 
 ROOT = Path(__file__).resolve().parents[1]
 DIGITS = (4301, 10_000, 100_000)
-DEEP_LEVELS = 100_000           # nested arrays: beyond every JSON decoder's stack, so codec.loads refuses
+DEEP_LEVELS = 100_000           # nested arrays: beyond codec.DECODE_MAX_DEPTH, so codec.loads refuses
 
 _DRIVER = r'''
 import json, sys

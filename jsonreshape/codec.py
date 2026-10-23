@@ -29,6 +29,7 @@ import orjson
 from .errors import JsonDecodeError
 
 __all__ = [
+    "DECODE_MAX_DEPTH",
     "JsonDecodeError",
     "JsonFloat",
     "JsonInt",
@@ -47,6 +48,12 @@ __all__ = [
 _INT64_MIN = -(2**63)
 _UINT64_MAX = 2**64 - 1
 _MAX_INT_DIGITS = 4000  # Python's int() refuses > 4300 digits by default
+
+# Nesting deeper than this is "too deep to decode in memory" on every platform (JsonDecodeError). The json module's
+# own limit depends on the interpreter -- Python 3.12 counts (~10 000 levels on Linux, 3 000 on Windows), 3.14
+# measures the C stack (~17 000 on Windows, ~52 000 with an 8 MB Linux stack, no limit with an unlimited one) --
+# and walks of a decoded value that keep a path per level grow with the square of its depth.
+DECODE_MAX_DEPTH = 10_000
 
 
 class JsonFloat(float):
@@ -171,7 +178,8 @@ def _init_fast() -> None:
 
 
 def loads_precise(data: bytes | bytearray | memoryview | str) -> Any:
-    """Decode JSON keeping every number token exactly (pure stdlib path)."""
+    """Decode JSON keeping every number token exactly (pure stdlib path); nesting deeper than
+    :data:`DECODE_MAX_DEPTH` levels is refused."""
     if isinstance(data, str):
         text = data
     else:
@@ -180,11 +188,34 @@ def loads_precise(data: bytes | bytearray | memoryview | str) -> Any:
         except UnicodeDecodeError as exc:
             raise JsonDecodeError(f"invalid UTF-8 at byte {exc.start}", exc.start) from None
     try:
-        return _DECODER.decode(text)
+        value = _DECODER.decode(text)
     except json.JSONDecodeError as exc:
         raise JsonDecodeError(exc.msg, exc.pos) from None
     except (ValueError, RecursionError) as exc:
         raise JsonDecodeError(str(exc)) from None
+    # a value nested more than DECODE_MAX_DEPTH levels has more opening brackets than that (cheap tests first)
+    if (len(text) > 2 * DECODE_MAX_DEPTH and text.count("[") + text.count("{") > DECODE_MAX_DEPTH
+            and _deeper_than(value, DECODE_MAX_DEPTH)):
+        raise JsonDecodeError(f"nested more than {DECODE_MAX_DEPTH} levels deep")
+    return value
+
+
+def _deeper_than(value: Any, limit: int) -> bool:
+    """True when a decoded value nests containers more than ``limit`` levels deep (iterative)."""
+    if type(value) is not dict and type(value) is not list:
+        return False
+    stack = [iter(value.values() if type(value) is dict else value)]
+    while stack:
+        for v in stack[-1]:
+            tv = type(v)
+            if tv is dict or tv is list:
+                if len(stack) >= limit:
+                    return True
+                stack.append(iter(v.values() if tv is dict else v))
+                break
+        else:
+            stack.pop()
+    return False
 
 
 def loads(data: bytes | bytearray | memoryview | str) -> Any:
