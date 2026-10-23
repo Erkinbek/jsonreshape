@@ -2875,7 +2875,7 @@ palette [M], shortcuts in settings [K], "Open with" [K], themes [M], workspace [
 ### 16.1 As built (module docstrings and workflow headers are authoritative)
 
 * **CI** (`.github/workflows/ci.yml`; push / pull request to `main`; superseded runs cancelled): `tests-windows`
-  (windows-latest, Python 3.12, Rust stable, venv, `maturin develop --release`, `pip install -e ".[dev,gui]"`,
+  (windows-latest, Python 3.14, Rust stable, venv, `maturin develop --release`, `pip install -e ".[dev,gui]"`,
   asserts `core.BACKEND == "rust"`, `pytest -m "not gui and not bench and not packaging" --timeout=600`),
   `tests-linux-python-core` (ubuntu-latest, `JSONRESHAPE_BACKEND=python`, the same selection; Rust is installed
   there only because the build backend (maturin) compiles the extension while installing — the tests assert
@@ -2932,14 +2932,22 @@ palette [M], shortcuts in settings [K], "Open with" [K], themes [M], workspace [
   defines, the build script's switches and its PowerShell parse, the winget fill, the release helpers on temporary
   folders, the spec guards, and the built wheel / sdist metadata when `build/wheels` exists.
 
-### 16.2 Not verified here (first CI run)
+### 16.2 The first CI run (2026-10-23)
 
-The Linux / macOS jobs could not be run on this machine: Windows-only assumptions in tests (paths, locking) may
-surface in `tests-linux-python-core`; the Linux PyInstaller bundle depends on the runner's Qt system libraries
-(`libegl1 libgl1 libopengl0 libxkbcommon0 libdbus-1-3 libfontconfig1 libglib2.0-0 libxcb-cursor0` are installed);
-the macOS bundle is unsigned and not notarized (Gatekeeper asks once). The Windows test job may need more than the
-45-minute limit on a slow runner (the fast selection takes ~20 min locally) — raise `timeout-minutes` or add
-`pytest-xdist` then.
+The first real run (the account's billing lock had stopped every earlier one) found three kinds of trouble, all
+fixed: (1) Windows-only assumptions in 26 tests on the Linux job — another spelling of a file name is the same file
+only where the file system folds case (`tests/fs_helpers.case_folds`), Windows paths and sharing violations
+(winerror 32) / MAX_PATH simulated (those tests skip elsewhere), `communicate()` after the stdin was closed, a zlib
+whose bytes happen not to depend on the writes; (2) `ru_maxrss` on Linux keeps the resident size of the process
+the program was forked from, so the CLI's memory warning and two memory tests read the parent's size — the CLI now
+reads `VmHWM` (`cli._linux_peak_rss`); (3) Python 3.12 — argparse still wraps its developer errors in `_()`, and on
+Windows its fixed C recursion limit (3000) stops the deep-data tests (structure builder, XML import): CI and the
+release build now use Python 3.14, the version the program is developed and measured with. The Windows test job
+takes ~45 minutes on a hosted runner (limit 75). Not verified on this machine: the Linux PyInstaller bundle depends
+on the runner's Qt system libraries (`libegl1 libgl1 libopengl0 libxkbcommon0 libdbus-1-3 libfontconfig1
+libglib2.0-0 libxcb-cursor0` are installed); the macOS bundle is unsigned and not notarized (Gatekeeper asks once).
+The Linux test job can be reproduced locally in a `python:3.14-slim` container (the tracked files copied in, run as
+a non-root user, `JSONRESHAPE_BACKEND=python`).
 
 ### 16.3 Screenshots (`scripts/make_screenshots.py`)
 

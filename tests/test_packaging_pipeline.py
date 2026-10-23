@@ -111,7 +111,7 @@ def test_workflow_parses_pins_every_action_and_bounds_every_job(name: str) -> No
     for job_name, job in wf["jobs"].items():
         assert job.get("runs-on"), job_name
         assert _steps(job), job_name
-        assert isinstance(job.get("timeout-minutes"), int) and job["timeout-minutes"] <= 45, job_name
+        assert isinstance(job.get("timeout-minutes"), int) and job["timeout-minutes"] <= 75, job_name
         for step in _steps(job):
             assert ("uses" in step) != ("run" in step), (job_name, step)
     for action in _uses(wf):
@@ -123,7 +123,7 @@ def test_ci_workflow_structure() -> None:
     wf = _workflow("ci.yml")
     assert _on(wf) == {"push": {"branches": ["main"]}, "pull_request": {"branches": ["main"]}}
     assert wf["concurrency"]["cancel-in-progress"] is True and "${{ github.ref }}" in wf["concurrency"]["group"]
-    assert wf["env"]["PYTHON_VERSION"] == "3.12" and wf["env"]["QT_QPA_PLATFORM"] == "offscreen"
+    assert wf["env"]["PYTHON_VERSION"] == "3.14" and wf["env"]["QT_QPA_PLATFORM"] == "offscreen"
     assert wf["env"]["PYTEST_SELECTION"] == SELECTION
     jobs = wf["jobs"]
     assert set(jobs) == {"tests-windows", "tests-linux-python-core", "build-exe"}

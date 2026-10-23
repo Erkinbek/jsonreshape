@@ -1,6 +1,6 @@
 # Continuous integration of jsonreshape (docs/ARCHITECTURE.md section 16 "Distribution").
 #
-#   tests-windows             Windows, Python 3.12, the Rust core: the fast test selection
+#   tests-windows             Windows, Python 3.14, the Rust core: the fast test selection
 #   tests-linux-python-core   Linux, JSONRESHAPE_BACKEND=python: the same tests on the pure-Python core
 #   build-exe                 Windows: the PyInstaller build (scripts/build_exe.ps1) + its smoke tests, as an artifact
 #
@@ -26,7 +26,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PYTHON_VERSION: "3.12"
+  PYTHON_VERSION: "3.14"     # the version the program is developed, measured and built with
   PYTHONUTF8: "1"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   QT_QPA_PLATFORM: offscreen
@@ -38,7 +38,7 @@ jobs:
   tests-windows:
     name: Tests (Windows, Rust core)
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 75     # the selection takes ~45 minutes on a hosted Windows runner
     env:
       JSONRESHAPE_HOME: ${{ github.workspace }}\.jsonreshape-home   # runner.temp is not allowed in a job env
     steps:
