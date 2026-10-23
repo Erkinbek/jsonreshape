@@ -69,9 +69,11 @@ QT_UNUSED = [f"PySide6.{m}" for m in (
     "QtConcurrent", "QtDBus", "QtAxContainer")]
 #: ``ssl``: no TLS in an offline program (the standard library's ``http.client`` / ``urllib.request`` /
 #: ``ftplib`` / ``smtplib`` -- in the archive only because other standard modules refer to them -- import it
-#: optionally).
+#: optionally). ``pyarrow``: Parquet / Feather export is a feature of the Python package (README: it would add
+#: ~100 MB); a development environment has it (the ``dev`` extra) and the build must not depend on that.
 EXCLUDES = ["tkinter", "_tkinter", "test", "tests", "pytest", "_pytest", "pytestqt", "hypothesis", "jsonschema",
-            "setuptools", "pkg_resources", "pip", "PyInstaller", "IPython", "psutil.tests", "ssl", "_ssl"] + QT_UNUSED
+            "setuptools", "pkg_resources", "pip", "PyInstaller", "IPython", "psutil.tests", "ssl", "_ssl",
+            "pyarrow"] + QT_UNUSED
 
 METADATA = []
 for dist in ("orjson", "ijson", "XlsxWriter", "jmespath", "psutil", "PySide6", "PySide6_Essentials", "shiboken6"):
