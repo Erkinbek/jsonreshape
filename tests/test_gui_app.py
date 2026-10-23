@@ -131,6 +131,17 @@ def test_main_with_a_missing_file_does_not_fail(qtbot, clean_process, tmp_path) 
         close_window(qtbot, window)
 
 
+def test_non_ascii_arguments_pass_qt_as_placeholders() -> None:
+    """Qt rebuilds its arguments from local 8-bit bytes (the ANSI code page on Windows): a name outside it opened as
+    "ma?lumot ...". Non-ASCII arguments go to Qt as ASCII placeholders and come back as they were."""
+    args = ["-style", "fusion", "maʻlumot ўзбек.json", "plain.json", "δεδομένα 数据.json"]
+    qt_args, originals = app_mod.qt_safe_arguments(args)
+    assert qt_args[:2] == ["-style", "fusion"] and qt_args[3] == "plain.json"
+    assert all(a.isascii() and not a.startswith("-") for a in qt_args[2:])
+    assert [originals.get(a, a) for a in qt_args] == args
+    assert app_mod.qt_safe_arguments(["a.json"]) == (["a.json"], {})
+
+
 def test_main_applies_the_saved_theme(qtbot, clean_process, tmp_path) -> None:
     from jsonreshape.gui.guistate import GuiState
 

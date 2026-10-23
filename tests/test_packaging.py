@@ -59,7 +59,7 @@ def _run(argv: list, tmp_path: Path, *, timeout: float = 180, **extra: str) -> s
 
 
 def _data(tmp_path: Path) -> Path:
-    p = tmp_path / "ma'lumot ўзбек.json"
+    p = tmp_path / "ma'lumot oʻzbek ўзбек.json"     # "ʻ" and "ў" are in no single ANSI code page
     p.write_text(DATA, encoding="utf-8")
     return p
 

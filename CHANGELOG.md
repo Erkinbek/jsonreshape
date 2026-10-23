@@ -115,6 +115,10 @@ compare with the state at the end of stage 6 (2026-10-19).
 - Linux: the command line's memory warning measured `ru_maxrss`, which keeps the resident size of the process it
   was started from (a CLI run by a large program reported that program's size); it now reads `VmHWM` of
   `/proc/self/status`, the high-water mark of the program itself.
+- Windows: a file whose name has characters outside the ANSI code page (a Cyrillic name on an English Windows, a
+  Greek or Chinese name on a Russian one) did not open from the command line or "Open with": Qt rebuilds its
+  argument list from 8-bit bytes in that code page, so the name came back with "?". Such arguments now reach the
+  window unchanged.
 - Search: a record too deep to decode in memory is walked as a stream, and that walk kept a path tuple for every
   open container, so its memory grew with the square of the depth (3.5 GB for a 60 KB record nested 30,000
   levels). It now keeps one path list (~70 MB, 0.05 s instead of 2 s).

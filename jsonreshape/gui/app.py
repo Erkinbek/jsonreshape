@@ -557,6 +557,23 @@ def _log_environment() -> None:
         log.exception("environment check failed")
 
 
+def qt_safe_arguments(args: list[str]) -> tuple[list[str], dict[str, str]]:
+    """``args`` for ``QApplication`` with every non-ASCII argument replaced by a placeholder, and the placeholders'
+    originals. Qt rebuilds its argument list from the bytes PySide passes in the local 8-bit encoding (the ANSI code
+    page on Windows), so a file name with characters outside it came back with "?" and did not open (a Cyrillic name
+    on an English Windows). A placeholder is no Qt option and no Windows file name ("<" and ">" are not allowed)."""
+    qt_args: list[str] = []
+    originals: dict[str, str] = {}
+    for i, arg in enumerate(args):
+        if arg.isascii():
+            qt_args.append(arg)
+        else:
+            stand_in = f"<jsonreshape-arg-{i}>"
+            originals[stand_in] = arg
+            qt_args.append(stand_in)
+    return qt_args, originals
+
+
 def main(argv: list[str] | None = None, *, run: bool = True) -> Any:
     """Start the viewer with the files in ``argv`` (default: ``sys.argv[1:]``).
 
@@ -594,8 +611,9 @@ def main(argv: list[str] | None = None, *, run: bool = True) -> Any:
     if created:
         QGuiApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
         set_app_user_model_id()
-        app = QApplication([sys.argv[0] if sys.argv and sys.argv[0] else "jsonreshape-gui"] + args)
-        files = list(app.arguments()[1:])   # Qt removed its own options (-style ...)
+        qt_args, originals = qt_safe_arguments(args)
+        app = QApplication([sys.argv[0] if sys.argv and sys.argv[0] else "jsonreshape-gui"] + qt_args)
+        files = [originals.get(a, a) for a in app.arguments()[1:]]   # Qt removed its own options (-style ...)
     else:
         files = args
     app.setOrganizationName(ORGANIZATION)

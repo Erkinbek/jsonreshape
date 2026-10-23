@@ -2934,7 +2934,7 @@ palette [M], shortcuts in settings [K], "Open with" [K], themes [M], workspace [
 
 ### 16.2 The first CI run (2026-10-23)
 
-The first real run (the account's billing lock had stopped every earlier one) found four kinds of trouble, all
+The first real run (the account's billing lock had stopped every earlier one) found five kinds of trouble, all
 fixed: (1) Windows-only assumptions in 26 tests on the Linux job — another spelling of a file name is the same file
 only where the file system folds case (`tests/fs_helpers.case_folds`), Windows paths and sharing violations
 (winerror 32) / MAX_PATH simulated (those tests skip elsewhere), `communicate()` after the stdin was closed, a zlib
@@ -2956,7 +2956,14 @@ the GitHub runner is reproduced in the container with `ulimit -s unlimited`. A d
 square of the depth (30 000 levels: 3.5 GB, 2 s; 90 000: ~30 GB). It keeps one path list now and makes a tuple only
 for what it yields (90 000 levels: 81 MB, 0.08 s; `test_stream_walk_memory_does_not_grow_with_the_square_of_the_
 depth`). Left as it is: when every level of a deep object chain is a hit, each hit keeps its whole path (30 000
-hits of a 30 000-level chain: ~14 GB). The Windows test job
+hits of a 30 000-level chain: ~14 GB); (5) `test_the_gui_smoke_hook_from_source` failed on the Windows runner in
+both runs (exit 3, the tab "failed"): the runner's ANSI code page is 1252 and the test file is named
+`ma'lumot ўзбек.json`. PySide hands `QApplication` the arguments as local 8-bit bytes and `main` took the file
+names from `app.arguments()`, so a character outside the code page came back as "?" — on this machine (code page
+1251) a Greek or Chinese name failed the same way. `gui.app.qt_safe_arguments` passes non-ASCII arguments to Qt as
+`<jsonreshape-arg-N>` placeholders and puts the originals back; the smoke file is now named
+`ma'lumot oʻzbek ўзбек.json` ("ʻ" and "ў" are in no single ANSI code page), so the test fails anywhere without
+the fix. The Windows test job
 takes ~45 minutes on a hosted runner (limit 75). Not verified on this machine: the Linux PyInstaller bundle depends
 on the runner's Qt system libraries (`libegl1 libgl1 libopengl0 libxkbcommon0 libdbus-1-3 libfontconfig1
 libglib2.0-0 libxcb-cursor0` are installed); the macOS bundle is unsigned and not notarized (Gatekeeper asks once).
