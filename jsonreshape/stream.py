@@ -1330,29 +1330,33 @@ def stream_walk(doc: Any, span: tuple[int, int], member: bool = False, *,
                 cancel: CancelToken | None = None) -> Iterator[tuple[tuple, str, Any]]:
     """Every object key and scalar of the record in document order: ``(path, "key",
     key)`` (``path`` = the member's path, i.e. ending with the key) and ``(path,
-    "value", scalar)``. Paths are relative to the record value."""
-    stack: list[list[Any]] = []   # [is_map, path, key, count]
+    "value", scalar)``. Paths are relative to the record value.
+
+    One path list is kept for the open containers and a tuple is made only for what is yielded: a tuple per
+    container made the memory grow with the square of the depth (3.5 GB for a 60 KB record nested 30 000 levels)."""
+    stack: list[list[Any]] = []   # [is_map, key, count] of the open containers
+    path: list[Any] = []          # the path of the innermost open container (the root has none)
+    seg: Any = None
     for event, value in _record_events(doc, span, member, cancel):
         if event == "map_key":
-            top = stack[-1]
-            top[2] = value
-            yield top[1] + (value,), "key", value
+            stack[-1][1] = value
+            yield (*path, value), "key", value
             continue
         if event in ("end_map", "end_array"):
             stack.pop()
+            if stack:
+                path.pop()
             continue
-        if not stack:
-            path: tuple = ()
-        else:
+        if stack:
             top = stack[-1]
             if top[0]:
-                path = top[1] + (top[2],)
+                seg = top[1]
             else:
-                path = top[1] + (top[3],)
-                top[3] += 1
-        if event == "start_map":
-            stack.append([True, path, None, 0])
-        elif event == "start_array":
-            stack.append([False, path, None, 0])
+                seg = top[2]
+                top[2] += 1
+        if event == "start_map" or event == "start_array":
+            if stack:
+                path.append(seg)
+            stack.append([event == "start_map", None, 0])
         else:
-            yield path, "value", _number(value) if event == "number" else value
+            yield ((*path, seg) if stack else ()), "value", _number(value) if event == "number" else value

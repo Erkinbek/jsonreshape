@@ -115,6 +115,9 @@ compare with the state at the end of stage 6 (2026-10-19).
 - Linux: the command line's memory warning measured `ru_maxrss`, which keeps the resident size of the process it
   was started from (a CLI run by a large program reported that program's size); it now reads `VmHWM` of
   `/proc/self/status`, the high-water mark of the program itself.
+- Search: a record too deep to decode in memory is walked as a stream, and that walk kept a path tuple for every
+  open container, so its memory grew with the square of the depth (3.5 GB for a 60 KB record nested 30,000
+  levels). It now keeps one path list (~70 MB, 0.05 s instead of 2 s).
 - The test suite runs on Linux and with Python 3.12 too (the first CI run found Windows-only assumptions: case-
   insensitive file names, Windows paths and sharing violations); CI and the release builds use Python 3.14.
 
@@ -124,6 +127,10 @@ compare with the state at the end of stage 6 (2026-10-19).
 - With Python 3.12 on Windows (a `pip` install), data nested more than about 1,000 levels deep can stop the
   structure builder and the XML import with a recursion error: Python 3.12 has a fixed C recursion limit there.
   The release builds use Python 3.14.
+- How deep a record can be decoded in memory depends on the interpreter: with Python 3.14 about 17,000 levels on
+  Windows and 52,000 on Linux (8 MB stack). A deeper record (the scanner accepts 100,000 levels) is streamed where
+  that is possible and otherwise skipped with a warning. Searching a deep object chain in which every level is a
+  hit keeps each hit's whole path (30,000 hits of a 30,000-level chain need ~14 GB).
 - A search with "Latin ↔ Cyrillic" parses every record (~25 MB/s, about 85 s on a 2.1 GB file); a plain search scans
   the bytes (~600 MB/s).
 - The Windows executables and the installer are not code-signed (SmartScreen warns on the first start); the macOS

@@ -154,6 +154,24 @@ def test_stream_walk_reports_every_duplicate(tmp_path: Path) -> None:
                        (("a", 0), "value", 2), (("a", 1, "a"), "key", "a"), (("a", 1, "a"), "value", 3)]
 
 
+def test_stream_walk_memory_does_not_grow_with_the_square_of_the_depth(tmp_path: Path) -> None:
+    import tracemalloc
+
+    depth = 20_000
+    p = tmp_path / "deep.json"
+    p.write_bytes(b'[{"a": 1}, ' + b"[" * depth + b'{"k": "v"}' + b"]" * depth + b"]")
+    with Document.open(p) as doc:
+        doc.build_index()
+        tracemalloc.start()
+        try:
+            got = list(stream_walk(doc, doc.record_span(1)))
+            peak = tracemalloc.get_traced_memory()[1]
+        finally:
+            tracemalloc.stop()
+    assert got == [((0,) * depth + ("k",), "key", "k"), ((0,) * depth + ("k",), "value", "v")]
+    assert peak < 32 << 20, peak         # was ~1.6 GB: a path tuple per open container
+
+
 def test_iter_events_and_member_wrapping(tmp_path: Path) -> None:
     p = tmp_path / "k.json"
     p.write_bytes(b'{"k1": {"a": [1, "x"]}, "k2": 2.5}')
