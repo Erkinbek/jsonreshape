@@ -11,6 +11,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 READMES = ("README.md", "README.uz.md", "README.ru.md")      # English (main), Uzbek, Russian
+# README.md is also the PyPI page, where relative links and images break: it links the repository absolutely
+BLOB = "https://github.com/Erkinbek/jsonreshape/blob/main/"
+RAW = "https://raw.githubusercontent.com/Erkinbek/jsonreshape/main/"
 
 
 def _readme(name: str = "README.md") -> str:
@@ -46,17 +49,31 @@ def test_readmes_link_each_other_and_keep_the_same_sections() -> None:
     the copyright line."""
     en, uz, ru = _readme("README.md"), _readme("README.uz.md"), _readme("README.ru.md")
     heads = {name: text.split("\n## ", 1)[0] for name, text in (("en", en), ("uz", uz), ("ru", ru))}
-    assert "[O'zbekcha](README.uz.md)" in heads["en"] and "[Русский](README.ru.md)" in heads["en"]
+    assert f"[O'zbekcha]({BLOB}README.uz.md)" in heads["en"] and f"[Русский]({BLOB}README.ru.md)" in heads["en"]
     assert "[English](README.md)" in heads["uz"] and "[Русский](README.ru.md)" in heads["uz"]
     assert "[English](README.md)" in heads["ru"] and "[O'zbekcha](README.uz.md)" in heads["ru"]
     anchors = re.compile(r'<a id="([a-z0-9-]+)"></a>')
     assert anchors.findall(en) == anchors.findall(uz) == anchors.findall(ru) and "muallif" in anchors.findall(en)
-    for text in (en, uz, ru):
+    for text, license_link in ((en, f"{BLOB}LICENSE"), (uz, "LICENSE"), (ru, "LICENSE")):
         assert "Erkin Pardayev" in text and "Claude Opus 5.5" in text and "© 2026 Erkin Pardayev" in text
-        assert "[Apache License 2.0](LICENSE)" in text
+        assert f"[Apache License 2.0]({license_link})" in text
         assert "https://github.com/Erkinbek" in text and "[@ErkinPardayev](https://t.me/ErkinPardayev)" in text
         for target in set(re.findall(r"\]\(#([a-z0-9-]+)\)", text)):
             assert target in anchors.findall(text), target
+
+
+def test_readme_md_links_work_on_pypi() -> None:
+    """pyproject's readme is README.md: PyPI shows it without the repository around it, so every link and image is
+    absolute (or an anchor) and points at a file the repository tracks."""
+    for target in re.findall(r"\]\(([^)\s]+)\)", _readme("README.md")):
+        if target.startswith(("#", "mailto:")):
+            continue
+        assert target.startswith(("https://", "http://")), target
+        for base in (BLOB, RAW):
+            if target.startswith(base):
+                assert (ROOT / target[len(base):]).exists(), target
+                if base == RAW:
+                    assert target.endswith((".png", ".gif", ".svg")), target
 
 
 def test_architecture_doc_mentions_current_cli() -> None:

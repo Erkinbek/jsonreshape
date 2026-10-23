@@ -1,8 +1,8 @@
 # jsonreshape
 
-**English** | [O'zbekcha](README.uz.md) | [Русский](README.ru.md)
+**English** | [O'zbekcha](https://github.com/Erkinbek/jsonreshape/blob/main/README.uz.md) | [Русский](https://github.com/Erkinbek/jsonreshape/blob/main/README.ru.md)
 
-[![CI](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml/badge.svg)](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE) ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg) ![Platforms: Windows, Linux, macOS](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg) ![Tests: 12,953 passing](https://img.shields.io/badge/tests-12%2C953%20passing-brightgreen.svg)
+[![CI](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml/badge.svg)](https://github.com/Erkinbek/jsonreshape/actions/workflows/ci.yml) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/Erkinbek/jsonreshape/blob/main/LICENSE) ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg) ![Platforms: Windows, Linux, macOS](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg) ![Tests: 12,953 passing](https://img.shields.io/badge/tests-12%2C953%20passing-brightgreen.svg)
 
 A desktop application and CLI for huge JSON files (from 100 MB to several GB): viewing, search, filtering, sorting,
 conversion, editing, restructuring, statistics, duplicates, JSON Schema, split/merge, repair and comparison.
@@ -10,7 +10,7 @@ conversion, editing, restructuring, statistics, duplicates, JSON Schema, split/m
 only the pieces that are needed are read. **The original file is never modified**: edits live in a separate layer,
 and saving atomically replaces the file with a new one (by default with a `.bak` backup copy).
 
-![Demo: jsonreshape opens a 2.1 GB JSON file with 6.5 million records, searches every record, filters it with an expression and exports the result to CSV](docs/img/demo.gif)
+![Demo: jsonreshape opens a 2.1 GB JSON file with 6.5 million records, searches every record, filters it with an expression and exports the result to CSV](https://raw.githubusercontent.com/Erkinbek/jsonreshape/main/docs/img/demo.gif)
 
 *A 2.1 GB file with 6.5 million records: opening, browsing, a search over every record, a filter and a CSV export.
 The clock under the window is real time (only the filter is played 8× faster, and the strip says so); recorded
@@ -19,7 +19,7 @@ offscreen by `scripts/make_demo_gif.py`.*
 > **Status: done** — the 6 core stages (2026-10-19) plus a distribution & extensions round (stage 7, 2026-10-21). Author: Erkin Pardayev · built with Claude Opus 5.5
 > ([author, contact and copyright](#muallif)).
 
-| ![jsonreshape in the light theme: the tree of a 12 000-record JSON array with record #0 expanded (contact → address, tags) and record #1 selected, shown as text in the right pane](docs/img/main-light.png) | ![The same window in the dark theme](docs/img/main-dark.png) |
+| ![jsonreshape in the light theme: the tree of a 12 000-record JSON array with record #0 expanded (contact → address, tags) and record #1 selected, shown as text in the right pane](https://raw.githubusercontent.com/Erkinbek/jsonreshape/main/docs/img/main-light.png) | ![The same window in the dark theme](https://raw.githubusercontent.com/Erkinbek/jsonreshape/main/docs/img/main-dark.png) |
 |:--:|:--:|
 | Light theme | Dark theme |
 
@@ -403,7 +403,7 @@ Rebuild the structure of the records with the mouse and apply the result to the 
 cases). The only differences come from JavaScript limitations: numbers are kept exactly (`1.10`, `1e400`,
 `12345678901234567890`), the key order does not change, there is redo, record numbers start at 0.
 
-![Structure builder: the field tree of the sample on the left with children flattened into one array (_depth = level number), the live preview of record #0 on the right](docs/img/structure-builder.png)
+![Structure builder: the field tree of the sample on the left with children flattened into one array (_depth = level number), the live preview of record #0 on the right](https://raw.githubusercontent.com/Erkinbek/jsonreshape/main/docs/img/structure-builder.png)
 
 * The "Structure builder…" button in the Schema view, or Ctrl+6. On the left, the structure tree (from a sample —
   10,000 records by default — or from all records with "Full scan"); on the right, the live result ("Result" /
@@ -449,7 +449,7 @@ source file or a file that is open in another tab with unsaved changes.
   and `length_histogram` (`bins`, exact `edges`, `counts`, `exact`, `sample_size`; `null` when the field has no
   numbers / strings). Without the option the output is unchanged.
 
-  ![Field statistics dock for score: present / null / missing and type rows with share bars, 11,298 distinct values, the number histogram with 20 bins and the 20 most frequent values](docs/img/stats.png)
+  ![Field statistics dock for score: present / null / missing and type rows with share bars, 11,298 distinct values, the number histogram with 20 bins and the 20 most frequent values](https://raw.githubusercontent.com/Erkinbek/jsonreshape/main/docs/img/stats.png)
 
 * **Duplicate records** (Tools → "Duplicate records…", Schema view): key field (`$key` — the member key, `$` — the
   whole record), keep the first or the last; the number of duplicates, 20 example groups (click to go to the
@@ -475,7 +475,7 @@ source file or a file that is open in another tab with unsaved changes.
   short strings; **F7 / Shift+F7** — next / previous difference; "Only differences", array matching (index / auto /
   key / unordered), A ⇄ B, "Text" mode; open the differing records as a record set; export the report.
 
-  ![Compare window: 297 changed, 5 added and 124 removed records by key id; the results grid above, the diff of record #47 below (score, city and an added tag highlighted)](docs/img/compare.png)
+  ![Compare window: 297 changed, 5 added and 124 removed records by key id; the results grid above, the diff of record #47 below (score, city and an added tag highlighted)](https://raw.githubusercontent.com/Erkinbek/jsonreshape/main/docs/img/compare.png)
 
 * **"Smart" values** (tree, table, full value window): unix times and ISO dates get a note with the Tashkent time
   and the weekday; URLs are underlined, **Ctrl+click** → "Open in the browser?" → opens only after you confirm;
@@ -492,7 +492,7 @@ source file or a file that is open in another tab with unsaved changes.
   the import runs in the background with progress and "Stop"; the report shows the records, the converted numbers,
   literals and empty cells, skipped rows and warnings.
 
-  ![File > Import with a CSV chosen: the detected type, the values, delimiter, encoding and empty-cell options, the JSON Lines target next to the source](docs/img/import-dialog.png)
+  ![File > Import with a CSV chosen: the detected type, the values, delimiter, encoding and empty-cell options, the JSON Lines target next to the source](https://raw.githubusercontent.com/Erkinbek/jsonreshape/main/docs/img/import-dialog.png)
 
 ### Convenience (stage 6)
 
@@ -504,7 +504,7 @@ source file or a file that is open in another tab with unsaved changes.
   the last 20 commands used. A command that cannot run right now is greyed out, with the reason. Enter runs it,
   Esc closes.
 
-  ![Command palette over the window with the query "export": Export… (Ctrl+E) selected and the disabled "Export changes as JSON Patch…" with its reason](docs/img/palette.png)
+  ![Command palette over the window with the query "export": Export… (Ctrl+E) selected and the disabled "Export changes as JSON Patch…" with its reason](https://raw.githubusercontent.com/Erkinbek/jsonreshape/main/docs/img/palette.png)
 
 * **Keyboard** (Settings ▸ Keyboard): change, remove or reset the key of any command; a key that is taken is refused,
   naming the command it belongs to. The tree's and table's own keys (↑↓→←, `*`, Space, Enter, F2, Ins, Del, Ctrl+D,
@@ -837,7 +837,7 @@ while it is being checked.
 <a id="arxitektura"></a>
 ## 12. Architecture
 
-Detailed interface specification: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Detailed interface specification: [`docs/ARCHITECTURE.md`](https://github.com/Erkinbek/jsonreshape/blob/main/docs/ARCHITECTURE.md).
 
 ### Python API
 
@@ -847,7 +847,7 @@ Open a file, iterate its records, search, filter (expression language or JMESPat
 JSON / JSON Lines / CSV / XLSX / SQLite, edit and save a copy, apply a mapping, compute statistics, validate
 against a JSON Schema, split, merge, repair and diff — each with progress and cancellation. The reference with
 one runnable example per area (executed by `tests/test_api_docs.py`) and the stability policy is
-[`docs/API.md`](docs/API.md).
+[`docs/API.md`](https://github.com/Erkinbek/jsonreshape/blob/main/docs/API.md).
 
 ```text
 rust/                 Rust core (PyO3 0.30, maturin): validating scanner, reformatter, Aho-Corasick search,
@@ -993,11 +993,11 @@ sdist, `SHA256SUMS.txt`) and opens a *draft* GitHub release for review (`.github
 
 Final measurement — 2026-10-19, with the code at the end of stage 6; no other agent or heavy work was running on the
 computer (system load before the measurements ~2–17 %, average ~6 %). Full results, every repetition, measurement
-conditions and the computer description: core, CLI and mapping — [`bench/results/latest.md`](bench/results/latest.md)
-(in Uzbek; the scripts write English with `--lang en`); GUI — [`gui_latest.md`](bench/results/gui_latest.md);
-edits — [`edit_latest.md`](bench/results/edit_latest.md); table exports (CSV, XLSX, SQLite) —
-[`export_latest.md`](bench/results/export_latest.md); stage 5 tools —
-[`tools_latest.md`](bench/results/tools_latest.md). To measure again: `.venv\Scripts\python bench\run_bench.py`,
+conditions and the computer description: core, CLI and mapping — [`bench/results/latest.md`](https://github.com/Erkinbek/jsonreshape/blob/main/bench/results/latest.md)
+(in Uzbek; the scripts write English with `--lang en`); GUI — [`gui_latest.md`](https://github.com/Erkinbek/jsonreshape/blob/main/bench/results/gui_latest.md);
+edits — [`edit_latest.md`](https://github.com/Erkinbek/jsonreshape/blob/main/bench/results/edit_latest.md); table exports (CSV, XLSX, SQLite) —
+[`export_latest.md`](https://github.com/Erkinbek/jsonreshape/blob/main/bench/results/export_latest.md); stage 5 tools —
+[`tools_latest.md`](https://github.com/Erkinbek/jsonreshape/blob/main/bench/results/tools_latest.md). To measure again: `.venv\Scripts\python bench\run_bench.py`,
 `bench\gui_bench.py`, `bench\edit_bench.py --work DIR`, `bench\tools_bench.py --work-dir DIR`.
 
 Computer: Intel Core Ultra 9 285 (24 cores: 8 P + 16 E), 205 GB RAM, two NVMe SSDs (data files on E:, output files
@@ -1397,8 +1397,8 @@ Bug reports and suggestions: [GitHub Issues](https://github.com/Erkinbek/jsonres
 **Built with Claude Opus 5.5.** The code, tests, benchmarks and documentation were written with Anthropic's
 Claude Opus 5.5 model (in Claude Code), following the author's specification (`AGENT_PROMPT.md`) and decisions.
 
-**License:** [Apache License 2.0](LICENSE) — free to use, modify and redistribute, including commercially, with
+**License:** [Apache License 2.0](https://github.com/Erkinbek/jsonreshape/blob/main/LICENSE) — free to use, modify and redistribute, including commercially, with
 attribution; see `NOTICE` and `THIRD-PARTY-NOTICES.md` for the bundled components. Contributions are welcome:
-[`CONTRIBUTING.md`](CONTRIBUTING.md); security reports: [`SECURITY.md`](SECURITY.md); changes: [`CHANGELOG.md`](CHANGELOG.md).
+[`CONTRIBUTING.md`](https://github.com/Erkinbek/jsonreshape/blob/main/CONTRIBUTING.md); security reports: [`SECURITY.md`](https://github.com/Erkinbek/jsonreshape/blob/main/SECURITY.md); changes: [`CHANGELOG.md`](https://github.com/Erkinbek/jsonreshape/blob/main/CHANGELOG.md).
 
 Copyright © 2026 Erkin Pardayev.

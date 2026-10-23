@@ -5,6 +5,10 @@ All notable changes to jsonreshape are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- README.md is also the PyPI page: its links and images are absolute GitHub URLs (relative ones break on PyPI),
+  and the package metadata names the documentation site (Homepage, Documentation).
+
 ## [0.1.0] — 2026-10-23
 
 The first complete version and the first public release: the six development stages (README §12

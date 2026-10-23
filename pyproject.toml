@@ -42,6 +42,8 @@ dependencies = [
 ]
 
 [project.urls]
+Homepage = "https://erkinbek.github.io/jsonreshape/"
+Documentation = "https://erkinbek.github.io/jsonreshape/"
 Repository = "https://github.com/Erkinbek/jsonreshape"
 Author = "https://github.com/Erkinbek"
 Telegram = "https://t.me/ErkinPardayev"
