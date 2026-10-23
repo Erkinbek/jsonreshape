@@ -561,8 +561,9 @@ def test_a_50_mb_pipe_keeps_the_memory_flat(tmp_path: Path) -> None:
             peak_wset = max(peak_wset, getattr(info, "peak_wset", 0))
         peak = max(peak, total)
         time.sleep(0.01)
-    out, err = proc.communicate(timeout=600)
     writer.join(timeout=60)
+    proc.stdin = None                  # closed by the writer: communicate() on POSIX would flush it again
+    out, err = proc.communicate(timeout=600)
     assert proc.returncode == 0, err.decode("utf-8", "replace")
     assert (tmp_path / "pipe.jsonl").read_bytes() == (tmp_path / "file.jsonl").read_bytes()
     assert peak > 20 * MiB, "the measurement saw the interpreter"

@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fs_helpers import case_folds
 
 import jsongen
 from jsonreshape import cli, codec, i18n
@@ -262,7 +263,9 @@ def test_diff_outputs_are_never_an_input(run, pair: tuple[Path, Path], tmp_path:
     original = reader.Document.open
     monkeypatch.setattr(reader.Document, "open", lambda *x, **k: opened.append(x) or original(*x, **k))
     monkeypatch.chdir(tmp_path)
-    for target in (a, b, str(a).upper(), "yangi.json", "./sub/../ESKI.JSON"):
+    # another spelling of the same name only where the file system folds case (NTFS, APFS)
+    upper = [str(a).upper(), "./sub/../ESKI.JSON"] if case_folds(tmp_path) else []
+    for target in (a, b, "yangi.json", "./sub/../eski.json", *upper):
         r = run("diff", a, b, "-o", target)
         assert r.code == 1 and "manba faylning o'ziga" in r.err, target
     r = run("diff", a, b, "--out", "x.txt")

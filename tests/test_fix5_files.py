@@ -24,6 +24,7 @@ import time
 from pathlib import Path
 
 import pytest
+from fs_helpers import case_folds
 
 from jsonreshape import diff, fileio, filetools, index as index_mod, repair
 from jsonreshape.edits import EditSession
@@ -69,8 +70,10 @@ def test_report_write_refuses_the_source_and_the_output(tmp_path: Path, monkeypa
     fixed = dst.read_bytes()
     monkeypatch.chdir(tmp_path)
     try:
-        spellings = [src, str(src).upper(), str(src).replace("\\", "/"),
-                     str(tmp_path / "sub" / ".." / "broken.json"), "broken.json", "./BROKEN.json"]
+        spellings = [src, str(src).replace("\\", "/"), str(tmp_path / "sub" / ".." / "broken.json"), "broken.json"]
+        # another spelling of the same name only where the file system folds case (NTFS, APFS)
+        if case_folds(tmp_path):
+            spellings += [str(src).upper(), "./BROKEN.json"]
         for spelling in spellings:
             with pytest.raises(UserInputError) as ei:
                 rep.write(spelling, "csv")
@@ -80,8 +83,8 @@ def test_report_write_refuses_the_source_and_the_output(tmp_path: Path, monkeypa
         with pytest.raises(UserInputError) as ei:
             rep.write(link, "json")
         assert ei.value.key == "writer.error.same_file"
-        with pytest.raises(UserInputError) as ei:
-            rep.write(str(dst).upper(), "jsonl")             # the repaired output
+        with pytest.raises(UserInputError) as ei:                                # the repaired output
+            rep.write(str(dst).upper() if case_folds(tmp_path) else str(dst), "jsonl")
         assert ei.value.key == "repair.error.report_target"
         assert "repaired file" in str(ei.value) and "fixed.json" in str(ei.value).lower()
         assert src.read_bytes() == BROKEN and dst.read_bytes() == fixed
@@ -142,7 +145,7 @@ def _ab(tmp_path: Path, gz: bool = False) -> tuple[Path, Path, bytes]:
 def test_write_diff_refuses_an_open_compared_document(tmp_path: Path, docs, gz: bool) -> None:
     a, b, a_raw = _ab(tmp_path, gz)
     da, db = _open(a, docs), _open(b, docs)
-    targets = [a, str(a).upper(), b, da.data_path, db.data_path]
+    targets = [a, b, da.data_path, db.data_path] + ([str(a).upper()] if case_folds(tmp_path) else [])
     for target in targets:
         gen = diff.iter_record_diffs(da, db, key="id")     # the CLI's streaming --out
         with pytest.raises(UserInputError) as ei:
@@ -160,7 +163,7 @@ def test_write_diff_refuses_closed_documents_through_the_report(tmp_path: Path) 
     with Document.open(a) as da, Document.open(b) as db:
         rep = diff.diff_files(da, db, key="id", on_record=diffs.append)
     assert {fileio.normalize_path(p) for p in rep.sources} >= {fileio.normalize_path(a), fileio.normalize_path(b)}
-    for target in (str(a).upper(), b, tmp_path / "x" / ".." / "a.json"):
+    for target in (str(a).upper() if case_folds(tmp_path) else a, b, tmp_path / "x" / ".." / "a.json"):
         with pytest.raises(UserInputError) as ei:
             diff.write_diff(diffs, target, "jsonl", report=rep)
         assert ei.value.key == "writer.error.same_file"
@@ -673,7 +676,7 @@ def test_the_fast_prepared_scan_equals_the_old_one(tmp_path: Path) -> None:
         folder = _prepared_folder(tmp_path / f"p{k}")
         fileio.retain_prepared(folder / "d.json")
         try:
-            entries = scan(folder, keep=[str(folder / "C.JSON")])
+            entries = scan(folder, keep=[str(folder / ("C.JSON" if case_folds(tmp_path) else "c.json"))])
         finally:
             fileio.release_prepared(folder / "d.json")
         age = time.time()

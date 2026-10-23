@@ -175,7 +175,7 @@ def test_lenient_reading_caps_tabs_and_expanded() -> None:
     ({"path": "a", "sort": [{"path": "a..b"}]}, "value", "/x/sort/0"),
     ({"path": "a", "sort": [{"path": "a", "nulls": "middle"}]}, "value", "/x/sort/0"),
     ({"path": "a", "search": {"text": "x", "whole_word": "yes"}}, "type", "/x/search/whole_word"),
-    ({"path": "a", "relpath": "C:\\abs.json"}, "value", "/x/relpath"),
+    ({"path": "a", "relpath": "C:\\abs.json" if os.name == "nt" else "/abs.json"}, "value", "/x/relpath"),
     ({"path": "a", "table_layout": [1]}, "type", "/x/table_layout"),
     ({"path": "a", "bookmarks": [{"name": "x", "record": -1}]}, "value", "/x/bookmarks/0"),
     ({"path": "a", "bookmarks": {}}, "type", "/x/bookmarks"),

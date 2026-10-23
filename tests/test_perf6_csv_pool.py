@@ -656,11 +656,12 @@ def test_gzip_bytes_do_not_depend_on_the_writes() -> None:
         sink.finish()
         outs.append(f.getvalue())
     assert len(set(outs)) == 1 and gzip.decompress(outs[0]) == data
-    # feeding zlib one compress() per write (as before) depends on the writes
+    # feeding zlib one compress() per write (as before) may depend on the writes: it does with Windows' zlib, not
+    # with every zlib build (Debian's gives the same bytes here) -- the _Sink above never depends on them
     z1, z2 = (zlib.compressobj(writer.GZIP_LEVEL, zlib.DEFLATED, 31) for _ in range(2))
     a = z1.compress(data) + z1.flush()
     b = b"".join(z2.compress(data[i:i + 4099]) for i in range(0, len(data), 4099)) + z2.flush()
-    assert a != b and gzip.decompress(a) == gzip.decompress(b) == data
+    assert gzip.decompress(a) == gzip.decompress(b) == data
     plain = io.BytesIO()
     writer._Sink(plain).write(b"abc")
     assert plain.getvalue() == b"abc"

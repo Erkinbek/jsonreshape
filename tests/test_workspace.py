@@ -289,6 +289,7 @@ def test_report_text_is_one_line(lang_uz) -> None:
     text = wsm.report_text(report)
     assert text == ("Oxirgi sessiya tiklandi: 2 ta fayl. 4 ta fayl topilmadi va ochilmadi: a.json, b.json, c.json "
                     "va yana 1 ta.")
-    ws = wsm.RestoreReport("workspace", opened=[1], pending_edits=1, path="C:\\w\\loyiha.jrworkspace")
+    ws = wsm.RestoreReport("workspace", opened=[1], pending_edits=1,
+                           path=os.path.join(os.path.abspath("w"), "loyiha.jrworkspace"))   # (this system's path)
     assert wsm.report_text(ws).startswith("Workspace ochildi: loyiha.jrworkspace (1 ta fayl). 1 ta faylda")
     assert "\n" not in wsm.report_text(ws)

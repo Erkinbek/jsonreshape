@@ -272,7 +272,15 @@ def test_argparse_message_table_covers_this_python() -> None:
                 if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
                     msgids.add(arg.value)
     developer_errors = {'argument "-" with mode %r', "conflicting option string: %s",
-                        "conflicting option strings: %s"}
+                        "conflicting option strings: %s",
+                        # raised while a parser is built wrongly; Python 3.12 still wraps them in _() (3.13+ not)
+                        "%r is not callable", "'required' is an invalid argument for positionals",
+                        ".__call__() not defined", "cannot have multiple subparser arguments",
+                        "cannot merge actions - two groups are named %r", "conflicting subparser alias: %s",
+                        "conflicting subparser: %s", "dest= is required for options like %r",
+                        "invalid conflict_resolution value: %r",
+                        "invalid option string %(option)r: must start with a character %(prefix_chars)r",
+                        "mutually exclusive arguments must be optional"}
     missing = sorted(m for m in msgids - developer_errors if m not in cli.ARGPARSE_MESSAGES)
     assert not missing, missing
     for key in set(cli.ARGPARSE_MESSAGES.values()):

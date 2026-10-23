@@ -354,6 +354,7 @@ def test_s1_rj_partial_hash_crash_before_replace(tmp_path, template, had_bak) ->
         doc.close()
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="a Windows sharing violation (winerror 32)")
 def test_s1_rj_failed_save_then_finish(tmp_path, template, monkeypatch) -> None:
     """The replace fails (the file is held by another program) and removing the new ``.bak`` link fails
     too: the journal stays, the temp file is gone. "Finish" later must keep the layer."""

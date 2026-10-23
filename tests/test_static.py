@@ -240,10 +240,12 @@ def test_format_environment_is_localized(lang_uz) -> None:
 def test_environment_check_imports_no_network_modules() -> None:
     code = (
         "import sys, json\n"
+        "import psutil\n"           # (a dependency; on Linux it imports socket for its constants, no network use)
+        "before = set(sys.modules)\n"
         "from jsonreshape.env import check_environment, format_environment\n"
         "info = check_environment()\n"
         "format_environment(info)\n"
-        "bad = sorted(m for m in sys.modules if m.split('.')[0] in "
+        "bad = sorted(m for m in set(sys.modules) - before if m.split('.')[0] in "
         "('socket', 'ssl', 'requests', 'urllib3', 'httpx') or m in ('urllib.request', 'http.client'))\n"
         "print(json.dumps(bad))\n"
     )

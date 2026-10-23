@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fs_helpers import case_folds
 
 import jsongen
 from jsonreshape import cli, codec, i18n
@@ -209,7 +210,9 @@ def test_dupes_output_file(run, src: Path, tmp_path: Path) -> None:
 def test_dupes_output_checks(run, src: Path, tmp_path: Path, monkeypatch) -> None:
     before = src.read_bytes()
     monkeypatch.chdir(tmp_path)
-    for target in (src, str(src).upper(), "people.json", "./sub/../PEOPLE.JSON"):
+    # another spelling of the same name only where the file system folds case (NTFS, APFS)
+    upper = [str(src).upper(), "./sub/../PEOPLE.JSON"] if case_folds(tmp_path) else []
+    for target in (src, "people.json", "./sub/../people.json", *upper):
         r = run("dupes", src, "--key", "id", "-o", target)
         assert r.code == 1 and "manba faylning o'ziga" in r.err, target
     assert src.read_bytes() == before

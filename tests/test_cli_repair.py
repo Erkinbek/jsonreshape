@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fs_helpers import case_folds
 
 from jsonreshape import cli, codec, i18n
 from jsonreshape.errors import JsonReshapeError
@@ -270,7 +271,9 @@ def test_repair_gzip_and_utf16_sources(run, tmp_path: Path) -> None:
 # ----------------------------------------------------------------------------------
 def test_repair_never_writes_over_the_input(run, broken: Path, tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
-    for target in (broken, str(broken).upper(), "broken.json", "./x/../BROKEN.JSON"):
+    # another spelling of the same name only where the file system folds case (NTFS, APFS)
+    upper = [str(broken).upper(), "./x/../BROKEN.JSON"] if case_folds(tmp_path) else []
+    for target in (broken, "broken.json", "./x/../broken.json", *upper):
         r = run("repair", broken, target)
         assert r.code == 1 and "manba faylning o'ziga" in r.err, target
     assert broken.read_bytes() == BROKEN
@@ -282,12 +285,15 @@ def test_repair_report_never_overwrites_the_input(run, broken: Path, tmp_path: P
     calls: list[Any] = []
     monkeypatch.setattr(repair_mod, "repair_file", lambda *a, **k: calls.append(a))
     monkeypatch.chdir(tmp_path)
-    for target in (broken, str(broken).upper(), "broken.json", "./sub/../Broken.Json"):
+    folds = case_folds(tmp_path)
+    # another spelling of the same name only where the file system folds case (NTFS, APFS)
+    upper = [str(broken).upper(), "./sub/../Broken.Json"] if folds else []
+    for target in (broken, "broken.json", "./sub/../broken.json", *upper):
         r = run("repair", broken, "fixed.json", "--report", target)
         assert r.code == 1 and "manba faylning o'ziga" in r.err, target
         r = run("repair", broken, "--check", "--report", target)
         assert r.code == 1, target
-    r = run("repair", broken, "fixed.json", "--report", "FIXED.JSON")
+    r = run("repair", broken, "fixed.json", "--report", "FIXED.JSON" if folds else "./fixed.json")
     assert r.code == 1 and "Hisobot fayli ta'mirlangan faylning o'zi" in r.err
     r = run("repair", broken, "fixed.json", "--report", "fixes.txt")
     assert r.code == 1 and ".csv, .json, .jsonl" in r.err

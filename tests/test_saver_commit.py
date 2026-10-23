@@ -292,6 +292,7 @@ def test_fallback_undo_failure_names_the_original(tmp_path, docs, lang_en) -> No
     assert store.calls[-1] is None
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="a Windows sharing violation (winerror 32)")
 def test_target_in_use_undoes_the_backup(tmp_path, docs, monkeypatch, lang_en) -> None:
     doc, ob = edited(tmp_path, docs)
     src = doc.source_path

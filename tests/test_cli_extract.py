@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fs_helpers import case_folds
 
 import jsongen
 from jsonreshape import cli, codec, i18n
@@ -236,7 +237,9 @@ def test_convert_node(run, src: Path, tmp_path: Path, monkeypatch) -> None:
 def test_extract_output_checks(run, src: Path, tmp_path: Path, monkeypatch) -> None:
     before = src.read_bytes()
     monkeypatch.chdir(tmp_path)
-    for target in (src, str(src).upper(), "people.json"):
+    # another spelling of the same name only where the file system folds case (NTFS, APFS)
+    upper = [str(src).upper()] if case_folds(tmp_path) else []
+    for target in (src, "people.json", *upper):
         r = run("extract", src, target, "--gather", "orders[*]")
         assert r.code == 1 and "manba faylning o'ziga" in r.err
     assert src.read_bytes() == before

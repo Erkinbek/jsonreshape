@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fs_helpers import case_folds
 
 import jsongen
 from jsonreshape import cli, codec, i18n
@@ -249,7 +250,9 @@ def test_merge_never_overwrites_an_input(run, inputs: tuple[Path, Path, Path], t
     a, b, _c = inputs
     before = a.read_bytes()
     monkeypatch.chdir(tmp_path)
-    for target in (a, str(a).upper(), "a.json", "./x/../A.JSON"):
+    # another spelling of the same name only where the file system folds case (NTFS, APFS)
+    upper = [str(a).upper(), "./x/../A.JSON"] if case_folds(tmp_path) else []
+    for target in (a, "a.json", "./x/../a.json", *upper):
         r = run("merge", a, b, "-o", target)
         assert r.code == 1 and "manba faylning o'ziga" in r.err, target
     assert a.read_bytes() == before

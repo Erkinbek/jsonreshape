@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from fs_helpers import case_folds
 
 import jsongen
 from jsonreshape import cli, codec, i18n
@@ -196,7 +197,9 @@ def test_schema_of_other_document_kinds(run, tmp_path: Path, kind: str) -> None:
 def test_schema_output_checks_and_gzip(run, src: Path, tmp_path: Path, monkeypatch) -> None:
     before = src.read_bytes()
     monkeypatch.chdir(tmp_path)
-    for target in (src, str(src).upper(), "people.json"):
+    # another spelling of the same name only where the file system folds case (NTFS, APFS)
+    upper = [str(src).upper()] if case_folds(tmp_path) else []
+    for target in (src, "people.json", *upper):
         r = run("schema", src, target)
         assert r.code == 1 and "manba faylning o'ziga" in r.err
     assert src.read_bytes() == before
@@ -358,9 +361,11 @@ def test_validate_schema_errors_before_the_input_is_read(run, src: Path, tmp_pat
 def test_validate_export_checks(run, src: Path, schema_file: Path, tmp_path: Path, monkeypatch) -> None:
     before = src.read_bytes(), schema_file.read_bytes()
     monkeypatch.chdir(tmp_path)
-    r = run("validate", src, "--schema", schema_file, "--export", str(schema_file).upper())
+    # another spelling of the same name only where the file system folds case (NTFS, APFS)
+    folds = case_folds(tmp_path)
+    r = run("validate", src, "--schema", schema_file, "--export", str(schema_file).upper() if folds else schema_file)
     assert r.code == 1 and "schema faylining o'zi" in r.err
-    for target in (src, "PEOPLE.JSON", "./people.json"):
+    for target in (src, "PEOPLE.JSON" if folds else "people.json", "./people.json"):
         r = run("validate", src, "--schema", schema_file, "--export", target)
         assert r.code == 1 and "manba faylning o'ziga" in r.err
     r = run("validate", src, "--schema", schema_file, "--export", "issues.txt")

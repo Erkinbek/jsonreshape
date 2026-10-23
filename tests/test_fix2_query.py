@@ -377,6 +377,7 @@ def _long_dir(base: Path) -> Path:
     return d
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="the Windows MAX_PATH limit (a process that is not long-path aware)")
 def test_n15_presets_and_history_create_long_folders(tmp_path: Path, monkeypatch) -> None:
     home = _long_dir(tmp_path) / "home"   # does not exist yet
     real_mkdir = os.mkdir
