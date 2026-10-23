@@ -570,7 +570,7 @@ def test_huge_and_deep_records(open_doc, out_dir: Path, lang_en) -> None:
     rp, rc = export_both(doc, out_dir / "a")
     assert rp.skipped == len(huge) and rp.warning_keys == rc.warning_keys == ["writer.warn.huge_skipped"]
     # a record too deep to decode in memory: skipped with automatic columns, streamed with explicit ones
-    deep = b"[" * 20000 + b"1" + b"]" * 20000
+    deep = b"[" * jsongen.TOO_DEEP + b"1" + b"]" * jsongen.TOO_DEEP
     doc2 = open_doc(data=b'[{"id": 1, "x": ' + deep + b'}, {"id": 2, "x": 5}]')
     rp = export(doc2, out_dir / "d.parquet", ExportOptions("parquet", columns=["id", "x"]))
     assert rp.records == 2 and columns(out_dir / "d.parquet")["id"] == [1, 2]

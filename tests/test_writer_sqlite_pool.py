@@ -111,7 +111,7 @@ def special_sqlite_records() -> list[bytes]:
         ' "s": "lone \\ud800 pair \\ud83d\\ude00", "\\udc00key": "k"}',
         '{"id": 3, "deep": ' + deep_obj + ', "deeparr": ' + deep_arr + ', "empty": {}, "e2": []}',
         '{"id": 4, "brackets": ' + many + ', "orders": [{"oid": 4}]}',
-        '{"id": 5, "toodeep": ' + "[" * 20000 + "0" + "]" * 20000 + "}",
+        '{"id": 5, "toodeep": ' + "[" * jsongen.TOO_DEEP + "0" + "]" * jsongen.TOO_DEEP + "}",
         '{"id": 6, "orders": [[1, [2, {"q": [3]}]], {"oid": "x", "items": [{"sku": 1}, {"sku": 2, "n": null}]}]}',
         '[1, [2, 3], {"in": "array record"}]',
         '"a scalar record"',

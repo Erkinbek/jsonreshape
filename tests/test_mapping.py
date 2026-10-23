@@ -763,7 +763,7 @@ def test_deep_recursive_data_without_recursion_errors(tmp_path: Path, lang_uz) -
 
 def test_deep_mapping_file_beyond_the_json_decoders() -> None:
     """A tree too deep for the C decoders (nested groups: linear size) is read iteratively."""
-    depth = 30000
+    depth = jsongen.TOO_DEEP // 2     # two JSON levels per group: the node and its "children" list
     root = MapNode(1, kind="object", is_root=True)
     cur = root
     for i in range(depth):

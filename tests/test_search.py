@@ -888,7 +888,7 @@ def test_undecodable_records_are_streamed(make_doc, monkeypatch: pytest.MonkeyPa
 
 @pytest.mark.slow
 def test_records_too_deep_for_the_decoder_are_streamed(make_doc) -> None:
-    depth = 20000
+    depth = jsongen.TOO_DEEP
     deep = b"[" * depth + b'"Toshkent"' + b"]" * depth
     raw = b'[{"a": "toshkent"}, ' + deep + b', {"b": ["toshkent"]}]'
     doc = make_doc([], raw=raw)

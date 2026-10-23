@@ -373,9 +373,9 @@ def test_deep_objects_in_table_exports(open_doc, out_dir: Path, lang_en) -> None
 
 @pytest.fixture
 def too_deep(open_doc):
-    """Three records; #1 is nested 50 000 levels (valid JSON the scanner accepts, but too
+    """Three records; #1 is nested jsongen.TOO_DEEP levels (valid JSON the scanner accepts, but too
     deep for codec.loads)."""
-    depth = 50_000
+    depth = jsongen.TOO_DEEP
     data = (b'[{"id":1,"x":"a"},{"id":2,"deep":' + b'{"a":' * depth + b'"needle"' + b"}" * depth
             + b'},{"id":3,"x":"c"}]')
     doc = open_doc(data, name="toodeep.json")
@@ -396,7 +396,7 @@ def test_records_too_deep_to_decode(too_deep, out_dir: Path, lang_en) -> None:
     rep = export(doc, out_dir / "e.csv", ExportOptions("csv", columns=["id", "deep"]))
     rows = read_csv(out_dir / "e.csv")
     assert [r[0] for r in rows[1:]] == ["1", "2", "3"] and rep.records == 3 and rep.warnings == []
-    assert rows[2][1] == '{"a":' * 50_000 + '"needle"' + "}" * 50_000      # compact JSON of the value
+    assert rows[2][1] == '{"a":' * jsongen.TOO_DEEP + '"needle"' + "}" * jsongen.TOO_DEEP      # compact JSON of the value
     rep = export(doc, out_dir / "e.xlsx", ExportOptions("xlsx", columns=["id", "x"]))
     assert sheet_rows(out_dir / "e.xlsx")[1:] == [[1, "a"], [2, None], [3, "c"]]
     rep = export(doc, out_dir / "d.sqlite", ExportOptions("sqlite"))

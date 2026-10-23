@@ -609,7 +609,7 @@ def test_deeply_nested_record_is_streamed_and_truncated(open_doc, monkeypatch) -
     streamed = []
     real = schema_mod._stream_into
     monkeypatch.setattr(schema_mod, "_stream_into", lambda *a: streamed.append(a[2]) or real(*a))
-    depth = 50_000      # below the scanner's depth limit, beyond what codec.loads decodes
+    depth = jsongen.TOO_DEEP      # below the scanner's depth limit, beyond what codec.loads decodes
     data = b'[{"a": 1}, ' + b"[" * depth + b"1" + b"]" * depth + b"]"
     doc = open_doc(data)
     s = infer_schema(doc)

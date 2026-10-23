@@ -621,7 +621,7 @@ def test_records_the_decoder_rejects_are_streamed(make_doc, monkeypatch) -> None
 
 @pytest.mark.slow
 def test_record_too_deep_for_the_json_parser(make_doc) -> None:
-    deep = b"[" * 25000 + b"1" + b"]" * 25000
+    deep = b"[" * jsongen.TOO_DEEP + b"1" + b"]" * jsongen.TOO_DEEP
     raw = b'[{"id":0,"x":"a"},{"id":1,"x":"b","deep":' + deep + b'},{"id":2,"x":"b"}]'
     doc = make_doc(raw=raw)
     with pytest.raises(codec.JsonDecodeError):

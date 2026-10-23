@@ -387,7 +387,7 @@ def test_numbers_in_long_or_deep_records(locate_core, make_doc, monkeypatch) -> 
     """A located number in a record longer than LOCATE_NUMBER_BYTES is confirmed by parsing:
     such a record could be too deep for codec.loads, and the streaming fallback reads
     numbers differently (1e400 -> 1E+400)."""
-    depth = 20000  # deeper than codec.loads accepts: streamed by search and reference alike
+    depth = jsongen.TOO_DEEP  # deeper than codec.loads accepts: streamed by search and reference alike
     deep = b"[" * depth + b'1e400, -0, "e4"' + b"]" * depth
     raw = b'[{"a": 1e400, "b": [-0, 1.10]}, ' + deep + b', {"c": "1e400"}]'
     doc = make_doc([], raw=raw)

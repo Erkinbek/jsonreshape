@@ -680,7 +680,7 @@ def test_json_equal_is_public() -> None:
 # ==================================================================================================
 # 7. validate: records that could not be validated
 # ==================================================================================================
-DEPTH = 20_000          # deeper than the decoder can parse: the record is "unreadable" (not validated)
+DEPTH = jsongen.TOO_DEEP  # deeper than the decoder can parse: the record is "unreadable" (not validated)
 
 
 @pytest.fixture

@@ -208,7 +208,7 @@ def xlsx_records() -> list[bytes]:
         '"a scalar record"',
         "null",
         "12345678901234567890",
-        '{"id": 5, "toodeep": ' + "[" * 20000 + "0" + "]" * 20000 + "}",
+        '{"id": 5, "toodeep": ' + "[" * jsongen.TOO_DEEP + "0" + "]" * jsongen.TOO_DEEP + "}",
         '{"id": 6, "brackets": [' + ",".join(["[]"] * (writer.POOL_SAFE_BRACKETS + 10)) + "]}",
     ]
     return [r.encode("utf-8") for r in raws]

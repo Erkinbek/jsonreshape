@@ -182,7 +182,7 @@ def special_records() -> list[bytes]:
     """Raw records: exact numbers, escapes and lone surrogates, a shallow record with many brackets (left to
     the calling thread), a record too deep for the json module (cannot be decoded in memory)."""
     many = b"[" + b",".join([b"[]"] * (writer.POOL_SAFE_BRACKETS + 10)) + b"]"
-    deep = b"[" * 20000 + b"1" + b"]" * 20000
+    deep = b"[" * jsongen.TOO_DEEP + b"1" + b"]" * jsongen.TOO_DEEP
     return [
         ('{"id": 1e400, "name": "Ўзбекистон o\'zbek oʻzbek", "score": 12345678901234567890, "active": -0.0,'
          ' "contact": {"phone": 1.10, "address": {"city": 0.1, "zip": -1e-400}}, "tags": ["a;b", "c,d"]}'
@@ -235,7 +235,7 @@ def test_special_records_both_backends(tmp_path, docs, fake_pool, backend, monke
     for make in OPTIONS:
         r1, _ = same(doc, make(), tmp_path)
         if make().columns is None:
-            assert "writer.warn.deep_skipped" in r1.warning_keys    # (the record of 20 000 levels)
+            assert "writer.warn.deep_skipped" in r1.warning_keys    # (the record of jsongen.TOO_DEEP levels)
     # gzip: the same compressed bytes
     same(doc, ExportOptions("csv", columns=SCALARS + SPECIAL), tmp_path, name="o.csv.gz")
     same(doc, ExportOptions("csv"), tmp_path, name="a.csv.gz")
